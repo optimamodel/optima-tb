@@ -24,7 +24,7 @@ class Project(object):
         return None
         
         
-    def runsim(self):
+    def runSim(self):
         ''' Run model using a selected parset and store/return results. '''
 
         results = model()        
