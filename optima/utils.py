@@ -5,6 +5,36 @@ from numpy import array
 from numbers import Number
 
 
+#%% A printing function for various levels of verbosity
+
+def printv(string, thisverbose=1, verbose=2, newline=True, indent=False):
+    '''
+    Optionally print a message and automatically indent. The idea is that
+    a global or shared "verbose" variable is defined, which is passed to
+    subfunctions, determining how much detail to print out.
+
+    The general idea is that verbose is an integer from 0-4 as follows:
+        0 = no printout whatsoever
+        1 = only essential warnings, e.g. suppressed exceptions
+        2 = standard printout
+        3 = extra debugging detail (e.g. printout on each iteration)
+        4 = everything possible (e.g. printout on each timestep)
+    
+    Thus a very important statement might be...
+        printv('WARNING, everything is wrong', 1, verbose)
+    ...whereas a much less important message might be...
+        printv('This is timestep %i' % i, 4, verbose)
+    '''
+    
+    if thisverbose>4 or verbose>4: print('WARNING: Verbosity should be from 0-4. This message: %i. Current: %i.' % (thisverbose, verbose))
+    if verbose>=thisverbose: # Only print if sufficiently verbose
+        indents = '  '*thisverbose*bool(indent) # Create automatic indenting
+        if newline: print(indents+str(string)) # Actually print
+        else: print(indents+str(string)), # Actually print
+    return None
+
+
+
 #%% Homebrew odict class
 
 class odict(OrderedDict):

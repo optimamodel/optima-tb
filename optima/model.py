@@ -1,7 +1,8 @@
 #%% Imports
 
-from utils import odict, OptimaException
+from utils import printv, odict, OptimaException
 from uuid import uuid4 as uuid
+from numpy import array
 
 
 
@@ -9,10 +10,10 @@ from uuid import uuid4 as uuid
 
 # Lightweight class to represent one compartment within a population.
 class Node(object):
-    def __init__(self, name='default', popsize=0):
+    def __init__(self, name = 'default', popsize = 0.0):
         self.name = name
         self.uid = uuid()
-        self.popsize = popsize
+        self.popsize = float(popsize)
         
     # Link this node to another (i.e. create a transition link).
     def makeLinkTo(self, other_node):
@@ -31,7 +32,7 @@ class Link(object):
 
 # A class to wrap up data for one population within model.
 class ModelPop(object): 
-    def __init__(self, name='default'):
+    def __init__(self, name = 'default'):
         self.name = name        
         self.nodes = odict()
         self.links = odict()
@@ -42,23 +43,39 @@ class ModelPop(object):
     # NOTE: Consider generalising this method for future diseases using compartmental model.
     def genCascade(self):
         for name in ['sus','vac','lte','lts','ltf','dse','rec','dead']:
-            self.nodes[name] = Node(name=name)
+            self.nodes[name] = Node(name = name)
         for couple in [('sus','vac'), ('sus','lte'), ('vac','lte'), ('lte','lts'), ('lte','ltf'),
                      ('lts','dse'), ('ltf','dse'), ('dse','rec'), ('dse','dead')]:
             self.links[couple[0]+'->'+couple[1]] = self.nodes[couple[0]].makeLinkTo(self.nodes[couple[1]])
+    
+    # Evolve model population characteristics by one timestep (defaulting as 1 year).
+    def stepForward(self, dt = 1.0):
+        for link in self.links:
+            pass
+            
+    # Loop through all nodes and print out current variable values.
+    def printCurrVars(self):
+        for oid in self.nodes:
+            print('[Pop: %s][Compartment: %s][Popsize: %f]' % (self.name, self.nodes[oid].name, self.nodes[oid].popsize))
+        
             
 
 #%% Model function (simulates epidemic dynamics)
 
-def model():
+def model(verbose = 2):
     ''' Processes the TB epidemiological model. '''
     
     #%% Setup
     
+    sim_settings = odict()
+    sim_settings['t'] = array([2000])
     m_pops = odict()
-    m_pops['kids'] = ModelPop(name='kids')
+    m_pops['kids'] = ModelPop(name = 'kids')
 
     #%% Run (i.e. evolve epidemic through time)
+
+    for oid in m_pops:
+        m_pops[oid].stepForward()
     
     #%% Collect and return raw results    
     
