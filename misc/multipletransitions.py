@@ -7,7 +7,7 @@ npeople = 100000 # Number of agents
 people = zeros((npeople,2)) # List of agends, tracking infection and vaccination status
 infrate = 0.75 # Infection rate
 vacrate = 0.25 # Vaccination probability
-bothallowed = True # Whether both infection and vaccination can happen
+bothallowed = False # Whether both infection and vaccination can happen
 for p in range(npeople): # Loop over people
     infmove = rand()
     vacmove = rand()
