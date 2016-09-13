@@ -1,9 +1,12 @@
 #%% Imports
 
 from utils import printv, odict, OptimaException
-from uuid import uuid4 as uuid
+from plotting import gridColorMap
+
 from numpy import array, append, zeros, arange
 from numpy.random import rand
+from pylab import subplots#, fill_between
+from copy import deepcopy as dcp
 
 
 
@@ -107,7 +110,7 @@ class ModelPop(object):
     # Pre-allocate variable arrays in nodes for faster processing.
     def preAllocate(self, sim_settings):
         for oid in self.nodes:
-            self.popsize = zeros(len(sim_settings['t_range']))
+            self.popsize = zeros(len(sim_settings['tvec']))
             
 
 #%% Model function (simulates epidemic dynamics)
@@ -118,7 +121,7 @@ def model(verbose = 2):
     #%% Setup
     
     sim_settings = odict()
-    sim_settings['t_range'] = arange(2017,2031)
+    sim_settings['tvec'] = arange(2017,2051)
     
     m_pops = odict()
     m_pops['kids'] = ModelPop(name = 'kids')
@@ -133,13 +136,44 @@ def model(verbose = 2):
     #%% Run (i.e. evolve epidemic through time)
 
     for oid in m_pops:
-        for t in sim_settings['t_range'][1:]:
+        for t in sim_settings['tvec'][1:]:
             print('Time: %.1f' % t)
             m_pops[oid].printNodeVars()
             m_pops[oid].stepForward()
     
     #%% Collect and return raw results    
     
-    return m_pops
+    return m_pops, sim_settings
 
-blah = model()
+
+
+#%% Test model function
+
+test_pops, sim_settings = model()
+
+for pop_oid in test_pops:
+    pop = test_pops[pop_oid]
+    
+    fig, ax = subplots(figsize=(10,8))
+    colors = gridColorMap(len(pop.nodes))
+    bottom = 0*sim_settings['tvec']
+    
+    for k in xrange(len(pop.nodes)):
+        node = pop.nodes[k]
+        top = bottom + node.popsize
+        
+        ax.fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[k], alpha=1, lw=0)
+        ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
+        bottom = dcp(top)
+        
+#    # Configure plot specifics
+#    legendsettings = {'loc':'upper left', 'bbox_to_anchor':(1.05, 1), 'fontsize':legendsize, 'title':'',
+#                      'frameon':False}
+    legendsettings = {'loc':'upper left'}
+    ax.set_title('Cascade - %s' % (pop.name))
+    ax.set_xlabel('Year')
+    ax.set_ylabel('People')
+    ax.set_xlim((sim_settings['tvec'][0], sim_settings['tvec'][-1]))
+    ax.set_ylim((0, max(top)))
+    cascadenames = [pop.nodes[oid].name for oid in pop.nodes]
+    ax.legend(cascadenames, **legendsettings) # Multiple entries, all populations
