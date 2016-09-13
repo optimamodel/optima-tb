@@ -3,10 +3,10 @@ Demonstrates rationale for combining potentially incompatible transition rates.
 """
 
 from pylab import zeros, rand
-npeople = 1000 # Number of agents
+npeople = 100000 # Number of agents
 people = zeros((npeople,2)) # List of agends, tracking infection and vaccination status
-infrate = 0.5 # Infection rate
-vacrate = 0.5 # Vaccination probability
+infrate = 0.75 # Infection rate
+vacrate = 0.25 # Vaccination probability
 bothallowed = True # Whether both infection and vaccination can happen
 for p in range(npeople): # Loop over people
     infmove = rand()
@@ -23,7 +23,7 @@ counts = zeros((2,2)) # Count how many people are in each state
 for p in range(npeople):
     i = people[p,0]
     j = people[p,1]
-    counts[i,j] += 1
+    counts[i,j] += 1./npeople
 print(counts)
         
     
