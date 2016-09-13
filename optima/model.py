@@ -14,9 +14,7 @@ class Node(object):
     def __init__(self, name = 'default', popsize = 0.0):
         self.name = name
         self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
-#        self.uid = uuid()
-        self.popsize = array([float(popsize)])   # Current number of people in compartment.
-#        self.pre_popsize = array([])    # Values of popsize for previous timesteps.
+        self.popsize = array([float(popsize)])   # Number of people in compartment.
         
     # Link this node to another (i.e. create a transition link).
     def makeLinkTo(self, other_node):
@@ -30,8 +28,6 @@ class Link(object):
     def __init__(self, node1, node2, transit_frac = 0.0):
         self.name1 = node1.name
         self.name2 = node2.name
-#        self.uid1 = node1.uid
-#        self.uid2 = node2.uid
         self.transit_frac = float(transit_frac)   # Fraction of compartment 1 to move to compartment 2 per year.
 
 # A class to wrap up data for one population within model.
@@ -54,26 +50,36 @@ class ModelPop(object):
     
     # Evolve model population characteristics by one timestep (defaulting as 1 year).
     def stepForward(self, dt = 1.0):
+        
         dpopsize = zeros(len(self.links))
+        
+        # First loop. Calculate value changes for next timestep.
         for k in xrange(len(self.links)):
-            dpopsize[k] = self.nodes[self.links[k].name1].popsize[self.t_index] * self.links[k].transit_frac * dt
+            
+            link = self.links[k]
+            node1 = self.nodes[link.name1]
+            node2 = self.nodes[link.name2]
+            ti = self.t_index
+            
+            dpopsize[k] = node1.popsize[ti] * link.transit_frac * dt
             
             # If not pre-allocated, extend the popsize array. Either way copy current value to the next position in the array.
-            if not len(self.nodes[self.links[k].name1].popsize) > self.t_index + 1:
-                self.nodes[self.links[k].name1].popsize = append(self.nodes[self.links[k].name1].popsize, 0.0)
-            if not len(self.nodes[self.links[k].name2].popsize) > self.t_index + 1:
-                self.nodes[self.links[k].name2].popsize = append(self.nodes[self.links[k].name2].popsize, 0.0)
-            if len(self.nodes[self.links[k].name1].popsize) <= self.t_index + 1 or len(self.nodes[self.links[k].name2].popsize) <= self.t_index + 1:
+            if not len(node1.popsize) > ti + 1:
+                node1.popsize = append(node1.popsize, 0.0)
+            if not len(node2.popsize) > ti + 1:
+                node2.popsize = append(node2.popsize, 0.0)
+            if len(node1.popsize) <= ti + 1 or len(node2.popsize) <= self.t_index + 1:
                 raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in a node.')
                 
-            self.nodes[self.links[k].name1].popsize[self.t_index+1] = self.nodes[self.links[k].name1].popsize[self.t_index]
-            self.nodes[self.links[k].name2].popsize[self.t_index+1] = self.nodes[self.links[k].name2].popsize[self.t_index]
+            node1.popsize[ti+1] = node1.popsize[ti]
+            node2.popsize[ti+1] = node2.popsize[ti]
         
-        # Move to the next timestep and adjust values.
-        self.t_index += 1
+        # Second loop. Apply value changes at next timestep.
         for k in xrange(len(self.links)):
-            self.nodes[self.links[k].name1].popsize[self.t_index] -= dpopsize[k]
-            self.nodes[self.links[k].name2].popsize[self.t_index] += dpopsize[k]
+            self.nodes[self.links[k].name1].popsize[self.t_index+1] -= dpopsize[k]
+            self.nodes[self.links[k].name2].popsize[self.t_index+1] += dpopsize[k]
+            
+        self.t_index += 1       # Update timestep index.
             
     # Loop through all nodes and print out current variable values.
     def printNodeVars(self, full = False):
@@ -127,7 +133,6 @@ def model(verbose = 2):
     #%% Run (i.e. evolve epidemic through time)
 
     for oid in m_pops:
-        m_pops[oid].makeRandomVars(for_node = False, for_link = True)
         for t in sim_settings['t_range'][1:]:
             print('Time: %.1f' % t)
             m_pops[oid].printNodeVars()
@@ -136,3 +141,5 @@ def model(verbose = 2):
     #%% Collect and return raw results    
     
     return m_pops
+
+blah = model()
