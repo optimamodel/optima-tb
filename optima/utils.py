@@ -5,6 +5,32 @@ from numpy import array
 from numbers import Number
 
 
+#%% Timing functions
+
+def tic():
+    '''
+    First in a pair of functions for calculating time difference, similar to MATLAB...
+    t = tic()
+    toc(t)
+    '''
+    from time import time
+    return time()
+
+def toc(start=0, label='', sigfigs=3):
+    '''
+    Second in a pair of functions for calculating time difference, similar to MATLAB...
+    t = tic()
+    toc(t)
+    '''
+    from time import time
+    elapsed = time() - start
+    if label=='': base = 'Elapsed time: '
+    else: base = 'Elapsed time for %s: ' % label
+    print(base + '%.*f s' % (sigfigs, elapsed))
+    return None
+
+
+
 #%% A printing function for various levels of verbosity
 
 def printv(string, thisverbose=1, verbose=2, newline=True, indent=False):

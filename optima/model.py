@@ -1,6 +1,6 @@
 #%% Imports
 
-from utils import odict, OptimaException
+from utils import tic, toc, odict, OptimaException
 from settings import Settings
 from plotting import gridColorMap
 
@@ -118,7 +118,8 @@ def model(settings):
     #%% Setup
     
     sim_settings = odict()
-    sim_settings['tvec'] = arange(2017,2051)
+    dt = 0.25
+    sim_settings['tvec'] = arange(2000, 2030+dt/2, dt)
     
     m_pops = odict()
     m_pops['kids'] = ModelPop(settings = settings, name = 'kids')
@@ -134,9 +135,9 @@ def model(settings):
     for oid in m_pops:
         for t in sim_settings['tvec'][1:]:
 #            print('Time: %.1f' % t)
-            m_pops[oid].stepForward()
+            m_pops[oid].stepForward(dt = 0.25)
         m_pops[oid].printLinkVars()
-        m_pops[oid].printNodeVars(full = True)
+#        m_pops[oid].printNodeVars(full = True)
     
     #%% Collect and return raw results    
     
@@ -146,9 +147,17 @@ def model(settings):
 
 #%% Test model function
 
-settings = Settings(spreadsheet_path = './cascade-simple.xlsx')
-test_pops, sim_settings = model(settings = settings)
+tt = tic()
+t1 = tic()
+#settings = Settings(spreadsheet_path = './cascade-simple.xlsx')
+settings = Settings()
+toc(t1, label = 'loading settings')
 
+t2 = tic()
+test_pops, sim_settings = model(settings = settings)
+toc(t2, label = 'running model')
+
+t3 = tic()
 for pop_oid in test_pops:
     pop = test_pops[pop_oid]
     
@@ -175,3 +184,6 @@ for pop_oid in test_pops:
     ax.set_ylim((0, max(top)))
     cascadenames = [pop.nodes[oid].name for oid in pop.nodes]
     ax.legend(cascadenames, **legendsettings)
+toc(t3, label = 'plotting')
+
+toc(tt, label = 'entire process')
