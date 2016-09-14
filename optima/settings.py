@@ -83,5 +83,3 @@ class Settings(object):
         # Make sure every transition has a unique spreadsheet label.
         if len(set(self.links[:])) != len(self.links[:]):
             raise OptimaException('ERROR: Cascade transitions worksheet appears to have duplicate labels for compartment links.')
-                    
-test = Settings(spreadsheet_path = './cascade-simple.xlsx')

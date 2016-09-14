@@ -49,8 +49,8 @@ class ModelPop(object):
     def genCascade(self, settings):
         for label in settings.node_labels:
             self.nodes[label] = Node(name = label)
-        for specs in [('sus','vac'), ('sus','lte'), ('vac','lte'), ('lte','ltsu'), ('lte','ltfu'), ('ltsu','sus'), ('ltfu','sus'), ('ltsu','s+e'), ('ltfu','s+e'), ('s+e','rec'), ('s+e','dead'), ('rec','lte')]:
-            self.links[specs[0]+'->'+specs[1]] = self.nodes[specs[0]].makeLinkTo(self.nodes[specs[1]])
+        for pair in settings.links.keys():
+            self.links[pair[0]+'->'+pair[1]] = self.nodes[pair[0]].makeLinkTo(self.nodes[pair[1]])
     
     # Evolve model population characteristics by one timestep (defaulting as 1 year).
     def stepForward(self, dt = 1.0):
@@ -126,7 +126,6 @@ def model(settings):
     
     for oid in m_pops:
         m_pops[oid].makeRandomVars(for_node = False, for_link = True)
-        m_pops[oid].printLinkVars()
         m_pops[oid].nodes['sus'].popsize[0] = 1000000
         m_pops[oid].preAllocate(sim_settings)
 
@@ -134,9 +133,10 @@ def model(settings):
 
     for oid in m_pops:
         for t in sim_settings['tvec'][1:]:
-            print('Time: %.1f' % t)
-            m_pops[oid].printNodeVars()
+#            print('Time: %.1f' % t)
             m_pops[oid].stepForward()
+        m_pops[oid].printLinkVars()
+        m_pops[oid].printNodeVars(full = True)
     
     #%% Collect and return raw results    
     
@@ -146,7 +146,7 @@ def model(settings):
 
 #%% Test model function
 
-settings = Settings()
+settings = Settings(spreadsheet_path = './cascade-simple.xlsx')
 test_pops, sim_settings = model(settings = settings)
 
 for pop_oid in test_pops:
