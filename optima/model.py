@@ -115,7 +115,7 @@ class ModelPop(object):
 
 #%% Model function (simulates epidemic dynamics)
 
-def model(verbose = 2):
+def model():
     ''' Processes the TB epidemiological model. '''
     
     #%% Setup
@@ -166,9 +166,6 @@ for pop_oid in test_pops:
         ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
         bottom = dcp(top)
         
-#    # Configure plot specifics
-#    legendsettings = {'loc':'upper left', 'bbox_to_anchor':(1.05, 1), 'fontsize':legendsize, 'title':'',
-#                      'frameon':False}
     legendsettings = {'loc':'upper left'}
     ax.set_title('Cascade - %s' % (pop.name))
     ax.set_xlabel('Year')
