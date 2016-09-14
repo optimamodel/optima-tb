@@ -1,6 +1,6 @@
 #%% Imports
 
-from utils import OptimaException
+from utils import odict, OptimaException
 from xlrd import open_workbook
 
 
@@ -15,17 +15,22 @@ class Settings(object):
         
         self.node_labels = []
         self.node_names = []
+        self.links = odict()
         
         self.loadCascadeSettings(spreadsheet_path)
     
-    # Generates node and link settings based on cascade spreadsheet.
+    # Resets, then generates node and link settings based on cascade spreadsheet.
     def loadCascadeSettings(self, spreadsheet_path):
         self.node_labels = []
+        self.node_names = []
+        self.links = odict()
         
         try: workbook = open_workbook(spreadsheet_path)
         except: raise OptimaException('ERROR: Cannot find cascade sheet from which to load model structure.')
         ws_nodes = workbook.sheet_by_name('Compartments')
+        ws_links = workbook.sheet_by_name('Transitions')
         
+        # First sheet: Compartments
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
         cid_label = None
         cid_name = None
@@ -40,3 +45,43 @@ class Settings(object):
             if row_id > 0 and ws_nodes.cell_value(row_id, cid_label) not in ['']:
                 self.node_labels.append(str(ws_nodes.cell_value(row_id, cid_label)))
                 self.node_names.append(str(ws_nodes.cell_value(row_id, cid_name)))
+        
+        # Second sheet: Transitions
+        # Quality-assurance test for the spreadsheet format.
+        test = []
+        for row_id in xrange(ws_links.nrows):
+            val = ws_links.cell_value(row_id, 0)
+            if row_id > 0 and val not in ['']:
+                if val not in self.node_labels:
+                    raise OptimaException('ERROR: Cascade transitions worksheet has a row header (%s) that is not a known compartment code label.' % val)
+                test.append(val)
+        for label in self.node_labels:
+            if label not in test:
+                raise OptimaException('ERROR: Compartment code label (%s) is not represented in row headers of transitions worksheet.' % label)
+        test = []
+        for col_id in xrange(ws_links.ncols):
+            val = ws_links.cell_value(0, col_id)
+            if col_id > 0 and val not in ['']:
+                if val not in self.node_labels:
+                    raise OptimaException('ERROR: Cascade transitions worksheet has a column header (%s) that is not a known compartment code label.' % val)
+                test.append(val)
+        for label in self.node_labels:
+            if label not in test:
+                raise OptimaException('ERROR: Compartment code label (%s) is not represented in column headers of transitions worksheet.' % label)
+        
+        # Store linked compartment tuples as transitions.
+        test = [] 
+        for row_id in xrange(ws_links.nrows):
+            for col_id in xrange(ws_links.ncols):
+                if row_id > 0 and col_id > 0:
+                    n1 = str(ws_links.cell_value(row_id, 0))
+                    n2 = str(ws_links.cell_value(0, col_id))
+                    val = str(ws_links.cell_value(row_id, col_id))
+                    if not '' in [n1,n2,val]:
+                        self.links[(n1, n2)] = val
+        
+        # Make sure every transition has a unique spreadsheet label.
+        if len(set(self.links[:])) != len(self.links[:]):
+            raise OptimaException('ERROR: Cascade transitions worksheet appears to have duplicate labels for compartment links.')
+                    
+test = Settings(spreadsheet_path = './cascade-simple.xlsx')
