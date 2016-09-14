@@ -9,7 +9,7 @@ from numpy.random import rand
 from pylab import subplots#, fill_between
 from copy import deepcopy as dcp
 
-
+from collections import OrderedDict
 
 #%% Model compartment classes
 
@@ -38,8 +38,8 @@ class Link(object):
 class ModelPop(object): 
     def __init__(self, settings, name = 'default'):
         self.name = name        
-        self.nodes = odict()
-        self.links = odict()
+        self.nodes = OrderedDict()
+        self.links = OrderedDict()
         self.t_index = 0        # Keeps track of array index for current data within all nodes.
         
         self.genCascade(settings = settings)
@@ -57,9 +57,9 @@ class ModelPop(object):
         
         ti = self.t_index
         
-        # If not pre-allocated, extend node variable arrays. Either way copy current value to the next position in the array.        
-        for k in xrange(len(self.nodes)):
-            node = self.nodes[k]
+        # If not pre-allocated, extend node variable arrays. Either way copy current value to the next position in the array.
+        for oid in self.nodes:
+            node = self.nodes[oid]
             if not len(node.popsize) > ti + 1:
                 node.popsize = append(node.popsize, 0.0)
             if not len(node.popsize) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
@@ -69,15 +69,20 @@ class ModelPop(object):
         dpopsize = zeros(len(self.links))        
         
         # First loop. Calculate value changes for next timestep.
-        for k in xrange(len(self.links)):
-            link = self.links[k]
+        k = 0
+        for oid in self.links:
+            link = self.links[oid]
             node1 = self.nodes[link.name1]
             dpopsize[k] = node1.popsize[ti] * link.transit_frac * dt    # NOTE: Should this just be times dt...?
+            k += 1
 
         # Second loop. Apply value changes at next timestep.
-        for k in xrange(len(self.links)):
-            self.nodes[self.links[k].name1].popsize[ti+1] -= dpopsize[k]
-            self.nodes[self.links[k].name2].popsize[ti+1] += dpopsize[k]
+        k = 0
+        for oid in self.links:
+            link = self.links[oid]
+            self.nodes[link.name1].popsize[ti+1] -= dpopsize[k]
+            self.nodes[link.name2].popsize[ti+1] += dpopsize[k]
+            k += 1
             
         self.t_index += 1       # Update timestep index.
             
@@ -117,11 +122,11 @@ def model(settings):
     
     #%% Setup
     
-    sim_settings = odict()
+    sim_settings = OrderedDict()
     dt = 0.25
     sim_settings['tvec'] = arange(2000, 2030+dt/2, dt)
     
-    m_pops = odict()
+    m_pops = OrderedDict()
     m_pops['kids'] = ModelPop(settings = settings, name = 'kids')
     m_pops['adults'] = ModelPop(settings = settings, name = 'adults')
     
@@ -165,19 +170,21 @@ for pop_oid in test_pops:
     colors = gridColorMap(len(pop.nodes))
     bottom = 0*sim_settings['tvec']
     
-    for k in xrange(len(pop.nodes)):
-        node = pop.nodes[k]
+    k = 0
+    for oid in pop.nodes:
+        node = pop.nodes[oid]
         top = bottom + node.popsize
         
         ax.fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[k], alpha=1, lw=0)
         ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
         bottom = dcp(top)
+        k += 1
     
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
     
     legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5)}
-    ax.set_title('Cascade - %s' % (pop.name))
+    ax.set_title('Cascade - %s' % (pop.name.title()))
     ax.set_xlabel('Year')
     ax.set_ylabel('People')
     ax.set_xlim((sim_settings['tvec'][0], sim_settings['tvec'][-1]))
