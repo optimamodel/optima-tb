@@ -116,8 +116,8 @@ class ModelPop(object):
                 
     # Pre-allocate variable arrays in nodes for faster processing.
     def preAllocate(self, sim_settings):
-        for node in self.nodes:
-            node.popsize = zeros(len(sim_settings['tvec']))
+        print('CK: I think this is wrong')
+        self.popsize = zeros(len(sim_settings['tvec']))
             
 
 #%% Model function (simulates epidemic dynamics)
