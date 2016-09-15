@@ -71,15 +71,21 @@ class Project(object):
         return results
         
         
+    def makeSpreadsheet(self):
+        ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
+        
+        pass
+        
+        
         
 #%% Test project functionality
 tt = tic()
 ts1 = tic()
 p1 = Project(name = 'simple-test', cascade_path = './cascade-simple.xlsx')
 toc(ts1, label = 'creating %s project' % p1.name)
+p1.runSim()
 ts2 = tic()
 p2 = Project(name = 'standard-test')
 toc(ts2, label = 'creating %s project' % p2.name)
-p1.runSim()
 p2.runSim()
 toc(tt, label = 'entire process')

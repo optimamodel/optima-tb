@@ -52,7 +52,7 @@ class ModelPop(object):
     # NOTE: Consider generalising this method for future diseases using compartmental model.
     def genCascade(self, settings):
         ''' Generate standard cascade, creating a node for each compartment and linking them appropriately. '''
-        for l,label in enumerate(settings.node_labels):
+        for l, label in enumerate(settings.node_labels):
             self.nodes.append(Node(name=label, index=l))
             self.node_ids[label] = l
         for pair in settings.links.keys():
