@@ -8,7 +8,7 @@ from xlrd import open_workbook
 #%% Settings class (for data that is effectively static per epidemic context)
 
 class Settings(object):
-    def __init__(self, spreadsheet_path = './cascade.xlsx'):
+    def __init__(self, cascade_path = './cascade.xlsx'):
 #        self.dt = 0.2           # Timestep
 #        self.start = 2000.0     # Default start year
 #        self.end = 2030.0       # Default end year
@@ -17,15 +17,15 @@ class Settings(object):
         self.node_names = []
         self.links = odict()
         
-        self.loadCascadeSettings(spreadsheet_path)
+        self.loadCascadeSettings(cascade_path)
     
     # Resets, then generates node and link settings based on cascade spreadsheet.
-    def loadCascadeSettings(self, spreadsheet_path):
+    def loadCascadeSettings(self, cascade_path):
         self.node_labels = []
         self.node_names = []
         self.links = odict()
         
-        try: workbook = open_workbook(spreadsheet_path)
+        try: workbook = open_workbook(cascade_path)
         except: raise OptimaException('ERROR: Cannot find cascade sheet from which to load model structure.')
         ws_nodes = workbook.sheet_by_name('Compartments')
         ws_links = workbook.sheet_by_name('Transitions')

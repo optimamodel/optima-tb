@@ -1,13 +1,11 @@
 #%% Imports
 
-from utils import tic, toc, odict, OptimaException
-from settings import Settings
-from plotting import gridColorMap
+from utils import odict, OptimaException
 
 from numpy import array, append, zeros, ones, arange
 from numpy.random import rand
-from pylab import subplots#, fill_between
-from copy import deepcopy as dcp
+
+
 
 #%% Model compartment classes
 
@@ -151,49 +149,3 @@ def model(settings):
     #%% Collect and return raw results    
     
     return m_pops, sim_settings
-
-
-
-#%% Test model function
-
-tt = tic()
-t1 = tic()
-#settings = Settings(spreadsheet_path = './cascade-simple.xlsx')
-settings = Settings()
-toc(t1, label = 'loading settings')
-
-t2 = tic()
-test_pops, sim_settings = model(settings = settings)
-toc(t2, label = 'running model')
-
-t3 = tic()
-for pop_oid in test_pops:
-    pop = test_pops[pop_oid]
-    
-    fig, ax = subplots(figsize=(15,10))
-    colors = gridColorMap(len(pop.nodes))
-    bottom = 0*sim_settings['tvec']
-    
-    k = 0
-    for node in pop.nodes:
-        top = bottom + node.popsize
-        
-        ax.fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[k], alpha=1, lw=0)
-        ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
-        bottom = dcp(top)
-        k += 1
-    
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
-    
-    legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5)}
-    ax.set_title('Cascade - %s' % (pop.name.title()))
-    ax.set_xlabel('Year')
-    ax.set_ylabel('People')
-    ax.set_xlim((sim_settings['tvec'][0], sim_settings['tvec'][-1]))
-    ax.set_ylim((0, max(top)))
-    cascadenames = [node.name for node in pop.nodes]
-    ax.legend(cascadenames, **legendsettings)
-toc(t3, label = 'plotting')
-
-toc(tt, label = 'entire process')
