@@ -144,7 +144,7 @@ def model(settings):
         for t in sim_settings['tvec'][1:]:
 #            print('Time: %.1f' % t)
             m_pops[oid].stepForward(dt = 0.25)
-        m_pops[oid].printLinkVars()
+#        m_pops[oid].printLinkVars()
 #        m_pops[oid].printNodeVars(full = True)
     
     #%% Collect and return raw results    
