@@ -1,7 +1,11 @@
 #%% Imports
 
 from utils import odict, OptimaException
-from xlrd import open_workbook
+
+import xlrd
+import networkx as nx
+import pylab as pl
+import numpy as np
 
 
 
@@ -20,13 +24,15 @@ class Settings(object):
         
         self.loadCascadeSettings(cascade_path)
     
-    # Resets, then generates node and link settings based on cascade spreadsheet.
+    
     def loadCascadeSettings(self, cascade_path):
+        ''' Resets, then generates node and link settings based on cascade spreadsheet. '''
+        
         self.node_labels = []
         self.node_names = []
         self.links = odict()
         
-        try: workbook = open_workbook(cascade_path)
+        try: workbook = xlrd.open_workbook(cascade_path)
         except: raise OptimaException('ERROR: Cannot find cascade workbook from which to load model structure.')
         ws_nodes = workbook.sheet_by_name('Compartments')
         ws_links = workbook.sheet_by_name('Transitions')
@@ -105,7 +111,32 @@ class Settings(object):
                 if tag not in self.links:
                     raise OptimaException('ERROR: Cascade transition-parameter worksheet has a tag (%s) that is not in the transition matrix.' % tag)
                 self.par_specs[label] = {'tag':tag, 'name':name}
-        for tag in self.links:
+        for tag in self.links.keys():
             if tag not in [x['tag'] for x in self.par_specs[:]]:
                 raise OptimaException('ERROR: Transition matrix tag (%s) is not represented in transition-parameter worksheet.' % tag)
+    
+    
+    def plotCascade(self):
+        fig, ax = pl.subplots(figsize=(10,10))
+        G = nx.DiGraph()
+        G.add_nodes_from(self.node_labels)
+        G.add_edges_from(self.links[:])
+
+        # Arrange cascade out in a circle.
+        pos = {}
+        num_nodes = len(self.node_labels)
+        k = 0
+        for node in self.node_labels:
+            pos[node] = (np.sin(2.0*np.pi*k/num_nodes), np.cos(2.0*np.pi*k/num_nodes))
+            k += 1
         
+        # Generate edge label dictionary with tags from spreadsheet.
+        el = {}
+        for par_name in self.par_specs.keys():
+            el[self.links[self.par_specs[par_name]['tag']]] = self.par_specs[par_name]['tag']
+        print el
+
+        nx.draw_networkx(G, pos, node_size = 1250, node_color = 'w')
+        nx.draw_networkx_edge_labels(G, pos, edge_labels = el, label_pos = 0.25, font_size = 14)
+        pl.axis('equal')
+        pl.show()

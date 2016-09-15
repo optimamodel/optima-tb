@@ -5,8 +5,8 @@ from model import model
 from settings import Settings
 from plotting import gridColorMap
 
+import pylab as pl
 from uuid import uuid4 as uuid
-from pylab import subplots
 from copy import deepcopy as dcp
 
 
@@ -42,7 +42,7 @@ class Project(object):
         for pop_oid in results:
             pop = results[pop_oid]
             
-            fig, ax = subplots(figsize=(15,10))
+            fig, ax = pl.subplots(figsize=(15,10))
             colors = gridColorMap(len(pop.nodes))
             bottom = 0*sim_settings['tvec']
             
@@ -89,3 +89,5 @@ r1 = p1.runSim()
 #toc(ts2, label = 'creating %s project' % p2.name)
 #p2.runSim()
 toc(tt, label = 'entire process')
+
+p1.settings.plotCascade()
