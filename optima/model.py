@@ -38,8 +38,8 @@ class Link(object):
 class ModelPop(object): 
     def __init__(self, settings, name = 'default'):
         self.name = name        
-        self.nodes = OrderedDict()
-        self.links = OrderedDict()
+        self.nodes = odict()
+        self.links = odict()
         self.t_index = 0        # Keeps track of array index for current data within all nodes.
         
         self.genCascade(settings = settings)
