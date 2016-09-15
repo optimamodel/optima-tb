@@ -4,7 +4,7 @@ from utils import tic, toc, odict, OptimaException
 from settings import Settings
 from plotting import gridColorMap
 
-from numpy import array, append, zeros, arange
+from numpy import array, append, zeros, ones, arange
 from numpy.random import rand
 from pylab import subplots#, fill_between
 from copy import deepcopy as dcp
@@ -41,14 +41,14 @@ class ModelPop(object):
         self.name = name        
         self.nodes = list()
         self.links = list()
-        self.nodeDict = dict()
+        self.node_ids = dict()  # Maps node label to positional index in nodes list.
         self.t_index = 0        # Keeps track of array index for current data within all nodes.
         
         self.genCascade(settings = settings)
     
     def getnode(self, node_name):
         ''' Allow nodes to be retrieved by name rather than index '''
-        node_index = self.nodeDict[node_name]
+        node_index = self.node_ids[node_name]
         return self.nodes[node_index]
         
     # NOTE: Consider generalising this method for future diseases using compartmental model.
@@ -56,10 +56,10 @@ class ModelPop(object):
         ''' Generate standard cascade, creating a node for each compartment and linking them appropriately. '''
         for l,label in enumerate(settings.node_labels):
             self.nodes.append(Node(name=label, index=l))
-            self.nodeDict[label] = l
+            self.node_ids[label] = l
         for pair in settings.links.keys():
-            node_from = self.nodeDict[pair[0]]
-            node_to = self.nodeDict[pair[1]]
+            node_from = self.node_ids[pair[0]]
+            node_to = self.node_ids[pair[1]]
             self.links.append(self.nodes[node_from].makeLinkTo(self.nodes[node_to]))
     
     def stepForward(self, dt = 1.0):
@@ -113,9 +113,10 @@ class ModelPop(object):
                 link.transit_frac = rand()/self.nodes[link.index_from].num_outlinks     # Scaling makes sure fractions leaving a node sum to less than 1.
                 
     def preAllocate(self, sim_settings):
-        ''' Pre-allocate variable arrays in nodes for faster processing. '''
-        print('CK: I think this is wrong')
-        self.popsize = zeros(len(sim_settings['tvec']))
+        ''' Pre-allocate variable arrays in nodes for faster processing. Array is pre-filled with initial value. '''
+        for node in self.nodes:
+            init_popsize = node.popsize[0]
+            node.popsize = ones(len(sim_settings['tvec']))*init_popsize
             
 
 #%% Model function (simulates epidemic dynamics)
