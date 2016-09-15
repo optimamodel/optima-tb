@@ -118,7 +118,7 @@ class odict(OrderedDict):
         
     def __setitem__(self, key, value):
         ''' Allows setitem to support strings, integers, slices, lists, or arrays '''
-        if isinstance(key in (str,tuple)):
+        if isinstance(key, (str,tuple)):
             OrderedDict.__setitem__(self, key, value)
         elif isinstance(key, Number): # Convert automatically from float...dangerous?
             thiskey = self.keys()[int(key)]
