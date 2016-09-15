@@ -55,7 +55,7 @@ class ModelPop(object):
         for l, label in enumerate(settings.node_labels):
             self.nodes.append(Node(name=label, index=l))
             self.node_ids[label] = l
-        for pair in settings.links.keys():
+        for pair in settings.links[:]:
             node_from = self.node_ids[pair[0]]
             node_to = self.node_ids[pair[1]]
             self.links.append(self.nodes[node_from].makeLinkTo(self.nodes[node_to]))

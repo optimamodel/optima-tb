@@ -15,8 +15,8 @@ class Settings(object):
         
         self.node_labels = []
         self.node_names = []
-        self.links = odict()
-        self.link_specs = odict()   # NOTE: The difference between links and link_specs is one tag. Is it necessary to not join the two?
+        self.links = odict()        # Key is a tag. Value is a compartment-label tuple.
+        self.par_specs = odict()    # Key is a parameter label. Value is a dict including link tag.
         
         self.loadCascadeSettings(cascade_path)
     
@@ -71,8 +71,7 @@ class Settings(object):
             if label not in test:
                 raise OptimaException('ERROR: Compartment code label (%s) is not represented in column headers of transitions worksheet.' % label)
         
-        # Store linked compartment tuples as transitions.
-        test = [] 
+        # Store linked compartment tuples by tag.
         for row_id in xrange(ws_links.nrows):
             for col_id in xrange(ws_links.ncols):
                 if row_id > 0 and col_id > 0:
@@ -80,11 +79,10 @@ class Settings(object):
                     n2 = str(ws_links.cell_value(0, col_id))
                     val = str(ws_links.cell_value(row_id, col_id))
                     if not '' in [n1,n2,val]:
-                        self.links[(n1, n2)] = val
-        
-        # Make sure every transition has a unique spreadsheet label.
-        if len(set(self.links[:])) != len(self.links[:]):
-            raise OptimaException('ERROR: Cascade transitions worksheet appears to have duplicate labels for compartment links.')
+                        if not val in self.links.keys():
+                            self.links[val] = (n1, n2)
+                        else:
+                            raise OptimaException('ERROR: Cascade transition matrix appears to have duplicate labels for compartment links.')
             
         # Third sheet: Transition Parameters
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
@@ -104,10 +102,10 @@ class Settings(object):
             label = str(ws_pars.cell_value(row_id, cid_label))
             name = str(ws_pars.cell_value(row_id, cid_name))
             if row_id > 0 and tag not in [''] and label not in ['']:
-                if tag not in self.links[:]:
+                if tag not in self.links:
                     raise OptimaException('ERROR: Cascade transition-parameter worksheet has a tag (%s) that is not in the transition matrix.' % tag)
-                self.link_specs[tag] = {'par_name':label,'full_name':name}
-        for tag in self.links[:]:
-            if tag not in self.link_specs:
+                self.par_specs[label] = {'tag':tag, 'name':name}
+        for tag in self.links:
+            if tag not in [x['tag'] for x in self.par_specs[:]]:
                 raise OptimaException('ERROR: Transition matrix tag (%s) is not represented in transition-parameter worksheet.' % tag)
         
