@@ -16,6 +16,7 @@ class Settings(object):
         self.node_labels = []
         self.node_names = []
         self.links = odict()
+        self.link_specs = odict()   # NOTE: The difference between links and link_specs is one tag. Is it necessary to not join the two?
         
         self.loadCascadeSettings(cascade_path)
     
@@ -26,9 +27,10 @@ class Settings(object):
         self.links = odict()
         
         try: workbook = open_workbook(cascade_path)
-        except: raise OptimaException('ERROR: Cannot find cascade sheet from which to load model structure.')
+        except: raise OptimaException('ERROR: Cannot find cascade workbook from which to load model structure.')
         ws_nodes = workbook.sheet_by_name('Compartments')
         ws_links = workbook.sheet_by_name('Transitions')
+        ws_pars = workbook.sheet_by_name('Transition Parameters')
         
         # First sheet: Compartments
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
@@ -83,3 +85,29 @@ class Settings(object):
         # Make sure every transition has a unique spreadsheet label.
         if len(set(self.links[:])) != len(self.links[:]):
             raise OptimaException('ERROR: Cascade transitions worksheet appears to have duplicate labels for compartment links.')
+            
+        # Third sheet: Transition Parameters
+        # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
+        cid_tag = None
+        cid_label = None
+        cid_name = None
+        for col_id in xrange(ws_pars.ncols):
+            if ws_pars.cell_value(0, col_id) == 'Tag': cid_tag = col_id
+            if ws_pars.cell_value(0, col_id) == 'Code Label': cid_label = col_id
+            if ws_pars.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+        if None in [cid_tag, cid_label, cid_name]:
+            raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
+        
+        # Store transition details in settings and make sure there is tag bijectivity between this sheet and the transition matrix.
+        for row_id in xrange(ws_pars.nrows):
+            tag = str(ws_pars.cell_value(row_id, cid_tag))
+            label = str(ws_pars.cell_value(row_id, cid_label))
+            name = str(ws_pars.cell_value(row_id, cid_name))
+            if row_id > 0 and tag not in [''] and label not in ['']:
+                if tag not in self.links[:]:
+                    raise OptimaException('ERROR: Cascade transition-parameter worksheet has a tag (%s) that is not in the transition matrix.' % tag)
+                self.link_specs[tag] = {'par_name':label,'full_name':name}
+        for tag in self.links[:]:
+            if tag not in self.link_specs:
+                raise OptimaException('ERROR: Transition matrix tag (%s) is not represented in transition-parameter worksheet.' % tag)
+        
