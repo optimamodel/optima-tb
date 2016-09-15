@@ -66,7 +66,7 @@ def printv(string, thisverbose=1, verbose=2, newline=True, indent=False):
 class odict(OrderedDict):
     '''
     An ordered dictionary, like the OrderedDict class, but supporting list methods like integer referencing, slicing, and appending.
-    Version: 2016feb09 (cliffk)
+    Version: 2016sep14 (cliffk)
     '''
 
     def __slicekey(self, key, slice_end):
@@ -94,7 +94,8 @@ class odict(OrderedDict):
                 else: errormsg = 'Key "%s" not found since odict is empty'% key
                 raise Exception(errormsg)
         elif isinstance(key, Number): # Convert automatically from float...dangerous?
-            return self.values()[int(key)]
+            thiskey = self.keys()[int(key)]
+            return OrderedDict.__getitem__(self,thiskey)
         elif type(key)==slice: # Handle a slice -- complicated
             try:
                 startind = self.__slicekey(key.start, 'start')
