@@ -9,8 +9,6 @@ from numpy.random import rand
 from pylab import subplots#, fill_between
 from copy import deepcopy as dcp
 
-from collections import OrderedDict
-
 #%% Model compartment classes
 
 # Lightweight class to represent one compartment within a population.
@@ -127,11 +125,11 @@ def model(settings):
     
     #%% Setup
     
-    sim_settings = OrderedDict()
+    sim_settings = odict()
     dt = 0.25
     sim_settings['tvec'] = arange(2000, 2030+dt/2, dt)
     
-    m_pops = OrderedDict()
+    m_pops = odict()
     m_pops['kids'] = ModelPop(settings = settings, name = 'kids')
     m_pops['adults'] = ModelPop(settings = settings, name = 'adults')
     
