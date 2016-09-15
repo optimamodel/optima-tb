@@ -11,23 +11,23 @@ from copy import deepcopy as dcp
 
 #%% Model compartment classes
 
-# Lightweight class to represent one compartment within a population.
 class Node(object):
+    ''' Lightweight class to represent one compartment within a population. '''
     def __init__(self, name='default', index=0, popsize=0.0):
         self.name = name
         self.index = index
         self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
         self.popsize = array([float(popsize)])   # Number of people in compartment.
         
-    # Link this node to another (i.e. create a transition link).
     def makeLinkTo(self, other_node):
+        ''' Link this node to another (i.e. create a transition link).'''
         if not isinstance(other_node, Node):
             raise OptimaException('ERROR: Attempting to link compartment to something that is not a compartment.')
         self.num_outlinks += 1
         return Link(self, other_node)
 
-# Lightweight class to represent unidirectional flow between two compartments within a population.
 class Link(object):
+    ''' Lightweight class to represent unidirectional flow between two compartments within a population. '''
     def __init__(self, node_from, node_to, transit_frac = 0.0):
         self.index_from = node_from.index
         self.index_to = node_to.index
@@ -35,8 +35,8 @@ class Link(object):
         self.name_to = node_to.name
         self.transit_frac = float(transit_frac)   # Fraction of compartment 1 to move to compartment 2 per year.
 
-# A class to wrap up data for one population within model.
 class ModelPop(object): 
+    ''' A class to wrap up data for one population within model. '''
     def __init__(self, settings, name = 'default'):
         self.name = name        
         self.nodes = list()
@@ -51,9 +51,9 @@ class ModelPop(object):
         node_index = self.nodeDict[node_name]
         return self.nodes[node_index]
         
-    # Generate standard cascade, creating a node for each compartment and linking them appropriately.
     # NOTE: Consider generalising this method for future diseases using compartmental model.
     def genCascade(self, settings):
+        ''' Generate standard cascade, creating a node for each compartment and linking them appropriately. '''
         for l,label in enumerate(settings.node_labels):
             self.nodes.append(Node(name=label, index=l))
             self.nodeDict[label] = l
@@ -62,8 +62,8 @@ class ModelPop(object):
             node_to = self.nodeDict[pair[1]]
             self.links.append(self.nodes[node_from].makeLinkTo(self.nodes[node_to]))
     
-    # Evolve model population characteristics by one timestep (defaulting as 1 year).
     def stepForward(self, dt = 1.0):
+        ''' Evolve model population characteristics by one timestep (defaulting as 1 year). '''
         
         ti = self.t_index
         
@@ -89,8 +89,8 @@ class ModelPop(object):
             
         self.t_index += 1       # Update timestep index.
             
-    # Loop through all nodes and print out current variable values.
     def printNodeVars(self, full=False):
+        ''' Loop through all nodes and print out current variable values. '''
         for node in self.nodes:
             if not full:
                 print('[Pop: %s][Node: %5s][Popsize: %15.4f]' % (self.name, node.name, node.popsize[self.t_index]))
@@ -98,13 +98,13 @@ class ModelPop(object):
                 print('[Pop: %s][Node: %5s][Popsize...]' % (self.name, node.name))
                 print(node.popsize)
 
-    # Loop through all nodes and print out current variable values.
     def printLinkVars(self):
+        ''' Loop through all nodes and print out current variable values. '''
         for link in self.links:
             print('[Pop: %s][%5s --> %-5s][Transit. Frac.: %5.4f]' % (self.name, link.name_from, link.name_to, link.transit_frac))
 
-    # Randomise all node and link variables. Method used primarily for debugging.
     def makeRandomVars(self, for_node = True, for_link = True):
+        ''' Randomise all node and link variables. Method used primarily for debugging. '''
         if for_node:
             for node in self.nodes:
                 node.popsize[self.t_index] = rand()*1e7
@@ -112,8 +112,8 @@ class ModelPop(object):
             for link in self.links:
                 link.transit_frac = rand()/self.nodes[link.index_from].num_outlinks     # Scaling makes sure fractions leaving a node sum to less than 1.
                 
-    # Pre-allocate variable arrays in nodes for faster processing.
     def preAllocate(self, sim_settings):
+        ''' Pre-allocate variable arrays in nodes for faster processing. '''
         print('CK: I think this is wrong')
         self.popsize = zeros(len(sim_settings['tvec']))
             
