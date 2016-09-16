@@ -150,12 +150,14 @@ class Settings(object):
         for par_name in self.par_specs.keys():
             el[self.links[self.par_specs[par_name]['tag']]] = self.par_specs[par_name]['tag']
 
-        nx.draw_networkx(G, pos, node_size = 1250, node_color = 'w')
+        nx.draw_networkx_nodes(G, pos, node_size = 1250, node_color = 'w')
+        ax.axis('tight')
+        nx.draw_networkx_labels(G, pos)
+        nx.draw_networkx_edges(G, pos)
 #        nx.draw_networkx_edge_labels(G, pos, edge_labels = el, label_pos = 0.25, font_size = 14)
         
         [sp.set_visible(False) for sp in ax.spines.values()]
         ax.set_xticks([])
         ax.set_yticks([])
-        ax.axis('tight')
         ax.set_title('Cascade Schematic')
         pl.show()
