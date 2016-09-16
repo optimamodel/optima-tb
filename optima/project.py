@@ -11,6 +11,7 @@ from copy import deepcopy as dcp
 
 import xlsxwriter as xw
 import numpy as np
+from xlsxwriter.utility import xl_rowcol_to_cell as rc
 
 
 
@@ -74,23 +75,34 @@ class Project(object):
         return results
         
         
-    def makeSpreadsheet(self):
+    def makeSpreadsheet(self, num_pops = 5):
         ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
         
         databook_path = './' + self.name + '-data.xlsx'
         workbook = xw.Workbook(databook_path)
+        ws_pops = workbook.add_worksheet('Population Definitions')
         ws_linkpars = workbook.add_worksheet('Transition Parameters')
         
         data_tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + 1.0/2)
         
+        ws_pops_width = 15
+        ws_pops.write(0, 0, 'Name')
+        for k in xrange(num_pops):
+            ws_pops.write(k+1, 0, 'Population '+str(k+1))
+        ws_pops.set_column(0, 0, ws_pops_width)
+        
+        ws_linkpars_width = 40
         row_id = 0
-        for linkpar_label in self.settings.linkpar_specs.keys():
-            ws_linkpars.write(row_id, 0, self.settings.linkpar_specs[linkpar_label]['name'])
+        for link_name in self.settings.link_names:
+            ws_linkpars.write(row_id, 0, link_name)
             for k in xrange(len(data_tvec)):
                 ws_linkpars.write(row_id, k+1, data_tvec[k])
-            row_id += 1
+            for k in xrange(num_pops):
+                row_id += 1
+                ws_linkpars.write(row_id, 0, "='Population Definitions'!%s" % rc(k+1,0))
             
             row_id += 2
+        ws_linkpars.set_column(0, 0, ws_linkpars_width)
         
         workbook.close()
         
@@ -103,11 +115,11 @@ p1 = Project(name = 'simple-test', cascade_path = './cascade-simple.xlsx')
 toc(ts1, label = 'creating %s project' % p1.name)
 r1 = p1.runSim()
 p1.settings.plotCascade()
-p1.makeSpreadsheet()
+p1.makeSpreadsheet(num_pops = 2)
 ts2 = tic()
 p2 = Project(name = 'standard-test')
 toc(ts2, label = 'creating %s project' % p2.name)
 p2.runSim()
 p2.settings.plotCascade()
-p2.makeSpreadsheet()
+p2.makeSpreadsheet(num_pops = 2)
 toc(tt, label = 'entire process')
