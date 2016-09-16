@@ -19,6 +19,7 @@ class Settings(object):
         
         self.node_labels = []
         self.node_names = []
+        self.node_coords = []
         self.links = odict()        # Key is a tag. Value is a compartment-label tuple.
         self.par_specs = odict()    # Key is a parameter label. Value is a dict including link tag.
         
@@ -42,9 +43,11 @@ class Settings(object):
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
         cid_label = None
         cid_name = None
+        cid_coords = None
         for col_id in xrange(ws_nodes.ncols):
             if ws_nodes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_nodes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+            if ws_nodes.cell_value(0, col_id) == 'Plot Coordinates': cid_coords = col_id
         if None in [cid_label, cid_name]:
             raise OptimaException('ERROR: Cascade compartment worksheet does not have correct column headers.')
         
@@ -53,6 +56,16 @@ class Settings(object):
             if row_id > 0 and ws_nodes.cell_value(row_id, cid_label) not in ['']:
                 self.node_labels.append(str(ws_nodes.cell_value(row_id, cid_label)))
                 self.node_names.append(str(ws_nodes.cell_value(row_id, cid_name)))
+                
+                # Not crucial, but store node plotting coordinates if available.
+                try:
+                    in_coords = str(ws_nodes.cell_value(row_id, cid_coords))
+                    coords = in_coords.strip('()').split(',')
+                    self.node_coords.append((float(coords[0]),float(coords[1])))
+                except:
+                    self.node_coords.append(None)
+                    
+                    
         
         # Second sheet: Transitions
         # Quality-assurance test for the spreadsheet format.
@@ -123,14 +136,14 @@ class Settings(object):
         G.add_nodes_from(self.node_labels)
         G.add_edges_from(self.links[:])
 
-        # Arrange cascade out in a circle.
+        # Use plot coordinates if stored and arrange the rest of the cascade out in a unit circle.
         pos = {}
         num_nodes = len(self.node_labels)
         k = 0
         for node in self.node_labels:
-            pos[node] = (np.sin(2.0*np.pi*k/num_nodes), np.cos(2.0*np.pi*k/num_nodes))
+            try: pos[node] = (self.node_coords[k][0], self.node_coords[k][1])
+            except: pos[node] = (np.sin(2.0*np.pi*k/num_nodes), np.cos(2.0*np.pi*k/num_nodes))
             k += 1
-#        pos = nx.spring_layout(G)
         
         # Generate edge label dictionary with tags from spreadsheet.
         el = {}
@@ -138,11 +151,11 @@ class Settings(object):
             el[self.links[self.par_specs[par_name]['tag']]] = self.par_specs[par_name]['tag']
 
         nx.draw_networkx(G, pos, node_size = 1250, node_color = 'w')
-        nx.draw_networkx_edge_labels(G, pos, edge_labels = el, label_pos = 0.25, font_size = 14)
+#        nx.draw_networkx_edge_labels(G, pos, edge_labels = el, label_pos = 0.25, font_size = 14)
         
         [sp.set_visible(False) for sp in ax.spines.values()]
         ax.set_xticks([])
         ax.set_yticks([])
-        ax.axis('equal')
+        ax.axis('tight')
         ax.set_title('Cascade Schematic')
         pl.show()
