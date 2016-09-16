@@ -13,25 +13,26 @@ import numpy as np
 
 class Settings(object):
     def __init__(self, cascade_path = './cascade.xlsx'):
-#        self.dt = 0.2           # Timestep
-#        self.start = 2000.0     # Default start year
-#        self.end = 2030.0       # Default end year
+        self.tvec_start = 2000.0     # Default start year for data input and simulations.
+        self.tvec_end = 2030.0       # Default end year for data input and simulations.
+        self.tvec_dt = 0.25          # Default timestep for simulations.
         
+        self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here to be explicit. 
+        self.loadCascadeSettings(cascade_path)
+    
+    def startFresh(self):
+        ''' Resets all cascade contents and settings that are fundamental to how a project is structured. '''
+            
         self.node_labels = []
         self.node_names = []
         self.node_coords = []
-        self.links = odict()        # Key is a tag. Value is a compartment-label tuple.
-        self.par_specs = odict()    # Key is a parameter label. Value is a dict including link tag.
-        
-        self.loadCascadeSettings(cascade_path)
-    
+        self.links = odict()            # Key is a tag. Value is a compartment-label tuple.
+        self.linkpar_specs = odict()    # Key is a link-parameter label. Value is a dict including link tag.
     
     def loadCascadeSettings(self, cascade_path):
         ''' Resets, then generates node and link settings based on cascade spreadsheet. '''
         
-        self.node_labels = []
-        self.node_names = []
-        self.links = odict()
+        self.startFresh()
         
         try: workbook = xlrd.open_workbook(cascade_path)
         except: raise OptimaException('ERROR: Cannot find cascade workbook from which to load model structure.')
@@ -123,11 +124,11 @@ class Settings(object):
             if row_id > 0 and tag not in [''] and label not in ['']:
                 if tag not in self.links:
                     raise OptimaException('ERROR: Cascade transition-parameter worksheet has a tag (%s) that is not in the transition matrix.' % tag)
-                self.par_specs[label] = {'tag':tag, 'name':name}
+                self.linkpar_specs[label] = {'tag':tag, 'name':name}
         for tag in self.links.keys():
-            if tag not in [x['tag'] for x in self.par_specs[:]]:
+            if tag not in [x['tag'] for x in self.linkpar_specs[:]]:
                 raise OptimaException('ERROR: Transition matrix tag (%s) is not represented in transition-parameter worksheet.' % tag)
-        if len(self.par_specs.keys()) != len(set(self.par_specs.keys())):
+        if len(self.linkpar_specs.keys()) != len(set(self.linkpar_specs.keys())):
             raise OptimaException('ERROR: Cascade transition-parameter worksheet appears to have duplicate parameter code labels.')
     
     def plotCascade(self):
@@ -147,8 +148,8 @@ class Settings(object):
         
         # Generate edge label dictionary with tags from spreadsheet.
         el = {}
-        for par_name in self.par_specs.keys():
-            el[self.links[self.par_specs[par_name]['tag']]] = self.par_specs[par_name]['tag']
+        for par_name in self.linkpar_specs.keys():
+            el[self.links[self.linkpar_specs[par_name]['tag']]] = self.linkpar_specs[par_name]['tag']
 
         nx.draw_networkx_nodes(G, pos, node_size = 1250, node_color = 'w')
         ax.axis('tight')

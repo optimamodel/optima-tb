@@ -9,6 +9,8 @@ import pylab as pl
 from uuid import uuid4 as uuid
 from copy import deepcopy as dcp
 
+import xlsxwriter as xw
+
 
 
 #%% Project class (i.e. one self-contained geographical unit)
@@ -74,7 +76,11 @@ class Project(object):
     def makeSpreadsheet(self):
         ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
         
-        pass
+        databook_path = './' + self.name + '-data.xlsx'
+        workbook = xw.Workbook(databook_path)
+        ws_linkpars = workbook.add_worksheet('Transition Parameters')
+        
+        workbook.close()
         
         
         
@@ -85,9 +91,11 @@ p1 = Project(name = 'simple-test', cascade_path = './cascade-simple.xlsx')
 toc(ts1, label = 'creating %s project' % p1.name)
 r1 = p1.runSim()
 p1.settings.plotCascade()
+p1.makeSpreadsheet()
 ts2 = tic()
 p2 = Project(name = 'standard-test')
 toc(ts2, label = 'creating %s project' % p2.name)
 p2.runSim()
 p2.settings.plotCascade()
+p2.makeSpreadsheet()
 toc(tt, label = 'entire process')

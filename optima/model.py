@@ -127,8 +127,7 @@ def model(settings):
     #%% Setup
     
     sim_settings = odict()
-    dt = 0.25
-    sim_settings['tvec'] = np.arange(2000, 2030+dt/2, dt)
+    sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
     
     m_pops = odict()
     m_pops['kids'] = ModelPop(settings = settings, name = 'kids')
@@ -144,7 +143,7 @@ def model(settings):
     for oid in m_pops:
         for t in sim_settings['tvec'][1:]:
 #            print('Time: %.1f' % t)
-            m_pops[oid].stepForward(dt = 0.25)
+            m_pops[oid].stepForward(dt = settings.tvec_dt)
 #        m_pops[oid].printLinkVars()
 #        m_pops[oid].printNodeVars(full = True)
     
