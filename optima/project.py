@@ -10,6 +10,7 @@ from uuid import uuid4 as uuid
 from copy import deepcopy as dcp
 
 import xlsxwriter as xw
+import numpy as np
 
 
 
@@ -79,6 +80,17 @@ class Project(object):
         databook_path = './' + self.name + '-data.xlsx'
         workbook = xw.Workbook(databook_path)
         ws_linkpars = workbook.add_worksheet('Transition Parameters')
+        
+        data_tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + 1.0/2)
+        
+        row_id = 0
+        for linkpar_label in self.settings.linkpar_specs.keys():
+            ws_linkpars.write(row_id, 0, self.settings.linkpar_specs[linkpar_label]['name'])
+            for k in xrange(len(data_tvec)):
+                ws_linkpars.write(row_id, k+1, data_tvec[k])
+            row_id += 1
+            
+            row_id += 2
         
         workbook.close()
         

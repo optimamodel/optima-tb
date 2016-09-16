@@ -2,8 +2,6 @@
 
 from utils import odict, OptimaException
 
-#from numpy import array, append, zeros, ones, arange
-#from numpy.random import rand
 import numpy as np
 import numpy.random as npr
 
