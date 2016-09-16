@@ -114,7 +114,8 @@ class Settings(object):
         for tag in self.links.keys():
             if tag not in [x['tag'] for x in self.par_specs[:]]:
                 raise OptimaException('ERROR: Transition matrix tag (%s) is not represented in transition-parameter worksheet.' % tag)
-    
+        if len(self.par_specs.keys()) != len(set(self.par_specs.keys())):
+            raise OptimaException('ERROR: Cascade transition-parameter worksheet appears to have duplicate parameter code labels.')
     
     def plotCascade(self):
         fig, ax = pl.subplots(figsize=(10,10))
@@ -129,14 +130,19 @@ class Settings(object):
         for node in self.node_labels:
             pos[node] = (np.sin(2.0*np.pi*k/num_nodes), np.cos(2.0*np.pi*k/num_nodes))
             k += 1
+#        pos = nx.spring_layout(G)
         
         # Generate edge label dictionary with tags from spreadsheet.
         el = {}
         for par_name in self.par_specs.keys():
             el[self.links[self.par_specs[par_name]['tag']]] = self.par_specs[par_name]['tag']
-        print el
 
         nx.draw_networkx(G, pos, node_size = 1250, node_color = 'w')
         nx.draw_networkx_edge_labels(G, pos, edge_labels = el, label_pos = 0.25, font_size = 14)
-        pl.axis('equal')
+        
+        [sp.set_visible(False) for sp in ax.spines.values()]
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.axis('equal')
+        ax.set_title('Cascade Schematic')
         pl.show()
