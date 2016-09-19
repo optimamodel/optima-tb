@@ -119,7 +119,7 @@ class ModelPop(object):
 
 #%% Model function (simulates epidemic dynamics)
 
-def model(settings):
+def model(settings, parset):
     ''' Processes the TB epidemiological model. '''
     
     #%% Setup
@@ -128,8 +128,8 @@ def model(settings):
     sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
     
     m_pops = odict()
-    m_pops['kids'] = ModelPop(settings = settings, name = 'kids')
-    m_pops['adults'] = ModelPop(settings = settings, name = 'adults')
+    for pop_name in parset.pop_names:
+        m_pops[pop_name] = ModelPop(settings = settings, name = pop_name)
     
     for oid in m_pops:
         m_pops[oid].makeRandomVars(for_node = False, for_link = True)

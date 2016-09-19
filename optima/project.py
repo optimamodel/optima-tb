@@ -35,11 +35,15 @@ class Project(object):
         self.results = odict()
         
         
-    def runSim(self):
+    def runSim(self, parset_name = 'default'):
         ''' Run model using a selected parset and store/return results. '''
+        
+        if len(self.parsets) < 1: raise OptimaException('ERROR: Project %s appears to have no parameter sets. Cannot run model.' % self.name)
+        try: parset = self.parsets[parset_name]
+        except: raise OptimaException('ERROR: Project %s is lacking a parset named %s. Cannot run model.' % (self.name, parset_name))
 
         tm = tic()
-        results, sim_settings = model(settings = self.settings)
+        results, sim_settings = model(settings = self.settings, parset = parset)
         toc(tm, label = 'running %s model' % self.name)
         
         tp = tic()
