@@ -19,6 +19,12 @@ class Settings(object):
         
         self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here to be explicit. 
         self.loadCascadeSettings(cascade_path)
+        
+        # Project-data workbook metadata. Constant regardless of cascade structure.
+        self.databook = odict()
+        self.databook['sheet_names'] = odict()
+        self.databook['sheet_names']['pops'] = 'Population Definitions'
+        self.databook['sheet_names']['linkpars'] = 'Transition Parameters'
     
     def startFresh(self):
         ''' Resets all cascade contents and settings that are fundamental to how a project is structured. '''

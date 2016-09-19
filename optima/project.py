@@ -1,6 +1,6 @@
 #%% Imports
 
-from utils import tic, toc, odict
+from utils import tic, toc, odict, OptimaException
 from model import model
 from settings import Settings
 from plotting import gridColorMap
@@ -9,6 +9,7 @@ import pylab as pl
 from uuid import uuid4 as uuid
 from copy import deepcopy as dcp
 
+import xlrd
 import xlsxwriter as xw
 import numpy as np
 from xlsxwriter.utility import xl_rowcol_to_cell as rc
@@ -27,7 +28,7 @@ class Project(object):
         self.uid = uuid()
         
         self.settings = Settings(cascade_path = cascade_path)        
-        self.data = {}
+        self.data = odict()
 
         self.parsets = odict()
         self.results = odict()
@@ -80,8 +81,8 @@ class Project(object):
         
         databook_path = './' + self.name + '-data.xlsx'
         workbook = xw.Workbook(databook_path)
-        ws_pops = workbook.add_worksheet('Population Definitions')
-        ws_linkpars = workbook.add_worksheet('Transition Parameters')
+        ws_pops = workbook.add_worksheet(self.settings.databook['sheet_names']['pops'])
+        ws_linkpars = workbook.add_worksheet(self.settings.databook['sheet_names']['linkpars'])
         
         data_tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + 1.0/2)
         
@@ -97,11 +98,38 @@ class Project(object):
             ws_linkpars.write(row_id, 0, link_name)
             for k in xrange(len(data_tvec)):
                 ws_linkpars.write(row_id, k+1, data_tvec[k])
-            for k in xrange(num_pops):
+            for pid in xrange(num_pops):
                 row_id += 1
-                ws_linkpars.write(row_id, 0, "='Population Definitions'!%s" % rc(k+1,0))
+                ws_linkpars.write(row_id, 0, "='Population Definitions'!%s" % rc(pid+1,0))
+                
+                # Values for all extra populations default to first population values.
+                if pid > 0:
+                    for k in xrange(len(data_tvec)):
+                        ws_linkpars.write(row_id, k+1, '=IF(%s="","",%s)' % (rc(row_id-pid,k+1),rc(row_id-pid,k+1)))
             
             row_id += 2
         ws_linkpars.set_column(0, 0, ws_linkpars_width)
         
         workbook.close()
+        
+    
+    # NOTE: This needs so much quality-assurance testing. Need to ensure that input data sheet aligns with cascade settings.
+    #       It would also be good to align metadata between making and loading spreadsheets.
+    def loadSpreadsheet(self, databook_path = None):
+        ''' Load data spreadsheet into Project data dictionary. '''
+        
+        if databook_path is None: databook_path = './' + self.name + '-data.xlsx'
+        try: workbook = xlrd.open_workbook(databook_path)
+        except: raise OptimaException('ERROR: Project data workbook was unable to be loaded from... %s' % databook_path)
+        ws_pops = workbook.sheet_by_name(self.settings.databook['sheet_names']['pops'])
+        ws_linkpars = workbook.sheet_by_name(self.settings.databook['sheet_names']['linkpars'])
+
+        # Basic setup.
+        self.data = odict()
+        self.data['pops'] = odict()
+        self.data['pops']['names'] = []
+        for row_id in xrange(ws_pops.nrows):
+            if row_id > 0 and ws_pops.cell_value(row_id, 0) not in ['']:
+                self.data['pops']['names'].append(str(ws_pops.cell_value(row_id, 0)))
+        
+        
