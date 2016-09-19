@@ -3,6 +3,7 @@
 from utils import tic, toc, odict, OptimaException
 from model import model
 from settings import Settings
+from parameters import ParameterSet
 from plotting import gridColorMap
 
 import pylab as pl
@@ -32,8 +33,6 @@ class Project(object):
 
         self.parsets = odict()
         self.results = odict()
-
-        return None
         
         
     def runSim(self):
@@ -131,5 +130,11 @@ class Project(object):
         for row_id in xrange(ws_pops.nrows):
             if row_id > 0 and ws_pops.cell_value(row_id, 0) not in ['']:
                 self.data['pops']['names'].append(str(ws_pops.cell_value(row_id, 0)))
-        
-        
+
+
+    def makeParset(self, name = 'default'):
+        ''' Transform project data into a set of parameters that can be used in model simulations. '''
+
+        if not self.data: raise OptimaException('ERROR: No data exists for project %s.' % self.name)
+        self.parsets[name] = ParameterSet(name = name)
+        self.parsets[name].makePars(self.data)
