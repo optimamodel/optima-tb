@@ -66,7 +66,7 @@ class Project(object):
             box = ax.get_position()
             ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
             
-            legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5)}
+            legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':2}
             ax.set_title('%s Cascade - %s' % (self.name.title(), pop.name.title()))
             ax.set_xlabel('Year')
             ax.set_ylabel('People')
@@ -90,9 +90,11 @@ class Project(object):
         
         data_tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + 1.0/2)
         offset_tvec = 3     # Offset to denote at which column the time vector begins in spreadsheet.
+        ws_pops_width = 15
+        ws_linkpars_width = 40
+        assumption_width = 10
         
         # Population names sheet.
-        ws_pops_width = 15
         ws_pops.write(0, 0, 'Name')
         ws_pops.write(0, 1, 'Abbreviation')
         temp_pop_names = []
@@ -104,7 +106,6 @@ class Project(object):
         ws_pops.set_column(0, 1, ws_pops_width)
         
         # Transition parameters sheet.
-        ws_linkpars_width = 40
         row_id = 0
         for link_name in self.settings.linkpar_name_labels.keys():
             link_label = self.settings.linkpar_name_labels[link_name]
@@ -129,6 +130,7 @@ class Project(object):
             
             row_id += 2
         ws_linkpars.set_column(0, 0, ws_linkpars_width)
+        ws_linkpars.set_column(1, 1, assumption_width)
         
         workbook.close()
         
