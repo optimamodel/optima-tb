@@ -88,6 +88,7 @@ class Project(object):
         ws_linkpars = workbook.add_worksheet(self.settings.databook['sheet_names']['linkpars'])
         
         data_tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + 1.0/2)
+        offset_tvec = 3     # Offset to denote at which column the time vector begins in spreadsheet.
         
         ws_pops_width = 15
         ws_pops.write(0, 0, 'Name')
@@ -99,16 +100,19 @@ class Project(object):
         row_id = 0
         for link_name in self.settings.link_names:
             ws_linkpars.write(row_id, 0, link_name)
+            ws_linkpars.write(row_id, 1, 'Constant')
             for k in xrange(len(data_tvec)):
-                ws_linkpars.write(row_id, k+1, data_tvec[k])
+                ws_linkpars.write(row_id, k+offset_tvec, data_tvec[k])
             for pid in xrange(num_pops):
                 row_id += 1
                 ws_linkpars.write(row_id, 0, "='Population Definitions'!%s" % rc(pid+1,0))
+                ws_linkpars.write(row_id, 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,0.0,"N.A.")' % (rc(row_id,offset_tvec),rc(row_id,offset_tvec+len(data_tvec)-1)))
+                ws_linkpars.write(row_id, 2, 'OR')
                 
                 # Values for all extra populations default to first population values.
                 if pid > 0:
                     for k in xrange(len(data_tvec)):
-                        ws_linkpars.write(row_id, k+1, '=IF(%s="","",%s)' % (rc(row_id-pid,k+1),rc(row_id-pid,k+1)))
+                        ws_linkpars.write(row_id, k+offset_tvec, '=IF(%s="","",%s)' % (rc(row_id-pid,k+offset_tvec),rc(row_id-pid,k+offset_tvec)))
             
             row_id += 2
         ws_linkpars.set_column(0, 0, ws_linkpars_width)
@@ -134,6 +138,8 @@ class Project(object):
         for row_id in xrange(ws_pops.nrows):
             if row_id > 0 and ws_pops.cell_value(row_id, 0) not in ['']:
                 self.data['pops']['names'].append(str(ws_pops.cell_value(row_id, 0)))
+                
+        self.data['linkpars'] = odict()
 
 
     def makeParset(self, name = 'default'):
