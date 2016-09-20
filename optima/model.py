@@ -36,10 +36,11 @@ class Link(object):
 class ModelPop(object): 
     ''' A class to wrap up data for one population within model. '''
     def __init__(self, settings, name = 'default'):
-        self.name = name        
+        self.name = name      
         self.nodes = list()
         self.links = list()
         self.node_ids = dict()  # Maps node label to positional index in nodes list.
+        self.link_ids = dict()  # Maps link tag to positional index in nodes list.
         self.t_index = 0        # Keeps track of array index for current data within all nodes.
         
         self.genCascade(settings = settings)
@@ -53,12 +54,14 @@ class ModelPop(object):
     def genCascade(self, settings):
         ''' Generate standard cascade, creating a node for each compartment and linking them appropriately. '''
         for l, label in enumerate(settings.node_labels):
-            self.nodes.append(Node(name=label, index=l))
+            self.nodes.append(Node(name = label, index = l))
             self.node_ids[label] = l
-        for pair in settings.links[:]:
+        for l, tag in enumerate(settings.links):
+            pair = settings.links[tag]
             node_from = self.node_ids[pair[0]]
             node_to = self.node_ids[pair[1]]
             self.links.append(self.nodes[node_from].makeLinkTo(self.nodes[node_to]))
+            self.link_ids[tag] = l
     
     def stepForward(self, dt = 1.0):
         ''' Evolve model population characteristics by one timestep (defaulting as 1 year). '''
@@ -128,11 +131,23 @@ def model(settings, parset):
     sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
     
     m_pops = odict()
-    for pop_name in parset.pop_names:
-        m_pops[pop_name] = ModelPop(settings = settings, name = pop_name)
+    for k in xrange(len(parset.pop_labels)):
+        pop_label = parset.pop_labels[k]
+        pop_name = parset.pop_names[k]
+        m_pops[pop_label] = ModelPop(settings = settings, name = pop_name)
+    
+    # Transferring parset values into ModelPops.
+    for par in parset.pars:
+        tag = settings.linkpar_specs[par.label]['tag']          # Map parameter label -> link tag.
+        for pop_label in parset.pop_labels:
+            link_id = m_pops[pop_label].link_ids[tag]           # Map link tag -> link id in ModelPop.
+            if par.t[pop_label] is None:
+                m_pops[pop_label].links[link_id].transit_frac = par.y[pop_label]
+            else:
+                print 'Time dependent stuff.'
     
     for oid in m_pops:
-        m_pops[oid].makeRandomVars(for_node = False, for_link = True)
+#        m_pops[oid].makeRandomVars(for_node = False, for_link = True)
         m_pops[oid].getnode('sus').popsize[0] = 1000000
         m_pops[oid].preAllocate(sim_settings)
 

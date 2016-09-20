@@ -145,8 +145,8 @@ class Project(object):
         for row_id in xrange(ws_pops.nrows):
             if row_id > 0 and ws_pops.cell_value(row_id, 0) not in ['']:
                 pop_label = 'pop' + str(row_id)
-                self.data['pops']['name_labels'][ws_pops.cell_value(row_id, 0)] = pop_label
-                self.data['pops']['label_names'][pop_label] = ws_pops.cell_value(row_id, 0)
+                self.data['pops']['name_labels'][str(ws_pops.cell_value(row_id, 0))] = pop_label
+                self.data['pops']['label_names'][pop_label] = str(ws_pops.cell_value(row_id, 0))
                 
         self.data['linkpars'] = odict()
         current_linkpar_name = None
@@ -162,6 +162,8 @@ class Project(object):
             else:
                 current_pop_label = self.data['pops']['name_labels'][val]
                 self.data['linkpars'][current_linkpar_label][current_pop_label] = odict()
+                self.data['linkpars'][current_linkpar_label][current_pop_label]['t'] = None
+                self.data['linkpars'][current_linkpar_label][current_pop_label]['y'] = ws_linkpars.cell_value(row_id, 1)
 
 
     def makeParset(self, name = 'default'):
