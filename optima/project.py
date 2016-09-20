@@ -90,23 +90,30 @@ class Project(object):
         data_tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + 1.0/2)
         offset_tvec = 3     # Offset to denote at which column the time vector begins in spreadsheet.
         
+        # Population names sheet.
         ws_pops_width = 15
         ws_pops.write(0, 0, 'Name')
+        ws_pops.write(0, 1, 'Abbreviation')
+        temp_pop_names = []
         for k in xrange(num_pops):
-            ws_pops.write(k+1, 0, 'Population '+str(k+1))
-        ws_pops.set_column(0, 0, ws_pops_width)
+            temp_pop_name = 'Population '+str(k+1)
+            temp_pop_names.append(temp_pop_name)
+            ws_pops.write(k+1, 0, temp_pop_name)
+            ws_pops.write(k+1, 1, '=LEFT(%s,3)&"%i"' % (rc(k+1,0), k+1))
+        ws_pops.set_column(0, 1, ws_pops_width)
         
+        # Transition parameters sheet.
         ws_linkpars_width = 40
         row_id = 0
-        for link_name in self.settings.link_names:
+        for link_name in self.settings.linkpar_name_labels.keys():
             ws_linkpars.write(row_id, 0, link_name)
             ws_linkpars.write(row_id, 1, 'Constant')
             for k in xrange(len(data_tvec)):
                 ws_linkpars.write(row_id, k+offset_tvec, data_tvec[k])
             for pid in xrange(num_pops):
                 row_id += 1
-                ws_linkpars.write(row_id, 0, "='Population Definitions'!%s" % rc(pid+1,0))
-                ws_linkpars.write(row_id, 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,0.0,"N.A.")' % (rc(row_id,offset_tvec),rc(row_id,offset_tvec+len(data_tvec)-1)))
+                ws_linkpars.write(row_id, 0, "='Population Definitions'!%s" % rc(pid+1,0), None, temp_pop_names[pid])
+                ws_linkpars.write(row_id, 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,0.0,"N.A.")' % (rc(row_id,offset_tvec), rc(row_id,offset_tvec+len(data_tvec)-1)))
                 ws_linkpars.write(row_id, 2, 'OR')
                 
                 # Values for all extra populations default to first population values.
@@ -131,15 +138,30 @@ class Project(object):
         ws_pops = workbook.sheet_by_name(self.settings.databook['sheet_names']['pops'])
         ws_linkpars = workbook.sheet_by_name(self.settings.databook['sheet_names']['linkpars'])
 
-        # Basic setup.
         self.data = odict()
         self.data['pops'] = odict()
-        self.data['pops']['names'] = []
+        self.data['pops']['name_labels'] = odict()
+        self.data['pops']['label_names'] = odict()      # A reverse of the previous dictionary.
         for row_id in xrange(ws_pops.nrows):
             if row_id > 0 and ws_pops.cell_value(row_id, 0) not in ['']:
-                self.data['pops']['names'].append(str(ws_pops.cell_value(row_id, 0)))
+                pop_label = 'pop' + str(row_id)
+                self.data['pops']['name_labels'][ws_pops.cell_value(row_id, 0)] = pop_label
+                self.data['pops']['label_names'][pop_label] = ws_pops.cell_value(row_id, 0)
                 
         self.data['linkpars'] = odict()
+        current_linkpar_name = None
+        current_linkpar_label = None
+        for row_id in xrange(ws_linkpars.nrows):
+            val = str(ws_linkpars.cell_value(row_id, 0))
+            if val in ['']:
+                current_linkpar_name = None
+            elif current_linkpar_name is None:
+                current_linkpar_name = val
+                current_linkpar_label = self.settings.linkpar_name_labels[val]
+                self.data['linkpars'][current_linkpar_label] = odict()
+            else:
+                current_pop_label = self.data['pops']['name_labels'][val]
+                self.data['linkpars'][current_linkpar_label][current_pop_label] = odict()
 
 
     def makeParset(self, name = 'default'):

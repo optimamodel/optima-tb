@@ -14,4 +14,4 @@ class ParameterSet(object):
         self.pop_names = []       # List of population names.
     
     def makePars(self, data):
-        self.pop_names = data['pops']['names']
+        self.pop_names = data['pops']['name_labels'].keys()

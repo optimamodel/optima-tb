@@ -32,9 +32,9 @@ class Settings(object):
         self.node_labels = []
         self.node_names = []
         self.node_coords = []
-        self.links = odict()            # Key is a tag. Value is a compartment-label tuple.
-        self.linkpar_specs = odict()    # Key is a link-parameter label. Value is a dict including link tag.
-        self.link_names = []
+        self.links = odict()                    # Key is a tag. Value is a compartment-label tuple.
+        self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag and link-parameter name.
+        self.linkpar_name_labels = odict()      # Key is a link-parameter name. Value is a link-parameter label. (A partial reversed linkpar-specs.)
     
     def loadCascadeSettings(self, cascade_path):
         ''' Resets, then generates node and link settings based on cascade spreadsheet. '''
@@ -131,8 +131,8 @@ class Settings(object):
             if row_id > 0 and tag not in [''] and label not in ['']:
                 if tag not in self.links:
                     raise OptimaException('ERROR: Cascade transition-parameter worksheet has a tag (%s) that is not in the transition matrix.' % tag)
-                self.linkpar_specs[label] = {'tag':tag}
-                self.link_names.append(name)
+                self.linkpar_specs[label] = {'tag':tag, 'name':name}
+                self.linkpar_name_labels[name] = label
         for tag in self.links.keys():
             if tag not in [x['tag'] for x in self.linkpar_specs[:]]:
                 raise OptimaException('ERROR: Transition matrix tag (%s) is not represented in transition-parameter worksheet.' % tag)
