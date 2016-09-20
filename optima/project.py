@@ -78,7 +78,8 @@ class Project(object):
         
         return results
         
-        
+    
+    # NOTE: Comment this better later, especially with the fact that all Excel formulae need a fall-back value.
     def makeSpreadsheet(self, num_pops = 5):
         ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
         
@@ -99,27 +100,32 @@ class Project(object):
             temp_pop_name = 'Population '+str(k+1)
             temp_pop_names.append(temp_pop_name)
             ws_pops.write(k+1, 0, temp_pop_name)
-            ws_pops.write(k+1, 1, '=LEFT(%s,3)&"%i"' % (rc(k+1,0), k+1))
+            ws_pops.write(k+1, 1, '=LEFT(%s,3)&"%i"' % (rc(k+1,0), k+1), None, temp_pop_name[0:3]+str(k+1))
         ws_pops.set_column(0, 1, ws_pops_width)
         
         # Transition parameters sheet.
         ws_linkpars_width = 40
         row_id = 0
         for link_name in self.settings.linkpar_name_labels.keys():
+            link_label = self.settings.linkpar_name_labels[link_name]
+            def_val = 0
+            if 'default' in self.settings.linkpar_specs[link_label]:
+                def_val = self.settings.linkpar_specs[link_label]['default']
+                
             ws_linkpars.write(row_id, 0, link_name)
-            ws_linkpars.write(row_id, 1, 'Constant')
+            ws_linkpars.write(row_id, 1, 'Assumption')
             for k in xrange(len(data_tvec)):
                 ws_linkpars.write(row_id, k+offset_tvec, data_tvec[k])
             for pid in xrange(num_pops):
                 row_id += 1
                 ws_linkpars.write(row_id, 0, "='Population Definitions'!%s" % rc(pid+1,0), None, temp_pop_names[pid])
-                ws_linkpars.write(row_id, 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,0.0,"N.A.")' % (rc(row_id,offset_tvec), rc(row_id,offset_tvec+len(data_tvec)-1)))
+                ws_linkpars.write(row_id, 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset_tvec), rc(row_id,offset_tvec+len(data_tvec)-1), def_val), None, def_val)
                 ws_linkpars.write(row_id, 2, 'OR')
                 
                 # Values for all extra populations default to first population values.
                 if pid > 0:
                     for k in xrange(len(data_tvec)):
-                        ws_linkpars.write(row_id, k+offset_tvec, '=IF(%s="","",%s)' % (rc(row_id-pid,k+offset_tvec),rc(row_id-pid,k+offset_tvec)))
+                        ws_linkpars.write(row_id, k+offset_tvec, '=IF(%s="","",%s)' % (rc(row_id-pid,k+offset_tvec),rc(row_id-pid,k+offset_tvec)), None, '')
             
             row_id += 2
         ws_linkpars.set_column(0, 0, ws_linkpars_width)

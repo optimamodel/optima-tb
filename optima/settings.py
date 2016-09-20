@@ -33,7 +33,7 @@ class Settings(object):
         self.node_names = []
         self.node_coords = []
         self.links = odict()                    # Key is a tag. Value is a compartment-label tuple.
-        self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag and link-parameter name.
+        self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.
         self.linkpar_name_labels = odict()      # Key is a link-parameter name. Value is a link-parameter label. (A partial reversed linkpar-specs.)
     
     def loadCascadeSettings(self, cascade_path):
@@ -116,10 +116,12 @@ class Settings(object):
         cid_tag = None
         cid_label = None
         cid_name = None
+        cid_default = None
         for col_id in xrange(ws_pars.ncols):
             if ws_pars.cell_value(0, col_id) == 'Tag': cid_tag = col_id
             if ws_pars.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_pars.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+            if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if None in [cid_tag, cid_label, cid_name]:
             raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
         
@@ -133,6 +135,15 @@ class Settings(object):
                     raise OptimaException('ERROR: Cascade transition-parameter worksheet has a tag (%s) that is not in the transition matrix.' % tag)
                 self.linkpar_specs[label] = {'tag':tag, 'name':name}
                 self.linkpar_name_labels[name] = label
+                
+                # Not crucial, but store parameter default value if available.
+                try:
+                    def_val = str(ws_pars.cell_value(row_id, cid_default))
+                    if def_val not in ['']:
+                        self.linkpar_specs[label]['default'] = float(def_val)
+                except:
+                    pass
+                    
         for tag in self.links.keys():
             if tag not in [x['tag'] for x in self.linkpar_specs[:]]:
                 raise OptimaException('ERROR: Transition matrix tag (%s) is not represented in transition-parameter worksheet.' % tag)
