@@ -145,7 +145,11 @@ class Project(object):
         except: raise OptimaException('ERROR: Project data workbook was unable to be loaded from... %s' % databook_path)
         ws_pops = workbook.sheet_by_name(self.settings.databook['sheet_names']['pops'])
         ws_linkpars = workbook.sheet_by_name(self.settings.databook['sheet_names']['linkpars'])
+        
+        # NOTE: This is common to both making and loading spreadsheet. Consider fast-tracking databook module.
+        offset_tvec = 3     # Offset to denote at which column the time vector begins in spreadsheet.
 
+        # Population names sheet.
         self.data = odict()
         self.data['pops'] = odict()
         self.data['pops']['name_labels'] = odict()
@@ -155,23 +159,29 @@ class Project(object):
                 pop_label = 'pop' + str(row_id)
                 self.data['pops']['name_labels'][str(ws_pops.cell_value(row_id, 0))] = pop_label
                 self.data['pops']['label_names'][pop_label] = str(ws_pops.cell_value(row_id, 0))
-                
+        
+        # Transition parameters sheet.
         self.data['linkpars'] = odict()
         current_linkpar_name = None
         current_linkpar_label = None
+        pop_id = 0
         for row_id in xrange(ws_linkpars.nrows):
             val = str(ws_linkpars.cell_value(row_id, 0))
             if val in ['']:
                 current_linkpar_name = None
+                pop_id = 0
             elif current_linkpar_name is None:
                 current_linkpar_name = val
                 current_linkpar_label = self.settings.linkpar_name_labels[val]
                 self.data['linkpars'][current_linkpar_label] = odict()
             else:
                 current_pop_label = self.data['pops']['name_labels'][val]
+                if current_pop_label != self.data['pops']['label_names'].keys()[pop_id]:
+                    raise OptimaException('ERROR: Somewhere in the transition parameters sheet, populations are not ordered as in the population definitions sheet.')
                 self.data['linkpars'][current_linkpar_label][current_pop_label] = odict()
-                self.data['linkpars'][current_linkpar_label][current_pop_label]['t'] = None
-                self.data['linkpars'][current_linkpar_label][current_pop_label]['y'] = ws_linkpars.cell_value(row_id, 1)
+                self.data['linkpars'][current_linkpar_label][current_pop_label]['t'] = np.array([ws_linkpars.cell_value(row_id-1-pop_id, 3)])
+                self.data['linkpars'][current_linkpar_label][current_pop_label]['y'] = np.array([ws_linkpars.cell_value(row_id, 1)])
+                pop_id += 1
 
 
     def makeParset(self, name = 'default'):

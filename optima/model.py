@@ -168,12 +168,8 @@ def model(settings, parset):
     for par in parset.pars:
         tag = settings.linkpar_specs[par.label]['tag']          # Map parameter label -> link tag.
         for pop_label in parset.pop_labels:
-            link_id = m_pops[pop_label].link_ids[tag]           # Map link tag -> link id in ModelPop.
-            
-            if par.t[pop_label] is None:    # Handle constant values.
-                m_pops[pop_label].links[link_id].transit_frac[:] = par.y[pop_label]
-            else:
-                print 'Time dependent stuff.'
+            link_id = m_pops[pop_label].link_ids[tag]           # Map link tag -> link id in ModelPop.           
+            m_pops[pop_label].links[link_id].transit_frac = par.interpolate(tvec = sim_settings['tvec'], pop_label = pop_label)
     
     print m_pops[1].links[1].transit_frac
 

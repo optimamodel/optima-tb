@@ -9,8 +9,7 @@ import numpy as np
 
 #%% General interpolation wrapper
 
-pchipeps = 1e-8
-
+# NOTE: Change this method name if a reasonable alternative exists, so that pars.interpolate confusion does not exist.
 def interpolate(x, y, xnew, method = 'pchip'):
     '''
     Function that interpolates and extrapolates (x,y) coordinates along the domain subset of xnew, according to a chosen method.
@@ -83,9 +82,6 @@ def pchipSlopes(x, y):
         if c > 0 and abs(deriv) > 3*abs(secants[c-1]): deriv = 3*secants[c-1]
 
         m[c] = deriv
-            
-    print secants
-    print m
 
     return np.array(m)
 
@@ -115,8 +111,6 @@ def pchipEval(x, y, m, xvec, deriv = False):
         h = x[oid+1] - x[oid]
         t = (xc - x[oid]) / h
         
-        print t
-        
         # Hermite basis functions.
         if not deriv:
             h00 = (2 * t**3) - (3 * t**2) + 1
@@ -137,6 +131,8 @@ def pchipEval(x, y, m, xvec, deriv = False):
     return yvec
 
 ###=========================================================
+#
+#pchipeps = 1e-8
 #
 #def plotpchip(x, y, deriv = False, returnplot = False, initbudget = None, optbudget = None):
 #
