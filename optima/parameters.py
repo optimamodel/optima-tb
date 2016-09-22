@@ -1,6 +1,7 @@
 #%% Imports
 
-from utils import odict
+from utils import odict, OptimaException
+import numpy as np
 
 
 
@@ -15,6 +16,21 @@ class Parameter(object):
         if y is None: y = odict()
         self.t = t      # Time data.
         self.y = y      # Value data.
+        
+    def interpolate(self, tvec = None, pop_label = None):
+        ''' Take parameter values and construct an array matching input time vector. '''
+        
+        # Validate input.
+        if pop_label is None: raise OptimaException('ERROR: Cannot interpolate parameter %s without knowing which population to do it for.' % pop_label)
+        if tvec is None: raise OptimaException('ERROR: Cannot interpolate parameter %s without providing a time vector.' % self.label)
+        
+#        output = np.ones()
+            
+        
+        if self.t[pop_label] is None:
+            pass
+        
+        return output
 
 
 #%% Parset class that contains one set of parameters converted from raw project data
