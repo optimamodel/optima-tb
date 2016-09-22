@@ -31,7 +31,7 @@ class Link(object):
         self.index_to = node_to.index
         self.name_from = node_from.name
         self.name_to = node_to.name
-        self.transit_frac = float(transit_frac)   # Fraction of compartment 1 to move to compartment 2 per year.
+        self.transit_frac = np.array([float(transit_frac)])   # Fraction of compartment 1 to move to compartment 2 per year.
 
 class ModelPop(object): 
     ''' A class to wrap up data for one population within model. '''
@@ -68,20 +68,26 @@ class ModelPop(object):
         
         ti = self.t_index
         
-        # If not pre-allocated, extend node variable arrays. Either way copy current value to the next position in the array.
+        # If not pre-allocated, extend node and link variable arrays. Either way copy current value to the next position in the array.
         for node in self.nodes:
             if not len(node.popsize) > ti + 1:
                 node.popsize = np.append(node.popsize, 0.0)
             if not len(node.popsize) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
                 raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in node %s.' % (node.name))
             node.popsize[ti+1] = node.popsize[ti]
+        for link in self.links:
+            if not len(link.transit_frac) > ti + 1:
+                link.transit_frac = np.append(link.transit_frac, 0.0)
+            if not len(link.transit_frac) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
+                raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in link %s.' % (link.name))
+            link.transit_frac[ti+1] = link.transit_frac[ti]
         
         dpopsize = np.zeros(len(self.links))        
         
         # First loop. Calculate value changes for next timestep.
         for k,link in enumerate(self.links):
             node_from = self.nodes[link.index_from]
-            dpopsize[k] = node_from.popsize[ti] * link.transit_frac * dt    # NOTE: Should this just be times dt...?
+            dpopsize[k] = node_from.popsize[ti] * link.transit_frac[ti] * dt    # NOTE: Should this just be times dt...?
 
         # Second loop. Apply value changes at next timestep.
         for k,link in enumerate(self.links):
@@ -90,7 +96,7 @@ class ModelPop(object):
             
         self.t_index += 1       # Update timestep index.
             
-    def printNodeVars(self, full=False):
+    def printNodeVars(self, full = False):
         ''' Loop through all nodes and print out current variable values. '''
         for node in self.nodes:
             if not full:
@@ -99,10 +105,14 @@ class ModelPop(object):
                 print('[Pop: %s][Node: %5s][Popsize...]' % (self.name, node.name))
                 print(node.popsize)
 
-    def printLinkVars(self):
-        ''' Loop through all nodes and print out current variable values. '''
+    def printLinkVars(self, full = False):
+        ''' Loop through all links and print out current variable values. '''
         for link in self.links:
-            print('[Pop: %s][%5s --> %-5s][Transit. Frac.: %5.4f]' % (self.name, link.name_from, link.name_to, link.transit_frac))
+            if not full:
+                print('[Pop: %s][%5s --> %-5s][Transit. Frac.: %5.4f]' % (self.name, link.name_from, link.name_to, link.transit_frac[self.t_index]))
+            else:
+                print('[Pop: %s][%5s --> %-5s][Transit. Fraction...]' % (self.name, link.name_from, link.name_to))
+                print(link.transit_frac)
 
     def makeRandomVars(self, for_node = True, for_link = True):
         ''' Randomise all node and link variables. Method used primarily for debugging. '''
@@ -114,10 +124,13 @@ class ModelPop(object):
                 link.transit_frac = npr.rand()/self.nodes[link.index_from].num_outlinks     # Scaling makes sure fractions leaving a node sum to less than 1.
                 
     def preAllocate(self, sim_settings):
-        ''' Pre-allocate variable arrays in nodes for faster processing. Array is pre-filled with initial value. '''
+        ''' Pre-allocate variable arrays in nodes and links for faster processing. Array is pre-filled with initial value. '''
         for node in self.nodes:
             init_popsize = node.popsize[0]
             node.popsize = np.ones(len(sim_settings['tvec']))*init_popsize
+        for link in self.links:
+            init_transit_frac = link.transit_frac[0]
+            link.transit_frac = np.ones(len(sim_settings['tvec']))*init_transit_frac
             
 
 #%% Model function (simulates epidemic dynamics)
@@ -135,6 +148,11 @@ def model(settings, parset):
         pop_label = parset.pop_labels[k]
         pop_name = parset.pop_names[k]
         m_pops[pop_label] = ModelPop(settings = settings, name = pop_name)
+        
+        m_pops[pop_label].getnode('sus').popsize[0] = 1000000
+        m_pops[pop_label].preAllocate(sim_settings)
+        
+    print m_pops[1].links[1].transit_frac
     
     # Transferring parset values into ModelPops.
     for par in parset.pars:
@@ -142,14 +160,16 @@ def model(settings, parset):
         for pop_label in parset.pop_labels:
             link_id = m_pops[pop_label].link_ids[tag]           # Map link tag -> link id in ModelPop.
             if par.t[pop_label] is None:
-                m_pops[pop_label].links[link_id].transit_frac = par.y[pop_label]
+                m_pops[pop_label].links[link_id].transit_frac[0] = par.y[pop_label]
             else:
                 print 'Time dependent stuff.'
     
-    for oid in m_pops:
+    print m_pops[1].links[1].transit_frac   
+    
+#    for oid in m_pops:
 #        m_pops[oid].makeRandomVars(for_node = False, for_link = True)
-        m_pops[oid].getnode('sus').popsize[0] = 1000000
-        m_pops[oid].preAllocate(sim_settings)
+#        m_pops[oid].getnode('sus').popsize[0] = 1000000
+#        m_pops[oid].preAllocate(sim_settings)
 
     #%% Run (i.e. evolve epidemic through time)
 
@@ -159,6 +179,8 @@ def model(settings, parset):
             m_pops[oid].stepForward(dt = settings.tvec_dt)
 #        m_pops[oid].printLinkVars()
 #        m_pops[oid].printNodeVars(full = True)
+    
+    print m_pops[1].links[1].transit_frac 
     
     #%% Collect and return raw results    
     
