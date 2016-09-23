@@ -14,6 +14,7 @@ import xlrd
 import xlsxwriter as xw
 import numpy as np
 from xlsxwriter.utility import xl_rowcol_to_cell as rc
+from numbers import Number
 
 
 
@@ -179,8 +180,23 @@ class Project(object):
                 if current_pop_label != self.data['pops']['label_names'].keys()[pop_id]:
                     raise OptimaException('ERROR: Somewhere in the transition parameters sheet, populations are not ordered as in the population definitions sheet.')
                 self.data['linkpars'][current_linkpar_label][current_pop_label] = odict()
-                self.data['linkpars'][current_linkpar_label][current_pop_label]['t'] = np.array([ws_linkpars.cell_value(row_id-1-pop_id, 3)])
-                self.data['linkpars'][current_linkpar_label][current_pop_label]['y'] = np.array([ws_linkpars.cell_value(row_id, 1)])
+                
+                # Run through the rows beneath the year range, but only if there is not a number in the cell corresponding to assumption.
+                list_t = []
+                list_y = []
+                for col_id in xrange(ws_linkpars.ncols):
+                    if col_id > 0 and isinstance(ws_linkpars.cell_value(row_id, col_id), Number):
+                        list_y.append(float(ws_linkpars.cell_value(row_id, col_id)))
+                        if not isinstance(ws_linkpars.cell_value(row_id-1-pop_id, col_id), Number):
+                            list_t.append(float(ws_linkpars.cell_value(row_id-1-pop_id, offset_tvec)))
+                            print 'Outta here'
+                            break
+                        else:
+                            list_t.append(float(ws_linkpars.cell_value(row_id-1-pop_id, col_id)))
+                            print 'I can work with this...'
+                self.data['linkpars'][current_linkpar_label][current_pop_label]['t'] = np.array(list_t)
+                self.data['linkpars'][current_linkpar_label][current_pop_label]['y'] = np.array(list_y)                
+                
                 pop_id += 1
 
 
