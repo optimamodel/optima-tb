@@ -1,7 +1,7 @@
 #%% Imports
 
 from utils import odict, OptimaException
-from interpolation import interpolate
+from interpolation import interpolateFunc
 
 from copy import deepcopy as dcp
 import numpy as np
@@ -46,8 +46,8 @@ class Parameter(object):
     #        print tvec        
             
             if tvec[0] < t_min:
-                input_t = np.append(input_t, tvec[0])
-                input_y = np.append(input_y, y_at_t_min)
+                input_t = np.append(tvec[0], input_t)
+                input_y = np.append(y_at_t_min, input_y)
             if tvec[-1] > t_max:
                 input_t = np.append(input_t, tvec[-1])
                 input_y = np.append(input_y, y_at_t_max)
@@ -55,7 +55,7 @@ class Parameter(object):
     #        print input_t
     #        print input_y
             
-            output = interpolate(input_t, input_y, tvec)
+            output = interpolateFunc(input_t, input_y, tvec)
         
         return output
 

@@ -9,8 +9,7 @@ import numpy as np
 
 #%% General interpolation wrapper
 
-# NOTE: Change this method name if a reasonable alternative exists, so that pars.interpolate confusion does not exist.
-def interpolate(x, y, xnew, method = 'pchip'):
+def interpolateFunc(x, y, xnew, method = 'pchip'):
     '''
     Function that interpolates and extrapolates (x,y) coordinates along the domain subset of xnew, according to a chosen method.
     Works with numpy arrays to standardise output types. Input must be numpy array compatible.    
