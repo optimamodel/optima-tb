@@ -24,7 +24,8 @@ class Settings(object):
         self.databook = odict()
         self.databook['sheet_names'] = odict()
         self.databook['sheet_names']['pops'] = 'Population Definitions'
-        self.databook['sheet_names']['linkpars'] = 'Transition Parameters'
+        self.databook['sheet_names']['poptrans'] = 'Population Transitions'
+        self.databook['sheet_names']['linkpars'] = 'Cascade Parameters'
     
     def startFresh(self):
         ''' Resets all cascade contents and settings that are fundamental to how a project is structured. '''

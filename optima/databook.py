@@ -26,6 +26,7 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5):
     
     workbook = xw.Workbook(databook_path)
     ws_pops = workbook.add_worksheet(settings.databook['sheet_names']['pops'])
+    ws_poptrans = workbook.add_worksheet(settings.databook['sheet_names']['poptrans'])
     ws_linkpars = workbook.add_worksheet(settings.databook['sheet_names']['linkpars'])
     
     data_tvec = np.arange(settings.tvec_start, settings.tvec_end + 1.0/2)
@@ -36,15 +37,24 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5):
     # Population names sheet.
     ws_pops.write(0, 0, 'Name')
     ws_pops.write(0, 1, 'Abbreviation')
+    ws_pops.write(0, 2, 'Minimum Age')
+    ws_pops.write(0, 3, 'Maximum Age')
     temp_pop_names = []
-    for k in xrange(num_pops):
-        temp_pop_name = 'Population '+str(k+1)
+    for pid in xrange(num_pops):
+        temp_pop_name = 'Population '+str(pid+1)
         temp_pop_names.append(temp_pop_name)
-        ws_pops.write(k+1, 0, temp_pop_name)
-        ws_pops.write(k+1, 1, '=LEFT(%s,3)&"%i"' % (rc(k+1,0), k+1), None, temp_pop_name[0:3]+str(k+1))
+        ws_pops.write(pid+1, 0, temp_pop_name)
+        ws_pops.write(pid+1, 1, '=LEFT(%s,3)&"%i"' % (rc(pid+1,0), pid+1), None, temp_pop_name[0:3]+str(pid+1))
     ws_pops.set_column(0, 1, ws_pops_width)
     
-    # Transition parameters sheet.
+    # Inter-population transitions sheet.
+    ws_poptrans.write(0, 0, 'Aging')
+    for pid in xrange(num_pops):
+        temp_pop_name = 'Population '+str(pid+1)
+        ws_poptrans.write(pid+1, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)), None, temp_pop_name)
+        ws_poptrans.write(0, pid+1, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)), None, temp_pop_name)
+    
+    # Cascade parameters sheet.
     row_id = 0
     for link_name in settings.linkpar_name_labels.keys():
         link_label = settings.linkpar_name_labels[link_name]
@@ -58,7 +68,7 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5):
             ws_linkpars.write(row_id, k+offset_tvec, data_tvec[k])
         for pid in xrange(num_pops):
             row_id += 1
-            ws_linkpars.write(row_id, 0, "='Population Definitions'!%s" % rc(pid+1,0), None, temp_pop_names[pid])
+            ws_linkpars.write(row_id, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)), None, temp_pop_names[pid])
             ws_linkpars.write(row_id, 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset_tvec), rc(row_id,offset_tvec+len(data_tvec)-1), def_val), None, def_val)
             ws_linkpars.write(row_id, 2, 'OR')
             
@@ -91,13 +101,22 @@ def loadSpreadsheetFunc(settings, databook_path = None):
     data['pops'] = odict()
     data['pops']['name_labels'] = odict()
     data['pops']['label_names'] = odict()      # A reverse of the previous dictionary.
+    data['pops']['ages'] = odict()
     for row_id in xrange(ws_pops.nrows):
-        if row_id > 0 and ws_pops.cell_value(row_id, 0) not in ['']:
-            pop_label = 'pop' + str(row_id)
-            data['pops']['name_labels'][str(ws_pops.cell_value(row_id, 0))] = pop_label
-            data['pops']['label_names'][pop_label] = str(ws_pops.cell_value(row_id, 0))
+        if row_id > 0:
+            if ws_pops.cell_value(row_id, 0) not in ['']:
+                if ws_pops.cell_value(row_id, 1) not in ['']:
+                    pop_label = str(ws_pops.cell_value(row_id, 1))
+                else:
+                    pop_label = 'pop' + str(row_id)
+                data['pops']['name_labels'][str(ws_pops.cell_value(row_id, 0))] = pop_label
+                data['pops']['label_names'][pop_label] = str(ws_pops.cell_value(row_id, 0))
+                age_min = ws_pops.cell_value(row_id, 2)
+                age_max = ws_pops.cell_value(row_id, 3)
+                if isinstance(age_min, Number) and isinstance(age_max, Number):
+                    data['pops']['ages'][pop_label] = {'min':float(age_min), 'max':float(age_max), 'range':1+float(age_max)-float(age_min)}
     
-    # Transition parameters sheet.
+    # Cascade parameters sheet.
     data['linkpars'] = odict()
     current_linkpar_name = None
     current_linkpar_label = None
