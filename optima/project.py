@@ -189,11 +189,9 @@ class Project(object):
                         list_y.append(float(ws_linkpars.cell_value(row_id, col_id)))
                         if not isinstance(ws_linkpars.cell_value(row_id-1-pop_id, col_id), Number):
                             list_t.append(float(ws_linkpars.cell_value(row_id-1-pop_id, offset_tvec)))
-                            print 'Outta here'
                             break
                         else:
                             list_t.append(float(ws_linkpars.cell_value(row_id-1-pop_id, col_id)))
-                            print 'I can work with this...'
                 self.data['linkpars'][current_linkpar_label][current_pop_label]['t'] = np.array(list_t)
                 self.data['linkpars'][current_linkpar_label][current_pop_label]['y'] = np.array(list_y)                
                 

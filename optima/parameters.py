@@ -29,30 +29,33 @@ class Parameter(object):
         if not len(self.t[pop_label]) > 0: raise OptimaException('ERROR: There are no timepoint values for parameter %s, population %s.' % (self.label, pop_label))
         if not len(self.t[pop_label]) == len(self.y[pop_label]): raise OptimaException('ERROR: Parameter %s, population %s, does not have corresponding values and timepoints.' % (self.label, pop_label))
 
-        input_t = dcp(self.t[pop_label])
-        input_y = dcp(self.y[pop_label])
-        
-        # Pad the input vectors for interpolation with minimum and maximum timepoint values, to avoid extrapolation blowing up.
-        ind_min, t_min = min(enumerate(self.t[pop_label]), key = lambda p: p[1])
-        ind_max, t_max = max(enumerate(self.t[pop_label]), key = lambda p: p[1])
-        y_at_t_min = self.y[pop_label][ind_min]
-        y_at_t_max = self.y[pop_label][ind_max]
-        
-#        print t_min
-#        print t_max
-#        print tvec        
-        
-        if tvec[0] < t_min:
-            input_t = np.append(input_t, tvec[0])
-            input_y = np.append(input_y, y_at_t_min)
-        if tvec[-1] > t_max:
-            input_t = np.append(input_t, tvec[-1])
-            input_y = np.append(input_y, y_at_t_max)
+        if len(self.t[pop_label]) == 1:
+            output = np.ones(len(tvec))*self.y[pop_label][0]    # Don't bother running interpolation loops if constant.
+        else:
+            input_t = dcp(self.t[pop_label])
+            input_y = dcp(self.y[pop_label])
             
-#        print input_t
-#        print input_y
-        
-        output = interpolate(input_t, input_y, tvec)
+            # Pad the input vectors for interpolation with minimum and maximum timepoint values, to avoid extrapolation blowing up.
+            ind_min, t_min = min(enumerate(self.t[pop_label]), key = lambda p: p[1])
+            ind_max, t_max = max(enumerate(self.t[pop_label]), key = lambda p: p[1])
+            y_at_t_min = self.y[pop_label][ind_min]
+            y_at_t_max = self.y[pop_label][ind_max]
+            
+    #        print t_min
+    #        print t_max
+    #        print tvec        
+            
+            if tvec[0] < t_min:
+                input_t = np.append(input_t, tvec[0])
+                input_y = np.append(input_y, y_at_t_min)
+            if tvec[-1] > t_max:
+                input_t = np.append(input_t, tvec[-1])
+                input_y = np.append(input_y, y_at_t_max)
+                
+    #        print input_t
+    #        print input_y
+            
+            output = interpolate(input_t, input_y, tvec)
         
         return output
 

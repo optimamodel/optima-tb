@@ -162,7 +162,7 @@ def model(settings, parset):
         m_pops[pop_label].getnode('sus').popsize[0] = 1000000
         
         
-    print m_pops[1].links[1].transit_frac
+#    print m_pops[1].links[1].transit_frac
     
     # Transferring parset values into ModelPops.
     for par in parset.pars:
@@ -171,7 +171,7 @@ def model(settings, parset):
             link_id = m_pops[pop_label].link_ids[tag]           # Map link tag -> link id in ModelPop.           
             m_pops[pop_label].links[link_id].transit_frac = par.interpolate(tvec = sim_settings['tvec'], pop_label = pop_label)
     
-    print m_pops[1].links[1].transit_frac
+#    print m_pops[1].links[1].transit_frac
 
     #%% Run (i.e. evolve epidemic through time)
 
@@ -179,7 +179,7 @@ def model(settings, parset):
         for t in sim_settings['tvec'][1:]:
             m_pops[oid].stepForward(dt = settings.tvec_dt)
     
-    print m_pops[1].links[1].transit_frac 
+#    print m_pops[1].links[1].transit_frac 
     
     #%% Collect and return raw results    
     
