@@ -141,46 +141,87 @@ class ModelPop(object):
             link.transit_frac = np.ones(len(sim_settings['tvec']))*np.nan
             link.transit_frac[0] = init_transit_frac
             
+            
+            
+#%% Model class
+            
+class Model(object):
+    ''' A class to wrap up multiple populations within model and handle cross-population transitions. '''
+    
+    def __init__(self):
+        self.pops = odict()
+            
+    def process(self, settings, parset):
+        ''' Build and run the full model. '''
+        
+        sim_settings = odict()
+        sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
+        
+        for k in xrange(len(parset.pop_labels)):
+            pop_label = parset.pop_labels[k]
+            pop_name = parset.pop_names[k]
+            self.pops[pop_label] = ModelPop(settings = settings, name = pop_name)
+            self.pops[pop_label].preAllocate(sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
+            
+            self.pops[pop_label].getnode('sus').popsize[0] = 1000000
+            
+        # Transferring parset values into ModelPops.
+        for par in parset.pars:
+            tag = settings.linkpar_specs[par.label]['tag']          # Map parameter label -> link tag.
+            for pop_label in parset.pop_labels:
+                link_id = self.pops[pop_label].link_ids[tag]           # Map link tag -> link id in ModelPop.           
+                self.pops[pop_label].links[link_id].transit_frac = par.interpolate(tvec = sim_settings['tvec'], pop_label = pop_label)
+                
+        for oid in self.pops:
+            for t in sim_settings['tvec'][1:]:
+                self.pops[oid].stepCascadeForward(dt = settings.tvec_dt)
+                
+        return self.pops, sim_settings
+        
+    
 
 #%% Model function (simulates epidemic dynamics)
 
-def model(settings, parset):
+def runModel(settings, parset):
     ''' Processes the TB epidemiological model. '''
     
-    #%% Setup
+    m = Model()
+    m_pops, sim_settings = m.process(settings = settings, parset = parset)
     
-    sim_settings = odict()
-    sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
-    
-    m_pops = odict()
-    for k in xrange(len(parset.pop_labels)):
-        pop_label = parset.pop_labels[k]
-        pop_name = parset.pop_names[k]
-        m_pops[pop_label] = ModelPop(settings = settings, name = pop_name)
-        m_pops[pop_label].preAllocate(sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
-        
-        m_pops[pop_label].getnode('sus').popsize[0] = 1000000
-        
-        
-#    print m_pops[1].links[1].transit_frac
-    
-    # Transferring parset values into ModelPops.
-    for par in parset.pars:
-        tag = settings.linkpar_specs[par.label]['tag']          # Map parameter label -> link tag.
-        for pop_label in parset.pop_labels:
-            link_id = m_pops[pop_label].link_ids[tag]           # Map link tag -> link id in ModelPop.           
-            m_pops[pop_label].links[link_id].transit_frac = par.interpolate(tvec = sim_settings['tvec'], pop_label = pop_label)
-    
-#    print m_pops[1].links[1].transit_frac
-
-    #%% Run (i.e. evolve epidemic through time)
-
-    for oid in m_pops:
-        for t in sim_settings['tvec'][1:]:
-            
-            m_pops[oid].stepCascadeForward(dt = settings.tvec_dt)
-    
-#    print m_pops[1].links[1].transit_frac 
+#    #%% Setup
+#    
+#    sim_settings = odict()
+#    sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
+#    
+#    m_pops = odict()
+#    for k in xrange(len(parset.pop_labels)):
+#        pop_label = parset.pop_labels[k]
+#        pop_name = parset.pop_names[k]
+#        m_pops[pop_label] = ModelPop(settings = settings, name = pop_name)
+#        m_pops[pop_label].preAllocate(sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
+#        
+#        m_pops[pop_label].getnode('sus').popsize[0] = 1000000
+#        
+#        
+##    print m_pops[1].links[1].transit_frac
+#    
+#    # Transferring parset values into ModelPops.
+#    for par in parset.pars:
+#        tag = settings.linkpar_specs[par.label]['tag']          # Map parameter label -> link tag.
+#        for pop_label in parset.pop_labels:
+#            link_id = m_pops[pop_label].link_ids[tag]           # Map link tag -> link id in ModelPop.           
+#            m_pops[pop_label].links[link_id].transit_frac = par.interpolate(tvec = sim_settings['tvec'], pop_label = pop_label)
+#    
+##    print m_pops[1].links[1].transit_frac
+#
+#    #%% Run (i.e. evolve epidemic through time)
+#
+#    for oid in m_pops:
+#        for t in sim_settings['tvec'][1:]:
+#            
+#            m_pops[oid].stepCascadeForward(dt = settings.tvec_dt)
+#    
+##    print m_pops[1].links[1].transit_frac 
     
     #%% Collect and return raw results    
     

@@ -1,7 +1,7 @@
 #%% Imports
 
 from utils import tic, toc, odict, OptimaException
-from model import model
+from model import runModel
 from settings import Settings
 from parameters import ParameterSet
 from plotting import gridColorMap
@@ -39,7 +39,7 @@ class Project(object):
         except: raise OptimaException('ERROR: Project %s is lacking a parset named %s. Cannot run model.' % (self.name, parset_name))
 
         tm = tic()
-        results, sim_settings = model(settings = self.settings, parset = parset)
+        results, sim_settings = runModel(settings = self.settings, parset = parset)
         toc(tm, label = 'running %s model' % self.name)
         
         tp = tic()
