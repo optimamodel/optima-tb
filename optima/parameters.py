@@ -71,11 +71,17 @@ class ParameterSet(object):
         self.pop_labels = []        # List of population labels.
         self.pars = []
         self.par_ids = {}
+        
+        self.transfers = odict()   # List of inter-population transitions.
+        self.transfers['age'] = odict()
     
     def makePars(self, data):
         self.pop_names = data['pops']['name_labels'].keys()
+        
         for name in self.pop_names:
             self.pop_labels.append(data['pops']['name_labels'][name])
+            
+        # Cascade parameters.
         for l, label in enumerate(data['linkpars']):
             self.par_ids[label] = l
             self.pars.append(Parameter(label))
@@ -83,3 +89,6 @@ class ParameterSet(object):
                 self.pars[-1].t[pop_id] = data['linkpars'][label][pop_id]['t']
                 self.pars[-1].y[pop_id] = data['linkpars'][label][pop_id]['y']
         
+        # Age migrations.
+        for tid in data['pops']['age_trans'].keys():
+            self.transfers['age'][tid] = {'target':data['pops']['age_trans'][tid], 'value':float(1/data['pops']['ages'][tid]['range'])}

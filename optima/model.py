@@ -150,18 +150,20 @@ class Model(object):
     
     def __init__(self):
         self.pops = odict()
-            
-    def process(self, settings, parset):
-        ''' Build and run the full model. '''
+        self.sim_settings = odict()
         
-        sim_settings = odict()
-        sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
+        self.transfers = odict()
+        
+        
+    def build(self, settings, parset):
+        ''' Build the full model. '''
+        self.sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
         
         for k in xrange(len(parset.pop_labels)):
             pop_label = parset.pop_labels[k]
             pop_name = parset.pop_names[k]
             self.pops[pop_label] = ModelPop(settings = settings, name = pop_name)
-            self.pops[pop_label].preAllocate(sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
+            self.pops[pop_label].preAllocate(self.sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
             
             self.pops[pop_label].getnode('sus').popsize[0] = 1000000
             
@@ -170,13 +172,36 @@ class Model(object):
             tag = settings.linkpar_specs[par.label]['tag']          # Map parameter label -> link tag.
             for pop_label in parset.pop_labels:
                 link_id = self.pops[pop_label].link_ids[tag]           # Map link tag -> link id in ModelPop.           
-                self.pops[pop_label].links[link_id].transit_frac = par.interpolate(tvec = sim_settings['tvec'], pop_label = pop_label)
+                self.pops[pop_label].links[link_id].transit_frac = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
+        
+        for trans_type in parset.transfers:
+            for pop_label in parset.transfers[trans_type].keys():
+                self.transfers[pop_label] = parset.transfers[trans_type][pop_label]
+            
+    def process(self, settings, parset):
+        ''' Run the full model. '''
+        
+        for t in self.sim_settings['tvec'][1:]:
+            for pop_label in self.pops:
+                self.pops[pop_label].stepCascadeForward(dt = settings.tvec_dt)
                 
-        for oid in self.pops:
-            for t in sim_settings['tvec'][1:]:
-                self.pops[oid].stepCascadeForward(dt = settings.tvec_dt)
+            # Apply transfers.
+            for pop_source in self.transfers.keys():
+                self.pops[pop_source].printNodeVars()
+                pop_sink = self.transfers[pop_source]['target']
+                transit_frac = self.transfers[pop_source]['value']
+                tid_source = self.pops[pop_source].t_index
+                tid_sink = self.pops[pop_sink].t_index
+                for node_label in self.pops[pop_source].node_ids.keys():
+                    nid_source = self.pops[pop_source].node_ids[node_label]
+                    nid_sink = self.pops[pop_sink].node_ids[node_label]
+                    num_trans = self.pops[pop_source].nodes[nid_source].popsize[tid_source] * transit_frac * settings.tvec_dt
+                    self.pops[pop_source].nodes[nid_source].popsize[tid_source] -= num_trans
+                    self.pops[pop_sink].nodes[nid_sink].popsize[tid_sink] += num_trans
+                            
+                        
                 
-        return self.pops, sim_settings
+        return self.pops, self.sim_settings
         
     
 
@@ -186,6 +211,7 @@ def runModel(settings, parset):
     ''' Processes the TB epidemiological model. '''
     
     m = Model()
+    m.build(settings = settings, parset = parset)
     m_pops, sim_settings = m.process(settings = settings, parset = parset)
     
 #    #%% Setup
