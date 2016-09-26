@@ -63,7 +63,7 @@ class ModelPop(object):
             self.links.append(self.nodes[node_from].makeLinkTo(self.nodes[node_to]))
             self.link_ids[tag] = l
     
-    def stepForward(self, dt = 1.0):
+    def stepCascadeForward(self, dt = 1.0):
         '''
         Evolve model population characteristics by one timestep (defaulting as 1 year).
         Calculation outputs like popsize will be propagated across pre-allocated NaNs.
@@ -177,7 +177,8 @@ def model(settings, parset):
 
     for oid in m_pops:
         for t in sim_settings['tvec'][1:]:
-            m_pops[oid].stepForward(dt = settings.tvec_dt)
+            
+            m_pops[oid].stepCascadeForward(dt = settings.tvec_dt)
     
 #    print m_pops[1].links[1].transit_frac 
     

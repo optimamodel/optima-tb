@@ -45,14 +45,14 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5):
         temp_pop_names.append(temp_pop_name)
         ws_pops.write(pid+1, 0, temp_pop_name)
         ws_pops.write(pid+1, 1, '=LEFT(%s,3)&"%i"' % (rc(pid+1,0), pid+1), None, temp_pop_name[0:3]+str(pid+1))
-    ws_pops.set_column(0, 1, ws_pops_width)
+    ws_pops.set_column(0, 4, ws_pops_width)
     
     # Inter-population transitions sheet.
     ws_poptrans.write(0, 0, 'Aging')
     for pid in xrange(num_pops):
         temp_pop_name = 'Population '+str(pid+1)
-        ws_poptrans.write(pid+1, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)), None, temp_pop_name)
-        ws_poptrans.write(0, pid+1, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)), None, temp_pop_name)
+        ws_poptrans.write(pid+1, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)), None, temp_pop_name)
+        ws_poptrans.write(0, pid+1, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)), None, temp_pop_name)
     
     # Cascade parameters sheet.
     row_id = 0
@@ -94,6 +94,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
     try: workbook = xlrd.open_workbook(databook_path)
     except: raise OptimaException('ERROR: Project data workbook was unable to be loaded from... %s' % databook_path)
     ws_pops = workbook.sheet_by_name(settings.databook['sheet_names']['pops'])
+    ws_poptrans = workbook.sheet_by_name(settings.databook['sheet_names']['poptrans'])
     ws_linkpars = workbook.sheet_by_name(settings.databook['sheet_names']['linkpars'])
 
     # Population names sheet.
@@ -115,6 +116,22 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                 age_max = ws_pops.cell_value(row_id, 3)
                 if isinstance(age_min, Number) and isinstance(age_max, Number):
                     data['pops']['ages'][pop_label] = {'min':float(age_min), 'max':float(age_max), 'range':1+float(age_max)-float(age_min)}
+
+    # Inter-population transitions sheet.
+    # NOTE: Needs some way for users to know that only the first filled-in cell per row will be noted.
+    data['pops']['age_trans'] = odict()
+    for row_id in xrange(ws_poptrans.nrows):
+        if row_id > 0:
+            pop_source = str(ws_poptrans.cell_value(row_id, 0))
+            for col_id in xrange(ws_poptrans.ncols):
+                if col_id > 0:
+                    val = ws_poptrans.cell_value(row_id, col_id)
+                    if val not in ['']:
+                        pop_sink = str(ws_poptrans.cell_value(0, col_id))
+                        if 'range' not in data['pops']['ages'][pop_source].keys():
+                            raise OptimaException('ERROR: An age transition has been flagged for a source population group with no age range.')
+                        data['pops']['age_trans'][pop_source] = pop_sink
+                        break   
     
     # Cascade parameters sheet.
     data['linkpars'] = odict()
