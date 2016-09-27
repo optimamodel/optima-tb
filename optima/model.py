@@ -40,7 +40,7 @@ class ModelPop(object):
         self.nodes = list()
         self.links = list()
         self.node_ids = dict()  # Maps node label to positional index in nodes list.
-        self.link_ids = dict()  # Maps link tag to positional index in nodes list.
+        self.link_ids = dict()  # Maps link tag to list of positional indices in links list.
         self.t_index = 0        # Keeps track of array index for current data within all nodes.
         
         self.genCascade(settings = settings)
@@ -56,12 +56,16 @@ class ModelPop(object):
         for l, label in enumerate(settings.node_labels):
             self.nodes.append(Node(name = label, index = l))
             self.node_ids[label] = l
-        for l, tag in enumerate(settings.links):
-            pair = settings.links[tag]
-            node_from = self.node_ids[pair[0]]
-            node_to = self.node_ids[pair[1]]
-            self.links.append(self.nodes[node_from].makeLinkTo(self.nodes[node_to]))
-            self.link_ids[tag] = l
+        l = 0
+        for tag in settings.links.keys():
+            for pair in settings.links[tag]:
+                node_from = self.node_ids[pair[0]]
+                node_to = self.node_ids[pair[1]]
+                self.links.append(self.nodes[node_from].makeLinkTo(self.nodes[node_to]))
+                if not tag in self.link_ids:
+                    self.link_ids[tag] = []
+                self.link_ids[tag].append(l)
+                l += 1
     
     def stepCascadeForward(self, dt = 1.0):
         '''
@@ -171,12 +175,13 @@ class Model(object):
         for par in parset.pars:
             tag = settings.linkpar_specs[par.label]['tag']          # Map parameter label -> link tag.
             for pop_label in parset.pop_labels:
-                link_id = self.pops[pop_label].link_ids[tag]           # Map link tag -> link id in ModelPop.           
-                self.pops[pop_label].links[link_id].transit_frac = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
+                for link_id in self.pops[pop_label].link_ids[tag]:           # Map link tag -> link id in ModelPop.            
+                    self.pops[pop_label].links[link_id].transit_frac = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
         
         for trans_type in parset.transfers:
             for pop_label in parset.transfers[trans_type].keys():
                 self.transfers[pop_label] = parset.transfers[trans_type][pop_label]
+                
                 
             
     def process(self, settings, parset):
