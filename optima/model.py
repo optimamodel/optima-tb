@@ -16,6 +16,7 @@ class Node(object):
         self.index = index
         self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
         self.popsize = np.array([float(popsize)])   # Number of people in compartment.
+        self.tag_dead = False       # Tag for whether this compartment contains dead people.
         
     def makeLinkTo(self, other_node):
         ''' Link this node to another (i.e. create a transition link).'''
@@ -53,8 +54,10 @@ class ModelPop(object):
     # NOTE: Consider generalising this method for future diseases using compartmental model.
     def genCascade(self, settings):
         ''' Generate standard cascade, creating a node for each compartment and linking them appropriately. '''
-        for l, label in enumerate(settings.node_labels):
+        for l, label in enumerate(settings.node_specs.keys()):
             self.nodes.append(Node(name = label, index = l))
+            if 'tag_dead' in settings.node_specs[label].keys():
+                self.nodes[-1].tag_dead = True
             self.node_ids[label] = l
         l = 0
         for tag in settings.links.keys():
@@ -199,10 +202,11 @@ class Model(object):
                 tid_sink = self.pops[pop_sink].t_index
                 for node_label in self.pops[pop_source].node_ids.keys():
                     nid_source = self.pops[pop_source].node_ids[node_label]
-                    nid_sink = self.pops[pop_sink].node_ids[node_label]
-                    num_trans = self.pops[pop_source].nodes[nid_source].popsize[tid_source] * transit_frac * settings.tvec_dt
-                    self.pops[pop_source].nodes[nid_source].popsize[tid_source] -= num_trans
-                    self.pops[pop_sink].nodes[nid_sink].popsize[tid_sink] += num_trans
+                    if not self.pops[pop_source].nodes[nid_source].tag_dead:
+                        nid_sink = self.pops[pop_sink].node_ids[node_label]
+                        num_trans = self.pops[pop_source].nodes[nid_source].popsize[tid_source] * transit_frac * settings.tvec_dt
+                        self.pops[pop_source].nodes[nid_source].popsize[tid_source] -= num_trans
+                        self.pops[pop_sink].nodes[nid_sink].popsize[tid_sink] += num_trans
                 
         return self.pops, self.sim_settings
         
