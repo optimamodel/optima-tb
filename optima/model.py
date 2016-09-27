@@ -177,6 +177,7 @@ class Model(object):
         for trans_type in parset.transfers:
             for pop_label in parset.transfers[trans_type].keys():
                 self.transfers[pop_label] = parset.transfers[trans_type][pop_label]
+                
             
     def process(self, settings, parset):
         ''' Run the full model. '''
@@ -187,7 +188,6 @@ class Model(object):
                 
             # Apply transfers.
             for pop_source in self.transfers.keys():
-                self.pops[pop_source].printNodeVars()
                 pop_sink = self.transfers[pop_source]['target']
                 transit_frac = self.transfers[pop_source]['value']
                 tid_source = self.pops[pop_source].t_index
@@ -198,8 +198,6 @@ class Model(object):
                     num_trans = self.pops[pop_source].nodes[nid_source].popsize[tid_source] * transit_frac * settings.tvec_dt
                     self.pops[pop_source].nodes[nid_source].popsize[tid_source] -= num_trans
                     self.pops[pop_sink].nodes[nid_sink].popsize[tid_sink] += num_trans
-                            
-                        
                 
         return self.pops, self.sim_settings
         
@@ -214,40 +212,7 @@ def runModel(settings, parset):
     m.build(settings = settings, parset = parset)
     m_pops, sim_settings = m.process(settings = settings, parset = parset)
     
-#    #%% Setup
-#    
-#    sim_settings = odict()
-#    sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
-#    
-#    m_pops = odict()
-#    for k in xrange(len(parset.pop_labels)):
-#        pop_label = parset.pop_labels[k]
-#        pop_name = parset.pop_names[k]
-#        m_pops[pop_label] = ModelPop(settings = settings, name = pop_name)
-#        m_pops[pop_label].preAllocate(sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
-#        
-#        m_pops[pop_label].getnode('sus').popsize[0] = 1000000
-#        
-#        
-##    print m_pops[1].links[1].transit_frac
-#    
-#    # Transferring parset values into ModelPops.
-#    for par in parset.pars:
-#        tag = settings.linkpar_specs[par.label]['tag']          # Map parameter label -> link tag.
-#        for pop_label in parset.pop_labels:
-#            link_id = m_pops[pop_label].link_ids[tag]           # Map link tag -> link id in ModelPop.           
-#            m_pops[pop_label].links[link_id].transit_frac = par.interpolate(tvec = sim_settings['tvec'], pop_label = pop_label)
-#    
-##    print m_pops[1].links[1].transit_frac
-#
-#    #%% Run (i.e. evolve epidemic through time)
-#
-#    for oid in m_pops:
-#        for t in sim_settings['tvec'][1:]:
-#            
-#            m_pops[oid].stepCascadeForward(dt = settings.tvec_dt)
-#    
-##    print m_pops[1].links[1].transit_frac 
+    
     
     #%% Collect and return raw results    
     
