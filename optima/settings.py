@@ -10,6 +10,13 @@ import numpy as np
 
 
 #%% Settings class (for data that is effectively static per epidemic context)
+#
+#   This refers specifically to cascade metadata (loaded from a cascade workbook) and general defaults.
+#   A cascade structure comprises of compartments/nodes and transitions/links that detail the flow of people through stages of a disease.
+#   In general use, the attributes of this object are static regardless of project/simulation.
+#
+#   Notes:
+#   Settings MUST be loaded into a project beforehand, as it details the framework for dealing with data and running the model.
 
 class Settings(object):
     def __init__(self, cascade_path = './cascade.xlsx'):
@@ -30,10 +37,10 @@ class Settings(object):
     def startFresh(self):
         ''' Resets all cascade contents and settings that are fundamental to how a project is structured. '''
             
-        self.node_labels = []
-        self.node_names = []
-        self.node_coords = []
-        self.links = odict()                    # Key is a tag. Value is a compartment-label tuple.
+        self.node_specs = odict()               # Relates compartment code-labels with special tags, if they exist. Key is a node label. Value is a dict including dead tag.
+        self.node_names = []                    # A corresponding list of full names for compartments.
+        self.node_coords = []                   # A corresponding list of optional compartment coordinates for plotting purposes.
+        self.links = odict()                    # Key is a tag. Value is a list of compartment-label tuple.
         self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.
         self.linkpar_name_labels = odict()      # Key is a link-parameter name. Value is a link-parameter label. (A partial reversed linkpar-specs.)
     
@@ -53,17 +60,19 @@ class Settings(object):
         cid_label = None
         cid_name = None
         cid_coords = None
+        cid_dead = None
         for col_id in xrange(ws_nodes.ncols):
             if ws_nodes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_nodes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
             if ws_nodes.cell_value(0, col_id) == 'Plot Coordinates': cid_coords = col_id
+            if ws_nodes.cell_value(0, col_id) == 'Dead': cid_dead = col_id
         if None in [cid_label, cid_name]:
             raise OptimaException('ERROR: Cascade compartment worksheet does not have correct column headers.')
         
         # Actually append node labels and full names to relevant lists. Labels are crucial.
         for row_id in xrange(ws_nodes.nrows):
             if row_id > 0 and ws_nodes.cell_value(row_id, cid_label) not in ['']:
-                self.node_labels.append(str(ws_nodes.cell_value(row_id, cid_label)))
+                self.node_specs[str(ws_nodes.cell_value(row_id, cid_label))] = odict()
                 self.node_names.append(str(ws_nodes.cell_value(row_id, cid_name)))
                 
                 # Not crucial, but store node plotting coordinates if available.
@@ -73,6 +82,13 @@ class Settings(object):
                     self.node_coords.append((float(coords[0]),float(coords[1])))
                 except:
                     self.node_coords.append(None)
+                
+                # Ditto with tags for dead compartments.
+                if not cid_dead is None:
+                    val = ws_nodes.cell_value(row_id, cid_dead)
+                    if val not in ['']:
+                        self.node_specs[str(ws_nodes.cell_value(row_id, cid_label))]['tag_dead'] = val
+                        
                     
                     
         
@@ -82,20 +98,20 @@ class Settings(object):
         for row_id in xrange(ws_links.nrows):
             val = ws_links.cell_value(row_id, 0)
             if row_id > 0 and val not in ['']:
-                if val not in self.node_labels:
+                if val not in self.node_specs.keys():
                     raise OptimaException('ERROR: Cascade transitions worksheet has a row header (%s) that is not a known compartment code label.' % val)
                 test.append(val)
-        for label in self.node_labels:
+        for label in self.node_specs.keys():
             if label not in test:
                 raise OptimaException('ERROR: Compartment code label (%s) is not represented in row headers of transitions worksheet.' % label)
         test = []
         for col_id in xrange(ws_links.ncols):
             val = ws_links.cell_value(0, col_id)
             if col_id > 0 and val not in ['']:
-                if val not in self.node_labels:
+                if val not in self.node_specs.keys():
                     raise OptimaException('ERROR: Cascade transitions worksheet has a column header (%s) that is not a known compartment code label.' % val)
                 test.append(val)
-        for label in self.node_labels:
+        for label in self.node_specs.keys():
             if label not in test:
                 raise OptimaException('ERROR: Compartment code label (%s) is not represented in column headers of transitions worksheet.' % label)
         
@@ -108,9 +124,8 @@ class Settings(object):
                     val = str(ws_links.cell_value(row_id, col_id))
                     if not '' in [n1,n2,val]:
                         if not val in self.links.keys():
-                            self.links[val] = (n1, n2)
-                        else:
-                            raise OptimaException('ERROR: Cascade transition matrix appears to have duplicate labels for compartment links.')
+                            self.links[val] = []
+                        self.links[val].append((n1, n2))
             
         # Third sheet: Transition Parameters
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
@@ -154,14 +169,14 @@ class Settings(object):
     def plotCascade(self):
         fig, ax = pl.subplots(figsize=(10,10))
         G = nx.DiGraph()
-        G.add_nodes_from(self.node_labels)
-        G.add_edges_from(self.links[:])
+        G.add_nodes_from(self.node_specs.keys())
+        G.add_edges_from([link for lid in self.links for link in self.links[lid]])
 
         # Use plot coordinates if stored and arrange the rest of the cascade out in a unit circle.
         pos = {}
-        num_nodes = len(self.node_labels)
+        num_nodes = len(self.node_specs.keys())
         k = 0
-        for node in self.node_labels:
+        for node in self.node_specs.keys():
             try: pos[node] = (self.node_coords[k][0], self.node_coords[k][1])
             except: pos[node] = (np.sin(2.0*np.pi*k/num_nodes), np.cos(2.0*np.pi*k/num_nodes))
             k += 1
@@ -169,7 +184,8 @@ class Settings(object):
         # Generate edge label dictionary with tags from spreadsheet.
         el = {}
         for par_name in self.linkpar_specs.keys():
-            el[self.links[self.linkpar_specs[par_name]['tag']]] = self.linkpar_specs[par_name]['tag']
+            for link in self.links[self.linkpar_specs[par_name]['tag']]:
+                el[link] = self.linkpar_specs[par_name]['tag']
 
         nx.draw_networkx_nodes(G, pos, node_size = 1250, node_color = 'w')
         ax.axis('tight')
