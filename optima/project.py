@@ -39,12 +39,12 @@ class Project(object):
         except: raise OptimaException('ERROR: Project %s is lacking a parset named %s. Cannot run model.' % (self.name, parset_name))
 
         tm = tic()
-        results, sim_settings = runModel(settings = self.settings, parset = parset)
+        results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
         toc(tm, label = 'running %s model' % self.name)
         
         tp = tic()
-        for pop_oid in results:
-            pop = results[pop_oid]
+        for pop_id in results:
+            pop = results[pop_id]
             
             fig, ax = pl.subplots(figsize=(15,10))
             colors = gridColorMap(len(pop.nodes))
@@ -68,11 +68,30 @@ class Project(object):
             ax.set_ylabel('People')
             ax.set_xlim((sim_settings['tvec'][0], sim_settings['tvec'][-1]))
             ax.set_ylim((0, max(top)))
-            cascadenames = [node.name for node in pop.nodes]
-            ax.legend(cascadenames, **legendsettings)
+            cascade_names = [node.name for node in pop.nodes]
+            ax.legend(cascade_names, **legendsettings)
+            
+        for output_id in outputs.keys():
+            fig, ax = pl.subplots(figsize=(15,10))
+            for pop_id in results.keys():
+                vals = dcp(outputs[output_id][pop_id])
+                if 'plot_percentage' in self.settings.charac_specs[output_id].keys():
+                    vals *= 100
+                ax.plot(sim_settings['tvec'], vals)
+
+            box = ax.get_position()
+            ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
+            
+            legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}                
+            ax.set_title('%s Outputs - %s' % (self.name.title(), pop.name.title()))
+            ax.set_xlabel('Year')
+            ax.set_ylabel(self.settings.charac_specs[output_id]['name'])
+            ax.legend(results.keys(), **legendsettings)
+                
+            
         toc(tp, label = 'plotting %s' % self.name)
         
-        return results
+        return results, outputs
         
     
     def makeSpreadsheet(self, num_pops = 5):

@@ -4,6 +4,7 @@ from utils import odict, OptimaException
 
 import numpy as np
 import numpy.random as npr
+from copy import deepcopy as dcp
 
 
 
@@ -186,8 +187,7 @@ class Model(object):
                 self.transfers[pop_label] = parset.transfers[trans_type][pop_label]
                 
                 
-            
-    def process(self, settings, parset):
+    def process(self, settings):
         ''' Run the full model. '''
         
         for t in self.sim_settings['tvec'][1:]:
@@ -211,6 +211,51 @@ class Model(object):
         return self.pops, self.sim_settings
         
     
+    def calculateOutputs(self, settings):
+        '''
+        Calculate outputs (called cascade characteristics in settings).
+        These outputs must be calculated in the same order as defined in settings, otherwise references may break.
+        '''
+        
+        outputs = odict()
+        for cid in settings.charac_specs.keys():
+            outputs[cid] = odict()
+            for pid in self.pops.keys():
+                outputs[cid][pid] = None
+                
+                # Sum up all relevant node popsizes (or previously calculated characteristics).
+                for inc_label in settings.charac_specs[cid]['includes']:
+                    if inc_label in self.pops[pid].node_ids.keys():
+                        nid = self.pops[pid].node_ids[inc_label]
+                        vals = self.pops[pid].nodes[nid].popsize
+                    elif inc_label in outputs.keys()[:-1]:
+                        vals = outputs[inc_label][pid]
+                    else:
+                        raise OptimaException('ERROR: Node or characteristic %s has not been pre-calculated for use in calculating %s.' % (inc_label, cid))
+                        
+                    if outputs[cid][pid] is None:
+                        outputs[cid][pid] = dcp(vals)
+                    else:
+                        outputs[cid][pid] += vals
+                
+                # Divide by relevant node popsize (or previously calculated characteristic).
+                if 'denom' in settings.charac_specs[cid]:
+                    den_label = settings.charac_specs[cid]['denom']
+                    if den_label in outputs.keys()[:-1]:
+                        vals = outputs[den_label][pid]
+                    elif den_label in self.pops[pid].node_ids.keys():
+                        nid = self.pops[pid].node_ids[den_label]
+                        vals = self.pops[pid].nodes[nid].popsize
+                    else:
+                        raise OptimaException('ERROR: Node or characteristic %s has not been pre-calculated for use in calculating %s.' % (inc_label, cid))
+                    
+                    outputs[cid][pid] /= vals
+                    
+                
+        return outputs
+            
+        
+    
 
 #%% Model function (simulates epidemic dynamics)
 
@@ -219,10 +264,13 @@ def runModel(settings, parset):
     
     m = Model()
     m.build(settings = settings, parset = parset)
-    m_pops, sim_settings = m.process(settings = settings, parset = parset)
+    m.process(settings = settings)
+    outputs = m.calculateOutputs(settings = settings)
+    m_pops = m.pops
+    sim_settings = m.sim_settings
     
     
     
     #%% Collect and return raw results    
     
-    return m_pops, sim_settings
+    return m_pops, sim_settings, outputs

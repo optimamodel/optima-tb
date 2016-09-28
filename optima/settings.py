@@ -37,9 +37,14 @@ class Settings(object):
     def startFresh(self):
         ''' Resets all cascade contents and settings that are fundamental to how a project is structured. '''
             
-        self.node_specs = odict()               # Relates compartment code-labels with special tags, if they exist. Key is a node label. Value is a dict including dead tag.
+        self.node_specs = odict()               # Relates compartment code-labels with special tags, if they exist. 
+                                                # Key is a node label. Value is a dict including dead tag.
         self.node_names = []                    # A corresponding list of full names for compartments.
         self.node_coords = []                   # A corresponding list of optional compartment coordinates for plotting purposes.
+        self.charac_specs = odict()             # Relates code-labels for defined characteristics (e.g. prevalence) with labels of compartments used in their definition.
+                                                # Key is a characteristic label. Value is a dict containing characteristic name, a list of 'inclusions' and a normalising characteristic or compartment.
+                                                # Be aware that inclusions/normalisations may refer to characteristics in the same odict.
+        self.charac_name_labels = odict()       # Key is a characteristic name. Value is a characteristic label. (A partial reversed charac_specs.)
         self.links = odict()                    # Key is a tag. Value is a list of compartment-label tuple.
         self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.
         self.linkpar_name_labels = odict()      # Key is a link-parameter name. Value is a link-parameter label. (A partial reversed linkpar-specs.)
@@ -66,11 +71,11 @@ class Settings(object):
             if ws_nodes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_nodes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
             if ws_nodes.cell_value(0, col_id) == 'Plot Coordinates': cid_coords = col_id
-            if ws_nodes.cell_value(0, col_id) == 'Dead': cid_dead = col_id
+            if ws_nodes.cell_value(0, col_id) == 'Dead Tag': cid_dead = col_id
         if None in [cid_label, cid_name]:
             raise OptimaException('ERROR: Cascade compartment worksheet does not have correct column headers.')
         
-        # Actually append node labels and full names to relevant lists. Labels are crucial.
+        # Actually append node labels and full names to relevant odicts and lists. Labels are crucial.
         for row_id in xrange(ws_nodes.nrows):
             if row_id > 0 and ws_nodes.cell_value(row_id, cid_label) not in ['']:
                 self.node_specs[str(ws_nodes.cell_value(row_id, cid_label))] = odict()
@@ -94,12 +99,14 @@ class Settings(object):
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
         cid_label = None
         cid_name = None
+        cid_percentage = None
         cid_denom = None
         cid_include_start = None
         cid_include_end = None
         for col_id in xrange(ws_charac.ncols):
             if ws_charac.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_charac.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+            if ws_charac.cell_value(0, col_id) == 'Plot Percentage': cid_percentage = col_id
             if ws_charac.cell_value(0, col_id) == 'Denominator': cid_denom = col_id
             if ws_charac.cell_value(0, col_id) == 'Includes': cid_include_start = col_id
         
@@ -109,7 +116,37 @@ class Settings(object):
         
         if None in [cid_label, cid_name, cid_include_start, cid_include_end]:
             raise OptimaException('ERROR: Cascade characteristics worksheet does not have correct column headers.')
-     
+        
+        # Actually append characteristic labels and full names to relevant odicts and lists. Labels are crucial.
+        for row_id in xrange(ws_charac.nrows):
+            if row_id > 0 and ws_charac.cell_value(row_id, cid_label) not in ['']:
+                charac_label = str(ws_charac.cell_value(row_id, cid_label))
+                charac_name = str(ws_charac.cell_value(row_id, cid_name))
+                
+                self.charac_name_labels[charac_name] = charac_label
+                self.charac_specs[charac_label] = odict()
+                self.charac_specs[charac_label]['name'] = charac_name
+                self.charac_specs[charac_label]['includes'] = []
+                
+                for col_id_inc in xrange(cid_include_end - cid_include_start + 1):
+                    col_id = cid_include_start + col_id_inc
+                    val = str(ws_charac.cell_value(row_id, col_id))
+                    if val not in ['']:
+                        if val not in self.node_specs.keys() + self.charac_specs.keys()[:-1]:
+                            raise OptimaException('ERROR: Cascade characteristic %s is being defined with an inclusion reference to %s, which has not been defined yet.' % (charac_label, val))
+                        self.charac_specs[charac_label]['includes'].append(val)
+        
+                if not cid_denom is None:
+                    val = str(ws_charac.cell_value(row_id, cid_denom))
+                    if val not in ['']:
+                        if val not in self.node_specs.keys() + self.charac_specs.keys()[:-1]:
+                            raise OptimaException('ERROR: Cascade characteristic %s is being defined with reference to denominator %s, which has not been defined yet.' % (charac_label, val))
+                        self.charac_specs[charac_label]['denom'] = val
+                
+                if not cid_percentage is None:
+                    val = str(ws_charac.cell_value(row_id, cid_percentage))
+                    if val not in ['']:
+                        self.charac_specs[charac_label]['plot_percentage'] = val
         
         # Third sheet: Transitions
         # Quality-assurance test for the spreadsheet format.
