@@ -52,6 +52,7 @@ class Settings(object):
         try: workbook = xlrd.open_workbook(cascade_path)
         except: raise OptimaException('ERROR: Cannot find cascade workbook from which to load model structure.')
         ws_nodes = workbook.sheet_by_name('Compartments')
+        ws_charac = workbook.sheet_by_name('Cascade Characteristics')
         ws_links = workbook.sheet_by_name('Transitions')
         ws_pars = workbook.sheet_by_name('Transition Parameters')
         
@@ -89,10 +90,28 @@ class Settings(object):
                     if val not in ['']:
                         self.node_specs[str(ws_nodes.cell_value(row_id, cid_label))]['tag_dead'] = val
                         
-                    
-                    
+        # Second sheet: Cascade Characteristics
+        # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
+        cid_label = None
+        cid_name = None
+        cid_denom = None
+        cid_include_start = None
+        cid_include_end = None
+        for col_id in xrange(ws_charac.ncols):
+            if ws_charac.cell_value(0, col_id) == 'Code Label': cid_label = col_id
+            if ws_charac.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+            if ws_charac.cell_value(0, col_id) == 'Denominator': cid_denom = col_id
+            if ws_charac.cell_value(0, col_id) == 'Includes': cid_include_start = col_id
         
-        # Second sheet: Transitions
+        # Work out where the 'include' columns end when defining cascade characteristics.
+        cid_list = np.array(sorted([cid_label, cid_name, cid_denom, ws_charac.ncols]))
+        cid_include_end = cid_list[sum(cid_include_start > cid_list)] - 1
+        
+        if None in [cid_label, cid_name, cid_include_start, cid_include_end]:
+            raise OptimaException('ERROR: Cascade characteristics worksheet does not have correct column headers.')
+     
+        
+        # Third sheet: Transitions
         # Quality-assurance test for the spreadsheet format.
         test = []
         for row_id in xrange(ws_links.nrows):
@@ -127,7 +146,7 @@ class Settings(object):
                             self.links[val] = []
                         self.links[val].append((n1, n2))
             
-        # Third sheet: Transition Parameters
+        # Fourth sheet: Transition Parameters
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
         cid_tag = None
         cid_label = None
