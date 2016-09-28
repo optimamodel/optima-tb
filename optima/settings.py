@@ -38,9 +38,8 @@ class Settings(object):
         ''' Resets all cascade contents and settings that are fundamental to how a project is structured. '''
             
         self.node_specs = odict()               # Relates compartment code-labels with special tags, if they exist. 
-                                                # Key is a node label. Value is a dict including dead tag.
+                                                # Key is a node label. Value is a dict including a 'dead' tag and networkx-related information.
         self.node_names = []                    # A corresponding list of full names for compartments.
-        self.node_coords = []                   # A corresponding list of optional compartment coordinates for plotting purposes.
         self.charac_specs = odict()             # Relates code-labels for defined characteristics (e.g. prevalence) with labels of compartments used in their definition.
                                                 # Key is a characteristic label. Value is a dict containing characteristic name, a list of 'inclusions' and a normalising characteristic or compartment.
                                                 # Be aware that inclusions/normalisations may refer to characteristics in the same odict.
@@ -66,11 +65,13 @@ class Settings(object):
         cid_label = None
         cid_name = None
         cid_coords = None
+        cid_no_plot = None
         cid_dead = None
         for col_id in xrange(ws_nodes.ncols):
             if ws_nodes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_nodes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
             if ws_nodes.cell_value(0, col_id) == 'Plot Coordinates': cid_coords = col_id
+            if ws_nodes.cell_value(0, col_id) == 'No Plot': cid_no_plot = col_id
             if ws_nodes.cell_value(0, col_id) == 'Dead Tag': cid_dead = col_id
         if None in [cid_label, cid_name]:
             raise OptimaException('ERROR: Cascade compartment worksheet does not have correct column headers.')
@@ -78,22 +79,28 @@ class Settings(object):
         # Actually append node labels and full names to relevant odicts and lists. Labels are crucial.
         for row_id in xrange(ws_nodes.nrows):
             if row_id > 0 and ws_nodes.cell_value(row_id, cid_label) not in ['']:
-                self.node_specs[str(ws_nodes.cell_value(row_id, cid_label))] = odict()
+                node_label = str(ws_nodes.cell_value(row_id, cid_label))
+                self.node_specs[node_label] = odict()
                 self.node_names.append(str(ws_nodes.cell_value(row_id, cid_name)))
                 
                 # Not crucial, but store node plotting coordinates if available.
                 try:
                     in_coords = str(ws_nodes.cell_value(row_id, cid_coords))
                     coords = in_coords.strip('()').split(',')
-                    self.node_coords.append((float(coords[0]),float(coords[1])))
-                except:
-                    self.node_coords.append(None)
+                    self.node_specs[node_label]['coords'] = (float(coords[0]),float(coords[1]))
+                except: pass
+                
+                # Not crucial, but store information whether to plot if available.
+                if not cid_no_plot is None:
+                    val = ws_nodes.cell_value(row_id, cid_no_plot)
+                    if val not in ['']:
+                        self.node_specs[node_label]['tag_no_plot'] = val
                 
                 # Ditto with tags for dead compartments.
                 if not cid_dead is None:
                     val = ws_nodes.cell_value(row_id, cid_dead)
                     if val not in ['']:
-                        self.node_specs[str(ws_nodes.cell_value(row_id, cid_label))]['tag_dead'] = val
+                        self.node_specs[node_label]['tag_dead'] = val
                         
         # Second sheet: Cascade Characteristics
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
@@ -225,15 +232,17 @@ class Settings(object):
     def plotCascade(self):
         fig, ax = pl.subplots(figsize=(10,10))
         G = nx.DiGraph()
-        G.add_nodes_from(self.node_specs.keys())
-        G.add_edges_from([link for lid in self.links for link in self.links[lid]])
+        plottable_nodes = [nid for nid in self.node_specs.keys() if 'tag_no_plot' not in self.node_specs[nid]]
+        plottable_links = [link for lid in self.links for link in self.links[lid] if (link[0] in plottable_nodes and link[1] in plottable_nodes)]
+        G.add_nodes_from(plottable_nodes)
+        G.add_edges_from(plottable_links)
 
         # Use plot coordinates if stored and arrange the rest of the cascade out in a unit circle.
         pos = {}
-        num_nodes = len(self.node_specs.keys())
+        num_nodes = len(plottable_nodes)
         k = 0
-        for node in self.node_specs.keys():
-            try: pos[node] = (self.node_coords[k][0], self.node_coords[k][1])
+        for node in plottable_nodes:
+            try: pos[node] = (self.node_specs[node]['coords'][0], self.node_specs[node]['coords'][1])
             except: pos[node] = (np.sin(2.0*np.pi*k/num_nodes), np.cos(2.0*np.pi*k/num_nodes))
             k += 1
         
