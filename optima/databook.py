@@ -104,12 +104,14 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     
     workbook = xw.Workbook(databook_path)
     ws_pops = workbook.add_worksheet(settings.databook['sheet_names']['pops'])
-    ws_poptrans = workbook.add_worksheet(settings.databook['sheet_names']['poptrans'])
+    ws_transmat = workbook.add_worksheet(settings.databook['sheet_names']['transmat'])
+    ws_transval = workbook.add_worksheet(settings.databook['sheet_names']['transval'])
     ws_linkpars = workbook.add_worksheet(settings.databook['sheet_names']['linkpars'])
     
     data_tvec = np.arange(settings.tvec_start, settings.tvec_end + 1.0/2)
     ws_pops_width = 15
-    ws_poptrans_width = 15
+    ws_transmat_width = 15
+    ws_transval_width = 15
     ws_linkpars_width = 40
     assumption_width = 10
     
@@ -138,34 +140,49 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
         pop_names_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)))
         pop_labels_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)))
     
-    # Inter-population transitions sheet.
+    # Inter-population transfers matrix sheet (from node to corresponding node).
     # Produce aging matrix.
-    ws_poptrans.write(0, 0, 'Aging')
-    makeConnectionMatrix(worksheet = ws_poptrans, at_row = 0, at_col = 0, labels = pop_labels_default, formula_labels = pop_labels_formula)
+    ws_transmat.write(0, 0, 'Aging')
+    makeConnectionMatrix(worksheet = ws_transmat, at_row = 0, at_col = 0, labels = pop_labels_default, formula_labels = pop_labels_formula)
     
     # Produce an extra matrix for each 'migration type' (e.g. prisoner-transfers, migration mixing, HIV infection, etc.).
+    # Store type names and formulae strings that reference them. Also store the rows at which migration matrices start.
     row_offset = num_pops + 2
+    mig_types_default = []
+    mig_types_formula = []
+    mig_matrix_rows = []
     for mid in xrange(num_migrations):
-        ws_poptrans.write(row_offset, 0, 'Migration Type '+str(mid+1))
-        makeConnectionMatrix(worksheet = ws_poptrans, at_row = row_offset, at_col = 0, labels = pop_labels_default, formula_labels = pop_labels_formula)
+        mig_type = 'Migration Type '+str(mid+1)
+        mig_types_default.append(mig_type)
+        mig_matrix_rows.append(row_offset)
+        mig_types_formula.append("='%s'!%s" % (settings.databook['sheet_names']['transmat'], rc(row_offset,0)))
+        ws_transmat.write(row_offset, 0, mig_type)
+        makeConnectionMatrix(worksheet = ws_transmat, at_row = row_offset, at_col = 0, labels = pop_labels_default, formula_labels = pop_labels_formula)
         row_offset += num_pops + 2
     
-    ws_poptrans.set_column(0, 0, ws_poptrans_width)
+    ws_transmat.set_column(0, 0, ws_transmat_width)
+    
+    # Inter-population transfer details sheet.
+    
+    row_id = 0
+    for mid in xrange(num_migrations):
+        ws_transval.write(row_id, 0, mig_types_formula[mid], None, mig_types_default[mid])
+        makeValueEntryArrayBlock(worksheet = ws_transval, at_row = row_id, at_col = 3, num_arrays = num_pops*(num_pops-1), tvec = data_tvec)
+        for source_id in xrange(num_pops):
+            for sink_id in xrange(num_pops):
+                if source_id != sink_id:
+                    row_id += 1
+                    r = mig_matrix_rows[mid] + source_id + 1
+                    c = sink_id + 1
+                    ws_transval.write(row_id, 0, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[source_id][1:],'"..."'), None, '...')
+                    ws_transval.write(row_id, 1, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"','"--->"','""'), None, '')
+                    ws_transval.write(row_id, 2, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[sink_id][1:],'""'), None, '')
         
-#            ws_poptrans.write(row_id, 0, link_name)
-#        ws_linkpars.write(row_id, 1, 'Assumption')
-#        for k in xrange(len(data_tvec)):
-#            ws_linkpars.write(row_id, k+offset_tvec, data_tvec[k])
-#        for pid in xrange(num_pops):
-#            row_id += 1
-#            ws_linkpars.write(row_id, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)), None, temp_pop_names[pid])
-#            ws_linkpars.write(row_id, 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset_tvec), rc(row_id,offset_tvec+len(data_tvec)-1), def_val), None, def_val)
-#            ws_linkpars.write(row_id, 2, 'OR')
-#            
-#            # Values for all extra populations default to first population values.
-#            if pid > 0:
-#                for k in xrange(len(data_tvec)):
-#                    ws_linkpars.write(row_id, k+offset_tvec, '=IF(%s="","",%s)' % (rc(row_id-pid,k+offset_tvec),rc(row_id-pid,k+offset_tvec)), None, '')
+        row_id += 2
+        
+    ws_transval.set_column(0, 0, ws_transval_width)
+    ws_transval.set_column(2, 2, ws_transval_width)
+    ws_transval.set_column(3, 4, assumption_width)
     
     # Cascade parameters sheet.
     row_id = 0
@@ -182,7 +199,7 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
         ws_linkpars.write(row_id, 0, link_name)
         for pid in xrange(num_pops):
             row_id += 1
-            ws_linkpars.write(row_id, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)), None, pop_names_default[pid])
+            ws_linkpars.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
         
         row_id += 2
 
@@ -202,7 +219,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
     try: workbook = xlrd.open_workbook(databook_path)
     except: raise OptimaException('ERROR: Project data workbook was unable to be loaded from... %s' % databook_path)
     ws_pops = workbook.sheet_by_name(settings.databook['sheet_names']['pops'])
-    ws_poptrans = workbook.sheet_by_name(settings.databook['sheet_names']['poptrans'])
+    ws_transmat = workbook.sheet_by_name(settings.databook['sheet_names']['transmat'])
     ws_linkpars = workbook.sheet_by_name(settings.databook['sheet_names']['linkpars'])
 
     # Population names sheet.
@@ -231,8 +248,8 @@ def loadSpreadsheetFunc(settings, databook_path = None):
     data['transfers'] = odict()
     mig_specified = False
     mig_type = None
-    for row_id in xrange(ws_poptrans.nrows):
-        zero_col = ws_poptrans.cell_value(row_id, 0)
+    for row_id in xrange(ws_transmat.nrows):
+        zero_col = ws_transmat.cell_value(row_id, 0)
         
         # If parser finds an empty row (technically empty first cell) migration-parsing resets, ready for the next custom type.
         if mig_specified and zero_col in ['']:
@@ -241,11 +258,11 @@ def loadSpreadsheetFunc(settings, databook_path = None):
         # Parse through migration matrix.
         if mig_specified:
             pop_source = str(zero_col)
-            for col_id in xrange(ws_poptrans.ncols):
+            for col_id in xrange(ws_transmat.ncols):
                 if col_id > 0:
-                    val = ws_poptrans.cell_value(row_id, col_id)
+                    val = ws_transmat.cell_value(row_id, col_id)
                     if val in ['y']:
-                        pop_sink = str(ws_poptrans.cell_value(0, col_id))
+                        pop_sink = str(ws_transmat.cell_value(0, col_id))
                         if pop_source not in data['transfers'][mig_type].keys():
                             data['transfers'][mig_type][pop_source] = odict()
                         data['transfers'][mig_type][pop_source][pop_sink] = odict()

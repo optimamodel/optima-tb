@@ -31,7 +31,8 @@ class Settings(object):
         self.databook = odict()
         self.databook['sheet_names'] = odict()
         self.databook['sheet_names']['pops'] = 'Population Definitions'
-        self.databook['sheet_names']['poptrans'] = 'Population Transitions'
+        self.databook['sheet_names']['transmat'] = 'Transfer Definitions'
+        self.databook['sheet_names']['transval'] = 'Transfer Details'
         self.databook['sheet_names']['linkpars'] = 'Cascade Parameters'
     
     def startFresh(self):
