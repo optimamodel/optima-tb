@@ -232,10 +232,13 @@ def loadSpreadsheetFunc(settings, databook_path = None):
             data['linkpars'][current_linkpar_label][current_pop_label] = odict()
             
             # Run through the rows beneath the year range, but only if there is not a number in the cell corresponding to assumption.
+            # NOTE: Somewhat hard-coded. Improve.
             list_t = []
             list_y = []
             for col_id in xrange(ws_linkpars.ncols):
-                if col_id > 0 and isinstance(ws_linkpars.cell_value(row_id, col_id), Number):
+                if col_id == 1:
+                    data['linkpars'][current_linkpar_label][current_pop_label]['y_format'] = str(ws_linkpars.cell_value(row_id, col_id))
+                if col_id > 1 and isinstance(ws_linkpars.cell_value(row_id, col_id), Number):
                     list_y.append(float(ws_linkpars.cell_value(row_id, col_id)))
                     if not isinstance(ws_linkpars.cell_value(row_id-1-pop_id, col_id), Number):
                         list_t.append(float(ws_linkpars.cell_value(row_id-1-pop_id, col_id+2)))

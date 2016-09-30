@@ -13,12 +13,14 @@ import numpy as np
 class Parameter(object):
     ''' Class to hold one group of parameter values. '''
     
-    def __init__(self, label, t = None, y = None):
+    def __init__(self, label, t = None, y = None, y_format = None):
         self.label = label
         if t is None: t = odict()
         if y is None: y = odict()
-        self.t = t      # Time data.
-        self.y = y      # Value data.
+        if y_format is None: y_format = odict()
+        self.t = t                      # Time data.
+        self.y = y                      # Value data.
+        self.y_format = y_format        # Value format data (e.g. Probability, Fraction or Number).
         
     def interpolate(self, tvec = None, pop_label = None):
         ''' Take parameter values and construct an array matching input time vector. '''
@@ -84,10 +86,11 @@ class ParameterSet(object):
         # Cascade parameters.
         for l, label in enumerate(data['linkpars']):
             self.par_ids[label] = l
-            self.pars.append(Parameter(label))
+            self.pars.append(Parameter(label = label))
             for pop_id in data['linkpars'][label]:
                 self.pars[-1].t[pop_id] = data['linkpars'][label][pop_id]['t']
                 self.pars[-1].y[pop_id] = data['linkpars'][label][pop_id]['y']
+                self.pars[-1].y_format[pop_id] = data['linkpars'][label][pop_id]['y_format']
         
         # Age migrations.
         for tid in data['pops']['age_trans'].keys():
