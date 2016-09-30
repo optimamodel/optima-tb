@@ -21,7 +21,7 @@ offset_tvec = 3     # Offset to denote at which column the time vector begins in
 #%% Function for generating project databook
 
 # NOTE: Comment this better later, especially with the fact that all Excel formulae need a fall-back value.
-def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5):
+def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, num_migrations = 2):
     ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
     
     workbook = xw.Workbook(databook_path)
@@ -31,6 +31,7 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5):
     
     data_tvec = np.arange(settings.tvec_start, settings.tvec_end + 1.0/2)
     ws_pops_width = 15
+    ws_poptrans_width = 15
     ws_linkpars_width = 40
     assumption_width = 10
     
@@ -53,6 +54,33 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5):
         temp_pop_name = 'Population '+str(pid+1)
         ws_poptrans.write(pid+1, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)), None, temp_pop_name)
         ws_poptrans.write(0, pid+1, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)), None, temp_pop_name)
+    
+    row_offset = num_pops + 2
+    for mid in xrange(num_migrations):
+        ws_poptrans.write(row_offset, 0, 'Migration Type '+str(mid+1))
+        for pid in xrange(num_pops):
+            temp_pop_name = 'Population '+str(pid+1)
+            ws_poptrans.write(row_offset+pid+1, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)), None, temp_pop_name)
+            ws_poptrans.write(row_offset, pid+1, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)), None, temp_pop_name)
+        
+        row_offset += num_pops + 2
+    
+    ws_poptrans.set_column(0, 0, ws_poptrans_width)
+        
+#            ws_poptrans.write(row_id, 0, link_name)
+#        ws_linkpars.write(row_id, 1, 'Assumption')
+#        for k in xrange(len(data_tvec)):
+#            ws_linkpars.write(row_id, k+offset_tvec, data_tvec[k])
+#        for pid in xrange(num_pops):
+#            row_id += 1
+#            ws_linkpars.write(row_id, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)), None, temp_pop_names[pid])
+#            ws_linkpars.write(row_id, 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset_tvec), rc(row_id,offset_tvec+len(data_tvec)-1), def_val), None, def_val)
+#            ws_linkpars.write(row_id, 2, 'OR')
+#            
+#            # Values for all extra populations default to first population values.
+#            if pid > 0:
+#                for k in xrange(len(data_tvec)):
+#                    ws_linkpars.write(row_id, k+offset_tvec, '=IF(%s="","",%s)' % (rc(row_id-pid,k+offset_tvec),rc(row_id-pid,k+offset_tvec)), None, '')
     
     # Cascade parameters sheet.
     row_id = 0
@@ -118,11 +146,21 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                     data['pops']['ages'][pop_label] = {'min':float(age_min), 'max':float(age_max), 'range':1+float(age_max)-float(age_min)}
 
     # Inter-population transitions sheet.
-    # NOTE: Needs some way for users to know that only the first filled-in cell per row will be noted.
+    # Migration matrices must be divided from each other by an empty row.
+    # NOTE: Needs some way for users to know that only the first filled-in cell per row will be noted for aging.
     data['pops']['age_trans'] = odict()
+    mig_specified = False
+    mig_type = None
     for row_id in xrange(ws_poptrans.nrows):
-        if row_id > 0:
-            pop_source = str(ws_poptrans.cell_value(row_id, 0))
+        zero_col = ws_poptrans.cell_value(row_id, 0)
+        
+        # If parser finds an empty row (technically empty first cell) migration-parsing resets, ready for the next custom type.
+        if mig_specified and zero_col in ['']:
+            mig_specified = False
+            
+        # Parse through migration matrix.
+        if mig_specified:
+            pop_source = str(zero_col)
             for col_id in xrange(ws_poptrans.ncols):
                 if col_id > 0:
                     val = ws_poptrans.cell_value(row_id, col_id)
@@ -131,7 +169,12 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                         if 'range' not in data['pops']['ages'][pop_source].keys():
                             raise OptimaException('ERROR: An age transition has been flagged for a source population group with no age range.')
                         data['pops']['age_trans'][pop_source] = pop_sink
-                        break   
+                        break   # Only the first tag in a row gets counted currently!
+        
+        # First row after a blank one must contain the new migration type as its first element. Parser re-activated.
+        if not mig_specified and zero_col not in ['']:
+            mig_specified = True
+            mig_type = str(zero_col)
     
     # Cascade parameters sheet.
     data['linkpars'] = odict()
