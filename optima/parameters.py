@@ -43,19 +43,12 @@ class Parameter(object):
             y_at_t_min = self.y[pop_label][ind_min]
             y_at_t_max = self.y[pop_label][ind_max]
             
-    #        print t_min
-    #        print t_max
-    #        print tvec        
-            
             if tvec[0] < t_min:
                 input_t = np.append(tvec[0], input_t)
                 input_y = np.append(y_at_t_min, input_y)
             if tvec[-1] > t_max:
                 input_t = np.append(input_t, tvec[-1])
                 input_y = np.append(input_y, y_at_t_max)
-                
-    #        print input_t
-    #        print input_y
             
             output = interpolateFunc(input_t, input_y, tvec)
         
@@ -75,7 +68,6 @@ class ParameterSet(object):
         self.par_ids = {}
         
         self.transfers = odict()   # List of inter-population transitions.
-        self.transfers['age'] = odict()
     
     def makePars(self, data):
         self.pop_names = data['pops']['name_labels'].keys()
@@ -92,7 +84,13 @@ class ParameterSet(object):
                 self.pars[-1].y[pop_id] = data['linkpars'][label][pop_id]['y']
                 self.pars[-1].y_format[pop_id] = data['linkpars'][label][pop_id]['y_format']
         
-        # Age migrations.
-        for source in data['transfers']['aging'].keys():
-            for sink in data['transfers']['aging'][source].keys():
-                self.transfers['age'][source] = {'target':sink, 'value':float(1/data['pops']['ages'][source]['range'])}
+        # Migrations, including aging.
+        for trans_type in data['transfers'].keys():
+            if trans_type not in self.transfers: self.transfers[trans_type] = odict()
+            
+            for source in data['transfers'][trans_type].keys():
+                if source not in self.transfers[trans_type]: self.transfers[trans_type][source] = Parameter(label = trans_type + '_from_' + source)
+                for sink in data['transfers'][trans_type][source].keys():
+                    self.transfers[trans_type][source].t[sink] = data['transfers'][trans_type][source][sink]['t']
+                    self.transfers[trans_type][source].y[sink] = data['transfers'][trans_type][source][sink]['y']
+                    self.transfers[trans_type][source].y_format[sink] = data['transfers'][trans_type][source][sink]['y_format']
