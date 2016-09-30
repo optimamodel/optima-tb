@@ -228,7 +228,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
     # Inter-population transitions sheet.
     # Migration matrices must be divided from each other by an empty row.
     # NOTE: Needs some way for users to know that only the first filled-in cell per row will be noted for aging.
-    data['pops']['age_trans'] = odict()
+    data['transfers'] = odict()
     mig_specified = False
     mig_type = None
     for row_id in xrange(ws_poptrans.nrows):
@@ -246,15 +246,20 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                     val = ws_poptrans.cell_value(row_id, col_id)
                     if val in ['y']:
                         pop_sink = str(ws_poptrans.cell_value(0, col_id))
-                        if 'range' not in data['pops']['ages'][pop_source].keys():
-                            raise OptimaException('ERROR: An age transition has been flagged for a source population group with no age range.')
-                        data['pops']['age_trans'][pop_source] = pop_sink
-                        break   # Only the first tag in a row gets counted currently!
+                        if pop_source not in data['transfers'][mig_type].keys():
+                            data['transfers'][mig_type][pop_source] = odict()
+                        data['transfers'][mig_type][pop_source][pop_sink] = odict()
+                        if mig_type == 'aging':
+                            if 'range' not in data['pops']['ages'][pop_source].keys():
+                                raise OptimaException('ERROR: An age transition has been flagged for a source population group with no age range.')
+                            if len(data['transfers'][mig_type][pop_source].keys()) > 1:
+                                raise OptimaException('ERROR: There are too many outgoing %s transitions listed for population %s.' % (mig_type,pop_source))
         
         # First row after a blank one must contain the new migration type as its first element. Parser re-activated.
         if not mig_specified and zero_col not in ['']:
             mig_specified = True
-            mig_type = str(zero_col)
+            mig_type = str(zero_col).lower().replace(' ','_')
+            data['transfers'][mig_type] = odict()
     
     # Cascade parameters sheet.
     data['linkpars'] = odict()

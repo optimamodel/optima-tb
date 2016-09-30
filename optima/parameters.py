@@ -93,5 +93,6 @@ class ParameterSet(object):
                 self.pars[-1].y_format[pop_id] = data['linkpars'][label][pop_id]['y_format']
         
         # Age migrations.
-        for tid in data['pops']['age_trans'].keys():
-            self.transfers['age'][tid] = {'target':data['pops']['age_trans'][tid], 'value':float(1/data['pops']['ages'][tid]['range'])}
+        for source in data['transfers']['aging'].keys():
+            for sink in data['transfers']['aging'][source].keys():
+                self.transfers['age'][source] = {'target':sink, 'value':float(1/data['pops']['ages'][source]['range'])}
