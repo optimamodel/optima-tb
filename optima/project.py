@@ -94,11 +94,11 @@ class Project(object):
         return results, outputs
         
     
-    def makeSpreadsheet(self, num_pops = 5):
+    def makeSpreadsheet(self, num_pops = 5, num_migrations = 2):
         ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
         
         databook_path = './' + self.name + '-data.xlsx'
-        makeSpreadsheetFunc(settings = self.settings, databook_path = databook_path, num_pops = num_pops)        
+        makeSpreadsheetFunc(settings = self.settings, databook_path = databook_path, num_pops = num_pops, num_migrations = num_migrations)        
         
     
     def loadSpreadsheet(self, databook_path = None):

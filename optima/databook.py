@@ -13,9 +13,49 @@ from numbers import Number
 #%% Constants used across spreadsheet functions
 
 default_path = './project-data.xlsx'    # Default path if not called via a project method.
-offset_tvec = 3     # Offset to denote at which column the time vector begins in spreadsheet.
 
 # NOTE: Should cascade metadata like spreadsheet titles be moved here too...?
+
+
+#%% Utility functions to generate sub-blocks of the project databook
+
+def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, data_formats = None):
+    '''
+    Create a block where users choose data-entry format and enter values either as an assumption or time-dependent array.
+    
+    Args:
+        worksheet       -   The worksheet in which to produce the block.
+        at_row          -   The row at which the top-left corner of the block will be fixed.
+        at_col          -   The column at which the top-left corner of the block will be fixed.
+        num_arrays      -   The number of input arrays to generate.
+        tvec            -   The year range for which values are (optionally) to be entered.
+        assumption      -   The default value to enter in the assumption column.
+        data_formats    -   A list of formats that data can be entered as.
+                            This is not data validation, but will determine the form of calculations during model processing.
+    '''
+    
+    if data_formats is None: data_formats = ['Probability', 'Fraction', 'Number']
+    offset = at_col + 3     # This is the column at which the input year range and corresponding values should be written.
+    
+    worksheet.write(at_row, at_col, 'Format')
+    worksheet.write(at_row, at_col + 1, 'Assumption')
+    for k in xrange(len(tvec)):
+        worksheet.write(at_row, offset + k, tvec[k])  
+    
+    for aid in xrange(num_arrays):
+        row_id = at_row + aid + 1
+        offset = at_col + 3
+        worksheet.write(row_id, at_col, data_formats[0])      # Default choice for data format.  
+        worksheet.data_validation('%s' % rc(row_id,at_col), {'validate': 'list', 'source': data_formats, 'ignore_blank': False})       
+        worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption), None, assumption)
+        worksheet.write(row_id, at_col + 2, 'OR')
+        
+        # Make changes to the first row be mirrored in the other rows.
+        if aid > 0:
+            for k in xrange(len(tvec)):
+                worksheet.write(row_id, offset + k, '=IF(%s="","",%s)' % (rc(row_id-aid,offset+k),rc(row_id-aid,offset+k)), None, '')
+    
+    
 
 
 #%% Function for generating project databook
@@ -89,25 +129,20 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
         def_val = 0
         if 'default' in settings.linkpar_specs[link_label]:
             def_val = settings.linkpar_specs[link_label]['default']
-            
+        
+        # Make the parameter-specific data-entry block.
+        makeValueEntryArrayBlock(worksheet = ws_linkpars, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = def_val)        
+        
+        # Make the parameter-specific population references.
         ws_linkpars.write(row_id, 0, link_name)
-        ws_linkpars.write(row_id, 1, 'Assumption')
-        for k in xrange(len(data_tvec)):
-            ws_linkpars.write(row_id, k+offset_tvec, data_tvec[k])
         for pid in xrange(num_pops):
             row_id += 1
             ws_linkpars.write(row_id, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)), None, temp_pop_names[pid])
-            ws_linkpars.write(row_id, 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset_tvec), rc(row_id,offset_tvec+len(data_tvec)-1), def_val), None, def_val)
-            ws_linkpars.write(row_id, 2, 'OR')
-            
-            # Values for all extra populations default to first population values.
-            if pid > 0:
-                for k in xrange(len(data_tvec)):
-                    ws_linkpars.write(row_id, k+offset_tvec, '=IF(%s="","",%s)' % (rc(row_id-pid,k+offset_tvec),rc(row_id-pid,k+offset_tvec)), None, '')
         
         row_id += 2
+
     ws_linkpars.set_column(0, 0, ws_linkpars_width)
-    ws_linkpars.set_column(1, 1, assumption_width)
+    ws_linkpars.set_column(1, 2, assumption_width)
     
     workbook.close()
     
@@ -203,7 +238,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                 if col_id > 0 and isinstance(ws_linkpars.cell_value(row_id, col_id), Number):
                     list_y.append(float(ws_linkpars.cell_value(row_id, col_id)))
                     if not isinstance(ws_linkpars.cell_value(row_id-1-pop_id, col_id), Number):
-                        list_t.append(float(ws_linkpars.cell_value(row_id-1-pop_id, offset_tvec)))
+                        list_t.append(float(ws_linkpars.cell_value(row_id-1-pop_id, col_id+2)))
                         break
                     else:
                         list_t.append(float(ws_linkpars.cell_value(row_id-1-pop_id, col_id)))
