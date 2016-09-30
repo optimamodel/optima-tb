@@ -7,6 +7,7 @@ import xlsxwriter as xw
 import numpy as np
 from xlsxwriter.utility import xl_rowcol_to_cell as rc
 from numbers import Number
+from copy import deepcopy as dcp
 
 
 
@@ -54,6 +55,43 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
         if aid > 0:
             for k in xrange(len(tvec)):
                 worksheet.write(row_id, offset + k, '=IF(%s="","",%s)' % (rc(row_id-aid,offset+k),rc(row_id-aid,offset+k)), None, '')
+               
+               
+def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = None, allowed_vals = None):
+    '''
+    Create a matrix where users tag connections from a (left-column positioned) list to the same (top-row positioned) list.
+    Diagonals (self-connections) cannot be filled with values.
+    
+    Args:
+        worksheet       -   The worksheet in which to produce the matrix.
+        at_row          -   The row at which the top-left corner of the matrix will be fixed.
+        at_col          -   The column at which the top-left corner of the matrix will be fixed.
+        labels          -   A list of labels for objects to be connected (e.g. population groups).
+        formula_labels  -   An optional list corresponding to labels that contains Excel formulas.
+                            The labels list is still required for default values.
+                            In the case that the databook is not opened in Excel prior to loading, the defaults are read in.
+        allowed_vals    -   A list of allowed values that matrix elements can be tagged by.
+    '''
+    
+    if allowed_vals is None: allowed_vals = ['n', 'y']
+    if formula_labels is None: formula_labels = dcp(labels)
+    if len(formula_labels) != len(labels): raise OptimaException('ERROR: The numbers of formula-based and default labels passed to a matrix-writing process do not match.')
+    
+    for k in xrange(len(labels)):
+        worksheet.write(at_row + k + 1, at_col, formula_labels[k], None, labels[k])
+        worksheet.write(at_row, at_col + k + 1, formula_labels[k], None, labels[k])
+        
+    for row_pre in xrange(len(labels)):
+        row_id = at_row + row_pre + 1
+        for col_pre in xrange(len(labels)):
+            col_id = at_col + col_pre + 1
+            
+            if row_pre != col_pre:
+                worksheet.write(row_id, col_id, allowed_vals[0])      # Default choice for data format.  
+                worksheet.data_validation('%s' % rc(row_id,col_id), {'validate': 'list', 'source': allowed_vals, 'ignore_blank': False})
+            else:
+                worksheet.write(row_id, col_id, '')
+                worksheet.data_validation('%s' % rc(row_id,col_id), {'validate': 'list', 'source': [''], 'ignore_blank': False})
     
     
 
@@ -80,29 +118,36 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_pops.write(0, 1, 'Abbreviation')
     ws_pops.write(0, 2, 'Minimum Age')
     ws_pops.write(0, 3, 'Maximum Age')
-    temp_pop_names = []
+    
+    # While writing default population names and labels, they are stored for future reference as well.
+    pop_names_default = []
+    pop_labels_default = []
     for pid in xrange(num_pops):
-        temp_pop_name = 'Population '+str(pid+1)
-        temp_pop_names.append(temp_pop_name)
-        ws_pops.write(pid+1, 0, temp_pop_name)
-        ws_pops.write(pid+1, 1, '=LEFT(%s,3)&"%i"' % (rc(pid+1,0), pid+1), None, temp_pop_name[0:3]+str(pid+1))
+        pop_name = 'Population '+str(pid+1)
+        pop_label = pop_name[0:3]+str(pid+1)
+        pop_names_default.append(pop_name)
+        pop_labels_default.append(pop_label)
+        ws_pops.write(pid+1, 0, pop_name)
+        ws_pops.write(pid+1, 1, '=LEFT(%s,3)&"%i"' % (rc(pid+1,0), pid+1), None, pop_label)
     ws_pops.set_column(0, 4, ws_pops_width)
     
-    # Inter-population transitions sheet.
-    ws_poptrans.write(0, 0, 'Aging')
+    # Excel formulae strings that point to population names and labels are likewise stored.
+    pop_names_formula = []
+    pop_labels_formula = []
     for pid in xrange(num_pops):
-        temp_pop_name = 'Population '+str(pid+1)
-        ws_poptrans.write(pid+1, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)), None, temp_pop_name)
-        ws_poptrans.write(0, pid+1, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)), None, temp_pop_name)
+        pop_names_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)))
+        pop_labels_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)))
     
+    # Inter-population transitions sheet.
+    # Produce aging matrix.
+    ws_poptrans.write(0, 0, 'Aging')
+    makeConnectionMatrix(worksheet = ws_poptrans, at_row = 0, at_col = 0, labels = pop_labels_default, formula_labels = pop_labels_formula)
+    
+    # Produce an extra matrix for each 'migration type' (e.g. prisoner-transfers, migration mixing, HIV infection, etc.).
     row_offset = num_pops + 2
     for mid in xrange(num_migrations):
         ws_poptrans.write(row_offset, 0, 'Migration Type '+str(mid+1))
-        for pid in xrange(num_pops):
-            temp_pop_name = 'Population '+str(pid+1)
-            ws_poptrans.write(row_offset+pid+1, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)), None, temp_pop_name)
-            ws_poptrans.write(row_offset, pid+1, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)), None, temp_pop_name)
-        
+        makeConnectionMatrix(worksheet = ws_poptrans, at_row = row_offset, at_col = 0, labels = pop_labels_default, formula_labels = pop_labels_formula)
         row_offset += num_pops + 2
     
     ws_poptrans.set_column(0, 0, ws_poptrans_width)
@@ -137,7 +182,7 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
         ws_linkpars.write(row_id, 0, link_name)
         for pid in xrange(num_pops):
             row_id += 1
-            ws_linkpars.write(row_id, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)), None, temp_pop_names[pid])
+            ws_linkpars.write(row_id, 0, "='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)), None, pop_names_default[pid])
         
         row_id += 2
 
@@ -199,7 +244,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
             for col_id in xrange(ws_poptrans.ncols):
                 if col_id > 0:
                     val = ws_poptrans.cell_value(row_id, col_id)
-                    if val not in ['']:
+                    if val in ['y']:
                         pop_sink = str(ws_poptrans.cell_value(0, col_id))
                         if 'range' not in data['pops']['ages'][pop_source].keys():
                             raise OptimaException('ERROR: An age transition has been flagged for a source population group with no age range.')
