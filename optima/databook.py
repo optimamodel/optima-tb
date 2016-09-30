@@ -252,6 +252,10 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                         if mig_type == 'aging':
                             if 'range' not in data['pops']['ages'][pop_source].keys():
                                 raise OptimaException('ERROR: An age transition has been flagged for a source population group with no age range.')
+                            else:
+                                data['transfers'][mig_type][pop_source][pop_sink]['t'] = np.array([settings.tvec_start])
+                                data['transfers'][mig_type][pop_source][pop_sink]['y'] = np.array([float(1/data['pops']['ages'][pop_source]['range'])])
+                                data['transfers'][mig_type][pop_source][pop_sink]['y_format'] = 'Fraction'.lower()
                             if len(data['transfers'][mig_type][pop_source].keys()) > 1:
                                 raise OptimaException('ERROR: There are too many outgoing %s transitions listed for population %s.' % (mig_type,pop_source))
         
@@ -287,7 +291,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
             list_y = []
             for col_id in xrange(ws_linkpars.ncols):
                 if col_id == 1:
-                    data['linkpars'][current_linkpar_label][current_pop_label]['y_format'] = str(ws_linkpars.cell_value(row_id, col_id))
+                    data['linkpars'][current_linkpar_label][current_pop_label]['y_format'] = str(ws_linkpars.cell_value(row_id, col_id)).lower()
                 if col_id > 1 and isinstance(ws_linkpars.cell_value(row_id, col_id), Number):
                     list_y.append(float(ws_linkpars.cell_value(row_id, col_id)))
                     if not isinstance(ws_linkpars.cell_value(row_id-1-pop_id, col_id), Number):

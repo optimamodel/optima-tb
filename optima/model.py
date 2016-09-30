@@ -182,10 +182,7 @@ class Model(object):
                 for link_id in self.pops[pop_label].link_ids[tag]:           # Map link tag -> link id in ModelPop.            
                     self.pops[pop_label].links[link_id].transit_frac = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
         
-        for trans_type in parset.transfers:
-            for pop_label in parset.transfers[trans_type].keys():
-                self.transfers[pop_label] = parset.transfers[trans_type][pop_label]
-                
+        self.transfers = dcp(parset.transfers)
                 
     def process(self, settings):
         ''' Run the full model. '''
@@ -195,18 +192,19 @@ class Model(object):
                 self.pops[pop_label].stepCascadeForward(dt = settings.tvec_dt)
                 
             # Apply transfers.
-            for pop_source in self.transfers.keys():
-                pop_sink = self.transfers[pop_source]['target']
-                transit_frac = self.transfers[pop_source]['value']
-                tid_source = self.pops[pop_source].t_index
-                tid_sink = self.pops[pop_sink].t_index
-                for node_label in self.pops[pop_source].node_ids.keys():
-                    nid_source = self.pops[pop_source].node_ids[node_label]
-                    if not self.pops[pop_source].nodes[nid_source].tag_dead:
-                        nid_sink = self.pops[pop_sink].node_ids[node_label]
-                        num_trans = self.pops[pop_source].nodes[nid_source].popsize[tid_source] * transit_frac * settings.tvec_dt
-                        self.pops[pop_source].nodes[nid_source].popsize[tid_source] -= num_trans
-                        self.pops[pop_sink].nodes[nid_sink].popsize[tid_sink] += num_trans
+            for trans_type in self.transfers.keys():
+                for pop_source in self.transfers[trans_type].keys():
+                    for pop_sink in self.transfers[trans_type][pop_source].y:
+                        transit_frac = self.transfers[trans_type][pop_source].y[pop_sink][0]
+                        tid_source = self.pops[pop_source].t_index
+                        tid_sink = self.pops[pop_sink].t_index
+                        for node_label in self.pops[pop_source].node_ids.keys():
+                            nid_source = self.pops[pop_source].node_ids[node_label]
+                            if not self.pops[pop_source].nodes[nid_source].tag_dead:
+                                nid_sink = self.pops[pop_sink].node_ids[node_label]
+                                num_trans = self.pops[pop_source].nodes[nid_source].popsize[tid_source] * transit_frac * settings.tvec_dt
+                                self.pops[pop_source].nodes[nid_source].popsize[tid_source] -= num_trans
+                                self.pops[pop_sink].nodes[nid_sink].popsize[tid_sink] += num_trans
                 
         return self.pops, self.sim_settings
         
