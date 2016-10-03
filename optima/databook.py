@@ -230,6 +230,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
     except: raise OptimaException('ERROR: Project data workbook was unable to be loaded from... %s' % databook_path)
     ws_pops = workbook.sheet_by_name(settings.databook['sheet_names']['pops'])
     ws_transmat = workbook.sheet_by_name(settings.databook['sheet_names']['transmat'])
+    ws_transval = workbook.sheet_by_name(settings.databook['sheet_names']['transval'])
     ws_linkpars = workbook.sheet_by_name(settings.databook['sheet_names']['linkpars'])
 
     # Population names sheet.
@@ -254,7 +255,6 @@ def loadSpreadsheetFunc(settings, databook_path = None):
 
     # Inter-population transitions sheet.
     # Migration matrices must be divided from each other by an empty row.
-    # NOTE: Needs some way for users to know that only the first filled-in cell per row will be noted for aging.
     data['transfers'] = odict()
     mig_specified = False
     mig_type = None
@@ -291,6 +291,51 @@ def loadSpreadsheetFunc(settings, databook_path = None):
             mig_specified = True
             mig_type = str(zero_col).lower().replace(' ','_')
             data['transfers'][mig_type] = odict()
+    
+    # Inter-population transfer details sheet.
+    mig_specified = False
+    mig_type = None
+    array_id = 0
+    for row_id in xrange(ws_transval.nrows):
+        zero_col = ws_transval.cell_value(row_id, 0)
+        
+        # If parser finds an empty row (technically empty first cell) migration-parsing resets, ready for the next custom type.
+        if mig_specified and zero_col in ['']:
+            mig_specified = False
+            
+        # Parse through migration matrix.
+        if mig_specified:
+            pop_source = str(zero_col)
+            if pop_source not in ['','...']:
+                pop_source_label = data['pops']['name_labels'][pop_source]
+                pop_sink = ws_transval.cell_value(row_id, 2)
+                pop_sink_label = data['pops']['name_labels'][pop_sink]
+                list_t = []
+                list_y = []
+                for col_id in xrange(ws_transval.ncols):
+                    if col_id == 3:
+                        data['transfers'][mig_type][pop_source_label][pop_sink_label]['y_format'] = str(ws_transval.cell_value(row_id, col_id)).lower()
+                    if col_id > 3 and isinstance(ws_transval.cell_value(row_id, col_id), Number):
+                        val = ws_transval.cell_value(row_id, col_id)
+                        
+                        list_y.append(float(ws_transval.cell_value(row_id, col_id)))
+                        if not isinstance(ws_transval.cell_value(row_id-1-array_id, col_id), Number):
+                            list_t.append(float(ws_linkpars.cell_value(row_id-1-array_id, col_id+2)))
+                            break
+                        else:
+                            list_t.append(float(ws_linkpars.cell_value(row_id-1-array_id, col_id)))
+                                
+                data['transfers'][mig_type][pop_source_label][pop_sink_label]['t'] = np.array(list_t)
+                data['transfers'][mig_type][pop_source_label][pop_sink_label]['y'] = np.array(list_y)
+            array_id += 1
+
+
+        
+        # First row after a blank one must contain the new migration type as its first element. Parser re-activated.
+        if not mig_specified and zero_col not in ['']:
+            mig_specified = True
+            mig_type = str(zero_col).lower().replace(' ','_')
+            array_id = 0
     
     # Cascade parameters sheet.
     data['linkpars'] = odict()
