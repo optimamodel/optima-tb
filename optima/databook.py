@@ -20,19 +20,21 @@ default_path = './project-data.xlsx'    # Default path if not called via a proje
 
 #%% Utility functions to generate sub-blocks of the project databook
 
-def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, data_formats = None):
+def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, data_formats = None, print_conditions = None):
     '''
     Create a block where users choose data-entry format and enter values either as an assumption or time-dependent array.
     
     Args:
-        worksheet       -   The worksheet in which to produce the block.
-        at_row          -   The row at which the top-left corner of the block will be fixed.
-        at_col          -   The column at which the top-left corner of the block will be fixed.
-        num_arrays      -   The number of input arrays to generate.
-        tvec            -   The year range for which values are (optionally) to be entered.
-        assumption      -   The default value to enter in the assumption column.
-        data_formats    -   A list of formats that data can be entered as.
-                            This is not data validation, but will determine the form of calculations during model processing.
+        worksheet           -   The worksheet in which to produce the block.
+        at_row              -   The row at which the top-left corner of the block will be fixed.
+        at_col              -   The column at which the top-left corner of the block will be fixed.
+        num_arrays          -   The number of input arrays to generate.
+        tvec                -   The year range for which values are (optionally) to be entered.
+        assumption          -   The default value to enter in the assumption column.
+        data_formats        -   A list of formats that data can be entered as.
+                                This is not data validation, but will determine the form of calculations during model processing.
+        print_conditions    -   A list of Excel-string conditions that are used to test whether data-entry arrays should be shown.
+                                List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
     '''
     
     if data_formats is None: data_formats = ['Probability', 'Fraction', 'Number']
@@ -46,10 +48,16 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
     for aid in xrange(num_arrays):
         row_id = at_row + aid + 1
         offset = at_col + 3
-        worksheet.write(row_id, at_col, data_formats[0])      # Default choice for data format.  
-        worksheet.data_validation('%s' % rc(row_id,at_col), {'validate': 'list', 'source': data_formats, 'ignore_blank': False})       
-        worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption), None, assumption)
-        worksheet.write(row_id, at_col + 2, 'OR')
+        worksheet.write(row_id, at_col, data_formats[0])      # Default choice for data format.
+        worksheet.data_validation('%s' % rc(row_id,at_col), {'validate': 'list', 'source': data_formats, 'ignore_blank': False}) 
+        if not print_conditions is None and not print_conditions[aid] is None:
+            worksheet.write(row_id, at_col, '=IF(%s,"%s","")' % (print_conditions[aid], data_formats[0]), None, '')      # Default choice for data format.
+            worksheet.write(row_id, at_col + 1, '=IF(%s,IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A."),"")' % (print_conditions[aid], rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption), None, '')
+            worksheet.write(row_id, at_col + 2, '=IF(%s,"OR","")' % print_conditions[aid], None, '')
+        else:
+            worksheet.write(row_id, at_col, data_formats[0])      # Default choice for data format.
+            worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption), None, assumption)
+            worksheet.write(row_id, at_col + 2, 'OR')
         
         # Make changes to the first row be mirrored in the other rows.
         if aid > 0:
@@ -163,11 +171,13 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_transmat.set_column(0, 0, ws_transmat_width)
     
     # Inter-population transfer details sheet.
-    
     row_id = 0
     for mid in xrange(num_migrations):
         ws_transval.write(row_id, 0, mig_types_formula[mid], None, mig_types_default[mid])
-        makeValueEntryArrayBlock(worksheet = ws_transval, at_row = row_id, at_col = 3, num_arrays = num_pops*(num_pops-1), tvec = data_tvec)
+        print_conditions = []
+        for k in xrange(num_pops*(num_pops-1)):
+            print_conditions.append('%s<>"..."' % rc(row_id+k+1,0))
+        makeValueEntryArrayBlock(worksheet = ws_transval, at_row = row_id, at_col = 3, num_arrays = num_pops*(num_pops-1), tvec = data_tvec, print_conditions = print_conditions)
         for source_id in xrange(num_pops):
             for sink_id in xrange(num_pops):
                 if source_id != sink_id:
