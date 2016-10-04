@@ -8,19 +8,19 @@ from copy import deepcopy as dcp
 
 
 
-#%% Model compartment classes
+#%% Abstract classes used in model
 
 class Node(object):
-    ''' Lightweight class to represent one compartment within a population. '''
-    def __init__(self, label = 'default', index = 0, popsize = 0.0):
+    ''' Lightweight abstract class to represent one object within a network. '''
+    def __init__(self, label = 'default', index = 0):#, popsize = 0.0):
         self.label = label          # Reference name for this object.
         self.index = index          # Positional index for container list.
         self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
-        self.popsize = np.array([float(popsize)])   # Number of people in compartment.
-        self.tag_dead = False       # Tag for whether this compartment contains dead people.
+#        self.popsize = np.array([float(popsize)])   # Number of people in compartment.
+#        self.tag_dead = False       # Tag for whether this compartment contains dead people.
         
     def makeLinkTo(self, other_node):
-        ''' Link this node to another (i.e. create a transition link).'''
+        ''' Link this node to another (i.e. create a transition link). '''
         if not isinstance(other_node, Node):
             raise OptimaException('ERROR: Attempting to link compartment to something that is not a compartment.')
         self.num_outlinks += 1
@@ -28,7 +28,7 @@ class Node(object):
 
 class Link(object):
     '''
-    Lightweight class to represent unidirectional flow.
+    Lightweight abstract class to represent unidirectional flow between two objects in a network.
     If used in ModelPop, the Link refers to two cascade compartments within a single population.
     If used in Model, the Link refers to two distinct population groups.
     In the latter case, intended logic should transfer agents between all (non-dead) corresponding compartments.
@@ -40,11 +40,32 @@ class Link(object):
         self.label_to = object_to.label
         self.transit_frac = np.array([float(transit_frac)])   # Fraction of compartment 1 to move to compartment 2 per year.
 
-class ModelPop(object): 
-    ''' A class to wrap up data for one population within model. '''
+
+
+#%% Cascade compartment and population classes
+
+class ModelCompartment(Node):
+    ''' A class to wrap up data for one compartment within a cascade network. '''
+    
+    def __init__(self, label = 'default', index = 0, popsize = 0.0):
+        Node.__init__(self, label = label, index = index)
+#        self.label = label          # Reference name for this object.
+#        self.index = index          # Positional index for container list.
+#        self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
+        self.popsize = np.array([float(popsize)])   # Number of people in compartment.
+        self.tag_dead = False       # Tag for whether this compartment contains dead people.
+    
+
+class ModelPopulation(Node): 
+    '''
+    A class to wrap up data for one population within model.
+    Each model population must contain a set of compartments with equivalent labels.
+    '''
+    
     def __init__(self, settings, label = 'default', index = 0):
-        self.label = label          # Reference name for this object.
-        self.index = index          # Positional index for container list.
+        Node.__init__(self, label = label, index = index)
+#        self.label = label          # Reference name for this object.
+#        self.index = index          # Positional index for container list.
         self.nodes = list()
         self.links = list()
         self.node_ids = dict()  # Maps node label to positional index in nodes list.
@@ -62,7 +83,7 @@ class ModelPop(object):
     def genCascade(self, settings):
         ''' Generate standard cascade, creating a node for each compartment and linking them appropriately. '''
         for l, label in enumerate(settings.node_specs.keys()):
-            self.nodes.append(Node(label = label, index = l))
+            self.nodes.append(ModelCompartment(label = label, index = l))
             if 'tag_dead' in settings.node_specs[label].keys():
                 self.nodes[-1].tag_dead = True
             self.node_ids[label] = l
@@ -189,7 +210,7 @@ class Model(object):
         for k, pop_label in enumerate(parset.pop_labels):
 #            pop_label = parset.pop_labels[k]
 #            pop_name = parset.pop_names[k]
-            self.pops.append(ModelPop(settings = settings, label = pop_label, index = k))
+            self.pops.append(ModelPopulation(settings = settings, label = pop_label, index = k))
             self.pops[-1].preAllocate(self.sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
             self.pop_ids[pop_label] = k
             
