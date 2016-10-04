@@ -12,9 +12,9 @@ from copy import deepcopy as dcp
 
 class Node(object):
     ''' Lightweight class to represent one compartment within a population. '''
-    def __init__(self, label='default', index=0, popsize=0.0):
-        self.label = label
-        self.index = index
+    def __init__(self, label = 'default', index = 0, popsize = 0.0):
+        self.label = label          # Reference name for this object.
+        self.index = index          # Positional index for container list.
         self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
         self.popsize = np.array([float(popsize)])   # Number of people in compartment.
         self.tag_dead = False       # Tag for whether this compartment contains dead people.
@@ -27,18 +27,24 @@ class Node(object):
         return Link(self, other_node)
 
 class Link(object):
-    ''' Lightweight class to represent unidirectional flow between two compartments within a population. '''
-    def __init__(self, node_from, node_to, transit_frac = 0.0):
-        self.index_from = node_from.index
-        self.index_to = node_to.index
-        self.label_from = node_from.label
-        self.label_to = node_to.label
+    '''
+    Lightweight class to represent unidirectional flow.
+    If used in ModelPop, the Link refers to two cascade compartments within a single population.
+    If used in Model, the Link refers to two distinct population groups.
+    In the latter case, intended logic should transfer agents between all (non-dead) corresponding compartments.
+    '''
+    def __init__(self, object_from, object_to, transit_frac = 0.0):
+        self.index_from = object_from.index
+        self.index_to = object_to.index
+        self.label_from = object_from.label
+        self.label_to = object_to.label
         self.transit_frac = np.array([float(transit_frac)])   # Fraction of compartment 1 to move to compartment 2 per year.
 
 class ModelPop(object): 
     ''' A class to wrap up data for one population within model. '''
-    def __init__(self, settings, label = 'default'):
-        self.label = label      
+    def __init__(self, settings, label = 'default', index = 0):
+        self.label = label          # Reference name for this object.
+        self.index = index          # Positional index for container list.
         self.nodes = list()
         self.links = list()
         self.node_ids = dict()  # Maps node label to positional index in nodes list.
@@ -91,7 +97,7 @@ class ModelPop(object):
         dpopsize = np.zeros(len(self.links))        
         
         # First calculation loop. Extend link variable arrays if not pre-allocated. Calculate value changes for next timestep.
-        for k,link in enumerate(self.links):
+        for k, link in enumerate(self.links):
             if not len(link.transit_frac) > ti + 1:
                 link.transit_frac = np.append(link.transit_frac, link.transit_frac[-1])
             if not len(link.transit_frac) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
@@ -101,7 +107,7 @@ class ModelPop(object):
             dpopsize[k] = self.getNode(link.label_from).popsize[ti] * link.transit_frac[ti] * dt    # NOTE: Should this just be times dt...?
 
         # Second calculation loop. Apply value changes at next timestep.
-        for k,link in enumerate(self.links):
+        for k, link in enumerate(self.links):
             self.getNode(link.label_from).popsize[ti+1] -= dpopsize[k]
             self.getNode(link.label_to).popsize[ti+1] += dpopsize[k]
             
@@ -180,10 +186,10 @@ class Model(object):
         ''' Build the full model. '''
         self.sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
         
-        for k in xrange(len(parset.pop_labels)):
-            pop_label = parset.pop_labels[k]
+        for k, pop_label in enumerate(parset.pop_labels):
+#            pop_label = parset.pop_labels[k]
 #            pop_name = parset.pop_names[k]
-            self.pops.append(ModelPop(settings = settings, label = pop_label))
+            self.pops.append(ModelPop(settings = settings, label = pop_label, index = k))
             self.pops[-1].preAllocate(self.sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
             self.pop_ids[pop_label] = k
             
