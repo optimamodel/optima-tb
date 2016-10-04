@@ -46,12 +46,12 @@ class Project(object):
         for pop in results:
            
             fig, ax = pl.subplots(figsize=(15,10))
-            colors = gridColorMap(len(pop.nodes))
+            colors = gridColorMap(len(pop.comps))
             bottom = 0*sim_settings['tvec']
             
             k = 0
-            for node in pop.nodes:
-                top = bottom + node.popsize
+            for comp in pop.comps:
+                top = bottom + comp.popsize
                 
                 ax.fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[k], alpha=1, lw=0)
                 ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
@@ -67,7 +67,7 @@ class Project(object):
             ax.set_ylabel('People')
             ax.set_xlim((sim_settings['tvec'][0], sim_settings['tvec'][-1]))
             ax.set_ylim((0, max(top)))
-            cascade_names = [node.label for node in pop.nodes]
+            cascade_names = [comp.label for comp in pop.comps]
             ax.legend(cascade_names, **legendsettings)
             
         for output_id in outputs.keys():
