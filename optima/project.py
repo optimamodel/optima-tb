@@ -43,9 +43,8 @@ class Project(object):
         toc(tm, label = 'running %s model' % self.name)
         
         tp = tic()
-        for pop_id in results:
-            pop = results[pop_id]
-            
+        for pop in results:
+           
             fig, ax = pl.subplots(figsize=(15,10))
             colors = gridColorMap(len(pop.nodes))
             bottom = 0*sim_settings['tvec']
@@ -63,18 +62,18 @@ class Project(object):
             ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
             
             legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':2}
-            ax.set_title('%s Cascade - %s' % (self.name.title(), pop.name.title()))
+            ax.set_title('%s Cascade - %s' % (self.name.title(), pop.label.title()))
             ax.set_xlabel('Year')
             ax.set_ylabel('People')
             ax.set_xlim((sim_settings['tvec'][0], sim_settings['tvec'][-1]))
             ax.set_ylim((0, max(top)))
-            cascade_names = [node.name for node in pop.nodes]
+            cascade_names = [node.label for node in pop.nodes]
             ax.legend(cascade_names, **legendsettings)
             
         for output_id in outputs.keys():
             fig, ax = pl.subplots(figsize=(15,10))
-            for pop_id in results.keys():
-                vals = dcp(outputs[output_id][pop_id])
+            for pop in results:
+                vals = dcp(outputs[output_id][pop.label])
                 if 'plot_percentage' in self.settings.charac_specs[output_id].keys():
                     vals *= 100
                 ax.plot(sim_settings['tvec'], vals)
@@ -83,10 +82,10 @@ class Project(object):
             ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
             
             legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}                
-            ax.set_title('%s Outputs - %s' % (self.name.title(), pop.name.title()))
+            ax.set_title('%s Outputs - %s' % (self.name.title(), pop.label.title()))
             ax.set_xlabel('Year')
             ax.set_ylabel(self.settings.charac_specs[output_id]['name'])
-            ax.legend(results.keys(), **legendsettings)
+            ax.legend([pop.label for pop in results], **legendsettings)
                 
             
         toc(tp, label = 'plotting %s' % self.name)
