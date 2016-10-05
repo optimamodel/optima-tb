@@ -31,12 +31,12 @@ class Link(object):
     If used in Model, the Link refers to two distinct population groups.
     In the latter case, intended logic should transfer agents between all (non-dead) corresponding compartments.
     '''
-    def __init__(self, object_from, object_to, transit_frac = 0.0):
+    def __init__(self, object_from, object_to, val = 0.0):
         self.index_from = object_from.index
         self.index_to = object_to.index
         self.label_from = object_from.label
         self.label_to = object_to.label
-        self.transit_frac = np.array([float(transit_frac)])   # Fraction of compartment 1 to move to compartment 2 per year.
+        self.vals = np.array([float(val)])   # An abstract array of values. Usually relating to flow rate.
 
 
 
@@ -62,7 +62,7 @@ class ModelPopulation(Node):
         self.comps = list()         # List of cascade compartments that this model population subdivides into.
         self.links = list()         # List of intra-population cascade transitions within this model population.
         self.comp_ids = dict()      # Maps label of a compartment to its position index within compartments list.
-        self.link_ids = dict()      # Maps label of a cascade transition to indices for all relevant transitions within links list.
+        self.link_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
         self.t_index = 0            # Keeps track of array index for current timepoint data within all compartments.
         
         self.genCascade(settings = settings)    # Convert compartmental cascade into lists of compartment and link objects.
@@ -112,12 +112,12 @@ class ModelPopulation(Node):
         
         # First calculation loop. Extend link variable arrays if not pre-allocated. Calculate value changes for next timestep.
         for k, link in enumerate(self.links):
-            if not len(link.transit_frac) > ti + 1:
-                link.transit_frac = np.append(link.transit_frac, link.transit_frac[-1])
-            if not len(link.transit_frac) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
+            if not len(link.vals) > ti + 1:
+                link.vals = np.append(link.vals, link.vals[-1])
+            if not len(link.vals) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
                 raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (link.label))
             
-            dpopsize[k] = self.getComp(link.label_from).popsize[ti] * link.transit_frac[ti] * dt    # NOTE: Should this just be times dt...?
+            dpopsize[k] = self.getComp(link.label_from).popsize[ti] * link.vals[ti] * dt    # NOTE: Should this just be times dt...?
 
         # Second calculation loop. Apply value changes at next timestep.
         for k, link in enumerate(self.links):
@@ -139,10 +139,10 @@ class ModelPopulation(Node):
         ''' Loop through all links and print out current variable values. '''
         for link in self.links:
             if not full:
-                print('[Pop: %s][%5s --> %-5s][Transit. Frac.: %5.4f]' % (self.label, link.label_from, link.label_to, link.transit_frac[self.t_index]))
+                print('[Pop: %s][%5s --> %-5s][Transit. Frac.: %5.4f]' % (self.label, link.label_from, link.label_to, link.vals[self.t_index]))
             else:
                 print('[Pop: %s][%5s --> %-5s][Transit. Fraction...]' % (self.label, link.label_from, link.label_to))
-                print(link.transit_frac)
+                print(link.vals)
 
     def makeRandomVars(self, for_comp = True, for_link = True):
         ''' Randomise all compartment and link variables. Method used primarily for debugging. '''
@@ -151,7 +151,7 @@ class ModelPopulation(Node):
                 comp.popsize[self.t_index] = npr.rand()*1e7
         if for_link:
             for link in self.links:
-                link.transit_frac = npr.rand()/self.getComp(link.label_from).num_outlinks     # Scaling makes sure fractions leaving a compartment sum to less than 1.
+                link.vals = npr.rand()/self.getComp(link.label_from).num_outlinks     # Scaling makes sure fractions leaving a compartment sum to less than 1.
                 
     def preAllocate(self, sim_settings):
         '''
@@ -164,9 +164,9 @@ class ModelPopulation(Node):
             comp.popsize = np.ones(len(sim_settings['tvec']))*np.nan
             comp.popsize[0] = init_popsize
         for link in self.links:
-            init_transit_frac = link.transit_frac[0]
-            link.transit_frac = np.ones(len(sim_settings['tvec']))*np.nan
-            link.transit_frac[0] = init_transit_frac
+            init_val = link.vals[0]
+            link.vals = np.ones(len(sim_settings['tvec']))*np.nan
+            link.vals[0] = init_val
             
             
             
@@ -177,15 +177,15 @@ class Model(object):
     
     def __init__(self):
         
-        self.pops = list()
-        self.transfers = list()
-        self.pop_ids = dict()           # Maps pop label to positional index in pops list.
-        self.transfer_ids = dict()      # Maps transfer label to positional index in transfer list.        
+        self.pops = list()              # List of population groups that this model subdivides into.
+        self.transfers = list()         # List of inter-population transitions (i.e. bulk transfers) within this model.
+        self.pop_ids = dict()           # Maps label of a population to its position index within populations list.
+        self.transfer_ids = dict()      # Maps label of an inter-population transfer to position index within transfers list.      
         
 #        self.pops = odict()
         self.sim_settings = odict()
         
-        self.transfers = odict()
+#        self.transfers = odict()
         
         
         
@@ -206,14 +206,26 @@ class Model(object):
             
             self.pops[-1].getComp('sus').popsize[0] = 1000000   # NOTE: Temporary. Initial values inserted here.
             
-        # Transferring parset values into ModelPops.
+        # Propagating cascade parameter parset values into ModelPops.
         for par in parset.pars:
             tag = settings.linkpar_specs[par.label]['tag']          # Map parameter label -> link tag.
             for pop_label in parset.pop_labels:
                 for link_id in self.getPop(pop_label).link_ids[tag]:           # Map link tag -> link id in ModelPop.            
-                    self.getPop(pop_label).links[link_id].transit_frac = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
+                    self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
         
-        self.transfers = dcp(parset.transfers)
+        # Propagating transfer parameter parset values into Model object.
+        k = 0
+        for trans_type in parset.transfers.keys():
+            if parset.transfers[trans_type]:
+                for pop_source in parset.transfers[trans_type].keys():
+                    par = parset.transfers[trans_type][pop_source]
+                    for pop_sink in par.y:
+                        trans_tag = trans_type + '_' + pop_source + '_' + pop_sink       # NOTE: Perhaps there is a nicer way to set up transfer tagging.
+                        self.transfers.append(self.getPop(pop_source).makeLinkTo(self.getPop(pop_sink)))
+                        self.transfers[-1].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_sink)
+                        self.transfer_ids[trans_tag] = k
+                        k += 1
+                        
                 
     def process(self, settings):
         ''' Run the full model. '''
@@ -223,18 +235,19 @@ class Model(object):
                 pop.stepCascadeForward(dt = settings.tvec_dt)
                 
             # Apply transfers.
-            for trans_type in self.transfers.keys():
-                for pop_source in self.transfers[trans_type].keys():
-                    for pop_sink in self.transfers[trans_type][pop_source].y:
-                        transit_frac = self.transfers[trans_type][pop_source].y[pop_sink][0]
-                        tid_source = self.getPop(pop_source).t_index
-                        tid_sink = self.getPop(pop_sink).t_index
-                        for comp_label in self.getPop(pop_source).comp_ids.keys():
-                            if not self.getPop(pop_source).getComp(comp_label).tag_dead:
-                                num_trans = self.getPop(pop_source).getComp(comp_label).popsize[tid_source] * transit_frac * settings.tvec_dt
-                                self.getPop(pop_source).getComp(comp_label).popsize[tid_source] -= num_trans
-                                self.getPop(pop_sink).getComp(comp_label).popsize[tid_sink] += num_trans
-                
+            for transfer in self.transfers:
+                pop_source = transfer.label_from
+                pop_sink = transfer.label_to
+                tid_source = self.getPop(pop_source).t_index
+                tid_sink = self.getPop(pop_sink).t_index
+                for comp_label in self.getPop(pop_source).comp_ids.keys():
+                    if not self.getPop(pop_source).getComp(comp_label).tag_dead:
+                        
+                        # Use 't-1' value of transfer rate on forward-stepped 't' value of popsize.
+                        num_trans = self.getPop(pop_source).getComp(comp_label).popsize[tid_source] * transfer.vals[tid_source-1] * settings.tvec_dt
+                        self.getPop(pop_source).getComp(comp_label).popsize[tid_source] -= num_trans
+                        self.getPop(pop_sink).getComp(comp_label).popsize[tid_sink] += num_trans
+        
         return self.pops, self.sim_settings
         
     
@@ -275,8 +288,7 @@ class Model(object):
                         raise OptimaException('ERROR: Compartment or characteristic %s has not been pre-calculated for use in calculating %s.' % (inc_label, cid))
                     
                     outputs[cid][pop.label] /= vals
-                    
-                
+        
         return outputs
             
         

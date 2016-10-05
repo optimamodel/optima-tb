@@ -303,7 +303,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
         if mig_specified and zero_col in ['']:
             mig_specified = False
             
-        # Parse through migration matrix.
+        # Parse through migration-specific data rows.
         if mig_specified:
             pop_source = str(zero_col)
             if pop_source not in ['','...']:
@@ -318,12 +318,12 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                     if col_id > 3 and isinstance(ws_transval.cell_value(row_id, col_id), Number):
                         val = ws_transval.cell_value(row_id, col_id)
                         
-                        list_y.append(float(ws_transval.cell_value(row_id, col_id)))
+                        list_y.append(float(val))
                         if not isinstance(ws_transval.cell_value(row_id-1-array_id, col_id), Number):
-                            list_t.append(float(ws_linkpars.cell_value(row_id-1-array_id, col_id+2)))
+                            list_t.append(float(ws_transval.cell_value(row_id-1-array_id, col_id+2)))
                             break
                         else:
-                            list_t.append(float(ws_linkpars.cell_value(row_id-1-array_id, col_id)))
+                            list_t.append(float(ws_transval.cell_value(row_id-1-array_id, col_id)))
                                 
                 data['transfers'][mig_type][pop_source_label][pop_sink_label]['t'] = np.array(list_t)
                 data['transfers'][mig_type][pop_source_label][pop_sink_label]['y'] = np.array(list_y)
