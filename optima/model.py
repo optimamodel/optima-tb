@@ -16,12 +16,17 @@ class Node(object):
         self.label = label          # Reference name for this object.
         self.index = index          # Positional index for container list.
         self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
+        self.outlink_ids = []       # List of indices corresponding to each outgoing link.
         
-    def makeLinkTo(self, other_node):
-        ''' Link this node to another (i.e. create a transition link). '''
+    def makeLinkTo(self, other_node, link_index):
+        '''
+        Link this node to another (i.e. create a transition link).
+        Must provide an index that, by intention, represents where this link is positioned in its storage container. 
+        '''
         if not isinstance(other_node, Node):
             raise OptimaException('ERROR: Attempting to link compartment to something that is not a compartment.')
         self.num_outlinks += 1
+        self.outlink_ids.append(link_index)
         return Link(self, other_node)
 
 class Link(object):
@@ -37,6 +42,7 @@ class Link(object):
         self.label_from = object_from.label
         self.label_to = object_to.label
         self.vals = np.array([float(val)])   # An abstract array of values. Usually relating to flow rate.
+        self.val_format = 'probability'
 
 
 
@@ -85,7 +91,7 @@ class ModelPopulation(Node):
         k = 0
         for tag in settings.links.keys():
             for pair in settings.links[tag]:
-                self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1])))
+                self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]),link_index=k))
                 if not tag in self.link_ids:
                     self.link_ids[tag] = []
                 self.link_ids[tag].append(k)
@@ -213,6 +219,7 @@ class Model(object):
             for pop_label in parset.pop_labels:
                 for link_id in self.getPop(pop_label).link_ids[tag]:           # Map link tag -> link id in ModelPop.            
                     self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
+                    self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
         
         # Propagating transfer parameter parset values into Model object.
         k = 0
@@ -222,8 +229,9 @@ class Model(object):
                     par = parset.transfers[trans_type][pop_source]
                     for pop_sink in par.y:
                         trans_tag = trans_type + '_' + pop_source + '_' + pop_sink       # NOTE: Perhaps there is a nicer way to set up transfer tagging.
-                        self.transfers.append(self.getPop(pop_source).makeLinkTo(self.getPop(pop_sink)))
+                        self.transfers.append(self.getPop(pop_source).makeLinkTo(self.getPop(pop_sink),link_index=k))
                         self.transfers[-1].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_sink)
+                        self.transfers[-1].val_format = par.y_format[pop_sink]
                         self.transfer_ids[trans_tag] = k
                         k += 1
                         
