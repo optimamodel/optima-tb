@@ -22,7 +22,7 @@ class Settings(object):
     def __init__(self, cascade_path = './cascade.xlsx'):
         self.tvec_start = 2000.0     # Default start year for data input and simulations.
         self.tvec_end = 2030.0       # Default end year for data input and simulations.
-        self.tvec_dt = 0.25          # Default timestep for simulations.
+        self.tvec_dt = 1.0/16          # Default timestep for simulations.
         
         self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here to be explicit. 
         self.loadCascadeSettings(cascade_path)

@@ -117,7 +117,8 @@ class ModelPopulation(Node):
             if not len(link.vals) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
                 raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (link.label))
             
-            dpopsize[k] = self.getComp(link.label_from).popsize[ti] * link.vals[ti] * dt    # NOTE: Should this just be times dt...?
+            converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
+            dpopsize[k] = self.getComp(link.label_from).popsize[ti] * converted_frac
 
         # Second calculation loop. Apply value changes at next timestep.
         for k, link in enumerate(self.links):
@@ -244,7 +245,8 @@ class Model(object):
                     if not self.getPop(pop_source).getComp(comp_label).tag_dead:
                         
                         # Use 't-1' value of transfer rate on forward-stepped 't' value of popsize.
-                        num_trans = self.getPop(pop_source).getComp(comp_label).popsize[tid_source] * transfer.vals[tid_source-1] * settings.tvec_dt
+                        converted_frac = 1 - (1 - transfer.vals[tid_source-1]) ** settings.tvec_dt      # A formula for converting from yearly fraction values to the dt equivalent.
+                        num_trans = self.getPop(pop_source).getComp(comp_label).popsize[tid_source] * converted_frac
                         self.getPop(pop_source).getComp(comp_label).popsize[tid_source] -= num_trans
                         self.getPop(pop_sink).getComp(comp_label).popsize[tid_sink] += num_trans
         
