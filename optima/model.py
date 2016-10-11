@@ -190,9 +190,7 @@ class Model(object):
     def __init__(self):
         
         self.pops = list()              # List of population groups that this model subdivides into.
-#        self.transfers = list()         # List of inter-population transitions (i.e. bulk transfers) within this model.
-        self.pop_ids = dict()           # Maps label of a population to its position index within populations list.
-#        self.transfer_ids = dict()      # Maps label of an inter-population transfer to position index within transfers list.      
+        self.pop_ids = dict()           # Maps label of a population to its position index within populations list.     
         
         self.sim_settings = odict()
         
@@ -226,7 +224,6 @@ class Model(object):
                     self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
         
         # Propagating transfer parameter parset values into Model object.
-#        k = 0
         for trans_type in parset.transfers.keys():
             if parset.transfers[trans_type]:
                 for pop_source in parset.transfers[trans_type].keys():
@@ -242,37 +239,13 @@ class Model(object):
                                 
                                 self.getPop(pop_source).links.append(link)
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
-
-#                        trans_tag = trans_type + '_' + pop_source + '_' + pop_sink       # NOTE: Perhaps there is a nicer way to set up transfer tagging.
-#                        self.transfers.append(self.getPop(pop_source).makeLinkTo(self.getPop(pop_sink),link_index=k))
-#                        self.transfers[-1].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_sink)
-#                        self.transfers[-1].val_format = par.y_format[pop_sink]
-#                        self.transfer_ids[trans_tag] = k
-#                        k += 1
                         
                 
     def process(self, settings):
         ''' Run the full model. '''
         
         for t in self.sim_settings['tvec'][1:]:
-            self.stepModelForward(dt = settings.tvec_dt)
-#            for pop in self.pops:
-#                pop.stepCascadeForward(dt = settings.tvec_dt)
-#                
-#            # Apply transfers.
-#            for transfer in self.transfers:
-#                pop_source = transfer.label_from
-#                pop_sink = transfer.label_to
-#                tid_source = self.getPop(pop_source).t_index
-#                tid_sink = self.getPop(pop_sink).t_index
-#                for comp_label in self.getPop(pop_source).comp_ids.keys():
-#                    if not self.getPop(pop_source).getComp(comp_label).tag_dead:
-#                        
-#                        # Use 't-1' value of transfer rate on forward-stepped 't' value of popsize.
-#                        converted_frac = 1 - (1 - transfer.vals[tid_source-1]) ** settings.tvec_dt      # A formula for converting from yearly fraction values to the dt equivalent.
-#                        num_trans = self.getPop(pop_source).getComp(comp_label).popsize[tid_source] * converted_frac
-#                        self.getPop(pop_source).getComp(comp_label).popsize[tid_source] -= num_trans
-#                        self.getPop(pop_sink).getComp(comp_label).popsize[tid_sink] += num_trans
+            self.stepForward(dt = settings.tvec_dt)
         
         return self.pops, self.sim_settings
         
@@ -318,7 +291,7 @@ class Model(object):
         return outputs
         
         
-    def stepModelForward(self, dt = 1.0):
+    def stepForward(self, dt = 1.0):
         '''
         Evolve model characteristics by one timestep (defaulting as 1 year).
         Each application of this method writes calculated values to the next position in popsize arrays, regardless of dt.
@@ -356,9 +329,6 @@ class Model(object):
                     did_from = link.index_from[0] * num_comps + link.index_from[1]
                     did_to = link.index_to[0] * num_comps + link.index_to[1]
                     comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
-#                    comp_target = self.pops[link.index_to[0]].getComp(link.label_to)
-#                    print('From: (%i,%i)' % (pop.links[lid].index_from[0],pop.links[lid].index_from[1]))
-#                    print('To:   (%i,%i)' % (pop.links[lid].index_to[0],pop.links[lid].index_to[1]))
                     
                     converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
                     dpopsize[did_from] -= comp_source.popsize[ti] * converted_frac
@@ -371,36 +341,11 @@ class Model(object):
             for cid in xrange(num_comps):
                 did = pid * num_comps + cid
                 self.pops[pid].comps[cid].popsize[ti+1] += dpopsize[did]
-                    
-                    
         
-#        # If not pre-allocated, extend compartment variable arrays. Either way copy current value to the next position in the array.
-#        for comp in self.comps:
-#            if not len(comp.popsize) > ti + 1:
-#                comp.popsize = np.append(comp.popsize, 0.0)
-#            if not len(comp.popsize) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
-#                raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (comp.label))
-#            comp.popsize[ti+1] = comp.popsize[ti]
-#                
-#        dpopsize = np.zeros(len(self.links))        
-#        
-#        # First calculation loop. Extend link variable arrays if not pre-allocated. Calculate value changes for next timestep.
-#        for k, link in enumerate(self.links):
-#            if not len(link.vals) > ti + 1:
-#                link.vals = np.append(link.vals, link.vals[-1])
-#            if not len(link.vals) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
-#                raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (link.label))
-#            
-#            converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
-#            dpopsize[k] = self.getComp(link.label_from).popsize[ti] * converted_frac
-#
-#        # Second calculation loop. Apply value changes at next timestep.
-#        for k, link in enumerate(self.links):
-#            self.getComp(link.label_from).popsize[ti+1] -= dpopsize[k]
-#            self.getComp(link.label_to).popsize[ti+1] += dpopsize[k]
-            
-        self.t_index += 1       # Update timestep index.
-            
+        # Update timestep index.
+        self.t_index += 1
+        for pop in self.pops:
+            pop.t_index = self.t_index       # Keeps ModelPopulations synchronised with Model object.
         
     
 
