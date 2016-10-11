@@ -179,14 +179,14 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
             print_conditions.append('%s<>"..."' % rc(row_id+k+1,0))
         makeValueEntryArrayBlock(worksheet = ws_transval, at_row = row_id, at_col = 3, num_arrays = num_pops*(num_pops-1), tvec = data_tvec, print_conditions = print_conditions)
         for source_id in xrange(num_pops):
-            for sink_id in xrange(num_pops):
-                if source_id != sink_id:
+            for target_id in xrange(num_pops):
+                if source_id != target_id:
                     row_id += 1
                     r = mig_matrix_rows[mid] + source_id + 1
-                    c = sink_id + 1
+                    c = target_id + 1
                     ws_transval.write(row_id, 0, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[source_id][1:],'"..."'), None, '...')
                     ws_transval.write(row_id, 1, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"','"--->"','""'), None, '')
-                    ws_transval.write(row_id, 2, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[sink_id][1:],'""'), None, '')
+                    ws_transval.write(row_id, 2, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[target_id][1:],'""'), None, '')
         
         row_id += 2
         
@@ -272,17 +272,17 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                 if col_id > 0:
                     val = ws_transmat.cell_value(row_id, col_id)
                     if val in ['y']:
-                        pop_sink = str(ws_transmat.cell_value(0, col_id))
+                        pop_target = str(ws_transmat.cell_value(0, col_id))
                         if pop_source not in data['transfers'][mig_type].keys():
                             data['transfers'][mig_type][pop_source] = odict()
-                        data['transfers'][mig_type][pop_source][pop_sink] = odict()
+                        data['transfers'][mig_type][pop_source][pop_target] = odict()
                         if mig_type == 'aging':
                             if 'range' not in data['pops']['ages'][pop_source].keys():
                                 raise OptimaException('ERROR: An age transition has been flagged for a source population group with no age range.')
                             else:
-                                data['transfers'][mig_type][pop_source][pop_sink]['t'] = np.array([settings.tvec_start])
-                                data['transfers'][mig_type][pop_source][pop_sink]['y'] = np.array([float(1/data['pops']['ages'][pop_source]['range'])])
-                                data['transfers'][mig_type][pop_source][pop_sink]['y_format'] = 'Fraction'.lower()
+                                data['transfers'][mig_type][pop_source][pop_target]['t'] = np.array([settings.tvec_start])
+                                data['transfers'][mig_type][pop_source][pop_target]['y'] = np.array([float(1/data['pops']['ages'][pop_source]['range'])])
+                                data['transfers'][mig_type][pop_source][pop_target]['y_format'] = 'Fraction'.lower()
                             if len(data['transfers'][mig_type][pop_source].keys()) > 1:
                                 raise OptimaException('ERROR: There are too many outgoing %s transitions listed for population %s.' % (mig_type,pop_source))
         
@@ -308,13 +308,13 @@ def loadSpreadsheetFunc(settings, databook_path = None):
             pop_source = str(zero_col)
             if pop_source not in ['','...']:
                 pop_source_label = data['pops']['name_labels'][pop_source]
-                pop_sink = ws_transval.cell_value(row_id, 2)
-                pop_sink_label = data['pops']['name_labels'][pop_sink]
+                pop_target = ws_transval.cell_value(row_id, 2)
+                pop_target_label = data['pops']['name_labels'][pop_target]
                 list_t = []
                 list_y = []
                 for col_id in xrange(ws_transval.ncols):
                     if col_id == 3:
-                        data['transfers'][mig_type][pop_source_label][pop_sink_label]['y_format'] = str(ws_transval.cell_value(row_id, col_id)).lower()
+                        data['transfers'][mig_type][pop_source_label][pop_target_label]['y_format'] = str(ws_transval.cell_value(row_id, col_id)).lower()
                     if col_id > 3 and isinstance(ws_transval.cell_value(row_id, col_id), Number):
                         val = ws_transval.cell_value(row_id, col_id)
                         
@@ -325,8 +325,8 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                         else:
                             list_t.append(float(ws_transval.cell_value(row_id-1-array_id, col_id)))
                                 
-                data['transfers'][mig_type][pop_source_label][pop_sink_label]['t'] = np.array(list_t)
-                data['transfers'][mig_type][pop_source_label][pop_sink_label]['y'] = np.array(list_y)
+                data['transfers'][mig_type][pop_source_label][pop_target_label]['t'] = np.array(list_t)
+                data['transfers'][mig_type][pop_source_label][pop_target_label]['y'] = np.array(list_y)
             array_id += 1
 
 

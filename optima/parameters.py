@@ -90,7 +90,7 @@ class ParameterSet(object):
             
             for source in data['transfers'][trans_type].keys():
                 if source not in self.transfers[trans_type]: self.transfers[trans_type][source] = Parameter(label = trans_type + '_from_' + source)
-                for sink in data['transfers'][trans_type][source].keys():
-                    self.transfers[trans_type][source].t[sink] = data['transfers'][trans_type][source][sink]['t']
-                    self.transfers[trans_type][source].y[sink] = data['transfers'][trans_type][source][sink]['y']
-                    self.transfers[trans_type][source].y_format[sink] = data['transfers'][trans_type][source][sink]['y_format']
+                for target in data['transfers'][trans_type][source].keys():
+                    self.transfers[trans_type][source].t[target] = data['transfers'][trans_type][source][target]['t']
+                    self.transfers[trans_type][source].y[target] = data['transfers'][trans_type][source][target]['y']
+                    self.transfers[trans_type][source].y_format[target] = data['transfers'][trans_type][source][target]['y_format']
