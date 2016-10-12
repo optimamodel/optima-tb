@@ -6,31 +6,85 @@ import numpy as np
 import numpy.random as npr
 from copy import deepcopy as dcp
 
+import scipy.optimize as spo
+
 
 
 #%% Calculation functions used in model
 
+def transitionRelation(vout, vin, vin_formats, dt):
+    
+    f = np.zeros(len(vin))
+    F = np.zeros(len(vin))
+    d = np.zeros(len(vin))
+    
+    for k in xrange(len(vin)):
+        if vin_formats[k] == 'rate':
+            f[k] = vin[k]
+            F[k] = vout[k]
+        else:
+            f[k] = vout[k]
+            F[k] = vin[k]
+#    print 'Heh'
+#    print f
+#    print F
+    if sum(f) == 0:
+        d = -F
+    else:
+        d = (1-np.exp(-sum(f)*dt))*f/sum(f)-F
+    
+#    print d
+    
+    return d
+            
+
 def convertTransitions(values, value_formats, old_dt, new_dt):
     ''' Function that converts yearly transition values in various formats to timestep relevant fractions. '''
     
-    rates = np.zeros(len(values))
+    new_vals = dcp(values)
     
     # Calculate average number of transition events a person will encounter per year (i.e. a rate).
     k = 0
     for val in values:
-        rates[k] = -np.log(1-val)/old_dt
+        if value_formats[k] == 'probability':
+            values[k] = -np.log(1-val)/old_dt
+            value_formats[k] = 'rate'
         k += 1
-    sumrates = sum(rates)
-    if sumrates == 0.0:
-        sumrates = 1.0      # If the sum of rates are 0, any individual rate should be 0. NOTE: Test for this rather than assume.
-    else: print rates
+    rates = dcp(values)
+#    sumrates = sum(rates)
+#    if sumrates == 0.0:
+#        sumrates = 1.0      # If the sum of rates are 0, any individual rate should be 0. NOTE: Test for this rather than assume.
+#    else: print rates
+    
+    x = spo.fsolve(transitionRelation, np.ones(len(values))/2, args=(values, value_formats, old_dt), full_output = True)
+    if x[2] != 1: 
+        print x        
+        raise OptimaException('ERROR: Transitions cannot be reconciled. This may be due to the sum of yearly outflows for a compartment being greater than 100%.')
+    
+    for k in xrange(len(values)):
+        if value_formats[k] != 'rate':
+            rates[k] = x[0][k]      # If input was not a rate, output must be a rate.
+#        if value_formats[k] == 'fraction':
+#            print new_vals
+#            print value_formats
+#            print x[0]
+#        else:
+#            new_vals[k] == values[k]    # If input was a fraction, then input can be used as is.
+#    print x
+            
+#    if new_vals[0] > 0:
+#        print new_vals
+#        print value_formats
+#        print x[0]
     
     # Calculate fraction to move.
-    new_vals = np.zeros(len(values))
+#    new_vals = np.zeros(len(values))
     k = 0
-    for val in values:
-        new_val = (1-np.exp(-sumrates*new_dt))*rates[k]/sumrates
-        new_vals[k] = new_val
+    for rate in rates:
+        if sum(rates) == 0:
+            new_vals[k] = 0.0
+        else:
+            new_vals[k] = (1-np.exp(-sum(rates)*new_dt))*rates[k]/sum(rates)
         k += 1
 #    print new_vals
     return new_vals
@@ -361,21 +415,22 @@ class Model(object):
                     vals[j] = link.vals[ti]
                     val_formats[j] = link.val_format
                     j += 1
-                    
-                new_vals = convertTransitions(values = dcp(vals), value_formats = dcp(val_formats), old_dt = 1.0, new_dt = dt)
-                    
-                j = 0
-                for lid in comp.outlink_ids:
-                    link = pop.links[lid]
-                    
-                    did_from = link.index_from[0] * num_comps + link.index_from[1]
-                    did_to = link.index_to[0] * num_comps + link.index_to[1]
-                    comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
-                    
-#                    converted_frac = 1 - (1 - new_vals[j]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
-                    dpopsize[did_from] -= comp_source.popsize[ti] * new_vals[j]
-                    dpopsize[did_to] += comp_source.popsize[ti] * new_vals[j]
-                    j += 1
+                
+                if len(vals) > 0:
+                    new_vals = convertTransitions(values = dcp(vals), value_formats = dcp(val_formats), old_dt = 1.0, new_dt = dt)
+                        
+                    j = 0
+                    for lid in comp.outlink_ids:
+                        link = pop.links[lid]
+                        
+                        did_from = link.index_from[0] * num_comps + link.index_from[1]
+                        did_to = link.index_to[0] * num_comps + link.index_to[1]
+                        comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
+                        
+    #                    converted_frac = 1 - (1 - new_vals[j]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
+                        dpopsize[did_from] -= comp_source.popsize[ti] * new_vals[j]
+                        dpopsize[did_to] += comp_source.popsize[ti] * new_vals[j]
+                        j += 1
                 
                 k += 1
 

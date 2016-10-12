@@ -59,16 +59,16 @@ dvac = r[2].getComp('vac').popsize[invdt] / r[2].getComp('sus').popsize[0]
 print dlat
 print dvac
 
-import scipy as sp
-import scipy.optimize as spo
-
-def func(f1,F1,f2,dt):
-    return (1-sp.exp(-(f1+f2)*dt)*f1/(f1+f2))-F1
-
-F1 = 0.5
-f2 = 0.5
-x = spo.fsolve(func, 1, args=(F1, f2, p.settings.tvec_dt), full_output = True)
-print x
+#import scipy as sp
+#import scipy.optimize as spo
+#
+#def func(f1,F1,f2,dt):
+#    return (1-sp.exp(-(f1+f2)*dt)*f1/(f1+f2))-F1
+#
+#F1 = 0.5
+#f2 = 0.5
+#x = spo.fsolve(func, 1, args=(F1, f2, p.settings.tvec_dt), full_output = True)
+#print x
 
 #import scipy as sp
 #num_comps = 32
