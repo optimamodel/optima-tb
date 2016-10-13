@@ -54,55 +54,10 @@ toc(t_make, label = 'making parset for %s' % p.name)
 r, o = p.runSim()
 
 invdt = int(1/p.settings.tvec_dt)
+dpop = 1 - o['alive'][0][invdt]/o['alive'][0][0]
 dlat = r[2].getComp('lte').popsize[invdt] / r[2].getComp('sus').popsize[0]
 dvac = r[2].getComp('vac').popsize[invdt] / r[2].getComp('sus').popsize[0]
-print dlat
-print dvac
-
-#import scipy as sp
-#import scipy.optimize as spo
-#
-#def func(f1,F1,f2,dt):
-#    return (1-sp.exp(-(f1+f2)*dt)*f1/(f1+f2))-F1
-#
-#F1 = 0.5
-#f2 = 0.5
-#x = spo.fsolve(func, 1, args=(F1, f2, p.settings.tvec_dt), full_output = True)
-#print x
-
-#import scipy as sp
-#num_comps = 32
-#num_links = 104
-#num_pops = 3
-#num_transfers = num_pops**2
-#
-#tvec_len = int((p.settings.tvec_end - p.settings.tvec_start)/p.settings.tvec_dt + 1)
-#
-#t_sparse = tic()
-#
-#list_source = []
-#list_sink = []
-#list_data = []
-#for link in r[2].links:
-#    if link.vals[0] != 0:
-#        list_source.append(link.index_from)
-#        list_sink.append(link.index_to)
-#        list_data.append(link.vals[0])
-#        list_source.append(link.index_from)
-#        list_sink.append(link.index_from)
-#        list_data.append(-link.vals[0])
-#for comp in r[2].comps:
-#    list_source.append(comp.index)
-#    list_sink.append(comp.index)
-#    list_data.append(1)
-#M = sp.sparse.coo_matrix((list_data, (list_source, list_sink)), shape=(num_comps, num_comps))
-#M_new_full = sp.linalg.fractional_matrix_power(M.toarray(),p.settings.tvec_dt)
-#M_new = sp.sparse.coo_matrix(M_new_full)
-#print M.row
-#print M.col
-#print M.data
-#print M_new.row
-#print M_new.col
-#print M_new.data
-#
-#toc(t_sparse, label = 'testing sparse matrix powers for %s' % p.name)
+print('Intended aging fraction per year: %f' % p.data['transfers']['aging'][0][0]['y'])
+print('Fraction aged after a year: %f' % dpop)
+print('Infected fraction after a year: %f' % dlat)
+print('Vaccinated fraction after a year: %f' % dvac)
