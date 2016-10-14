@@ -37,7 +37,7 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
                                 List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
     '''
     
-    if data_formats is None: data_formats = ['Fraction', 'Probability', 'Number']
+    if data_formats is None: data_formats = ['Fraction', 'Number']#, 'Probability', 'Number']
     offset = at_col + 3     # This is the column at which the input year range and corresponding values should be written.
     
     worksheet.write(at_row, at_col, 'Format')
@@ -121,7 +121,6 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_pops_width = 15
     ws_transmat_width = 15
     ws_transval_width = 15
-    ws_linkpars_width = 40
     ws_charac_width = 40
     assumption_width = 10
     
@@ -196,52 +195,41 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_transval.set_column(2, 2, ws_transval_width)
     ws_transval.set_column(3, 4, assumption_width)
     
-    # Epidemic characteristics sheet.
-    row_id = 0
-    charac_specs_ordered = sorted(dcp(settings.charac_specs.keys()), key=lambda x: settings.charac_specs[x]['databook_order'])
-    for charac_label in charac_specs_ordered:
-        charac_name = settings.charac_specs[charac_label]['name']        
-        
-        # Make the characteristic-specific data-entry block.
-        if 'plot_percentage' in settings.charac_specs[charac_label]:
-            data_formats = ['Fraction']
-        else:
-            data_formats = ['Number']
-        makeValueEntryArrayBlock(worksheet = ws_charac, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, data_formats = data_formats)
-        
-        # Make the characteristic-specific population references.
-        ws_charac.write(row_id, 0, charac_name)
-        for pid in xrange(num_pops):
-            row_id += 1
-            ws_charac.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
-        
-        row_id += 2
-        
-    ws_charac.set_column(0, 0, ws_charac_width)
-    ws_charac.set_column(1, 2, assumption_width)
+    # Epidemic characteristics and cascade parameters sheet.
+    ws_list = [ws_charac, ws_linkpars]
+    specs_list = [settings.charac_specs, settings.linkpar_specs]
+    for k in xrange(2):
+        ws = ws_list[k]
+        specs = specs_list[k]
     
-    
-    # Cascade parameters sheet.
-    row_id = 0
-    for link_name in settings.linkpar_name_labels.keys():
-        link_label = settings.linkpar_name_labels[link_name]
-        def_val = 0
-        if 'default' in settings.linkpar_specs[link_label]:
-            def_val = settings.linkpar_specs[link_label]['default']
-        
-        # Make the parameter-specific data-entry block.
-        makeValueEntryArrayBlock(worksheet = ws_linkpars, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = def_val)        
-        
-        # Make the parameter-specific population references.
-        ws_linkpars.write(row_id, 0, link_name)
-        for pid in xrange(num_pops):
-            row_id += 1
-            ws_linkpars.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
-        
-        row_id += 2
-
-    ws_linkpars.set_column(0, 0, ws_linkpars_width)
-    ws_linkpars.set_column(1, 2, assumption_width)
+        row_id = 0
+        specs_ordered = sorted(dcp(specs.keys()), key=lambda x: specs[x]['databook_order'])
+        for def_label in specs_ordered:
+            def_name = specs[def_label]['name']
+            default_val = 0
+            if 'default' in specs[def_label]:
+                default_val = specs[def_label]['default']
+            
+            # Make the data-entry blocks.
+            if ws == ws_charac:
+                if 'plot_percentage' in specs[def_label]:
+                    data_formats = ['Fraction']
+                else:
+                    data_formats = ['Number']
+            else:
+                data_formats = None
+            makeValueEntryArrayBlock(worksheet = ws, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = default_val, data_formats = data_formats)
+            
+            # Make the population references.
+            ws.write(row_id, 0, def_name)
+            for pid in xrange(num_pops):
+                row_id += 1
+                ws.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
+            
+            row_id += 2
+            
+        ws.set_column(0, 0, ws_charac_width)
+        ws.set_column(1, 2, assumption_width)
     
     workbook.close()
     
