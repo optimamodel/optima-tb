@@ -189,7 +189,7 @@ class odict(OrderedDict):
                 else: errormsg = 'Key "%s" not found since odict is empty'% key
                 raise Exception(errormsg)
     
-    
+    """"
     def __repr__(self, maxlen=None, spaces=True, divider=True):
         ''' Print a meaningful representation of the odict '''
          # Maximum length of string to display
@@ -208,6 +208,25 @@ class odict(OrderedDict):
                 if maxlen and len(thisval)>maxlen: thisval = thisval[:maxlen-len(toolong)] + toolong # Trim long entries
                 if thisval.find('\n'): hasspaces = True
                 output += '#%i: "%s": %s\n' % (i, thiskey, thisval)
+        return output
+    """
+    def __repr__(self, maxlen=None, spaces=True, divider=True,indent=2,indentLevel=0):
+        return self.recursive_repr(indent, indentLevel)
+        
+    
+    def recursive_repr(self,indent=2,indentLevel=0):
+        offset = ' '*indent*indentLevel
+        if len(self.keys())==0: 
+            output = offset + 'empty <odict()>'
+        else: 
+            output = ''
+            for k,v in self.iteritems():
+                output += offset + str(k) 
+                if isinstance(v,odict):
+                    output += '\n' + v.__repr__(indent=indent,indentLevel=indentLevel+1)
+                else:
+                    output += ':\t' + str(v)
+                output += '\n'
         return output
     
     
