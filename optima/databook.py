@@ -37,7 +37,7 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
                                 List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
     '''
     
-    if data_formats is None: data_formats = ['Probability', 'Fraction', 'Number']
+    if data_formats is None: data_formats = ['Fraction', 'Probability', 'Number']
     offset = at_col + 3     # This is the column at which the input year range and corresponding values should be written.
     
     worksheet.write(at_row, at_col, 'Format')
@@ -59,10 +59,10 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
             worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption), None, assumption)
             worksheet.write(row_id, at_col + 2, 'OR')
         
-        # Make changes to the first row be mirrored in the other rows.
-        if aid > 0:
-            for k in xrange(len(tvec)):
-                worksheet.write(row_id, offset + k, '=IF(%s="","",%s)' % (rc(row_id-aid,offset+k),rc(row_id-aid,offset+k)), None, '')
+#        # Make changes to the first row be mirrored in the other rows.
+#        if aid > 0:
+#            for k in xrange(len(tvec)):
+#                worksheet.write(row_id, offset + k, '=IF(%s="","",%s)' % (rc(row_id-aid,offset+k),rc(row_id-aid,offset+k)), None, '')
                
                
 def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = None, allowed_vals = None):
@@ -114,6 +114,7 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_pops = workbook.add_worksheet(settings.databook['sheet_names']['pops'])
     ws_transmat = workbook.add_worksheet(settings.databook['sheet_names']['transmat'])
     ws_transval = workbook.add_worksheet(settings.databook['sheet_names']['transval'])
+    ws_charac = workbook.add_worksheet(settings.databook['sheet_names']['charac'])
     ws_linkpars = workbook.add_worksheet(settings.databook['sheet_names']['linkpars'])
     
     data_tvec = np.arange(settings.tvec_start, settings.tvec_end + 1.0/2)
@@ -121,6 +122,7 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_transmat_width = 15
     ws_transval_width = 15
     ws_linkpars_width = 40
+    ws_charac_width = 40
     assumption_width = 10
     
     # Population names sheet.
@@ -193,6 +195,30 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_transval.set_column(0, 0, ws_transval_width)
     ws_transval.set_column(2, 2, ws_transval_width)
     ws_transval.set_column(3, 4, assumption_width)
+    
+    # Epidemic characteristics sheet.
+    row_id = 0
+    for charac_label in settings.charac_specs.keys():
+        charac_name = settings.charac_specs[charac_label]['name']        
+        
+        # Make the characteristic-specific data-entry block.
+        if 'plot_percentage' in settings.charac_specs[charac_label]:
+            data_formats = ['Fraction']
+        else:
+            data_formats = ['Number']
+        makeValueEntryArrayBlock(worksheet = ws_charac, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, data_formats = data_formats)
+        
+        # Make the characteristic-specific population references.
+        ws_charac.write(row_id, 0, charac_name)
+        for pid in xrange(num_pops):
+            row_id += 1
+            ws_charac.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
+        
+        row_id += 2
+        
+    ws_charac.set_column(0, 0, ws_charac_width)
+    ws_charac.set_column(1, 2, assumption_width)
+    
     
     # Cascade parameters sheet.
     row_id = 0

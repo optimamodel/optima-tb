@@ -33,6 +33,7 @@ class Settings(object):
         self.databook['sheet_names']['pops'] = 'Population Definitions'
         self.databook['sheet_names']['transmat'] = 'Transfer Definitions'
         self.databook['sheet_names']['transval'] = 'Transfer Details'
+        self.databook['sheet_names']['charac'] = 'Epidemic Characteristics'
         self.databook['sheet_names']['linkpars'] = 'Cascade Parameters'
     
     def startFresh(self):
