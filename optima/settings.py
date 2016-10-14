@@ -112,15 +112,17 @@ class Settings(object):
         cid_denom = None
         cid_include_start = None
         cid_include_end = None
+        cid_order = None
         for col_id in xrange(ws_charac.ncols):
             if ws_charac.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_charac.cell_value(0, col_id) == 'Full Name': cid_name = col_id
             if ws_charac.cell_value(0, col_id) == 'Plot Percentage': cid_percentage = col_id
             if ws_charac.cell_value(0, col_id) == 'Denominator': cid_denom = col_id
             if ws_charac.cell_value(0, col_id) == 'Includes': cid_include_start = col_id
+            if ws_charac.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
         
         # Work out where the 'include' columns end when defining cascade characteristics.
-        cid_list = np.array(sorted([cid_label, cid_name, cid_denom, ws_charac.ncols]))
+        cid_list = np.array(sorted([cid_label, cid_name, cid_percentage, cid_denom, cid_order, ws_charac.ncols]))
         cid_include_end = cid_list[sum(cid_include_start > cid_list)] - 1
         
         if None in [cid_label, cid_name, cid_include_start, cid_include_end]:
@@ -152,10 +154,19 @@ class Settings(object):
                             raise OptimaException('ERROR: Cascade characteristic %s is being defined with reference to denominator %s, which has not been defined yet.' % (charac_label, val))
                         self.charac_specs[charac_label]['denom'] = val
                 
+                # Store whether characteristic should be converted to percentages when plotting.
                 if not cid_percentage is None:
                     val = str(ws_charac.cell_value(row_id, cid_percentage))
                     if val not in ['']:
                         self.charac_specs[charac_label]['plot_percentage'] = val
+                
+                # Store order that characteristics should be printed in project databook.
+                self.charac_specs[charac_label]['databook_order'] = ws_charac.nrows+1   # Any value missing from a databook order column means their printouts are lowest priority.
+                if not cid_order is None:
+                    val = ws_charac.cell_value(row_id, cid_order)
+                    if val not in ['']:
+                        self.charac_specs[charac_label]['databook_order'] = int(val)
+                    
         
         # Third sheet: Transitions
         # Quality-assurance test for the spreadsheet format.

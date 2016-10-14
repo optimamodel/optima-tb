@@ -198,7 +198,8 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     
     # Epidemic characteristics sheet.
     row_id = 0
-    for charac_label in settings.charac_specs.keys():
+    charac_specs_ordered = sorted(dcp(settings.charac_specs.keys()), key=lambda x: settings.charac_specs[x]['databook_order'])
+    for charac_label in charac_specs_ordered:
         charac_name = settings.charac_specs[charac_label]['name']        
         
         # Make the characteristic-specific data-entry block.
