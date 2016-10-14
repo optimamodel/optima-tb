@@ -391,9 +391,9 @@ class Model(object):
                     raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (comp.label))
                 comp.popsize[ti+1] = comp.popsize[ti]
                 
-                vals = np.zeros(comp.num_outlinks)
-                val_formats = [None]*comp.num_outlinks
-                j = 0
+#                vals = np.zeros(comp.num_outlinks)
+#                val_formats = [None]*comp.num_outlinks
+#                j = 0
                 for lid in comp.outlink_ids:
                     link = pop.links[lid]
                     
@@ -402,27 +402,29 @@ class Model(object):
                         link.vals = np.append(link.vals, link.vals[-1])
                     if not len(link.vals) > ti + 1:         # If one extension did not create an index of ti+1, something is seriously wrong...
                         raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (link.label))
+#                    
+#                    # Store values and formats for outlinks relevant to the current compartment.
+#                    vals[j] = link.vals[ti]
+#                    val_formats[j] = link.val_format
+#                    j += 1
+#                
+#                # If there are transitions to be applied, convert them to movement fractions appropriate to one timestep.
+#                if len(vals) > 0:
+#                    new_vals = convertTransitions(values = dcp(vals), value_formats = dcp(val_formats), old_dt = 1.0, new_dt = dt)
+#                        
+#                    j = 0
+#                    for lid in comp.outlink_ids:
+#                    link = pop.links[lid]
                     
-                    # Store values and formats for outlinks relevant to the current compartment.
-                    vals[j] = link.vals[ti]
-                    val_formats[j] = link.val_format
-                    j += 1
-                
-                # If there are transitions to be applied, convert them to movement fractions appropriate to one timestep.
-                if len(vals) > 0:
-                    new_vals = convertTransitions(values = dcp(vals), value_formats = dcp(val_formats), old_dt = 1.0, new_dt = dt)
-                        
-                    j = 0
-                    for lid in comp.outlink_ids:
-                        link = pop.links[lid]
-                        
-                        did_from = link.index_from[0] * num_comps + link.index_from[1]
-                        did_to = link.index_to[0] * num_comps + link.index_to[1]
-                        comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
-                        
-                        dpopsize[did_from] -= comp_source.popsize[ti] * new_vals[j]
-                        dpopsize[did_to] += comp_source.popsize[ti] * new_vals[j]
-                        j += 1
+                    did_from = link.index_from[0] * num_comps + link.index_from[1]
+                    did_to = link.index_to[0] * num_comps + link.index_to[1]
+                    comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
+                    
+                    converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
+                    
+                    dpopsize[did_from] -= comp_source.popsize[ti] * converted_frac
+                    dpopsize[did_to] += comp_source.popsize[ti] * converted_frac
+#                    j += 1
                 
                 k += 1
 
