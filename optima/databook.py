@@ -258,6 +258,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
     ws_pops = workbook.sheet_by_name(settings.databook['sheet_names']['pops'])
     ws_transmat = workbook.sheet_by_name(settings.databook['sheet_names']['transmat'])
     ws_transval = workbook.sheet_by_name(settings.databook['sheet_names']['transval'])
+    ws_charac = workbook.sheet_by_name(settings.databook['sheet_names']['charac'])
     ws_linkpars = workbook.sheet_by_name(settings.databook['sheet_names']['linkpars'])
 
     # Population names sheet.
@@ -363,44 +364,54 @@ def loadSpreadsheetFunc(settings, databook_path = None):
             mig_specified = True
             mig_type = str(zero_col).lower().replace(' ','_')
             array_id = 0
+
+
     
-    # Cascade parameters sheet.
-    data['linkpars'] = odict()
-    current_linkpar_name = None
-    current_linkpar_label = None
-    pop_id = 0
-    for row_id in xrange(ws_linkpars.nrows):
-        val = str(ws_linkpars.cell_value(row_id, 0))
-        if val in ['']:
-            current_linkpar_name = None
-            pop_id = 0
-        elif current_linkpar_name is None:
-            current_linkpar_name = val
-            current_linkpar_label = settings.linkpar_name_labels[val]
-            data['linkpars'][current_linkpar_label] = odict()
-        else:
-            current_pop_label = data['pops']['name_labels'][val]
-            if current_pop_label != data['pops']['label_names'].keys()[pop_id]:
-                raise OptimaException('ERROR: Somewhere in the transition parameters sheet, populations are not ordered as in the population definitions sheet.')
-            data['linkpars'][current_linkpar_label][current_pop_label] = odict()
-            
-            # Run through the rows beneath the year range, but only if there is not a number in the cell corresponding to assumption.
-            # NOTE: Somewhat hard-coded. Improve.
-            list_t = []
-            list_y = []
-            for col_id in xrange(ws_linkpars.ncols):
-                if col_id == 1:
-                    data['linkpars'][current_linkpar_label][current_pop_label]['y_format'] = str(ws_linkpars.cell_value(row_id, col_id)).lower()
-                if col_id > 1 and isinstance(ws_linkpars.cell_value(row_id, col_id), Number):
-                    list_y.append(float(ws_linkpars.cell_value(row_id, col_id)))
-                    if not isinstance(ws_linkpars.cell_value(row_id-1-pop_id, col_id), Number):
-                        list_t.append(float(ws_linkpars.cell_value(row_id-1-pop_id, col_id+2)))
-                        break
-                    else:
-                        list_t.append(float(ws_linkpars.cell_value(row_id-1-pop_id, col_id)))
-            data['linkpars'][current_linkpar_label][current_pop_label]['t'] = np.array(list_t)
-            data['linkpars'][current_linkpar_label][current_pop_label]['y'] = np.array(list_y)                
-            
-            pop_id += 1
+    # Epidemic characteristics and cascade parameters sheet.
+    data_labels = ['characs', 'linkpars']
+    ws_list = [ws_charac, ws_linkpars]
+    name_to_label_list = [settings.charac_name_labels, settings.linkpar_name_labels]
+    for k in xrange(2):
+        data_label = data_labels[k]
+        ws = ws_list[k]
+        name_to_label = name_to_label_list[k]
+    
+        data[data_label] = odict()
+        current_def_name = None
+        current_def_label = None
+        pop_id = 0
+        for row_id in xrange(ws.nrows):
+            val = str(ws.cell_value(row_id, 0))
+            if val in ['']:
+                current_def_name = None
+                pop_id = 0
+            elif current_def_name is None:
+                current_def_name = val
+                current_def_label = name_to_label[val]
+                data[data_label][current_def_label] = odict()
+            else:
+                current_pop_label = data['pops']['name_labels'][val]
+                if current_pop_label != data['pops']['label_names'].keys()[pop_id]:
+                    raise OptimaException('ERROR: Somewhere in the %s parameters sheet, populations are not ordered as in the population definitions sheet.' % data_label)
+                data[data_label][current_def_label][current_pop_label] = odict()
+                
+                # Run through the rows beneath the year range, but only if there is not a number in the cell corresponding to assumption.
+                # NOTE: Somewhat hard-coded. Improve.
+                list_t = []
+                list_y = []
+                for col_id in xrange(ws.ncols):
+                    if col_id == 1:
+                        data[data_label][current_def_label][current_pop_label]['y_format'] = str(ws.cell_value(row_id, col_id)).lower()
+                    if col_id > 1 and isinstance(ws.cell_value(row_id, col_id), Number):
+                        list_y.append(float(ws.cell_value(row_id, col_id)))
+                        if not isinstance(ws.cell_value(row_id-1-pop_id, col_id), Number):
+                            list_t.append(float(ws.cell_value(row_id-1-pop_id, col_id+2)))
+                            break
+                        else:
+                            list_t.append(float(ws.cell_value(row_id-1-pop_id, col_id)))
+                data[data_label][current_def_label][current_pop_label]['t'] = np.array(list_t)
+                data[data_label][current_def_label][current_pop_label]['y'] = np.array(list_y)                
+                
+                pop_id += 1
             
     return data
