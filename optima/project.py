@@ -69,13 +69,15 @@ class Project(object):
             ax.set_ylim((0, max(top)))
             cascade_names = [comp.label for comp in pop.comps]
             ax.legend(cascade_names, **legendsettings)
-            
+        
         for output_id in outputs.keys():
+            unit_tag = ''
             fig, ax = pl.subplots(figsize=(15,10))
             for pop in results:
                 vals = dcp(outputs[output_id][pop.label])
                 if 'plot_percentage' in self.settings.charac_specs[output_id].keys():
                     vals *= 100
+                    unit_tag = ' (%)'
                 ax.plot(sim_settings['tvec'], vals)
 
             box = ax.get_position()
@@ -84,7 +86,7 @@ class Project(object):
             legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}                
             ax.set_title('%s Outputs - %s' % (self.name.title(), pop.label.title()))
             ax.set_xlabel('Year')
-            ax.set_ylabel(self.settings.charac_specs[output_id]['name'])
+            ax.set_ylabel(self.settings.charac_specs[output_id]['name'] + unit_tag)
             ax.legend([pop.label for pop in results], **legendsettings)
                 
             

@@ -33,6 +33,7 @@ class Settings(object):
         self.databook['sheet_names']['pops'] = 'Population Definitions'
         self.databook['sheet_names']['transmat'] = 'Transfer Definitions'
         self.databook['sheet_names']['transval'] = 'Transfer Details'
+        self.databook['sheet_names']['charac'] = 'Epidemic Characteristics'
         self.databook['sheet_names']['linkpars'] = 'Cascade Parameters'
     
     def startFresh(self):
@@ -111,15 +112,19 @@ class Settings(object):
         cid_denom = None
         cid_include_start = None
         cid_include_end = None
+        cid_order = None
+        cid_default = None
         for col_id in xrange(ws_charac.ncols):
             if ws_charac.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_charac.cell_value(0, col_id) == 'Full Name': cid_name = col_id
             if ws_charac.cell_value(0, col_id) == 'Plot Percentage': cid_percentage = col_id
             if ws_charac.cell_value(0, col_id) == 'Denominator': cid_denom = col_id
             if ws_charac.cell_value(0, col_id) == 'Includes': cid_include_start = col_id
+            if ws_charac.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
+            if ws_charac.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         
         # Work out where the 'include' columns end when defining cascade characteristics.
-        cid_list = np.array(sorted([cid_label, cid_name, cid_denom, ws_charac.ncols]))
+        cid_list = np.array(sorted([cid_label, cid_name, cid_percentage, cid_denom, cid_order, cid_default, ws_charac.ncols]))
         cid_include_end = cid_list[sum(cid_include_start > cid_list)] - 1
         
         if None in [cid_label, cid_name, cid_include_start, cid_include_end]:
@@ -151,10 +156,25 @@ class Settings(object):
                             raise OptimaException('ERROR: Cascade characteristic %s is being defined with reference to denominator %s, which has not been defined yet.' % (charac_label, val))
                         self.charac_specs[charac_label]['denom'] = val
                 
+                # Store whether characteristic should be converted to percentages when plotting.
                 if not cid_percentage is None:
                     val = str(ws_charac.cell_value(row_id, cid_percentage))
                     if val not in ['']:
                         self.charac_specs[charac_label]['plot_percentage'] = val
+                
+                # Store order that characteristics should be printed in project databook.
+                self.charac_specs[charac_label]['databook_order'] = ws_charac.nrows+1   # Any value missing from a databook order column means their printouts are lowest priority.
+                if not cid_order is None:
+                    val = ws_charac.cell_value(row_id, cid_order)
+                    if val not in ['']:
+                        self.charac_specs[charac_label]['databook_order'] = int(val)
+                        
+                # Store characteristic default value if available.
+                if not cid_default is None:
+                    def_val = str(ws_charac.cell_value(row_id, cid_default))
+                    if def_val not in ['']:
+                        self.charac_specs[charac_label]['default'] = float(def_val)
+                    
         
         # Third sheet: Transitions
         # Quality-assurance test for the spreadsheet format.
@@ -197,11 +217,13 @@ class Settings(object):
         cid_label = None
         cid_name = None
         cid_default = None
+        cid_order = None
         for col_id in xrange(ws_pars.ncols):
             if ws_pars.cell_value(0, col_id) == 'Tag': cid_tag = col_id
             if ws_pars.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_pars.cell_value(0, col_id) == 'Full Name': cid_name = col_id
             if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
+            if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
         if None in [cid_tag, cid_label, cid_name]:
             raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
         
@@ -216,13 +238,18 @@ class Settings(object):
                 self.linkpar_specs[label] = {'tag':tag, 'name':name}
                 self.linkpar_name_labels[name] = label
                 
-                # Not crucial, but store parameter default value if available.
-                try:
+                # Store order that cascade parameters should be printed in project databook.
+                self.linkpar_specs[label]['databook_order'] = ws_pars.nrows+1   # Any value missing from a databook order column means their printouts are lowest priority.
+                if not cid_order is None:
+                    val = ws_pars.cell_value(row_id, cid_order)
+                    if val not in ['']:
+                        self.linkpar_specs[label]['databook_order'] = int(val)                
+                
+                # Store parameter default value if available.
+                if not cid_default is None:
                     def_val = str(ws_pars.cell_value(row_id, cid_default))
                     if def_val not in ['']:
                         self.linkpar_specs[label]['default'] = float(def_val)
-                except:
-                    pass
                     
         for tag in self.links.keys():
             if tag not in [x['tag'] for x in self.linkpar_specs[:]]:
