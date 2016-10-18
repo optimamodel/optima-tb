@@ -3,10 +3,14 @@
 from utils import odict, OptimaException
 
 import xlrd
-import networkx as nx
 import pylab as pl
 import numpy as np
 
+import socket
+hostname = socket.gethostname()
+print hostname
+if not (hostname == 'athena' or hostname == 'Jarvis-MBP.local'):
+    import networkx as nx
 
 
 #%% Settings class (for data that is effectively static per epidemic context)
