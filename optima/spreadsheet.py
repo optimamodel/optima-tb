@@ -1,9 +1,8 @@
-from optima import odict, printv, OptimaException, today
+from utils import odict, printv, OptimaException
+
 from numpy import nan, isnan, array, logical_or, nonzero, shape 
 from xlrd import open_workbook, XLRDError 
 
-import pprint # just during debugging
-pp = pprint.PrettyPrinter(indent=4)
 
 """
 
@@ -115,7 +114,7 @@ def load_spreadsheet(filename="simple.xlsx",verbose=2):
     ## Basic setup
     data = odict() # To hold data
     data['meta'] = odict()
-    data['meta']['date'] = today()
+    #data['meta']['date'] = today()
     data['meta']['sheets'] = sheets # Store parameter names
     
     ## Initialize populations
@@ -324,6 +323,7 @@ def read_multivalue_sheet(sheetdata,parameters,n_years,isParameterized=True):
             else:
                 par = str(sheetdata.cell_value(row,0))
             printv("creating label for %s"%par,2, 2)
+            # TODO convert to odict
             data[par] = {'label': str(sheetdata.cell_value(row,0))} # for debugging purposes
             parindex += 1
             
@@ -362,4 +362,4 @@ def export_spreadsheet(filename="simple.xlsx",verbose=2):
 
 # Debugging and testing:
 #data = load_spreadsheet('Belarus data entry sheet v4a.xlsx')
-#pp.pprint(data)
+#print(data)
