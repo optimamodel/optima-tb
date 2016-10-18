@@ -64,10 +64,12 @@ class ParameterSet(object):
         self.name = name 
         self.pop_names = []         # List of population names.
         self.pop_labels = []        # List of population labels.
-        self.pars = []
-        self.par_ids = {}
+        self.pars = odict()
+        self.pars['cascade'] = []
+        self.pars['characs'] = []
+#        self.par_ids = {}
         
-        self.transfers = odict()   # List of inter-population transitions.
+        self.transfers = odict()    # Dictionary of inter-population transitions.
     
     def makePars(self, data):
         self.pop_names = data['pops']['name_labels'].keys()
@@ -77,12 +79,21 @@ class ParameterSet(object):
             
         # Cascade parameters.
         for l, label in enumerate(data['linkpars']):
-            self.par_ids[label] = l
-            self.pars.append(Parameter(label = label))
+#            self.par_ids[label] = l
+            self.pars['cascade'].append(Parameter(label = label))
             for pop_id in data['linkpars'][label]:
-                self.pars[-1].t[pop_id] = data['linkpars'][label][pop_id]['t']
-                self.pars[-1].y[pop_id] = data['linkpars'][label][pop_id]['y']
-                self.pars[-1].y_format[pop_id] = data['linkpars'][label][pop_id]['y_format']
+                self.pars['cascade'][-1].t[pop_id] = data['linkpars'][label][pop_id]['t']
+                self.pars['cascade'][-1].y[pop_id] = data['linkpars'][label][pop_id]['y']
+                self.pars['cascade'][-1].y_format[pop_id] = data['linkpars'][label][pop_id]['y_format']
+                
+        # Characteristic parameters (e.g. popsize/prevalence).
+        # Despite being mostly data to calibrate against, is still stored in full so as to interpolate initial value.
+        for l, label in enumerate(data['characs']):
+            self.pars['characs'].append(Parameter(label = label))
+            for pop_id in data['characs'][label]:
+                self.pars['characs'][-1].t[pop_id] = data['characs'][label][pop_id]['t']
+                self.pars['characs'][-1].y[pop_id] = data['characs'][label][pop_id]['y']
+                self.pars['characs'][-1].y_format[pop_id] = data['characs'][label][pop_id]['y_format']
         
         # Migrations, including aging.
         for trans_type in data['transfers'].keys():

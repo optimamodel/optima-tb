@@ -287,10 +287,17 @@ class Model(object):
             self.pops[-1].preAllocate(self.sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
             self.pop_ids[pop_label] = k
             
-            self.pops[-1].getComp('sus').popsize[0] = 1000000   # NOTE: Temporary. Initial values inserted here.
-            
+#            self.pops[-1].getComp('sus').popsize[0] = 1000000   # NOTE: Temporary. Initial values inserted here.
+        
+        # Propagating initial characteristic parset values into ModelPops.
+        t_init = np.array([self.sim_settings['tvec'][0]])
+        for par in parset.pars['characs']:
+            if par.label == 'alive':
+                for pop_label in parset.pop_labels:
+                    self.getPop(pop_label).getComp('sus').popsize[0] = par.interpolate(tvec = t_init, pop_label = pop_label)
+        
         # Propagating cascade parameter parset values into ModelPops.
-        for par in parset.pars:
+        for par in parset.pars['cascade']:
             tag = settings.linkpar_specs[par.label]['tag']          # Map parameter label -> link tag.
             for pop_label in parset.pop_labels:
                 for link_id in self.getPop(pop_label).link_ids[tag]:           # Map link tag -> link id in ModelPop.            
