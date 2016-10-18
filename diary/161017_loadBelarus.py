@@ -1,3 +1,9 @@
+import sys
+try:
+    sys.path.remove('d:\\work projects\\optima\\optima 2.0')
+    sys.path.remove('d:\\work projects\\optima\\optima 2.0\\optima')
+except: pass
+sys.path.append('../optima')
 
 from project import Project
 from spreadsheet import load_spreadsheet
@@ -11,9 +17,8 @@ pp = pprint.PrettyPrinter(indent=4)
 
 proj= Project(name = 'test-Belarus', cascade_path = '../data/cascade-simple.xlsx')
 proj.loadSpreadsheet(databook_path = '../diary/test-Belarus-data.xlsx')
-
-proj.makeParset()
 print proj.data
+proj.makeParset()
 #r1, o1 = proj.runSim()
 
 
