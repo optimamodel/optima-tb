@@ -63,7 +63,7 @@ def printv(string, thisverbose=1, verbose=2, newline=True, indent=False):
 
 #%% Functions for dealing with recursive structures
 
-def flattenDict(input_dict, base_key, sub_key = None, comp_list = None):
+def flattenDict(input_dict, base_key, sub_key = None, comp_list = None, limit = 100):
     '''
     A function for flattening out a recursive dictionary, with optional sub-key.
     
@@ -73,8 +73,11 @@ def flattenDict(input_dict, base_key, sub_key = None, comp_list = None):
     ...which, for this specific example, will output list...
         [a, c, d, a, b]
         
-    There is no max-depth, so cyclical references will crash when Python console chooses it.
+    There is a max-depth of limit for the recursion.
     '''
+    
+    if limit < 1:
+        raise OptimaException('ERROR: A recursion limit has been reached when flattening a dictionary, stopping at key %s.' % base_key)    
     
     if comp_list is None: comp_list = []
 
@@ -83,7 +86,7 @@ def flattenDict(input_dict, base_key, sub_key = None, comp_list = None):
     
     for comp in input_list:
         if input_dict.has_key(comp):
-            flattenDict(input_dict = input_dict, base_key = comp, sub_key = sub_key, comp_list = comp_list)
+            flattenDict(input_dict = input_dict, base_key = comp, sub_key = sub_key, comp_list = comp_list, limit = limit - 1)
         else:
             comp_list.append(comp)
     return comp_list

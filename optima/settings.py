@@ -6,6 +6,7 @@ import xlrd
 import networkx as nx
 import pylab as pl
 import numpy as np
+from copy import deepcopy as dcp
 
 
 
@@ -23,6 +24,8 @@ class Settings(object):
         self.tvec_start = 2000.0     # Default start year for data input and simulations.
         self.tvec_end = 2030.0       # Default end year for data input and simulations.
         self.tvec_dt = 1.0/4          # Default timestep for simulations.
+        
+        self.recursion_limit = 100      # Limit for recursive references, primarily used in characteristic definitions.
         
         self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here to be explicit. 
         self.loadCascadeSettings(cascade_path)
@@ -132,15 +135,8 @@ class Settings(object):
         if None in [cid_label, cid_name, cid_include_start, cid_include_end]:
             raise OptimaException('ERROR: Cascade characteristics worksheet does not have correct column headers.')
         
-        # For checking duplicates in columns that should not have duplicates.
-        # NOTE: Currently only for entry point. Should be extended when validating.
-        entry_dict = {}
-        
-        # For checking that no characteristic is defined including a compartment that is used as an entry point by a characteristic defined later.
-        # This is the only way to avoid problems when calculating initial values for model.
-        prev_includes = {}
-        
         # Actually append characteristic labels and full names to relevant odicts and lists. Labels are crucial.
+        entry_dict = {}
         for row_id in xrange(ws_charac.nrows):
             if row_id > 0 and ws_charac.cell_value(row_id, cid_label) not in ['']:
                 charac_label = str(ws_charac.cell_value(row_id, cid_label))
@@ -151,6 +147,7 @@ class Settings(object):
                 self.charac_specs[charac_label]['name'] = charac_name
                 self.charac_specs[charac_label]['includes'] = []
                 
+                # Work out which compartments/characteristics this characteristic is a sum of.
                 for col_id_inc in xrange(cid_include_end - cid_include_start + 1):
                     col_id = cid_include_start + col_id_inc
                     val = str(ws_charac.cell_value(row_id, col_id))
@@ -158,17 +155,20 @@ class Settings(object):
                         if val not in self.node_specs.keys() + self.charac_specs.keys()[:-1]:
                             raise OptimaException('ERROR: Cascade characteristic %s is being defined with an inclusion reference to %s, which has not been defined yet.' % (charac_label, val))
                         self.charac_specs[charac_label]['includes'].append(val)
-        
+                
+                flat_list = flattenDict(input_dict = self.charac_specs, base_key = charac_label, sub_key = 'includes', limit = self.recursion_limit)
+                if len(flat_list) != len(set(flat_list)):
+                    raise OptimaException('ERROR: Cascade characteristic %s contains duplicate references to a compartment (in its numerator) when all the recursion is flattened out.' % (charac_label))
+                ref_list = dcp(flat_list)   # Useful for checking what compartments this characteristic references.
+                
+                # Work out which compartment/characteristic this characteristic is normalised by.
                 if not cid_denom is None:
                     val = str(ws_charac.cell_value(row_id, cid_denom))
                     if val not in ['']:
                         if val not in self.node_specs.keys() + self.charac_specs.keys()[:-1]:
                             raise OptimaException('ERROR: Cascade characteristic %s is being defined with reference to denominator %s, which has not been defined yet.' % (charac_label, val))
                         self.charac_specs[charac_label]['denom'] = val
-                        
-                flat_list = flattenDict(input_dict = self.charac_specs, base_key = charac_label, sub_key = 'includes')
-                if len(flat_list) != len(set(flat_list)):
-                    raise OptimaException('ERROR: Cascade characteristic %s contains duplicate references to a compartment when all the recursion is flattened out.' % (charac_label))
+#                        ref_list.extend(flattenDict(input_dict = self.charac_specs, base_key = val, sub_key = 'includes', limit = self.recursion_limit))
                 
                 # Store whether characteristic should be converted to percentages when plotting.
                 if not cid_percentage is None:
@@ -195,17 +195,31 @@ class Settings(object):
                     val = str(ws_charac.cell_value(row_id, cid_entry))
                     if val not in ['']:
                         self.charac_specs[charac_label]['entry_point'] = val
+                        
+                        if self.charac_specs[charac_label].has_key('denom'):
+                            denom_label = self.charac_specs[charac_label]['denom']
+                            if not self.charac_specs[denom_label].has_key('entry_point'):
+                                raise OptimaException('ERROR: Cascade characteristic %s cannot seed the model with an entry point if its denominator %s is not also used for model-seeding (i.e. if it has no entry point).' % (charac_label, denom_label))
+                            
                         if entry_dict.has_key(val):
                             raise OptimaException('ERROR: Cascade characteristic %s is not the first to use %s as an entry point.' % (charac_label, val))
-                        elif prev_includes.has_key(val):
-                            raise OptimaException('ERROR: Cascade characteristic %s has entry point %s included by another entry-point characteristic defined earlier. This is restricted for initial-value calculation reasons.' % (charac_label, val))
-                        elif not self.node_specs.has_key(val):
-                            raise OptimaException('ERROR: There is no compartment named %s that can be used as an entry point by cascade characteristic %s.' % (val, charac_label))
-                        else:
-                            entry_dict[val] = True
-                            for include in self.charac_specs[charac_label]['includes']:
-                                prev_includes[include] = True
-                    
+#                        if prev_includes.has_key(val):
+#                            raise OptimaException('ERROR: Cascade characteristic %s has entry point %s included by another entry-point characteristic defined earlier. This is restricted for initial-value calculation reasons.' % (charac_label, val))
+                        if not self.node_specs.has_key(val):
+                            raise OptimaException('ERROR: There is no compartment named %s that can be used as an entry point by cascade characteristic %s.' % (val, charac_label))                        
+                        ref_list = set(ref_list)
+                        ref_list.remove(val)
+                        entry_dict[val] = dcp(list(ref_list))
+                            
+        # Ensuring that no two characteristics with entry-points include each other's entry-points (or more complex referencing cycles).
+        # This allows for disaggregated characteristic values to be partitioned from aggregate characteristics during model-seeding.
+#        print entry_dict
+        for entry_label in entry_dict.keys():
+            try:
+                ref_list = flattenDict(input_dict = entry_dict, base_key = entry_label, limit = self.recursion_limit)
+            except OptimaException:
+                raise OptimaException('Characteristic %s references an entry point for another characteristic that, via some chain, eventually references the entry point of characteristic %s. Alternatively, maximum recursion depth is set too small.' % (entry_label, entry_label))
+#            print ref_list
         
         # Third sheet: Transitions
         # Quality-assurance test for the spreadsheet format.
