@@ -45,6 +45,7 @@ class Settings(object):
         self.node_specs = odict()               # Relates compartment code-labels with special tags, if they exist. 
                                                 # Key is a node label. Value is a dict including a 'dead' tag and networkx-related information.
         self.node_names = []                    # A corresponding list of full names for compartments.
+        self.junction_labels = []               # A list of labels for compartments for which inflows must immediately propagated as outflows.
         self.charac_specs = odict()             # Relates code-labels for defined characteristics (e.g. prevalence) with labels of compartments used in their definition.
                                                 # Key is a characteristic label. Value is a dict containing characteristic name, a list of 'inclusions' and a normalising characteristic or compartment.
                                                 # Be aware that inclusions/normalisations may refer to characteristics in the same odict.
@@ -72,12 +73,14 @@ class Settings(object):
         cid_coords = None
         cid_no_plot = None
         cid_dead = None
+        cid_junction = None
         for col_id in xrange(ws_nodes.ncols):
             if ws_nodes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_nodes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
             if ws_nodes.cell_value(0, col_id) == 'Plot Coordinates': cid_coords = col_id
             if ws_nodes.cell_value(0, col_id) == 'No Plot': cid_no_plot = col_id
             if ws_nodes.cell_value(0, col_id) == 'Dead Tag': cid_dead = col_id
+            if ws_nodes.cell_value(0, col_id) == 'Junction': cid_junction = col_id
         if None in [cid_label, cid_name]:
             raise OptimaException('ERROR: Cascade compartment worksheet does not have correct column headers.')
         
@@ -106,6 +109,13 @@ class Settings(object):
                     val = ws_nodes.cell_value(row_id, cid_dead)
                     if val not in ['']:
                         self.node_specs[node_label]['tag_dead'] = val
+
+                # Note down whether the compartment is just a junction (immediately emptied of any transitions into the compartment).
+                if not cid_junction is None:
+                    val = ws_nodes.cell_value(row_id, cid_junction)
+                    if val not in ['']:
+                        self.node_specs[node_label]['junction'] = val
+                        self.junction_labels.append(node_label)
                         
         # Second sheet: Cascade Characteristics
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
@@ -168,7 +178,6 @@ class Settings(object):
                         if val not in self.node_specs.keys() + self.charac_specs.keys()[:-1]:
                             raise OptimaException('ERROR: Cascade characteristic %s is being defined with reference to denominator %s, which has not been defined yet.' % (charac_label, val))
                         self.charac_specs[charac_label]['denom'] = val
-#                        ref_list.extend(flattenDict(input_dict = self.charac_specs, base_key = val, sub_key = 'includes', limit = self.recursion_limit))
                 
                 # Store whether characteristic should be converted to percentages when plotting.
                 if not cid_percentage is None:
@@ -196,16 +205,13 @@ class Settings(object):
                     if val not in ['']:
                         self.charac_specs[charac_label]['entry_point'] = val
                         
-                        if self.charac_specs[charac_label].has_key('denom'):
+                        if 'denom' in self.charac_specs[charac_label].keys():
                             denom_label = self.charac_specs[charac_label]['denom']
-                            if denom_label not in self.charac_specs.keys()[:-1] or not self.charac_specs[denom_label].has_key('entry_point'):
+                            if denom_label not in self.charac_specs.keys()[:-1] or 'entry_point' not in self.charac_specs[denom_label].keys():
                                 raise OptimaException('ERROR: At this time, characteristic %s cannot be used to seed a model (i.e. have an entry point) if its denominator %s is not a model-seeding characteristic.' % (charac_label, denom_label))
-                            
-                        if entry_dict.has_key(val):
+                        if val in entry_dict.keys():
                             raise OptimaException('ERROR: Cascade characteristic %s is not the first to use %s as an entry point.' % (charac_label, val))
-#                        if prev_includes.has_key(val):
-#                            raise OptimaException('ERROR: Cascade characteristic %s has entry point %s included by another entry-point characteristic defined earlier. This is restricted for initial-value calculation reasons.' % (charac_label, val))
-                        if not self.node_specs.has_key(val):
+                        if val not in self.node_specs.keys():
                             raise OptimaException('ERROR: There is no compartment named %s that can be used as an entry point by cascade characteristic %s.' % (val, charac_label))                        
                         ref_list = set(ref_list)
                         try: ref_list.remove(val)
@@ -214,13 +220,11 @@ class Settings(object):
                             
         # Ensuring that no two characteristics with entry-points include each other's entry-points (or more complex referencing cycles).
         # This allows for disaggregated characteristic values to be partitioned from aggregate characteristics during model-seeding.
-#        print entry_dict
         for entry_label in entry_dict.keys():
             try:
                 ref_list = flattenDict(input_dict = entry_dict, base_key = entry_label, limit = self.recursion_limit)
             except OptimaException:
                 raise OptimaException('Characteristic %s references an entry point for another characteristic that, via some chain, eventually references the entry point of characteristic %s. Alternatively, maximum recursion depth is set too small.' % (entry_label, entry_label))
-#            print ref_list
         
         # Third sheet: Transitions
         # Quality-assurance test for the spreadsheet format.
@@ -326,7 +330,8 @@ class Settings(object):
             for link in self.links[self.linkpar_specs[par_name]['tag']]:
                 el[link] = self.linkpar_specs[par_name]['tag']
 
-        nx.draw_networkx_nodes(G, pos, node_size = 1250, node_color = 'w')
+        nx.draw_networkx_nodes(G, pos, node_shape = 'o', nodelist = [x for x in G.nodes() if not 'junction' in self.node_specs[x].keys()], node_size = 1250, node_color = 'w')
+        nx.draw_networkx_nodes(G, pos, node_shape = 's', nodelist = [x for x in G.nodes() if 'junction' in self.node_specs[x].keys()], node_size = 750, node_color = (0.75,0.75,0.75))
         ax.axis('tight')
         nx.draw_networkx_labels(G, pos)
         nx.draw_networkx_edges(G, pos)

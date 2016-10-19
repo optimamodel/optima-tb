@@ -85,7 +85,7 @@ def flattenDict(input_dict, base_key, sub_key = None, comp_list = None, limit = 
     else: input_list = input_dict[base_key][sub_key]
     
     for comp in input_list:
-        if input_dict.has_key(comp):
+        if comp in input_dict.keys():
             flattenDict(input_dict = input_dict, base_key = comp, sub_key = sub_key, comp_list = comp_list, limit = limit - 1)
         else:
             comp_list.append(comp)

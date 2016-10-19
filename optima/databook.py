@@ -37,7 +37,7 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
                                 List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
     '''
     
-    if data_formats is None: data_formats = ['Fraction', 'Number']#, 'Probability', 'Number']
+    if data_formats is None: data_formats = ['Fraction']#, 'Number']#, 'Probability', 'Number']
     offset = at_col + 3     # This is the column at which the input year range and corresponding values should be written.
     
     worksheet.write(at_row, at_col, 'Format')
@@ -216,8 +216,11 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
                     data_formats = ['Fraction']
                 else:
                     data_formats = ['Number']
-            else:
+            elif ws == ws_linkpars:
                 data_formats = None
+                for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
+                    if 'junction' in settings.node_specs[pair[0]].keys():
+                        data_formats = ['Proportion']
             makeValueEntryArrayBlock(worksheet = ws, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = default_val, data_formats = data_formats)
             
             # Make the population references.

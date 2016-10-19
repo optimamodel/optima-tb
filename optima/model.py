@@ -131,6 +131,7 @@ class ModelCompartment(Node):
         Node.__init__(self, label = label, index = index)
         self.popsize = np.array([float(popsize)])   # Number of people in compartment.
         self.tag_dead = False                       # Tag for whether this compartment contains dead people.
+        self.junction = False
     
 
 class ModelPopulation(Node): 
@@ -163,6 +164,8 @@ class ModelPopulation(Node):
             self.comps.append(ModelCompartment(label = label, index = (self.index,k)))
             if 'tag_dead' in settings.node_specs[label].keys():
                 self.comps[-1].tag_dead = True
+            if 'junction' in settings.node_specs[label].keys():
+                self.comps[-1].junction = True
             self.comp_ids[label] = k
         k = 0
         for tag in settings.links.keys():
@@ -296,7 +299,7 @@ class Model(object):
         charac_for_entry = odict()
         t_init = np.array([self.sim_settings['tvec'][0]])
         for charac_label in settings.charac_specs.keys():
-            if settings.charac_specs[charac_label].has_key('entry_point'):
+            if 'entry_point' in settings.charac_specs[charac_label].keys():
                 entry_point = settings.charac_specs[charac_label]['entry_point']
                 init_dict[charac_label] = odict()
                 charac_for_entry[entry_point] = charac_label
@@ -308,7 +311,7 @@ class Model(object):
         # Next, multiply out any denominators that exist. Again, definitional order matters.
         # These should all be other previously-defined entry-point characteristics, according to validation in settings.py.
         for charac_label in init_dict.keys():
-            if settings.charac_specs[charac_label].has_key('denom'):
+            if 'denom' in settings.charac_specs[charac_label].keys():
                 denom_label = settings.charac_specs[charac_label]['denom']
                 entry_point = settings.charac_specs[charac_label]['entry_point']
                 for pop_label in parset.pop_labels:
@@ -324,7 +327,7 @@ class Model(object):
                 flat_list = flattenDict(input_dict = settings.charac_specs, base_key = charac_label, sub_key = 'includes')
                 flat_list.remove(entry_point)
                 for include in flat_list:
-                    if charac_for_entry.has_key(include):
+                    if include in charac_for_entry.keys():
                         val -= init_dict[charac_for_entry[include]][pop_label]
                 self.getPop(pop_label).getComp(entry_point).popsize[0] = val
         
@@ -344,7 +347,7 @@ class Model(object):
                     for pop_target in par.y:
                         for comp in self.getPop(pop_source).comps:
                             trans_tag = comp.label + '_' + trans_type + '_to_' + pop_target       # NOTE: Perhaps there is a nicer way to set up transfer tagging.
-                            if not comp.tag_dead:
+                            if not comp.tag_dead and not comp.junction:
                                 num_links = len(self.getPop(pop_source).links)
                                 link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=num_links)
                                 link.vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_target)
@@ -352,13 +355,16 @@ class Model(object):
                                 
                                 self.getPop(pop_source).links.append(link)
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
+                                
+        self.processJunctions(settings = settings)      # Junctions may be initialised with popsize by this stage. Flow that onwards.
                         
                 
     def process(self, settings):
         ''' Run the full model. '''
         
         for t in self.sim_settings['tvec'][1:]:
-            self.stepForward(dt = settings.tvec_dt)
+            self.stepForward(settings = settings, dt = settings.tvec_dt)
+            self.processJunctions(settings = settings)
         
         return self.pops, self.sim_settings
         
@@ -403,8 +409,34 @@ class Model(object):
         
         return outputs
         
+    def processJunctions(self, settings):
+        '''
+        For every compartment considered a junction, propagate the contents onwards until all junctions are empty.
+        '''
         
-    def stepForward(self, dt = 1.0):
+        ti = self.t_index
+        ti_link = ti - 1
+        if ti_link < 0: ti_link = ti    # For the case where junctions are processed immediately after model initialisation.
+        final_review = False
+        
+        while not final_review:
+            final_review = True     # Assume that this is the final sweep through junctions to verify their emptiness.
+            for pop in self.pops:
+                for junction_label in settings.junction_labels:
+                    comp = pop.getComp(junction_label)
+                    popsize = comp.popsize[ti]
+                    if popsize > 0:
+                        final_review = False    # Outflows could propagate into other junctions requiring another review.
+                        denom_val = sum(pop.links[lid].vals[ti_link] for lid in comp.outlink_ids)
+                        if denom_val == 0: raise OptimaException('ERROR: Proportions for junction %s outflows sum to zero, resulting in a nonsensical ratio.' % junction_label)
+                        for lid in comp.outlink_ids:
+                            link = pop.links[lid]
+                            
+                            comp.popsize[ti] -= popsize * link.vals[ti_link] / denom_val
+                            pop.getComp(link.label_to).popsize[ti] += popsize * link.vals[ti_link] / denom_val
+        
+
+    def stepForward(self, settings, dt = 1.0):
         '''
         Evolve model characteristics by one timestep (defaulting as 1 year).
         Each application of this method writes calculated values to the next position in popsize arrays, regardless of dt.
@@ -415,7 +447,7 @@ class Model(object):
         
         # Preallocate a change-in-popsize array. Requires each population to have the same cascade.
         num_pops = len(self.pops)
-        num_comps = len(self.pops[0].comps)     # NOTE: Hard-coded check for zeroth population. Improve later.
+        num_comps = len(self.pops[0].comps)     # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
         dpopsize = np.zeros(num_pops*num_comps)
         
         # First loop through all pops and comps to calculate value changes.
@@ -429,41 +461,43 @@ class Model(object):
                 if not len(comp.popsize) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
                     raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (comp.label))
                 comp.popsize[ti+1] = comp.popsize[ti]
-                
-#                vals = np.zeros(comp.num_outlinks)
-#                val_formats = [None]*comp.num_outlinks
-#                j = 0
-                for lid in comp.outlink_ids:
-                    link = pop.links[lid]
                     
-                    # If link values are not pre-allocated to the required time-vector length, extend with the same value as the last index.
-                    if not len(link.vals) > ti + 1:
-                        link.vals = np.append(link.vals, link.vals[-1])
-                    if not len(link.vals) > ti + 1:         # If one extension did not create an index of ti+1, something is seriously wrong...
-                        raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (link.label))
-#                    
-#                    # Store values and formats for outlinks relevant to the current compartment.
-#                    vals[j] = link.vals[ti]
-#                    val_formats[j] = link.val_format
-#                    j += 1
-#                
-#                # If there are transitions to be applied, convert them to movement fractions appropriate to one timestep.
-#                if len(vals) > 0:
-#                    new_vals = convertTransitions(values = dcp(vals), value_formats = dcp(val_formats), old_dt = 1.0, new_dt = dt)
-#                        
-#                    j = 0
-#                    for lid in comp.outlink_ids:
-#                    link = pop.links[lid]
+                if comp.label not in settings.junction_labels:      # Junctions collect inflows during this step.
                     
-                    did_from = link.index_from[0] * num_comps + link.index_from[1]
-                    did_to = link.index_to[0] * num_comps + link.index_to[1]
-                    comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
-                    
-                    converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
-                    
-                    dpopsize[did_from] -= comp_source.popsize[ti] * converted_frac
-                    dpopsize[did_to] += comp_source.popsize[ti] * converted_frac
-#                    j += 1
+    #                vals = np.zeros(comp.num_outlinks)
+    #                val_formats = [None]*comp.num_outlinks
+    #                j = 0
+                    for lid in comp.outlink_ids:
+                        link = pop.links[lid]
+                        
+                        # If link values are not pre-allocated to the required time-vector length, extend with the same value as the last index.
+                        if not len(link.vals) > ti + 1:
+                            link.vals = np.append(link.vals, link.vals[-1])
+                        if not len(link.vals) > ti + 1:         # If one extension did not create an index of ti+1, something is seriously wrong...
+                            raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (link.label))
+    #                    
+    #                    # Store values and formats for outlinks relevant to the current compartment.
+    #                    vals[j] = link.vals[ti]
+    #                    val_formats[j] = link.val_format
+    #                    j += 1
+    #                
+    #                # If there are transitions to be applied, convert them to movement fractions appropriate to one timestep.
+    #                if len(vals) > 0:
+    #                    new_vals = convertTransitions(values = dcp(vals), value_formats = dcp(val_formats), old_dt = 1.0, new_dt = dt)
+    #                        
+    #                    j = 0
+    #                    for lid in comp.outlink_ids:
+    #                    link = pop.links[lid]
+                        
+                        did_from = link.index_from[0] * num_comps + link.index_from[1]
+                        did_to = link.index_to[0] * num_comps + link.index_to[1]
+                        comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
+                        
+                        converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
+                        
+                        dpopsize[did_from] -= comp_source.popsize[ti] * converted_frac
+                        dpopsize[did_to] += comp_source.popsize[ti] * converted_frac
+    #                    j += 1
                 
                 k += 1
 
