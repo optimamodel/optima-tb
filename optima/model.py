@@ -1,6 +1,6 @@
 #%% Imports
 
-from utils import odict, OptimaException
+from utils import flattenDict, odict, OptimaException
 
 import numpy as np
 import numpy.random as npr
@@ -290,11 +290,21 @@ class Model(object):
 #            self.pops[-1].getComp('sus').popsize[0] = 1000000   # NOTE: Temporary. Initial values inserted here.
         
         # Propagating initial characteristic parset values into ModelPops.
+        # Critically must be applied in order defined within settings.charac_specs.
+        init_dict = {}
         t_init = np.array([self.sim_settings['tvec'][0]])
-        for par in parset.pars['characs']:
-            if par.label == 'alive':
+        for charac_label in settings.charac_specs.keys():
+            if settings.charac_specs[charac_label].has_key('entry_point'):
+                entry_point = settings.charac_specs[charac_label]['entry_point']
+                par = parset.pars['characs'][parset.par_ids['characs'][charac_label]]
                 for pop_label in parset.pop_labels:
-                    self.getPop(pop_label).getComp('sus').popsize[0] = par.interpolate(tvec = t_init, pop_label = pop_label)
+                    if not init_dict.has_key(pop_label): init_dict[pop_label] = {}
+                    val = par.interpolate(tvec = t_init, pop_label = pop_label)
+                    for include in flattenDict(input_dict = settings.charac_specs, base_key = charac_label, sub_key = 'includes'):
+                        if init_dict[pop_label].has_key(include):
+                            val -= init_dict[pop_label][include]
+                    self.getPop(pop_label).getComp(entry_point).popsize[0] = val
+                    init_dict[pop_label][entry_point] = val
         
         # Propagating cascade parameter parset values into ModelPops.
         for par in parset.pars['cascade']:

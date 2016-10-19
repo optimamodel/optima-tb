@@ -67,7 +67,7 @@ class ParameterSet(object):
         self.pars = odict()
         self.pars['cascade'] = []
         self.pars['characs'] = []
-#        self.par_ids = {}
+        self.par_ids = {'cascade':{}, 'characs':{}}
         
         self.transfers = odict()    # Dictionary of inter-population transitions.
     
@@ -79,7 +79,7 @@ class ParameterSet(object):
             
         # Cascade parameters.
         for l, label in enumerate(data['linkpars']):
-#            self.par_ids[label] = l
+            self.par_ids['cascade'][label] = l
             self.pars['cascade'].append(Parameter(label = label))
             for pop_id in data['linkpars'][label]:
                 self.pars['cascade'][-1].t[pop_id] = data['linkpars'][label][pop_id]['t']
@@ -89,6 +89,7 @@ class ParameterSet(object):
         # Characteristic parameters (e.g. popsize/prevalence).
         # Despite being mostly data to calibrate against, is still stored in full so as to interpolate initial value.
         for l, label in enumerate(data['characs']):
+            self.par_ids['characs'][label] = l
             self.pars['characs'].append(Parameter(label = label))
             for pop_id in data['characs'][label]:
                 self.pars['characs'][-1].t[pop_id] = data['characs'][label][pop_id]['t']

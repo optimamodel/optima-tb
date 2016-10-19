@@ -1,6 +1,6 @@
 #%% Imports
 
-from utils import odict, OptimaException
+from utils import flattenDict, odict, OptimaException
 
 import xlrd
 import networkx as nx
@@ -110,25 +110,35 @@ class Settings(object):
         cid_name = None
         cid_percentage = None
         cid_denom = None
-        cid_include_start = None
-        cid_include_end = None
         cid_order = None
         cid_default = None
+        cid_entry = None
+        cid_include_start = None
+        cid_include_end = None
         for col_id in xrange(ws_charac.ncols):
             if ws_charac.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_charac.cell_value(0, col_id) == 'Full Name': cid_name = col_id
             if ws_charac.cell_value(0, col_id) == 'Plot Percentage': cid_percentage = col_id
             if ws_charac.cell_value(0, col_id) == 'Denominator': cid_denom = col_id
-            if ws_charac.cell_value(0, col_id) == 'Includes': cid_include_start = col_id
             if ws_charac.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
             if ws_charac.cell_value(0, col_id) == 'Default Value': cid_default = col_id
+            if ws_charac.cell_value(0, col_id) == 'Entry Point': cid_entry = col_id
+            if ws_charac.cell_value(0, col_id) == 'Includes': cid_include_start = col_id
         
         # Work out where the 'include' columns end when defining cascade characteristics.
-        cid_list = np.array(sorted([cid_label, cid_name, cid_percentage, cid_denom, cid_order, cid_default, ws_charac.ncols]))
+        cid_list = np.array(sorted([cid_label, cid_name, cid_percentage, cid_denom, cid_order, cid_default, cid_entry, ws_charac.ncols]))
         cid_include_end = cid_list[sum(cid_include_start > cid_list)] - 1
         
         if None in [cid_label, cid_name, cid_include_start, cid_include_end]:
             raise OptimaException('ERROR: Cascade characteristics worksheet does not have correct column headers.')
+        
+        # For checking duplicates in columns that should not have duplicates.
+        # NOTE: Currently only for entry point. Should be extended when validating.
+        entry_dict = {}
+        
+        # For checking that no characteristic is defined including a compartment that is used as an entry point by a characteristic defined later.
+        # This is the only way to avoid problems when calculating initial values for model.
+        prev_includes = {}
         
         # Actually append characteristic labels and full names to relevant odicts and lists. Labels are crucial.
         for row_id in xrange(ws_charac.nrows):
@@ -155,6 +165,10 @@ class Settings(object):
                         if val not in self.node_specs.keys() + self.charac_specs.keys()[:-1]:
                             raise OptimaException('ERROR: Cascade characteristic %s is being defined with reference to denominator %s, which has not been defined yet.' % (charac_label, val))
                         self.charac_specs[charac_label]['denom'] = val
+                        
+                flat_list = flattenDict(input_dict = self.charac_specs, base_key = charac_label, sub_key = 'includes')
+                if len(flat_list) != len(set(flat_list)):
+                    raise OptimaException('ERROR: Cascade characteristic %s contains duplicate references to a compartment when all the recursion is flattened out.' % (charac_label))
                 
                 # Store whether characteristic should be converted to percentages when plotting.
                 if not cid_percentage is None:
@@ -171,9 +185,26 @@ class Settings(object):
                         
                 # Store characteristic default value if available.
                 if not cid_default is None:
-                    def_val = str(ws_charac.cell_value(row_id, cid_default))
-                    if def_val not in ['']:
-                        self.charac_specs[charac_label]['default'] = float(def_val)
+                    val = str(ws_charac.cell_value(row_id, cid_default))
+                    if val not in ['']:
+                        self.charac_specs[charac_label]['default'] = float(val)
+                        
+                # Store characteristic entry point if available.
+                # Without this, the characteristic will not be converted into an initial value for the model.
+                if not cid_entry is None:
+                    val = str(ws_charac.cell_value(row_id, cid_entry))
+                    if val not in ['']:
+                        self.charac_specs[charac_label]['entry_point'] = val
+                        if entry_dict.has_key(val):
+                            raise OptimaException('ERROR: Cascade characteristic %s is not the first to use %s as an entry point.' % (charac_label, val))
+                        elif prev_includes.has_key(val):
+                            raise OptimaException('ERROR: Cascade characteristic %s has entry point %s included by another entry-point characteristic defined earlier. This is restricted for initial-value calculation reasons.' % (charac_label, val))
+                        elif not self.node_specs.has_key(val):
+                            raise OptimaException('ERROR: There is no compartment named %s that can be used as an entry point by cascade characteristic %s.' % (val, charac_label))
+                        else:
+                            entry_dict[val] = True
+                            for include in self.charac_specs[charac_label]['includes']:
+                                prev_includes[include] = True
                     
         
         # Third sheet: Transitions
@@ -247,9 +278,9 @@ class Settings(object):
                 
                 # Store parameter default value if available.
                 if not cid_default is None:
-                    def_val = str(ws_pars.cell_value(row_id, cid_default))
-                    if def_val not in ['']:
-                        self.linkpar_specs[label]['default'] = float(def_val)
+                    val = str(ws_pars.cell_value(row_id, cid_default))
+                    if val not in ['']:
+                        self.linkpar_specs[label]['default'] = float(val)
                     
         for tag in self.links.keys():
             if tag not in [x['tag'] for x in self.linkpar_specs[:]]:
