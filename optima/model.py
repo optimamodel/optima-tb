@@ -290,21 +290,43 @@ class Model(object):
 #            self.pops[-1].getComp('sus').popsize[0] = 1000000   # NOTE: Temporary. Initial values inserted here.
         
         # Propagating initial characteristic parset values into ModelPops.
-        # Critically must be applied in order defined within settings.charac_specs.
-        init_dict = {}
+        # First interpolate initial value for each relevant characteristic (i.e. one that has an entry point).
+        # Maintaining definitional order (i.e. the order characteristics were defined in cascade workbook) is crucial.
+        init_dict = odict()
+        charac_for_entry = odict()
         t_init = np.array([self.sim_settings['tvec'][0]])
         for charac_label in settings.charac_specs.keys():
             if settings.charac_specs[charac_label].has_key('entry_point'):
                 entry_point = settings.charac_specs[charac_label]['entry_point']
+                init_dict[charac_label] = odict()
+                charac_for_entry[entry_point] = charac_label
                 par = parset.pars['characs'][parset.par_ids['characs'][charac_label]]
                 for pop_label in parset.pop_labels:
-                    if not init_dict.has_key(pop_label): init_dict[pop_label] = {}
                     val = par.interpolate(tvec = t_init, pop_label = pop_label)
-                    for include in flattenDict(input_dict = settings.charac_specs, base_key = charac_label, sub_key = 'includes'):
-                        if init_dict[pop_label].has_key(include):
-                            val -= init_dict[pop_label][include]
-                    self.getPop(pop_label).getComp(entry_point).popsize[0] = val
-                    init_dict[pop_label][entry_point] = val
+                    init_dict[charac_label][pop_label] = dcp(val)
+        
+        # Next, multiply out any denominators that exist. Again, definitional order matters.
+        # These should all be other previously-defined entry-point characteristics, according to validation in settings.py.
+        for charac_label in init_dict.keys():
+            if settings.charac_specs[charac_label].has_key('denom'):
+                denom_label = settings.charac_specs[charac_label]['denom']
+                entry_point = settings.charac_specs[charac_label]['entry_point']
+                for pop_label in parset.pop_labels:
+                    init_dict[charac_label][pop_label] *= init_dict[denom_label][pop_label]
+
+#        print init_dict
+        
+        # One more loop to subtract out any included characteristics from each characteristic (e.g. susceptibles = total - infected).
+        for charac_label in init_dict.keys():
+            entry_point = settings.charac_specs[charac_label]['entry_point']
+            for pop_label in parset.pop_labels:
+                val = init_dict[charac_label][pop_label]
+                flat_list = flattenDict(input_dict = settings.charac_specs, base_key = charac_label, sub_key = 'includes')
+                flat_list.remove(entry_point)
+                for include in flat_list:
+                    if charac_for_entry.has_key(include):
+                        val -= init_dict[charac_for_entry[include]][pop_label]
+                self.getPop(pop_label).getComp(entry_point).popsize[0] = val
         
         # Propagating cascade parameter parset values into ModelPops.
         for par in parset.pars['cascade']:

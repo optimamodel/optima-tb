@@ -198,8 +198,8 @@ class Settings(object):
                         
                         if self.charac_specs[charac_label].has_key('denom'):
                             denom_label = self.charac_specs[charac_label]['denom']
-                            if not self.charac_specs[denom_label].has_key('entry_point'):
-                                raise OptimaException('ERROR: Cascade characteristic %s cannot seed the model with an entry point if its denominator %s is not also used for model-seeding (i.e. if it has no entry point).' % (charac_label, denom_label))
+                            if denom_label not in self.charac_specs.keys()[:-1] or not self.charac_specs[denom_label].has_key('entry_point'):
+                                raise OptimaException('ERROR: At this time, characteristic %s cannot be used to seed a model (i.e. have an entry point) if its denominator %s is not a model-seeding characteristic.' % (charac_label, denom_label))
                             
                         if entry_dict.has_key(val):
                             raise OptimaException('ERROR: Cascade characteristic %s is not the first to use %s as an entry point.' % (charac_label, val))
@@ -208,7 +208,8 @@ class Settings(object):
                         if not self.node_specs.has_key(val):
                             raise OptimaException('ERROR: There is no compartment named %s that can be used as an entry point by cascade characteristic %s.' % (val, charac_label))                        
                         ref_list = set(ref_list)
-                        ref_list.remove(val)
+                        try: ref_list.remove(val)
+                        except: raise OptimaException('ERROR: Entry point %s for characteristic %s must be a compartment it includes, either directly or via characteristic reference.' % (val, charac_label))
                         entry_dict[val] = dcp(list(ref_list))
                             
         # Ensuring that no two characteristics with entry-points include each other's entry-points (or more complex referencing cycles).
