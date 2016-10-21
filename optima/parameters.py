@@ -26,10 +26,10 @@ class Parameter(object):
         ''' Take parameter values and construct an array matching input time vector. '''
         
         # Validate input.
-        if pop_label not in self.t.keys(): raise OptimaException('ERROR: Cannot interpolate parameter %s without referring to a proper population label.' % pop_label)
-        if tvec is None: raise OptimaException('ERROR: Cannot interpolate parameter %s without providing a time vector.' % self.label)
-        if not len(self.t[pop_label]) > 0: raise OptimaException('ERROR: There are no timepoint values for parameter %s, population %s.' % (self.label, pop_label))
-        if not len(self.t[pop_label]) == len(self.y[pop_label]): raise OptimaException('ERROR: Parameter %s, population %s, does not have corresponding values and timepoints.' % (self.label, pop_label))
+        if pop_label not in self.t.keys(): raise OptimaException('ERROR: Cannot interpolate parameter "%s" without referring to a proper population label.' % pop_label)
+        if tvec is None: raise OptimaException('ERROR: Cannot interpolate parameter "%s" without providing a time vector.' % self.label)
+        if not len(self.t[pop_label]) > 0: raise OptimaException('ERROR: There are no timepoint values for parameter "%s", population "%s".' % (self.label, pop_label))
+        if not len(self.t[pop_label]) == len(self.y[pop_label]): raise OptimaException('ERROR: Parameter "%s", population "%s", does not have corresponding values and timepoints.' % (self.label, pop_label))
 
         if len(self.t[pop_label]) == 1:
             output = np.ones(len(tvec))*self.y[pop_label][0]    # Don't bother running interpolation loops if constant.

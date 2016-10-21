@@ -205,31 +205,32 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
         row_id = 0
         specs_ordered = sorted(dcp(specs.keys()), key=lambda x: specs[x]['databook_order'])
         for def_label in specs_ordered:
-            def_name = specs[def_label]['name']
-            default_val = 0
-            if 'default' in specs[def_label]:
-                default_val = specs[def_label]['default']
+            if not specs[def_label]['databook_order'] < 0:      # Do not print out characteristic/parameter if databook order is negative.
+                def_name = specs[def_label]['name']
+                default_val = 0.0
+                if 'default' in specs[def_label]:
+                    default_val = specs[def_label]['default']
+                
+                # Make the data-entry blocks.
+                if ws == ws_charac:
+                    if 'plot_percentage' in specs[def_label]:
+                        data_formats = ['Fraction']
+                    else:
+                        data_formats = ['Number']
+                elif ws == ws_linkpars:
+                    data_formats = None
+                    for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
+                        if 'junction' in settings.node_specs[pair[0]].keys():
+                            data_formats = ['Proportion']
+                makeValueEntryArrayBlock(worksheet = ws, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = default_val, data_formats = data_formats)
+                
+                # Make the population references.
+                ws.write(row_id, 0, def_name)
+                for pid in xrange(num_pops):
+                    row_id += 1
+                    ws.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
             
-            # Make the data-entry blocks.
-            if ws == ws_charac:
-                if 'plot_percentage' in specs[def_label]:
-                    data_formats = ['Fraction']
-                else:
-                    data_formats = ['Number']
-            elif ws == ws_linkpars:
-                data_formats = None
-                for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
-                    if 'junction' in settings.node_specs[pair[0]].keys():
-                        data_formats = ['Proportion']
-            makeValueEntryArrayBlock(worksheet = ws, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = default_val, data_formats = data_formats)
-            
-            # Make the population references.
-            ws.write(row_id, 0, def_name)
-            for pid in xrange(num_pops):
-                row_id += 1
-                ws.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
-            
-            row_id += 2
+                row_id += 2
             
         ws.set_column(0, 0, ws_charac_width)
         ws.set_column(1, 2, assumption_width)
@@ -303,7 +304,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                                 data['transfers'][mig_type][pop_source][pop_target]['y'] = np.array([float(1/data['pops']['ages'][pop_source]['range'])])
                                 data['transfers'][mig_type][pop_source][pop_target]['y_format'] = 'Fraction'.lower()
                             if len(data['transfers'][mig_type][pop_source].keys()) > 1:
-                                raise OptimaException('ERROR: There are too many outgoing %s transitions listed for population %s.' % (mig_type,pop_source))
+                                raise OptimaException('ERROR: There are too many outgoing "%s" transitions listed for population "%s".' % (mig_type,pop_source))
         
         # First row after a blank one must contain the new migration type as its first element. Parser re-activated.
         if not mig_specified and zero_col not in ['']:
@@ -383,7 +384,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
             else:
                 current_pop_label = data['pops']['name_labels'][val]
                 if current_pop_label != data['pops']['label_names'].keys()[pop_id]:
-                    raise OptimaException('ERROR: Somewhere in the %s parameters sheet, populations are not ordered as in the population definitions sheet.' % data_label)
+                    raise OptimaException('ERROR: Somewhere in the "%s" parameters sheet, populations are not ordered as in the population definitions sheet.' % data_label)
                 data[data_label][current_def_label][current_pop_label] = odict()
                 
                 # Run through the rows beneath the year range, but only if there is not a number in the cell corresponding to assumption.
@@ -404,5 +405,22 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                 data[data_label][current_def_label][current_pop_label]['y'] = np.array(list_y)                
                 
                 pop_id += 1
+                
+    # All parameters must be defined whether they are in the project databook or not.
+    import warnings
+    for label in settings.linkpar_specs.keys():
+        if label not in data['linkpars'].keys():
+            def_format = 'Fraction'.lower()     # NOTE: Hard-coded format assumption. Improve at some stage when allowing for default formats.
+            def_val = 0
+            if 'default' in settings.linkpar_specs[label]:
+                def_val = settings.linkpar_specs[label]['default']
+            print('WARNING: Project data sheet does not contain required cascade parameter "%s".\n         Using default format "%s" and default value %f.' % (label, def_format, def_val))
+            data['linkpars'][label] = odict()
+            for pop in data['pops']['label_names'].keys():
+                data['linkpars'][label][pop] = odict()
+                data['linkpars'][label][pop]['y_format'] = def_format
+                data['linkpars'][label][pop]['t'] = np.array([settings.tvec_start])
+                data['linkpars'][label][pop]['y'] = np.array([float(def_val)]) 
+                
             
     return data

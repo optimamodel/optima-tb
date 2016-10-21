@@ -388,7 +388,7 @@ class Model(object):
                     elif inc_label in outputs.keys()[:-1]:
                         vals = outputs[inc_label][pop.label]
                     else:
-                        raise OptimaException('ERROR: Compartment or characteristic %s has not been pre-calculated for use in calculating %s.' % (inc_label, cid))
+                        raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
                         
                     if outputs[cid][pop.label] is None:
                         outputs[cid][pop.label] = dcp(vals)
@@ -403,7 +403,7 @@ class Model(object):
                     elif den_label in self.getPop(pop.label).comp_ids.keys():
                         vals = self.getPop(pop.label).getComp(den_label).popsize
                     else:
-                        raise OptimaException('ERROR: Compartment or characteristic %s has not been pre-calculated for use in calculating %s.' % (inc_label, cid))
+                        raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
                     
                     outputs[cid][pop.label] /= vals
         
@@ -428,7 +428,7 @@ class Model(object):
                     if popsize > 0:
                         final_review = False    # Outflows could propagate into other junctions requiring another review.
                         denom_val = sum(pop.links[lid].vals[ti_link] for lid in comp.outlink_ids)
-                        if denom_val == 0: raise OptimaException('ERROR: Proportions for junction %s outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
+                        if denom_val == 0: raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
                         for lid in comp.outlink_ids:
                             link = pop.links[lid]
                             
@@ -459,7 +459,7 @@ class Model(object):
                 if not len(comp.popsize) > ti + 1:
                     comp.popsize = np.append(comp.popsize, 0.0)
                 if not len(comp.popsize) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
-                    raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (comp.label))
+                    raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment "%s".' % (comp.label))
                 comp.popsize[ti+1] = comp.popsize[ti]
                     
                 if comp.label not in settings.junction_labels:      # Junctions collect inflows during this step.
@@ -474,7 +474,7 @@ class Model(object):
                         if not len(link.vals) > ti + 1:
                             link.vals = np.append(link.vals, link.vals[-1])
                         if not len(link.vals) > ti + 1:         # If one extension did not create an index of ti+1, something is seriously wrong...
-                            raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (link.label))
+                            raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment "%s".' % (link.label))
     #                    
     #                    # Store values and formats for outlinks relevant to the current compartment.
     #                    vals[j] = link.vals[ti]

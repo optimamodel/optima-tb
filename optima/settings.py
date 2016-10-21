@@ -27,7 +27,7 @@ class Settings(object):
         
         self.recursion_limit = 100      # Limit for recursive references, primarily used in characteristic definitions.
         
-        self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here to be explicit. 
+        self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here for now to be explicit. 
         self.loadCascadeSettings(cascade_path)
         
         # Project-data workbook metadata. Constant regardless of cascade structure.
@@ -65,6 +65,8 @@ class Settings(object):
         ws_charac = workbook.sheet_by_name('Cascade Characteristics')
         ws_links = workbook.sheet_by_name('Transitions')
         ws_pars = workbook.sheet_by_name('Transition Parameters')
+        try: ws_sheetnames = workbook.sheet_by_name('Databook Sheet Names')
+        except: ws_sheetnames = None
         
         # First sheet: Compartments
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
@@ -163,12 +165,12 @@ class Settings(object):
                     val = str(ws_charac.cell_value(row_id, col_id))
                     if val not in ['']:
                         if val not in self.node_specs.keys() + self.charac_specs.keys()[:-1]:
-                            raise OptimaException('ERROR: Cascade characteristic %s is being defined with an inclusion reference to %s, which has not been defined yet.' % (charac_label, val))
+                            raise OptimaException('ERROR: Cascade characteristic "%s" is being defined with an inclusion reference to "%s", which has not been defined yet.' % (charac_label, val))
                         self.charac_specs[charac_label]['includes'].append(val)
                 
                 flat_list = flattenDict(input_dict = self.charac_specs, base_key = charac_label, sub_key = 'includes', limit = self.recursion_limit)
                 if len(flat_list) != len(set(flat_list)):
-                    raise OptimaException('ERROR: Cascade characteristic %s contains duplicate references to a compartment (in its numerator) when all the recursion is flattened out.' % (charac_label))
+                    raise OptimaException('ERROR: Cascade characteristic "%s" contains duplicate references to a compartment (in its numerator) when all the recursion is flattened out.' % (charac_label))
                 ref_list = dcp(flat_list)   # Useful for checking what compartments this characteristic references.
                 
                 # Work out which compartment/characteristic this characteristic is normalised by.
@@ -176,7 +178,7 @@ class Settings(object):
                     val = str(ws_charac.cell_value(row_id, cid_denom))
                     if val not in ['']:
                         if val not in self.node_specs.keys() + self.charac_specs.keys()[:-1]:
-                            raise OptimaException('ERROR: Cascade characteristic %s is being defined with reference to denominator %s, which has not been defined yet.' % (charac_label, val))
+                            raise OptimaException('ERROR: Cascade characteristic "%s" is being defined with reference to denominator "%s", which has not been defined yet.' % (charac_label, val))
                         self.charac_specs[charac_label]['denom'] = val
                 
                 # Store whether characteristic should be converted to percentages when plotting.
@@ -186,7 +188,8 @@ class Settings(object):
                         self.charac_specs[charac_label]['plot_percentage'] = val
                 
                 # Store order that characteristics should be printed in project databook.
-                self.charac_specs[charac_label]['databook_order'] = ws_charac.nrows+1   # Any value missing from a databook order column means their printouts are lowest priority.
+                # Always has a default high value (i.e. low priority), even if column does not exist.
+                self.charac_specs[charac_label]['databook_order'] = ws_charac.nrows + 1   # Any value missing from a databook order column means their printouts are lowest priority.
                 if not cid_order is None:
                     val = ws_charac.cell_value(row_id, cid_order)
                     if val not in ['']:
@@ -205,17 +208,19 @@ class Settings(object):
                     if val not in ['']:
                         self.charac_specs[charac_label]['entry_point'] = val
                         
+                        if self.charac_specs[charac_label]['databook_order'] < 0:
+                            raise OptimaException('ERROR: Characteristic "%s" cannot be used to seed a model (i.e. have an entry point) if it does not feature in the databook (i.e. if it has a negative databook order).' % (charac_label))
                         if 'denom' in self.charac_specs[charac_label].keys():
                             denom_label = self.charac_specs[charac_label]['denom']
                             if denom_label not in self.charac_specs.keys()[:-1] or 'entry_point' not in self.charac_specs[denom_label].keys():
-                                raise OptimaException('ERROR: At this time, characteristic %s cannot be used to seed a model (i.e. have an entry point) if its denominator %s is not a model-seeding characteristic.' % (charac_label, denom_label))
+                                raise OptimaException('ERROR: At this time, characteristic "%s" cannot be used to seed a model (i.e. have an entry point) if its denominator "%s" is not a model-seeding characteristic.' % (charac_label, denom_label))
                         if val in entry_dict.keys():
-                            raise OptimaException('ERROR: Cascade characteristic %s is not the first to use %s as an entry point.' % (charac_label, val))
+                            raise OptimaException('ERROR: Cascade characteristic "%s" is not the first to use "%s" as an entry point.' % (charac_label, val))
                         if val not in self.node_specs.keys():
-                            raise OptimaException('ERROR: There is no compartment named %s that can be used as an entry point by cascade characteristic %s.' % (val, charac_label))                        
+                            raise OptimaException('ERROR: There is no compartment named "%s" that can be used as an entry point by cascade characteristic "%s".' % (val, charac_label))                        
                         ref_list = set(ref_list)
                         try: ref_list.remove(val)
-                        except: raise OptimaException('ERROR: Entry point %s for characteristic %s must be a compartment it includes, either directly or via characteristic reference.' % (val, charac_label))
+                        except: raise OptimaException('ERROR: Entry point "%s" for characteristic "%s" must be a compartment it includes, either directly or via characteristic reference.' % (val, charac_label))
                         entry_dict[val] = dcp(list(ref_list))
                             
         # Ensuring that no two characteristics with entry-points include each other's entry-points (or more complex referencing cycles).
@@ -224,7 +229,7 @@ class Settings(object):
             try:
                 ref_list = flattenDict(input_dict = entry_dict, base_key = entry_label, limit = self.recursion_limit)
             except OptimaException:
-                raise OptimaException('Characteristic %s references an entry point for another characteristic that, via some chain, eventually references the entry point of characteristic %s. Alternatively, maximum recursion depth is set too small.' % (entry_label, entry_label))
+                raise OptimaException('Characteristic "%s" references an entry point for another characteristic that, via some chain, eventually references the entry point of characteristic "%s". Alternatively, maximum recursion depth is set too small.' % (entry_label, entry_label))
         
         # Third sheet: Transitions
         # Quality-assurance test for the spreadsheet format.
@@ -233,21 +238,21 @@ class Settings(object):
             val = ws_links.cell_value(row_id, 0)
             if row_id > 0 and val not in ['']:
                 if val not in self.node_specs.keys():
-                    raise OptimaException('ERROR: Cascade transitions worksheet has a row header (%s) that is not a known compartment code label.' % val)
+                    raise OptimaException('ERROR: Cascade transitions worksheet has a row header ("%s") that is not a known compartment code label.' % val)
                 test.append(val)
         for label in self.node_specs.keys():
             if label not in test:
-                raise OptimaException('ERROR: Compartment code label (%s) is not represented in row headers of transitions worksheet.' % label)
+                raise OptimaException('ERROR: Compartment code label "%s" is not represented in row headers of transitions worksheet.' % label)
         test = []
         for col_id in xrange(ws_links.ncols):
             val = ws_links.cell_value(0, col_id)
             if col_id > 0 and val not in ['']:
                 if val not in self.node_specs.keys():
-                    raise OptimaException('ERROR: Cascade transitions worksheet has a column header (%s) that is not a known compartment code label.' % val)
+                    raise OptimaException('ERROR: Cascade transitions worksheet has a column header ("%s") that is not a known compartment code label.' % val)
                 test.append(val)
         for label in self.node_specs.keys():
             if label not in test:
-                raise OptimaException('ERROR: Compartment code label (%s) is not represented in column headers of transitions worksheet.' % label)
+                raise OptimaException('ERROR: Compartment code label "%s" is not represented in column headers of transitions worksheet.' % label)
         
         # Store linked compartment tuples by tag.
         for row_id in xrange(ws_links.nrows):
@@ -303,7 +308,7 @@ class Settings(object):
                     
         for tag in self.links.keys():
             if tag not in [x['tag'] for x in self.linkpar_specs[:]]:
-                raise OptimaException('ERROR: Transition matrix tag (%s) is not represented in transition-parameter worksheet.' % tag)
+                raise OptimaException('ERROR: Transition matrix tag "%s" is not represented in transition-parameter worksheet.' % tag)
         if len(self.linkpar_specs.keys()) != len(set(self.linkpar_specs.keys())):
             raise OptimaException('ERROR: Cascade transition-parameter worksheet appears to have duplicate parameter code labels.')
     

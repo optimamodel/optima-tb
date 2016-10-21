@@ -77,7 +77,7 @@ def flattenDict(input_dict, base_key, sub_key = None, comp_list = None, limit = 
     '''
     
     if limit < 1:
-        raise OptimaException('ERROR: A recursion limit has been reached when flattening a dictionary, stopping at key %s.' % base_key)    
+        raise OptimaException('ERROR: A recursion limit has been reached when flattening a dictionary, stopping at key "%s".' % base_key)    
     
     if comp_list is None: comp_list = []
 
