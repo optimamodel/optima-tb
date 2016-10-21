@@ -61,6 +61,38 @@ def printv(string, thisverbose=1, verbose=2, newline=True, indent=False):
 
 
 
+#%% Functions for dealing with recursive structures
+
+def flattenDict(input_dict, base_key, sub_key = None, comp_list = None, limit = 100):
+    '''
+    A function for flattening out a recursive dictionary, with optional sub-key.
+    
+    Specifically, this function is intended for dictionaries of the form...
+        input_dict[key1][sub_key] = [a, key2, b]
+        input_dict[key2][sub_key] = [c, d, a]
+    ...which, for this specific example, will output list...
+        [a, c, d, a, b]
+        
+    There is a max-depth of limit for the recursion.
+    '''
+    
+    if limit < 1:
+        raise OptimaException('ERROR: A recursion limit has been reached when flattening a dictionary, stopping at key %s.' % base_key)    
+    
+    if comp_list is None: comp_list = []
+
+    if sub_key is None: input_list = input_dict[base_key]
+    else: input_list = input_dict[base_key][sub_key]
+    
+    for comp in input_list:
+        if comp in input_dict.keys():
+            flattenDict(input_dict = input_dict, base_key = comp, sub_key = sub_key, comp_list = comp_list, limit = limit - 1)
+        else:
+            comp_list.append(comp)
+    return comp_list
+    
+    
+    
 #%% Homebrew odict class
 
 class odict(OrderedDict):

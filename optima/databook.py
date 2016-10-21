@@ -37,7 +37,7 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
                                 List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
     '''
     
-    if data_formats is None: data_formats = ['Probability', 'Fraction', 'Number']
+    if data_formats is None: data_formats = ['Fraction']#, 'Number']#, 'Probability', 'Number']
     offset = at_col + 3     # This is the column at which the input year range and corresponding values should be written.
     
     worksheet.write(at_row, at_col, 'Format')
@@ -59,10 +59,10 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
             worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption), None, assumption)
             worksheet.write(row_id, at_col + 2, 'OR')
         
-        # Make changes to the first row be mirrored in the other rows.
-        if aid > 0:
-            for k in xrange(len(tvec)):
-                worksheet.write(row_id, offset + k, '=IF(%s="","",%s)' % (rc(row_id-aid,offset+k),rc(row_id-aid,offset+k)), None, '')
+#        # Make changes to the first row be mirrored in the other rows.
+#        if aid > 0:
+#            for k in xrange(len(tvec)):
+#                worksheet.write(row_id, offset + k, '=IF(%s="","",%s)' % (rc(row_id-aid,offset+k),rc(row_id-aid,offset+k)), None, '')
                
                
 def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = None, allowed_vals = None):
@@ -114,13 +114,14 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_pops = workbook.add_worksheet(settings.databook['sheet_names']['pops'])
     ws_transmat = workbook.add_worksheet(settings.databook['sheet_names']['transmat'])
     ws_transval = workbook.add_worksheet(settings.databook['sheet_names']['transval'])
+    ws_charac = workbook.add_worksheet(settings.databook['sheet_names']['charac'])
     ws_linkpars = workbook.add_worksheet(settings.databook['sheet_names']['linkpars'])
     
     data_tvec = np.arange(settings.tvec_start, settings.tvec_end + 1.0/2)
     ws_pops_width = 15
     ws_transmat_width = 15
     ws_transval_width = 15
-    ws_linkpars_width = 40
+    ws_charac_width = 40
     assumption_width = 10
     
     # Population names sheet.
@@ -194,27 +195,44 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_transval.set_column(2, 2, ws_transval_width)
     ws_transval.set_column(3, 4, assumption_width)
     
-    # Cascade parameters sheet.
-    row_id = 0
-    for link_name in settings.linkpar_name_labels.keys():
-        link_label = settings.linkpar_name_labels[link_name]
-        def_val = 0
-        if 'default' in settings.linkpar_specs[link_label]:
-            def_val = settings.linkpar_specs[link_label]['default']
-        
-        # Make the parameter-specific data-entry block.
-        makeValueEntryArrayBlock(worksheet = ws_linkpars, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = def_val)        
-        
-        # Make the parameter-specific population references.
-        ws_linkpars.write(row_id, 0, link_name)
-        for pid in xrange(num_pops):
-            row_id += 1
-            ws_linkpars.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
-        
-        row_id += 2
-
-    ws_linkpars.set_column(0, 0, ws_linkpars_width)
-    ws_linkpars.set_column(1, 2, assumption_width)
+    # Epidemic characteristics and cascade parameters sheet.
+    ws_list = [ws_charac, ws_linkpars]
+    specs_list = [settings.charac_specs, settings.linkpar_specs]
+    for k in xrange(2):
+        ws = ws_list[k]
+        specs = specs_list[k]
+    
+        row_id = 0
+        specs_ordered = sorted(dcp(specs.keys()), key=lambda x: specs[x]['databook_order'])
+        for def_label in specs_ordered:
+            def_name = specs[def_label]['name']
+            default_val = 0
+            if 'default' in specs[def_label]:
+                default_val = specs[def_label]['default']
+            
+            # Make the data-entry blocks.
+            if ws == ws_charac:
+                if 'plot_percentage' in specs[def_label]:
+                    data_formats = ['Fraction']
+                else:
+                    data_formats = ['Number']
+            elif ws == ws_linkpars:
+                data_formats = None
+                for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
+                    if 'junction' in settings.node_specs[pair[0]].keys():
+                        data_formats = ['Proportion']
+            makeValueEntryArrayBlock(worksheet = ws, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = default_val, data_formats = data_formats)
+            
+            # Make the population references.
+            ws.write(row_id, 0, def_name)
+            for pid in xrange(num_pops):
+                row_id += 1
+                ws.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
+            
+            row_id += 2
+            
+        ws.set_column(0, 0, ws_charac_width)
+        ws.set_column(1, 2, assumption_width)
     
     workbook.close()
     
@@ -231,6 +249,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
     ws_pops = workbook.sheet_by_name(settings.databook['sheet_names']['pops'])
     ws_transmat = workbook.sheet_by_name(settings.databook['sheet_names']['transmat'])
     ws_transval = workbook.sheet_by_name(settings.databook['sheet_names']['transval'])
+    ws_charac = workbook.sheet_by_name(settings.databook['sheet_names']['charac'])
     ws_linkpars = workbook.sheet_by_name(settings.databook['sheet_names']['linkpars'])
 
     # Population names sheet.
@@ -336,44 +355,54 @@ def loadSpreadsheetFunc(settings, databook_path = None):
             mig_specified = True
             mig_type = str(zero_col).lower().replace(' ','_')
             array_id = 0
+
+
     
-    # Cascade parameters sheet.
-    data['linkpars'] = odict()
-    current_linkpar_name = None
-    current_linkpar_label = None
-    pop_id = 0
-    for row_id in xrange(ws_linkpars.nrows):
-        val = str(ws_linkpars.cell_value(row_id, 0))
-        if val in ['']:
-            current_linkpar_name = None
-            pop_id = 0
-        elif current_linkpar_name is None:
-            current_linkpar_name = val
-            current_linkpar_label = settings.linkpar_name_labels[val]
-            data['linkpars'][current_linkpar_label] = odict()
-        else:
-            current_pop_label = data['pops']['name_labels'][val]
-            if current_pop_label != data['pops']['label_names'].keys()[pop_id]:
-                raise OptimaException('ERROR: Somewhere in the transition parameters sheet, populations are not ordered as in the population definitions sheet.')
-            data['linkpars'][current_linkpar_label][current_pop_label] = odict()
-            
-            # Run through the rows beneath the year range, but only if there is not a number in the cell corresponding to assumption.
-            # NOTE: Somewhat hard-coded. Improve.
-            list_t = []
-            list_y = []
-            for col_id in xrange(ws_linkpars.ncols):
-                if col_id == 1:
-                    data['linkpars'][current_linkpar_label][current_pop_label]['y_format'] = str(ws_linkpars.cell_value(row_id, col_id)).lower()
-                if col_id > 1 and isinstance(ws_linkpars.cell_value(row_id, col_id), Number):
-                    list_y.append(float(ws_linkpars.cell_value(row_id, col_id)))
-                    if not isinstance(ws_linkpars.cell_value(row_id-1-pop_id, col_id), Number):
-                        list_t.append(float(ws_linkpars.cell_value(row_id-1-pop_id, col_id+2)))
-                        break
-                    else:
-                        list_t.append(float(ws_linkpars.cell_value(row_id-1-pop_id, col_id)))
-            data['linkpars'][current_linkpar_label][current_pop_label]['t'] = np.array(list_t)
-            data['linkpars'][current_linkpar_label][current_pop_label]['y'] = np.array(list_y)                
-            
-            pop_id += 1
+    # Epidemic characteristics and cascade parameters sheet.
+    data_labels = ['characs', 'linkpars']
+    ws_list = [ws_charac, ws_linkpars]
+    name_to_label_list = [settings.charac_name_labels, settings.linkpar_name_labels]
+    for k in xrange(2):
+        data_label = data_labels[k]
+        ws = ws_list[k]
+        name_to_label = name_to_label_list[k]
+    
+        data[data_label] = odict()
+        current_def_name = None
+        current_def_label = None
+        pop_id = 0
+        for row_id in xrange(ws.nrows):
+            val = str(ws.cell_value(row_id, 0))
+            if val in ['']:
+                current_def_name = None
+                pop_id = 0
+            elif current_def_name is None:
+                current_def_name = val
+                current_def_label = name_to_label[val]
+                data[data_label][current_def_label] = odict()
+            else:
+                current_pop_label = data['pops']['name_labels'][val]
+                if current_pop_label != data['pops']['label_names'].keys()[pop_id]:
+                    raise OptimaException('ERROR: Somewhere in the %s parameters sheet, populations are not ordered as in the population definitions sheet.' % data_label)
+                data[data_label][current_def_label][current_pop_label] = odict()
+                
+                # Run through the rows beneath the year range, but only if there is not a number in the cell corresponding to assumption.
+                # NOTE: Somewhat hard-coded. Improve.
+                list_t = []
+                list_y = []
+                for col_id in xrange(ws.ncols):
+                    if col_id == 1:
+                        data[data_label][current_def_label][current_pop_label]['y_format'] = str(ws.cell_value(row_id, col_id)).lower()
+                    if col_id > 1 and isinstance(ws.cell_value(row_id, col_id), Number):
+                        list_y.append(float(ws.cell_value(row_id, col_id)))
+                        if not isinstance(ws.cell_value(row_id-1-pop_id, col_id), Number):
+                            list_t.append(float(ws.cell_value(row_id-1-pop_id, col_id+2)))
+                            break
+                        else:
+                            list_t.append(float(ws.cell_value(row_id-1-pop_id, col_id)))
+                data[data_label][current_def_label][current_pop_label]['t'] = np.array(list_t)
+                data[data_label][current_def_label][current_pop_label]['y'] = np.array(list_y)                
+                
+                pop_id += 1
             
     return data
