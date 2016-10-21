@@ -5,14 +5,8 @@ from utils import odict, OptimaException
 import xlrd
 import pylab as pl
 import numpy as np
-
-import socket
-hostname = socket.gethostname()
-print hostname
-if not (hostname == 'athena' or hostname == 'Jarvis-MBP.local'):
-    import networkx as nx
-
-
+ 
+    
 #%% Settings class (for data that is effectively static per epidemic context)
 #
 #   This refers specifically to cascade metadata (loaded from a cascade workbook) and general defaults.
@@ -27,6 +21,9 @@ class Settings(object):
         self.tvec_start = 2000.0     # Default start year for data input and simulations.
         self.tvec_end = 2030.0       # Default end year for data input and simulations.
         self.tvec_dt = 1.0/4          # Default timestep for simulations.
+        
+        self.plotSettings = PlottingSettings()
+        
         
         self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here to be explicit. 
         self.loadCascadeSettings(cascade_path)
@@ -261,37 +258,57 @@ class Settings(object):
         if len(self.linkpar_specs.keys()) != len(set(self.linkpar_specs.keys())):
             raise OptimaException('ERROR: Cascade transition-parameter worksheet appears to have duplicate parameter code labels.')
     
-    def plotCascade(self):
-        fig, ax = pl.subplots(figsize=(10,10))
-        G = nx.DiGraph()
-        plottable_nodes = [nid for nid in self.node_specs.keys() if 'tag_no_plot' not in self.node_specs[nid]]
-        plottable_links = [link for lid in self.links for link in self.links[lid] if (link[0] in plottable_nodes and link[1] in plottable_nodes)]
-        G.add_nodes_from(plottable_nodes)
-        G.add_edges_from(plottable_links)
 
-        # Use plot coordinates if stored and arrange the rest of the cascade out in a unit circle.
-        pos = {}
-        num_nodes = len(plottable_nodes)
-        k = 0
-        for node in plottable_nodes:
-            try: pos[node] = (self.node_specs[node]['coords'][0], self.node_specs[node]['coords'][1])
-            except: pos[node] = (np.sin(2.0*np.pi*k/num_nodes), np.cos(2.0*np.pi*k/num_nodes))
-            k += 1
-        
-        # Generate edge label dictionary with tags from spreadsheet.
-        el = {}
-        for par_name in self.linkpar_specs.keys():
-            for link in self.links[self.linkpar_specs[par_name]['tag']]:
-                el[link] = self.linkpar_specs[par_name]['tag']
 
-        nx.draw_networkx_nodes(G, pos, node_size = 1250, node_color = 'w')
-        ax.axis('tight')
-        nx.draw_networkx_labels(G, pos)
-        nx.draw_networkx_edges(G, pos)
-#        nx.draw_networkx_edge_labels(G, pos, edge_labels = el, label_pos = 0.25, font_size = 14)
+
+
+class PlottingSettings():
+    
+    
+    def __init__(self):
+        print("Loading plotting settings")
+        self.defaultSettings()
+        self.devSettings()
         
-        [sp.set_visible(False) for sp in ax.spines.values()]
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.set_title('Cascade Schematic')
-        pl.show()
+        
+    def defaultSettings(self):
+        
+        pl.rcParams['font.size'] = 12
+        pl.rcParams['font.family'] = 'sans-serif'
+        
+        pl.rcParams['savefig.dpi'] = 300
+        
+        pl.rcParams['xtick.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['xtick.major.size'] = 3
+        pl.rcParams['xtick.minor.size'] = 3
+        pl.rcParams['xtick.major.width'] = 1
+        pl.rcParams['xtick.minor.width'] = 1
+        pl.rcParams['ytick.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['ytick.major.size'] = 3
+        pl.rcParams['ytick.minor.size'] = 3
+        pl.rcParams['ytick.major.width'] = 1
+        pl.rcParams['ytick.minor.width'] = 1
+        
+        pl.rcParams['legend.frameon'] = False
+        pl.rcParams['legend.loc'] = 'center left'
+        pl.rcParams['legend.fontsize'] = pl.rcParams['font.size']
+        
+        pl.rcParams['axes.linewidth'] = 2
+        pl.rcParams['axes.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['axes.titlesize'] = 1.5*pl.rcParams['font.size']
+    
+        pl.rcParams['lines.linewidth'] = 3
+        pl.rcParams['lines.markersize'] = 40
+        pl.rcParams['lines.markeredgewidth'] = 3
+    
+
+
+    def devSettings(self):
+        pl.rcParams['figure.figsize'] = (10, 8)
+        pl.rcParams['savefig.dpi'] = 300
+        
+    def printSettings(self):
+        
+        pl.rcParams['figure.figsize'] = (15, 10)
+    
+    
