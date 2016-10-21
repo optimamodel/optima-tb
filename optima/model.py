@@ -428,7 +428,7 @@ class Model(object):
                     if popsize > 0:
                         final_review = False    # Outflows could propagate into other junctions requiring another review.
                         denom_val = sum(pop.links[lid].vals[ti_link] for lid in comp.outlink_ids)
-                        if denom_val == 0: raise OptimaException('ERROR: Proportions for junction %s outflows sum to zero, resulting in a nonsensical ratio.' % junction_label)
+                        if denom_val == 0: raise OptimaException('ERROR: Proportions for junction %s outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
                         for lid in comp.outlink_ids:
                             link = pop.links[lid]
                             
