@@ -4,11 +4,7 @@
 import pylab as pl
 from copy import deepcopy as dcp
 
-try:
-    import networkx as nx
-except:
-    print("Could not import networkx. Will not be able to print network schematic.")
-    
+
    
 class Plotter():
         
@@ -238,11 +234,19 @@ class Plotter():
                 fig.savefig('%sOutputs-%s.png' % (title, charac_specs[output_id]['name']))
             
             
-    def plotCascade(self):
+    def plotCascade(settings):
+        """
+        Plot structure of cascade
+        
+        Params:
+            settings     Settings object
+        """
+        import networkx as nx
+        
         fig, ax = pl.subplots(figsize=(10,10))
         G = nx.DiGraph()
-        plottable_nodes = [nid for nid in self.node_specs.keys() if 'tag_no_plot' not in self.node_specs[nid]]
-        plottable_links = [link for lid in self.links for link in self.links[lid] if (link[0] in plottable_nodes and link[1] in plottable_nodes)]
+        plottable_nodes = [nid for nid in settings.node_specs.keys() if 'tag_no_plot' not in settings.node_specs[nid]]
+        plottable_links = [link for lid in settings.links for link in settings.links[lid] if (link[0] in plottable_nodes and link[1] in plottable_nodes)]
         G.add_nodes_from(plottable_nodes)
         G.add_edges_from(plottable_links)
     
@@ -251,15 +255,15 @@ class Plotter():
         num_nodes = len(plottable_nodes)
         k = 0
         for node in plottable_nodes:
-            try: pos[node] = (self.node_specs[node]['coords'][0], self.node_specs[node]['coords'][1])
+            try: pos[node] = (settings.node_specs[node]['coords'][0], settings.node_specs[node]['coords'][1])
             except: pos[node] = (np.sin(2.0*np.pi*k/num_nodes), np.cos(2.0*np.pi*k/num_nodes))
             k += 1
         
         # Generate edge label dictionary with tags from spreadsheet.
         el = {}
-        for par_name in self.linkpar_specs.keys():
-            for link in self.links[self.linkpar_specs[par_name]['tag']]:
-                el[link] = self.linkpar_specs[par_name]['tag']
+        for par_name in settings.linkpar_specs.keys():
+            for link in settings.links[settings.linkpar_specs[par_name]['tag']]:
+                el[link] = settings.linkpar_specs[par_name]['tag']
     
         nx.draw_networkx_nodes(G, pos, node_size = 1250, node_color = 'w')
         ax.axis('tight')
