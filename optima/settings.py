@@ -54,6 +54,8 @@ class Settings(object):
         self.databook['sheet_names']['charac'] = 'Epidemic Characteristics'
         self.databook['sheet_names']['linkpars'] = 'Cascade Parameters'
         self.databook['custom_sheet_names'] = odict()
+        self.make_sheet_charac = True       # Tag for whether the default characteristics worksheet should be generated during databook creation.
+        self.make_sheet_linkpars = True     # Tag for whether the default cascade parameters worksheet should be generated during databook creation.
     
     def loadCascadeSettings(self, cascade_path):
         ''' Resets, then generates node and link settings based on cascade spreadsheet. '''
@@ -69,7 +71,7 @@ class Settings(object):
         try: ws_sheetnames = workbook.sheet_by_name('Databook Sheet Names')
         except: ws_sheetnames = None
         
-        # First sheet: Compartments
+        #%% First sheet: Compartments
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
         cid_label = None
         cid_name = None
@@ -120,7 +122,7 @@ class Settings(object):
                         self.node_specs[node_label]['junction'] = val
                         self.junction_labels.append(node_label)
                         
-        # Second sheet: Databook Sheet Names
+        #%% Second sheet: Databook Sheet Names
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
         if ws_sheetnames:
             cid_label = None
@@ -137,7 +139,7 @@ class Settings(object):
                         raise OptimaException('ERROR: Custom sheet label "%s" is already used as a standard label when generating project databooks.' % sheet_label)
                     self.databook['custom_sheet_names'][sheet_label] = sheet_name
                     
-        # Third sheet: Cascade Characteristics
+        #%% Third sheet: Cascade Characteristics
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
         cid_label = None
         cid_name = None
@@ -169,6 +171,7 @@ class Settings(object):
         
         # Actually append characteristic labels and full names to relevant odicts and lists. Labels are crucial.
         entry_dict = {}
+        standard_sheet_count = ws_charac.nrows - 1      # All characteristics are printed to the standard databook sheet to begin with.
         for row_id in xrange(ws_charac.nrows):
             if row_id > 0 and ws_charac.cell_value(row_id, cid_label) not in ['']:
                 charac_label = str(ws_charac.cell_value(row_id, cid_label))
@@ -187,6 +190,7 @@ class Settings(object):
                         if not val in self.databook['custom_sheet_names'].keys():
                             raise OptimaException('ERROR: Project databook sheet-label "%s" for characteristic "%s" has not been previously defined.' % (val, charac_label))
                         self.charac_specs[charac_label]['sheet_label'] = val
+                        standard_sheet_count -= 1
                 
                 # Work out which compartments/characteristics this characteristic is a sum of.
                 for col_id_inc in xrange(cid_include_end - cid_include_start + 1):
@@ -217,12 +221,14 @@ class Settings(object):
                         self.charac_specs[charac_label]['plot_percentage'] = val
                 
                 # Store order that characteristics should be printed in project databook.
-                # Always has a default high value (i.e. low priority), even if column does not exist.
+                # Defaults to high value (i.e. low priority), even if column does not exist.
                 self.charac_specs[charac_label]['databook_order'] = ws_charac.nrows + 1   # Any value missing from a databook order column means their printouts are lowest priority.
                 if not cid_order is None:
                     val = ws_charac.cell_value(row_id, cid_order)
                     if val not in ['']:
                         self.charac_specs[charac_label]['databook_order'] = int(val)
+                        if int(val) < 0:
+                            standard_sheet_count -= 1   # Unprinted characteristics do not end up on the standard sheet.
                         
                 # Store characteristic default value if available.
                 if not cid_default is None:
@@ -251,6 +257,10 @@ class Settings(object):
                         try: ref_list.remove(val)
                         except: raise OptimaException('ERROR: Entry point "%s" for characteristic "%s" must be a compartment it includes, either directly or via characteristic reference.' % (val, charac_label))
                         entry_dict[val] = dcp(list(ref_list))
+        
+        # If all characteristics in this sheet are to be printed to custom databook sheets, no need for a default.
+        if standard_sheet_count <= 0:
+            self.make_sheet_charac = False
                             
         # Ensuring that no two characteristics with entry-points include each other's entry-points (or more complex referencing cycles).
         # This allows for disaggregated characteristic values to be partitioned from aggregate characteristics during model-seeding.
@@ -260,7 +270,7 @@ class Settings(object):
             except OptimaException:
                 raise OptimaException('Characteristic "%s" references an entry point for another characteristic that, via some chain, eventually references the entry point of characteristic "%s". Alternatively, maximum recursion depth is set too small.' % (entry_label, entry_label))
         
-        # Fourth sheet: Transitions
+        #%% Fourth sheet: Transitions
         # Quality-assurance test for the spreadsheet format.
         test = []
         for row_id in xrange(ws_links.nrows):
@@ -295,7 +305,7 @@ class Settings(object):
                             self.links[val] = []
                         self.links[val].append((n1, n2))
             
-        # Fifth sheet: Transition Parameters
+        #%% Fifth sheet: Transition Parameters
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
         cid_tag = None
         cid_label = None
@@ -314,6 +324,7 @@ class Settings(object):
             raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
         
         # Store transition details in settings and make sure there is tag bijectivity between this sheet and the transition matrix.
+        standard_sheet_count = ws_pars.nrows - 1      # All parameters are printed to the standard databook sheet to begin with.
         for row_id in xrange(ws_pars.nrows):
             tag = str(ws_pars.cell_value(row_id, cid_tag))
             label = str(ws_pars.cell_value(row_id, cid_label))
@@ -331,19 +342,26 @@ class Settings(object):
                         if not val in self.databook['custom_sheet_names'].keys():
                             raise OptimaException('ERROR: Project databook sheet-label "%s" for parameter "%s" has not been previously defined.' % (val, label))
                         self.linkpar_specs[label]['sheet_label'] = val
+                        standard_sheet_count -= 1
                 
                 # Store order that cascade parameters should be printed in project databook.
                 self.linkpar_specs[label]['databook_order'] = ws_pars.nrows+1   # Any value missing from a databook order column means their printouts are lowest priority.
                 if not cid_order is None:
                     val = ws_pars.cell_value(row_id, cid_order)
                     if val not in ['']:
-                        self.linkpar_specs[label]['databook_order'] = int(val)                
+                        self.linkpar_specs[label]['databook_order'] = int(val)
+                        if int(val) < 0:    
+                            standard_sheet_count -= 1   # Unprinted parameters do not end up on the standard sheet.
                 
                 # Store parameter default value if available.
                 if not cid_default is None:
                     val = str(ws_pars.cell_value(row_id, cid_default))
                     if val not in ['']:
                         self.linkpar_specs[label]['default'] = float(val)
+        
+        # If all parameters in this sheet are to be printed to custom databook sheets, no need for a default.
+        if standard_sheet_count <= 0:
+            self.make_sheet_linkpars = False
                     
         for tag in self.links.keys():
             if tag not in [x['tag'] for x in self.linkpar_specs[:]]:

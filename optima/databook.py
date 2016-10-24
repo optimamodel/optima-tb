@@ -114,14 +114,23 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_pops = workbook.add_worksheet(settings.databook['sheet_names']['pops'])
     ws_transmat = workbook.add_worksheet(settings.databook['sheet_names']['transmat'])
     ws_transval = workbook.add_worksheet(settings.databook['sheet_names']['transval'])
-    ws_charac = workbook.add_worksheet(settings.databook['sheet_names']['charac'])
-    ws_linkpars = workbook.add_worksheet(settings.databook['sheet_names']['linkpars'])
+    
+    # Regarding cascade parameters and characteristics, store sheets and corresponding row ids for further writing.
+    ws_params = odict()
+    for custom_label in settings.databook['custom_sheet_names']:
+        ws_params[custom_label] = {'row_id':0, 'ws':workbook.add_worksheet(settings.databook['custom_sheet_names'][custom_label])}
+    
+    # Only produce standard sheets if there are any parameters left over that are not allocated to custom sheets.
+    if settings.make_sheet_charac:
+        ws_params['charac'] = {'row_id':0, 'ws':workbook.add_worksheet(settings.databook['sheet_names']['charac'])}
+    if settings.make_sheet_linkpars:
+        ws_params['linkpars'] = {'row_id':0, 'ws':workbook.add_worksheet(settings.databook['sheet_names']['linkpars'])}
     
     data_tvec = np.arange(settings.tvec_start, settings.tvec_end + 1.0/2)
     ws_pops_width = 15
     ws_transmat_width = 15
     ws_transval_width = 15
-    ws_charac_width = 40
+    name_width = 40
     assumption_width = 10
     
     # Population names sheet.
@@ -195,45 +204,89 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_transval.set_column(2, 2, ws_transval_width)
     ws_transval.set_column(3, 4, assumption_width)
     
-    # Epidemic characteristics and cascade parameters sheet.
-    ws_list = [ws_charac, ws_linkpars]
-    specs_list = [settings.charac_specs, settings.linkpar_specs]
-    for k in xrange(2):
-        ws = ws_list[k]
-        specs = specs_list[k]
-    
-        row_id = 0
-        specs_ordered = sorted(dcp(specs.keys()), key=lambda x: specs[x]['databook_order'])
-        for def_label in specs_ordered:
-            if not specs[def_label]['databook_order'] < 0:      # Do not print out characteristic/parameter if databook order is negative.
-                def_name = specs[def_label]['name']
-                default_val = 0.0
-                if 'default' in specs[def_label]:
-                    default_val = specs[def_label]['default']
-                
-                # Make the data-entry blocks.
-                if ws == ws_charac:
-                    if 'plot_percentage' in specs[def_label]:
-                        data_formats = ['Fraction']
-                    else:
-                        data_formats = ['Number']
-                elif ws == ws_linkpars:
-                    data_formats = None
-                    for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
-                        if 'junction' in settings.node_specs[pair[0]].keys():
-                            data_formats = ['Proportion']
-                makeValueEntryArrayBlock(worksheet = ws, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = default_val, data_formats = data_formats)
-                
-                # Make the population references.
-                ws.write(row_id, 0, def_name)
-                for pid in xrange(num_pops):
-                    row_id += 1
-                    ws.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
+    # Combine characteristics and parameters into one dictionary, then print out all elements to appropriate datasheets.
+    all_specs = odict(settings.charac_specs, **settings.linkpar_specs)
+    specs_ordered = sorted(dcp(all_specs.keys()), key=lambda x: all_specs[x]['databook_order'])
+    for def_label in specs_ordered:
+        if not all_specs[def_label]['databook_order'] < 0:      # Do not print out characteristic/parameter if databook order is negative.        
+            ws = ws_params[all_specs[def_label]['sheet_label']]['ws']
+            row_id = ws_params[all_specs[def_label]['sheet_label']]['row_id']            
             
-                row_id += 2
+            def_name = all_specs[def_label]['name']
+            default_val = 0.0
+            if 'default' in all_specs[def_label]:
+                default_val = all_specs[def_label]['default']
             
-        ws.set_column(0, 0, ws_charac_width)
+            # Make the data-entry blocks.
+            if def_label in settings.charac_specs:
+                if 'plot_percentage' in all_specs[def_label]:
+                    data_formats = ['Fraction']
+                else:
+                    data_formats = ['Number']
+            elif def_label in settings.linkpar_specs:
+                data_formats = None
+                for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
+                    if 'junction' in settings.node_specs[pair[0]].keys():
+                        data_formats = ['Proportion']
+            makeValueEntryArrayBlock(worksheet = ws, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = default_val, data_formats = data_formats)
+            
+            # Make the population references.
+            ws.write(row_id, 0, def_name)
+            for pid in xrange(num_pops):
+                row_id += 1
+                ws.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
+        
+            row_id += 2
+            ws_params[all_specs[def_label]['sheet_label']]['row_id'] = row_id
+
+    # Adjust widths for all custom sheets.
+    for ws_label in ws_params:
+        ws = ws_params[ws_label]['ws']
+        ws.set_column(0, 0, name_width)
         ws.set_column(1, 2, assumption_width)
+        
+    
+#    # Epidemic characteristics and cascade parameters sheet.
+#    ws_list = [ws_charac, ws_linkpars]
+#    specs_list = [settings.charac_specs, settings.linkpar_specs]
+#    for k in xrange(2):
+#        ws = ws_list[k]
+#        specs = specs_list[k]
+#    
+#        row_id = 0
+#        specs_ordered = sorted(dcp(specs.keys()), key=lambda x: specs[x]['databook_order'])
+#        for def_label in specs_ordered:
+#            if not specs[def_label]['databook_order'] < 0:      # Do not print out characteristic/parameter if databook order is negative.
+#                def_name = specs[def_label]['name']
+#                default_val = 0.0
+#                if 'default' in specs[def_label]:
+#                    default_val = specs[def_label]['default']
+#                
+#                # Make the data-entry blocks.
+#                if ws == ws_charac:
+#                    if 'plot_percentage' in specs[def_label]:
+#                        data_formats = ['Fraction']
+#                    else:
+#                        data_formats = ['Number']
+#                elif ws == ws_linkpars:
+#                    data_formats = None
+#                    for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
+#                        if 'junction' in settings.node_specs[pair[0]].keys():
+#                            data_formats = ['Proportion']
+#                makeValueEntryArrayBlock(worksheet = ws, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = default_val, data_formats = data_formats)
+#                
+#                # Make the population references.
+#                ws.write(row_id, 0, def_name)
+#                for pid in xrange(num_pops):
+#                    row_id += 1
+#                    ws.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
+#            
+#                row_id += 2
+#            
+#        ws.set_column(0, 0, ws_charac_width)
+#        ws.set_column(1, 2, assumption_width)
+    
+    
     
     workbook.close()
     
