@@ -138,9 +138,9 @@ class Plotter():
         pl.close("all") 
         self.plotPopulation(results, outputs, sim_settings, charac_specs, title)
         # plot data points for which we have information: currently latent infections, active infections, active prevalence
-        #self.plotCompartment(results, outputs, sim_settings, charac_specs, title,outputIDs=['lt_inf','ac_inf','ac_prev'])
+        self.plotCompartment(results, outputs, sim_settings, charac_specs, title,outputIDs=['lt_inf','ac_inf','ac_prev'])
         
-    def plotPopulation(self,results,outputs,sim_settings,charac_specs,title='',plotObservedData=True):
+    def plotPopulation(self,results,outputs,sim_settings,charac_specs,title='',plotObservedData=True,saveFig=False):
         """ 
         
         Plot all compartments for a population
@@ -156,7 +156,7 @@ class Plotter():
             for comp in pop.comps:
                 top = bottom + comp.popsize
                 
-                ax.fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[k], alpha=1,lw=0.1) # for some reason, lw=0 leads to no plot
+                ax.fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[k], alpha=1,lw=0) # for some reason, lw=0 leads to no plot
                 ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
                 bottom = dcp(top)
                 k += 1
@@ -165,7 +165,7 @@ class Plotter():
                 # TODO confirm that alive will always be tag. It probably won't be, so better to have this named in the settings? userdefined?
                 ys = self.data['characs']['alive'][pop.label]['y']
                 ts = self.data['characs']['alive'][pop.label]['t']
-                ax.scatter(ts,ys,marker='o',edgecolors='k',facecolors='none',s=40,zorder=10)
+                ax.scatter(ts,ys,marker='o',edgecolors='k',facecolors='none',s=40,zorder=10,linewidth=3)
             
             box = ax.get_position()
             ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
@@ -179,11 +179,12 @@ class Plotter():
             cascade_names = [comp.label for comp in pop.comps]
             ax.legend(cascade_names, **legendsettings)
             self.turnOffBorder()
-            fig.savefig('%sCascade-%s.png' % (title, pop.label.title()))
+            if saveFig:
+                fig.savefig('%sCascade-%s.png' % (title, pop.label.title()))
             
             
     
-    def plotCompartment(self,results,outputs,sim_settings,charac_specs,title='',outputIDs=None,plotObservedData=True):
+    def plotCompartment(self,results,outputs,sim_settings,charac_specs,title='',outputIDs=None,plotObservedData=True,saveFig=False):
         """
         Plot a compartment across all populations
         
@@ -221,7 +222,7 @@ class Plotter():
                     if 'plot_percentage' in charac_specs[output_id].keys():
                         ys *= 100
                     ts = self.data['characs'][output_id][pop.label]['t']
-                    ax.scatter(ts,ys,marker='o',edgecolors=colors[k],facecolors='none',s=40)
+                    ax.scatter(ts,ys,marker='o',edgecolors=colors[k],facecolors='none',s=40,zorder=10,linewidth=3)
                     
     
             box = ax.get_position()
@@ -233,7 +234,8 @@ class Plotter():
             ax.set_ylabel(charac_specs[output_id]['name'] + unit_tag)
             ax.legend([pop.label for pop in results], **legendsettings)
             self.turnOffBorder()
-            fig.savefig('%sOutputs-%s.png' % (title, charac_specs[output_id]['name']))
+            if saveFig:
+                fig.savefig('%sOutputs-%s.png' % (title, charac_specs[output_id]['name']))
             
             
     def plotCascade(self):
