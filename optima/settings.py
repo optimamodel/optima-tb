@@ -29,15 +29,6 @@ class Settings(object):
         
         self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here for now to be explicit. 
         self.loadCascadeSettings(cascade_path)
-        
-        # Project-data workbook metadata. Constant regardless of cascade structure.
-        self.databook = odict()
-        self.databook['sheet_names'] = odict()
-        self.databook['sheet_names']['pops'] = 'Population Definitions'
-        self.databook['sheet_names']['transmat'] = 'Transfer Definitions'
-        self.databook['sheet_names']['transval'] = 'Transfer Details'
-        self.databook['sheet_names']['charac'] = 'Epidemic Characteristics'
-        self.databook['sheet_names']['linkpars'] = 'Cascade Parameters'
     
     def startFresh(self):
         ''' Resets all cascade contents and settings that are fundamental to how a project is structured. '''
@@ -53,6 +44,16 @@ class Settings(object):
         self.links = odict()                    # Key is a tag. Value is a list of compartment-label tuple.
         self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.
         self.linkpar_name_labels = odict()      # Key is a link-parameter name. Value is a link-parameter label. (A partial reversed linkpar-specs.)
+        
+        # Project-data workbook metadata.
+        self.databook = odict()
+        self.databook['sheet_names'] = odict()
+        self.databook['sheet_names']['pops'] = 'Population Definitions'
+        self.databook['sheet_names']['transmat'] = 'Transfer Definitions'
+        self.databook['sheet_names']['transval'] = 'Transfer Details'
+        self.databook['sheet_names']['charac'] = 'Epidemic Characteristics'
+        self.databook['sheet_names']['linkpars'] = 'Cascade Parameters'
+        self.databook['custom_sheet_names'] = odict()
     
     def loadCascadeSettings(self, cascade_path):
         ''' Resets, then generates node and link settings based on cascade spreadsheet. '''
@@ -119,10 +120,28 @@ class Settings(object):
                         self.node_specs[node_label]['junction'] = val
                         self.junction_labels.append(node_label)
                         
-        # Second sheet: Cascade Characteristics
+        # Second sheet: Databook Sheet Names
+        # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
+        if ws_sheetnames:
+            cid_label = None
+            cid_name = None
+            for col_id in xrange(ws_sheetnames.ncols):
+                if ws_sheetnames.cell_value(0, col_id) == 'Sheet Label': cid_label = col_id
+                if ws_sheetnames.cell_value(0, col_id) == 'Sheet Name': cid_name = col_id
+                    
+            for row_id in xrange(ws_sheetnames.nrows):
+                if row_id > 0 and ws_sheetnames.cell_value(row_id, cid_label) not in ['']:
+                    sheet_label = str(ws_sheetnames.cell_value(row_id, cid_label))
+                    sheet_name = str(ws_sheetnames.cell_value(row_id, cid_name))
+                    if sheet_label in self.databook['sheet_names'].keys():
+                        raise OptimaException('ERROR: Custom sheet label "%s" is already used as a standard label when generating project databooks.' % sheet_label)
+                    self.databook['custom_sheet_names'][sheet_label] = sheet_name
+                    
+        # Third sheet: Cascade Characteristics
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
         cid_label = None
         cid_name = None
+        cid_sheet = None
         cid_percentage = None
         cid_denom = None
         cid_order = None
@@ -133,6 +152,7 @@ class Settings(object):
         for col_id in xrange(ws_charac.ncols):
             if ws_charac.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_charac.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+            if ws_charac.cell_value(0, col_id) == 'Sheet Label': cid_sheet = col_id
             if ws_charac.cell_value(0, col_id) == 'Plot Percentage': cid_percentage = col_id
             if ws_charac.cell_value(0, col_id) == 'Denominator': cid_denom = col_id
             if ws_charac.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
@@ -141,7 +161,7 @@ class Settings(object):
             if ws_charac.cell_value(0, col_id) == 'Includes': cid_include_start = col_id
         
         # Work out where the 'include' columns end when defining cascade characteristics.
-        cid_list = np.array(sorted([cid_label, cid_name, cid_percentage, cid_denom, cid_order, cid_default, cid_entry, ws_charac.ncols]))
+        cid_list = np.array(sorted([cid_label, cid_name, cid_sheet, cid_percentage, cid_denom, cid_order, cid_default, cid_entry, ws_charac.ncols]))
         cid_include_end = cid_list[sum(cid_include_start > cid_list)] - 1
         
         if None in [cid_label, cid_name, cid_include_start, cid_include_end]:
@@ -158,6 +178,15 @@ class Settings(object):
                 self.charac_specs[charac_label] = odict()
                 self.charac_specs[charac_label]['name'] = charac_name
                 self.charac_specs[charac_label]['includes'] = []
+                self.charac_specs[charac_label]['sheet_label'] = 'charac'    # Default label of databook sheet to print to.
+                
+                # Attribute a custom sheet label to this characteristic if available.
+                if not cid_sheet is None:
+                    val = str(ws_charac.cell_value(row_id, cid_sheet))
+                    if val not in ['']:
+                        if not val in self.databook['custom_sheet_names'].keys():
+                            raise OptimaException('ERROR: Project databook sheet-label "%s" for characteristic "%s" has not been previously defined.' % (val, charac_label))
+                        self.charac_specs[charac_label]['sheet_label'] = val
                 
                 # Work out which compartments/characteristics this characteristic is a sum of.
                 for col_id_inc in xrange(cid_include_end - cid_include_start + 1):
@@ -231,7 +260,7 @@ class Settings(object):
             except OptimaException:
                 raise OptimaException('Characteristic "%s" references an entry point for another characteristic that, via some chain, eventually references the entry point of characteristic "%s". Alternatively, maximum recursion depth is set too small.' % (entry_label, entry_label))
         
-        # Third sheet: Transitions
+        # Fourth sheet: Transitions
         # Quality-assurance test for the spreadsheet format.
         test = []
         for row_id in xrange(ws_links.nrows):
@@ -266,17 +295,19 @@ class Settings(object):
                             self.links[val] = []
                         self.links[val].append((n1, n2))
             
-        # Fourth sheet: Transition Parameters
+        # Fifth sheet: Transition Parameters
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
         cid_tag = None
         cid_label = None
         cid_name = None
+        cid_sheet = None
         cid_default = None
         cid_order = None
         for col_id in xrange(ws_pars.ncols):
             if ws_pars.cell_value(0, col_id) == 'Tag': cid_tag = col_id
             if ws_pars.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_pars.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+            if ws_pars.cell_value(0, col_id) == 'Sheet Label': cid_sheet = col_id
             if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
             if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
         if None in [cid_tag, cid_label, cid_name]:
@@ -290,8 +321,16 @@ class Settings(object):
             if row_id > 0 and tag not in [''] and label not in ['']:
                 if tag not in self.links:
                     raise OptimaException('ERROR: Cascade transition-parameter worksheet has a tag (%s) that is not in the transition matrix.' % tag)
-                self.linkpar_specs[label] = {'tag':tag, 'name':name}
+                self.linkpar_specs[label] = {'tag':tag, 'name':name, 'sheet_label':'linkpars'}
                 self.linkpar_name_labels[name] = label
+                
+                # Attribute a custom sheet label to this parameter if available.
+                if not cid_sheet is None:
+                    val = str(ws_pars.cell_value(row_id, cid_sheet))
+                    if val not in ['']:
+                        if not val in self.databook['custom_sheet_names'].keys():
+                            raise OptimaException('ERROR: Project databook sheet-label "%s" for parameter "%s" has not been previously defined.' % (val, label))
+                        self.linkpar_specs[label]['sheet_label'] = val
                 
                 # Store order that cascade parameters should be printed in project databook.
                 self.linkpar_specs[label]['databook_order'] = ws_pars.nrows+1   # Any value missing from a databook order column means their printouts are lowest priority.
