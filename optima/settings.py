@@ -362,12 +362,20 @@ class Settings(object):
         # If all parameters in this sheet are to be printed to custom databook sheets, no need for a default.
         if standard_sheet_count <= 0:
             self.make_sheet_linkpars = False
-                    
+        
+        # Final validations.            
         for tag in self.links.keys():
             if tag not in [x['tag'] for x in self.linkpar_specs[:]]:
                 raise OptimaException('ERROR: Transition matrix tag "%s" is not represented in transition-parameter worksheet.' % tag)
-        if len(self.linkpar_specs.keys()) != len(set(self.linkpar_specs.keys())):
-            raise OptimaException('ERROR: Cascade transition-parameter worksheet appears to have duplicate parameter code labels.')
+        
+        test_labels = self.linkpar_specs.keys() + self.charac_specs.keys()       
+        if len(test_labels) != len(set(test_labels)):
+            raise OptimaException('ERROR: Cascade workbook appears to have duplicate characteristic/parameter code labels.')
+        
+        test_names = self.linkpar_name_labels.keys() + self.charac_name_labels.keys()
+        if len(test_names) != len(set(test_names)):
+            raise OptimaException('ERROR: Cascade workbook appears to have duplicate characteristic/parameter full names.')
+            
     
     def plotCascade(self):
         fig, ax = pl.subplots(figsize=(10,10))
