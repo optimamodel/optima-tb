@@ -1,7 +1,13 @@
 from utils import odict, printv, OptimaException
 
-from numpy import nan, isnan, array, logical_or, nonzero, shape 
+import xlrd
 from xlrd import open_workbook, XLRDError 
+import xlsxwriter as xw
+import numpy as np
+from xlsxwriter.utility import xl_rowcol_to_cell as rc
+from numpy import nan, isnan, array, logical_or, nonzero, shape 
+import itertools
+
 
 
 """
@@ -27,6 +33,9 @@ TODO:
 
 """
 
+#%% Constants used across spreadsheet functions
+
+DEFAULT_PATH = './country-data.xlsx'    # Default path if not called via a project method.
 
 DATA_COL_TBSTRAINS      = 2 # Column index for location of TB strains
 ASSUMPTION_COL_OFFSET   = 2 # after the number of years, where is the assumption column
@@ -34,6 +43,14 @@ BHL_INDICES             = {'best':0, 'low':1, 'high':2} # Define best-low-high i
 # Sheets have one of two structures: either listing only one value in the entire sheet, or many values
 UNIVALUE_SHEETS         = ['Population size','TB prevalence','TB incidence','Total cases','Incident cases']
 MULTIVALUE_SHEETS       = ['Cost and coverage','Other epidemiology']#,'Comorbidity','Cost and coverage','Testing and treatment','Constants',]
+
+WB_COLORS = {'blue'         : '#00CCFF',
+             'light_blue'   : '#B7EBFF',
+             'grey'         : '#8C8C8C',
+             'light_grey'   : '#B3B3B3',
+             'green'        : '#69AD45',
+             'white'        : '#ffffff'}
+
 
 
 def forcebool(entry, location=''):
@@ -350,16 +367,186 @@ def read_multivalue_sheet(sheetdata,parameters,n_years,isParameterized=True):
                   
     return data
     
+def _createPopulations(ws,ws_name,num_populations,formats):
+
+    #create label
+    ws.write('A1', 'Populations: please enter population names and age ranges, if known')
+    #create headers
+    for i,header in enumerate(['Name','Minimum Age','Maximum Age']):
+        ws.write(1,i+1,header,formats['header_format'])
+    #create columns
+    for n in range(num_populations):
+        ws.write('A%s'%(n+3),'%s'%(n+1),formats['right_format'])
+    # format and prettify
+    ws.set_column(0, 0, 5)
+    ws.set_column(1, 3, 15)
+    __formatBlock(ws, 2, 2+num_populations, 1, 4, formats['lblue_bground'])
+    ws.set_row(0,None,formats['main_label'])
     
-def export_spreadsheet(filename="simple.xlsx",verbose=2):
+    poplabels = ['%s!$B$%g'%(ws_name,i+3) for i in range(num_populations)]
+    return poplabels
+
+
+def _writeYearHeader(ws,row,col_offset,start_year,end_year,formats):
+    for i,year in enumerate(range(int(start_year),int(end_year)+1)):
+        ws.write(row,col_offset+i,year,formats['year_header'])
+
+def _writeSinglePopulationBlock(ws,row_index_start,col_index_start,col_index_end,pop_labels,formats,disagg=False):
+    for i,pop_label in enumerate(pop_labels):
+        if not disagg:
+            ws.write(row_index_start+i,0,"=%s"%pop_label,formats['right_format'])
+        else:
+            ws.write(row_index_start+i,0,"=%s"%pop_label[0],formats['right_format'])
+            for (j,v) in enumerate(pop_label[1:]):
+                ws.write(row_index_start+i,j+1,"%s"%v,formats['right_format'])
+        ws.write(row_index_start+i,col_index_end,'OR',formats['center_format'])
+    
+    __formatBlock(ws, row_index_start, row_index_start+len(pop_labels), col_index_start, col_index_end, formats['blue_bground'])
+    __formatBlock(ws, row_index_start, row_index_start+len(pop_labels), col_index_end+1, col_index_end+2, formats['blue_bground'])
+    if disagg:
+        pass 
+        # TODO: if contains a 'Total' --> bground grey
+        # TODO: cells for disagg headers should have light blue / light grey bground
+
+
+def _createUnivalueSheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
     """
-    
-    
+    # flags
+        self.countrybook['sheet_classes']['disagg_smear'] = ['total_cases','incident_cases','other_epidemiology','comorbidity'] 
+        self.countrybook['sheet_classes']['disagg_strain'] = ['total_cases','incident_cases','other_epidemiology','comorbidity'] 
+        # other values
+        self.countrybook['strains'] = ['DS-TB','MDR-TB','XDR-TB']
+        self.countrybook['smears'] = ['Smear-','Smear+'] # also potentially 'Extrapulmonary'
     """
-    # TODO implement
+    row_index_start = 2    
+    col_index_start = 1
+    disagg_chars = []
+    if ws_name in cb_settings['sheet_classes']['disagg_smear']:
+        col_index_start += 1
+        disagg_chars.append(['Total']+cb_settings['smears'])
+    if ws_name in cb_settings['sheet_classes']['disagg_strain']:
+        col_index_start += 1
+        disagg_chars.append(['Total']+cb_settings['strains'])
+    col_index_end = col_index_start + int(end_year-start_year) + 1
+    #determine disaggregations, and make it so that output is consistent format for later use
+    if len(disagg_chars)==2:
+        tmp_list = [list(a) for a in itertools.product(disagg_chars[0], disagg_chars[1])] 
+        disagg_chars = tmp_list
+    elif len(disagg_chars)==1:
+        tmp_list = [[dc] for dc in disagg_chars[0]]
+        disagg_chars = tmp_list
+        
+    print disagg_chars
+    #create label
+    ws.write('A1', cb_settings['labels'][ws_name])
+    #create row headers
+    _writeYearHeader(ws, row=1, col_offset=col_index_start, start_year=start_year, end_year=end_year,formats=formats)
+    ws.write(1,col_index_end+1,'Assumption',formats['year_header'])
+    #col headers
+    if len(disagg_chars)==0:
+        _writeSinglePopulationBlock(ws,row_index_start,col_index_start,col_index_end,pop_labels,formats)
+    else:
+        tmp_row_index = row_index_start
+        for pop in pop_labels:
+            newpopvalues = [ [pop] + dc for dc in disagg_chars]
+            _writeSinglePopulationBlock(ws, tmp_row_index, col_index_start,col_index_end, newpopvalues, formats,disagg=True)
+            tmp_row_index += len(disagg_chars) + 1 # space between populations
+    
+    # format and prettify
+    ws.set_row(0,None,formats['main_label'])
+    ws.set_column(0, 0, 15)
+    ws.set_column(col_index_start,col_index_end, 10)
+    ws.set_column(col_index_end+1, col_index_end+1, 15)
+    ws.set_column(col_index_end, col_index_end, 5)
+    
+
+def _createOtherEpidemiology(ws,cb_settings):
     pass
 
+def _createComorbidity(ws,cb_settings):
+    pass
 
-# Debugging and testing:
-#data = load_spreadsheet('Belarus data entry sheet v4a.xlsx')
-#print(data)
+def _createTestingAndTreatment(ws,cb_settings):
+    pass
+
+def _createPrograms(ws,cb_settings):
+    pass
+
+def _createCostAndCoverage(ws,cb_settings):
+    pass
+
+def _createUnitCosts(ws,cb_settings):
+    pass
+
+def _createTransitions(ws,cb_settings):
+    pass
+
+def __formatBlock(ws,from_row,to_row,from_col,to_col,format):
+    for i in range(from_row,to_row):
+        for j in range(from_col,to_col):
+            ws.write(i,j,None,format)
+            
+            
+def createFormats(workbook):
+    formats = odict()
+    formats['header_format'] = workbook.add_format({'bold': True,
+                                                     'align': 'center',
+                                                     'valign': 'vcenter'})
+    
+    formats['right_format'] = workbook.add_format({'align': 'right',
+                                                   'bold': True,
+                                                   'valign': 'vcenter'})
+    formats['center_format'] = workbook.add_format({'align': 'center',
+                                                   'bold': True,
+                                                   'bg_color': WB_COLORS['light_blue'],
+                                                   'border': 1,
+                                                   'border_color': WB_COLORS['white'],
+                                                   'valign': 'vcenter'})
+    
+    formats['lblue_bground'] = workbook.add_format({'align': 'center',
+                                        'valign': 'vcenter',
+                                        'bg_color': WB_COLORS['light_blue'],
+                                        'border': 1,
+                                        'border_color': WB_COLORS['white']
+                                        })
+    formats['blue_bground'] = workbook.add_format({'align': 'center',
+                                        'valign': 'vcenter',
+                                        'bg_color': WB_COLORS['blue'],
+                                        'border': 1,
+                                        'border_color': WB_COLORS['white']
+                                        })
+    formats['main_label'] = workbook.add_format({'align': 'left',
+                                                 'bg_color': WB_COLORS['grey'],
+                                                 'font_size': 14,
+                                                 'bold': True})
+    formats['year_header'] = workbook.add_format({'align': 'center',
+                                                 'bg_color': WB_COLORS['green'],
+                                                 'bold': True})
+    
+    return workbook, formats
+        
+def export_spreadsheet(settings,filename=DEFAULT_PATH,num_pops=4,verbose=2):
+    """
+    
+    
+    """
+    workbook = xw.Workbook(DEFAULT_PATH)
+    
+    workbook,formats = createFormats(workbook)
+    
+    for name in settings.countrybook['sheet_names']:
+        
+        ws = workbook.add_worksheet(name)
+        if name == 'populations':
+            poplabels = _createPopulations(ws, name, num_pops, formats)
+        elif name in settings.countrybook['sheet_classes']['univalue']:
+            _createUnivalueSheet(ws, name, settings.countrybook, formats, settings.tvec_start,settings.tvec_end,poplabels)
+        else:
+            # dynamically label
+            # TODO implement
+            pass
+        
+        
+    
+
+

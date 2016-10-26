@@ -36,6 +36,36 @@ class Settings(object):
         self.databook['sheet_names']['transval'] = 'Transfer Details'
         self.databook['sheet_names']['charac'] = 'Epidemic Characteristics'
         self.databook['sheet_names']['linkpars'] = 'Cascade Parameters'
+        
+        
+        self.countrybook = odict()
+        self.countrybook['sheet_names'] = odict()
+        self.countrybook['sheet_names']['populations'] = 'Population Definitions'
+        self.countrybook['sheet_names']['population_sizes'] = 'Population size'
+        self.countrybook['sheet_names']['total_cases'] = 'Total cases'
+        self.countrybook['sheet_names']['incident_cases'] = 'Incident cases'
+        self.countrybook['sheet_names']['other_epidemiology'] = 'Other epidemiology'
+        self.countrybook['sheet_names']['comorbidity'] = 'Comorbidity'
+        self.countrybook['sheet_names']['testing_treatment'] = 'Testing and Treatment'
+        self.countrybook['sheet_names']['programs'] = 'Programs'
+        self.countrybook['sheet_names']['cost_coverage'] = 'Cost and coverage'
+        self.countrybook['sheet_names']['unitcost'] = 'Unit costs'
+        self.countrybook['sheet_names']['poptransitions'] = 'Population transitions'
+        
+        self.countrybook['sheet_classes'] = odict()
+        self.countrybook['sheet_classes']['univalue'] = ['population_sizes','total_cases','incident_cases']
+        # flags
+        self.countrybook['sheet_classes']['disagg_smear'] = ['incident_cases','other_epidemiology','comorbidity'] #'total_cases',
+        self.countrybook['sheet_classes']['disagg_strain'] = ['total_cases','incident_cases','other_epidemiology','comorbidity'] 
+        # other values
+        self.countrybook['strains'] = ['DS-TB','MDR-TB','XDR-TB']
+        self.countrybook['smears'] = ['Smear-','Smear+'] # also potentially 'Extrapulmonary'
+        # labels
+        self.countrybook['labels'] = {'populations': '',
+                                      'population_sizes':'Population size: please enter population values for each year',
+                                      'total_cases'     : 'TB total cases: please enter number of TB cases per year for each population and strain',
+                                      'incident_cases'  : 'TB Incident cases: please enter number of new cases per year for each population group and TB strain'}
+        
     
     def startFresh(self):
         ''' Resets all cascade contents and settings that are fundamental to how a project is structured. '''
