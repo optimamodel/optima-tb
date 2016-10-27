@@ -46,10 +46,78 @@ MULTIVALUE_SHEETS       = ['Cost and coverage','Other epidemiology']#,'Comorbidi
 
 WB_COLORS = {'blue'         : '#00CCFF',
              'light_blue'   : '#B7EBFF',
-             'grey'         : '#8C8C8C',
-             'light_grey'   : '#B3B3B3',
+             'grey'         : '#BFBFBF',
+             'light_grey'   : '#D9D9D9',
              'green'        : '#69AD45',
              'white'        : '#ffffff'}
+
+WB_FORMATS = {  'header_format': {  'bold': True,
+                                    'align': 'center',
+                                    'valign': 'vcenter'},
+                'right_format' : {'align': 'right',
+                                  'bold': True,
+                                  'valign': 'vcenter'},
+                'center_format': {'align': 'center',
+                                                   'bold': True,
+                                                   'bg_color': WB_COLORS['light_blue'],
+                                                   'border': 1,
+                                                   'border_color': WB_COLORS['white'],
+                                                   'valign': 'vcenter'},
+                'lgrey_center_format': {'align': 'center',
+                                                   'bold': True,
+                                                   'bg_color': WB_COLORS['light_grey'],
+                                                   'border': 1,
+                                                   'border_color': WB_COLORS['white'],
+                                                   'valign': 'vcenter'},
+                'lblue_bground': {'align': 'center',
+                                        'valign': 'vcenter',
+                                        'bg_color': WB_COLORS['light_blue'],
+                                        'border': 1,
+                                        'border_color': WB_COLORS['white']
+                                        },
+                'lblue_bground_right': {'align': 'right',
+                                        'valign': 'vcenter',
+                                        'bg_color': WB_COLORS['light_blue'],
+                                        'border': 1,
+                                        'border_color': WB_COLORS['white']
+                                        },
+                'lgrey_bground_right': {'align': 'right',
+                                        'valign': 'vcenter',
+                                        'bg_color': WB_COLORS['light_grey'],
+                                        'border': 1,
+                                        'border_color': WB_COLORS['white']
+                                        },
+                'blue_bground': {'align': 'center',
+                                        'valign': 'vcenter',
+                                        'bg_color': WB_COLORS['blue'],
+                                        'border': 1,
+                                        'border_color': WB_COLORS['white']
+                                        },
+                'grey_bground': {'align': 'center',
+                                        'valign': 'vcenter',
+                                        'bg_color': WB_COLORS['grey'],
+                                        'border': 1,
+                                        'border_color': WB_COLORS['white']
+                                        },
+                'lgrey_bground': {'align': 'center',
+                                        'valign': 'vcenter',
+                                        'bg_color': WB_COLORS['light_grey'],
+                                        'border': 1,
+                                        'border_color': WB_COLORS['white']
+                                        },
+                'main_label': {'align': 'left',
+                                                 'bg_color': WB_COLORS['grey'],
+                                                 'font_size': 14,
+                                                 'bold': True},
+                'lgrey_label': {'align': 'left',
+                                                 'bg_color': WB_COLORS['light_grey'],
+                                                 'font_size': 12,
+                                                 'bold': True},
+                'year_header': {'align': 'center',
+                                                 'bg_color': WB_COLORS['green'],
+                                                 'bold': True}
+              }
+    
 
 
 
@@ -369,8 +437,6 @@ def read_multivalue_sheet(sheetdata,parameters,n_years,isParameterized=True):
     
 def _createPopulations(ws,ws_name,num_populations,formats):
 
-    #create label
-    ws.write('A1', 'Populations: please enter population names and age ranges, if known')
     #create headers
     for i,header in enumerate(['Name','Minimum Age','Maximum Age']):
         ws.write(1,i+1,header,formats['header_format'])
@@ -381,7 +447,6 @@ def _createPopulations(ws,ws_name,num_populations,formats):
     ws.set_column(0, 0, 5)
     ws.set_column(1, 3, 15)
     __formatBlock(ws, 2, 2+num_populations, 1, 4, formats['lblue_bground'])
-    ws.set_row(0,None,formats['main_label'])
     
     poplabels = ['%s!$B$%g'%(ws_name,i+3) for i in range(num_populations)]
     return poplabels
@@ -391,94 +456,148 @@ def _writeYearHeader(ws,row,col_offset,start_year,end_year,formats):
     for i,year in enumerate(range(int(start_year),int(end_year)+1)):
         ws.write(row,col_offset+i,year,formats['year_header'])
 
-def _writeSinglePopulationBlock(ws,row_index_start,col_index_start,col_index_end,pop_labels,formats,disagg=False):
+def _writeSinglePopulationBlock(ws,row_index_start,col_index_start,col_index_end,pop_labels,formats,col_header_start=None,disagg=False,pop_label_index=0):
+    """
+    
+    Params:
+        ws                 worksheet
+        row_index_start    row index of where block of data will be
+        col_index_start    col index of where block of data will be
+        col_index_end      ending col index of where block of data will be
+        pop_labels         labels for row headers (
+        formats
+        col_header_start
+        disagg
+        pop_label_index
+        
+    
+    """
+    print "pop_label_index = ",pop_label_index
+    
+    
+    index_total = []
+    if col_header_start is None: col_header_start = col_index_start - 1
+    final_row = 0
+    
     for i,pop_label in enumerate(pop_labels):
         if not disagg:
-            ws.write(row_index_start+i,0,"=%s"%pop_label,formats['right_format'])
+            ws.write(row_index_start+i,col_header_start,"=%s"%pop_label,formats['right_format'])
         else:
-            ws.write(row_index_start+i,0,"=%s"%pop_label[0],formats['right_format'])
-            for (j,v) in enumerate(pop_label[1:]):
-                ws.write(row_index_start+i,j+1,"%s"%v,formats['right_format'])
+            if '' in pop_label:
+                continue
+            print "ADDING ", pop_label
+            
+            
+            for (j,v) in enumerate(pop_label):
+                cell_value = '%s'%v
+                if j == pop_label_index:
+                    cell_value = '='+cell_value
+                    
+                if v=='Total':
+                    index_total.append(i)
+                    ws.write(row_index_start+i,j+col_header_start,cell_value,formats['lgrey_bground_right'])
+                else:
+                    ws.write(row_index_start+i,j+col_header_start,cell_value,formats['lblue_bground_right'])
+                
         ws.write(row_index_start+i,col_index_end,'OR',formats['center_format'])
+        __formatBlock(ws, row_index_start+i, row_index_start+i+1, col_index_start, col_index_end, formats['blue_bground'])
+        __formatBlock(ws, row_index_start+i, row_index_start+i+1, col_index_end+1, col_index_end+2, formats['blue_bground'])
+        final_row = i
     
-    __formatBlock(ws, row_index_start, row_index_start+len(pop_labels), col_index_start, col_index_end, formats['blue_bground'])
-    __formatBlock(ws, row_index_start, row_index_start+len(pop_labels), col_index_end+1, col_index_end+2, formats['blue_bground'])
-    if disagg:
-        pass 
-        # TODO: if contains a 'Total' --> bground grey
-        # TODO: cells for disagg headers should have light blue / light grey bground
+    print "indext total = ",index_total
+    print col_header_start, col_index_start 
+    for j in index_total:
+        __formatBlock(ws, row_index_start+j, row_index_start+j+1, col_index_start, col_index_end, formats['grey_bground']) # main block
+        __formatBlock(ws, row_index_start+j, row_index_start+j+1, col_index_end+1, col_index_end+2, formats['grey_bground']) # assumption
+        ws.write(row_index_start+j,col_index_end,'OR',formats['lgrey_center_format'])
+    
+    print final_row
+    return final_row
 
 
 def _createUnivalueSheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
     """
-    # flags
-        self.countrybook['sheet_classes']['disagg_smear'] = ['total_cases','incident_cases','other_epidemiology','comorbidity'] 
-        self.countrybook['sheet_classes']['disagg_strain'] = ['total_cases','incident_cases','other_epidemiology','comorbidity'] 
-        # other values
-        self.countrybook['strains'] = ['DS-TB','MDR-TB','XDR-TB']
-        self.countrybook['smears'] = ['Smear-','Smear+'] # also potentially 'Extrapulmonary'
+    
     """
-    row_index_start = 2    
-    col_index_start = 1
-    disagg_chars = []
-    if ws_name in cb_settings['sheet_classes']['disagg_smear']:
-        col_index_start += 1
-        disagg_chars.append(['Total']+cb_settings['smears'])
-    if ws_name in cb_settings['sheet_classes']['disagg_strain']:
-        col_index_start += 1
-        disagg_chars.append(['Total']+cb_settings['strains'])
+    disaggs = cb_settings['sheet_classes']['univalue'][ws_name]
+    row_index_start = cb_settings['constants']['row_index_start']   
+    col_index_start = cb_settings['constants']['col_index_start']+len(disaggs) -1
     col_index_end = col_index_start + int(end_year-start_year) + 1
+    
     #determine disaggregations, and make it so that output is consistent format for later use
-    if len(disagg_chars)==2:
-        tmp_list = [list(a) for a in itertools.product(disagg_chars[0], disagg_chars[1])] 
-        disagg_chars = tmp_list
-    elif len(disagg_chars)==1:
-        tmp_list = [[dc] for dc in disagg_chars[0]]
-        disagg_chars = tmp_list
-        
-    print disagg_chars
-    #create label
-    ws.write('A1', cb_settings['labels'][ws_name])
+    dis_list = __genDisaggLabels(disaggs,cb_settings)
     #create row headers
     _writeYearHeader(ws, row=1, col_offset=col_index_start, start_year=start_year, end_year=end_year,formats=formats)
     ws.write(1,col_index_end+1,'Assumption',formats['year_header'])
-    #col headers
-    if len(disagg_chars)==0:
-        _writeSinglePopulationBlock(ws,row_index_start,col_index_start,col_index_end,pop_labels,formats)
-    else:
-        tmp_row_index = row_index_start
-        for pop in pop_labels:
-            newpopvalues = [ [pop] + dc for dc in disagg_chars]
-            _writeSinglePopulationBlock(ws, tmp_row_index, col_index_start,col_index_end, newpopvalues, formats,disagg=True)
-            tmp_row_index += len(disagg_chars) + 1 # space between populations
-    
-    # format and prettify
-    ws.set_row(0,None,formats['main_label'])
+    #create col headers, and block
+    rows_added = _writeSinglePopulationBlock(ws,row_index_start,col_index_start,col_index_end,dis_list,formats,col_header_start=col_index_start-len(disaggs),disagg=True,pop_label_index=disaggs.index('populations'))
+    # additional prettification
     ws.set_column(0, 0, 15)
     ws.set_column(col_index_start,col_index_end, 10)
     ws.set_column(col_index_end+1, col_index_end+1, 15)
     ws.set_column(col_index_end, col_index_end, 5)
     
+def __genDisaggLabels(disaggs,cb_settings):
+    disagg_list = []
+    for dag_type in disaggs:
+        if cb_settings['constants'].has_key('total_%s'%dag_type):
+            disagg_list.append([cb_settings['constants']['total_%s'%dag_type]]+cb_settings['disaggregations'][dag_type]+[""])
+        else:
+            disagg_list.append(cb_settings['disaggregations'][dag_type])
+    
+    if len(disagg_list)>0:
+        tmp_list = [list(a) for a in itertools.product(*disagg_list)] 
+        disagg_list = tmp_list 
+    return disagg_list
 
-def _createOtherEpidemiology(ws,cb_settings):
+
+def _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
+    row_index_start = cb_settings['constants']['row_index_start']   
+    # col_index_start: + number of max disaggregations for subcategories
+    col_index_start =  len(max(cb_settings['sheet_values'][ws_name].values(),key=len))
+    col_index_end = col_index_start + int(end_year-start_year) + 1
+    # headers
+    _writeYearHeader(ws, row=1, col_offset=col_index_start, start_year=start_year, end_year=end_year,formats=formats)
+    ws.write(1,col_index_end+1,'Assumption',formats['year_header'])
+    
+    row_index = row_index_start
+    for label in cb_settings['sheet_values'][ws_name]:
+        # create label
+        ws.write(row_index,0,label)
+        ws.set_row(row_index,None,formats['lgrey_label'])
+        row_index += 1
+        # fix up row labels based on whether we're disaggregating values or not
+        disaggs = cb_settings['sheet_values'][ws_name][label]
+        dis_list = __genDisaggLabels(disaggs,cb_settings)
+        print dis_list
+        
+        # write col headers (poplabels and disaggs)
+        print "Starting at ", row_index, "and will add ", len(dis_list)
+        print "Col index starting at will be ", col_index_start, "but for this parameter will be ", col_index_start-len(disaggs)-1
+        rows_added = _writeSinglePopulationBlock(ws,row_index,col_index_start,col_index_end,dis_list,formats,col_header_start=col_index_start-len(disaggs),disagg=True,pop_label_index=disaggs.index('populations'))
+        print "rows added = ", rows_added
+        # interproperty spacing 
+        row_index += rows_added + cb_settings['constants']['spacing_interproperty']
+    
+def _create_other_epidemiology(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
+    _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels)
+
+def _create_comorbidity(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
+    _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels)
+
+def _create_testing_treatment(ws,cb_settings):
     pass
 
-def _createComorbidity(ws,cb_settings):
+def _create_programs(ws,cb_settings):
     pass
 
-def _createTestingAndTreatment(ws,cb_settings):
+def _create_cost_coverage(ws,cb_settings):
     pass
 
-def _createPrograms(ws,cb_settings):
+def _create_unitcost(ws,cb_settings):
     pass
 
-def _createCostAndCoverage(ws,cb_settings):
-    pass
-
-def _createUnitCosts(ws,cb_settings):
-    pass
-
-def _createTransitions(ws,cb_settings):
+def _create_poptransitions(ws,cb_settings):
     pass
 
 def __formatBlock(ws,from_row,to_row,from_col,to_col,format):
@@ -489,62 +608,45 @@ def __formatBlock(ws,from_row,to_row,from_col,to_col,format):
             
 def createFormats(workbook):
     formats = odict()
-    formats['header_format'] = workbook.add_format({'bold': True,
-                                                     'align': 'center',
-                                                     'valign': 'vcenter'})
-    
-    formats['right_format'] = workbook.add_format({'align': 'right',
-                                                   'bold': True,
-                                                   'valign': 'vcenter'})
-    formats['center_format'] = workbook.add_format({'align': 'center',
-                                                   'bold': True,
-                                                   'bg_color': WB_COLORS['light_blue'],
-                                                   'border': 1,
-                                                   'border_color': WB_COLORS['white'],
-                                                   'valign': 'vcenter'})
-    
-    formats['lblue_bground'] = workbook.add_format({'align': 'center',
-                                        'valign': 'vcenter',
-                                        'bg_color': WB_COLORS['light_blue'],
-                                        'border': 1,
-                                        'border_color': WB_COLORS['white']
-                                        })
-    formats['blue_bground'] = workbook.add_format({'align': 'center',
-                                        'valign': 'vcenter',
-                                        'bg_color': WB_COLORS['blue'],
-                                        'border': 1,
-                                        'border_color': WB_COLORS['white']
-                                        })
-    formats['main_label'] = workbook.add_format({'align': 'left',
-                                                 'bg_color': WB_COLORS['grey'],
-                                                 'font_size': 14,
-                                                 'bold': True})
-    formats['year_header'] = workbook.add_format({'align': 'center',
-                                                 'bg_color': WB_COLORS['green'],
-                                                 'bold': True})
+    for fkey,fmt in WB_FORMATS.iteritems():
+        formats[fkey] = workbook.add_format(fmt)
     
     return workbook, formats
         
-def export_spreadsheet(settings,filename=DEFAULT_PATH,num_pops=4,verbose=2):
+def export_spreadsheet(settings,filename=DEFAULT_PATH,num_pops=4,verbose=2,pop_names=None):
     """
     
     
     """
     workbook = xw.Workbook(DEFAULT_PATH)
-    
     workbook,formats = createFormats(workbook)
+    # functions
+    availfns = globals().copy()
+    availfns.update(locals())
     
     for name in settings.countrybook['sheet_names']:
-        
+        print("Creating sheet for %s"%name)
         ws = workbook.add_worksheet(name)
+        #label for each data sheet
+        ws.write('A1', settings.countrybook['labels'][name])
+        ws.set_row(0, None, formats['main_label'])
+        #populate
         if name == 'populations':
             poplabels = _createPopulations(ws, name, num_pops, formats)
+            settings.countrybook['disaggregations']['populations'] = poplabels
+            ## TODO: remove (as is just a debugging measure)
+            if pop_names is not None:
+                for i,pop in enumerate(pop_names):
+                    ws.write(i+2,1,pop)
+                    
         elif name in settings.countrybook['sheet_classes']['univalue']:
             _createUnivalueSheet(ws, name, settings.countrybook, formats, settings.tvec_start,settings.tvec_end,poplabels)
         else:
-            # dynamically label
-            # TODO implement
-            pass
+            print name
+            createSheet = availfns.get('_create_%s'%name)
+            if not createSheet:
+                raise NotImplementedError("No method associated in creating sheet '%s'"%name)
+            createSheet(ws,name,settings.countrybook,formats, settings.tvec_start,settings.tvec_end,poplabels)
         
         
     

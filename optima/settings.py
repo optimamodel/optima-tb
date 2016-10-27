@@ -46,25 +46,56 @@ class Settings(object):
         self.countrybook['sheet_names']['incident_cases'] = 'Incident cases'
         self.countrybook['sheet_names']['other_epidemiology'] = 'Other epidemiology'
         self.countrybook['sheet_names']['comorbidity'] = 'Comorbidity'
-        self.countrybook['sheet_names']['testing_treatment'] = 'Testing and Treatment'
-        self.countrybook['sheet_names']['programs'] = 'Programs'
-        self.countrybook['sheet_names']['cost_coverage'] = 'Cost and coverage'
-        self.countrybook['sheet_names']['unitcost'] = 'Unit costs'
-        self.countrybook['sheet_names']['poptransitions'] = 'Population transitions'
-        
-        self.countrybook['sheet_classes'] = odict()
-        self.countrybook['sheet_classes']['univalue'] = ['population_sizes','total_cases','incident_cases']
-        # flags
-        self.countrybook['sheet_classes']['disagg_smear'] = ['incident_cases','other_epidemiology','comorbidity'] #'total_cases',
-        self.countrybook['sheet_classes']['disagg_strain'] = ['total_cases','incident_cases','other_epidemiology','comorbidity'] 
-        # other values
-        self.countrybook['strains'] = ['DS-TB','MDR-TB','XDR-TB']
-        self.countrybook['smears'] = ['Smear-','Smear+'] # also potentially 'Extrapulmonary'
-        # labels
+#         self.countrybook['sheet_names']['testing_treatment'] = 'Testing and Treatment'
+#         self.countrybook['sheet_names']['programs'] = 'Programs'
+#         self.countrybook['sheet_names']['cost_coverage'] = 'Cost and coverage'
+#         self.countrybook['sheet_names']['unitcost'] = 'Unit costs'
+#         self.countrybook['sheet_names']['poptransitions'] = 'Population transitions'
+
+        # labels for each sheet
         self.countrybook['labels'] = {'populations': '',
                                       'population_sizes':'Population size: please enter population values for each year',
                                       'total_cases'     : 'TB total cases: please enter number of TB cases per year for each population and strain',
-                                      'incident_cases'  : 'TB Incident cases: please enter number of new cases per year for each population group and TB strain'}
+                                      'incident_cases'  : 'TB Incident cases: please enter number of new cases per year for each population group and TB strain',
+                                      'other_epidemiology':'Other epidemiological data:',
+                                      'comorbidity' : 'Comorbidity data:'
+                                      }
+        
+        # info
+        self.countrybook['disaggregations'] = odict() # ['smears','strains']
+        # other values
+        self.countrybook['disaggregations']['strains'] = ['DS-TB','MDR-TB','XDR-TB']
+        self.countrybook['disaggregations']['smears'] = ['Smear-','Smear+'] # also potentially 'Extrapulmonary'
+        self.countrybook['disaggregations']['populations'] = [] # determined dynamically at runtime
+        
+        # for univalue sheets, includes information on how data should be disaggregated 
+        self.countrybook['sheet_classes'] = odict()
+        self.countrybook['sheet_classes']['univalue'] = odict()
+        self.countrybook['sheet_classes']['univalue']['population_sizes'] = ['populations']
+        self.countrybook['sheet_classes']['univalue']['total_cases'] = ['populations','strains']
+        self.countrybook['sheet_classes']['univalue']['incident_cases'] = ['populations','smears','strains']
+        
+        # sheet specific values
+        self.countrybook['sheet_values'] = odict()
+        self.countrybook['sheet_values']['other_epidemiology'] = odict()
+        self.countrybook['sheet_values']['other_epidemiology']['Percentage of people vaccinated per year'] = ['populations']
+        self.countrybook['sheet_values']['other_epidemiology']['Percentage of people who die from non-TB-related causes per year'] = ['populations']
+        self.countrybook['sheet_values']['other_epidemiology']['Percentage of people who die from TB-related deaths per year'] = ['smears','strains','populations']
+        self.countrybook['sheet_values']['other_epidemiology']['Birth rate (births per woman per year)'] = ['populations']
+        
+        # TODO change format 
+        self.countrybook['sheet_values']['comorbidity'] = odict()
+        self.countrybook['sheet_values']['comorbidity']['HIV prevalence'] = ['populations','smears','strains']
+        self.countrybook['sheet_values']['comorbidity']['Diabetes prevalence'] = ['populations','smears','strains']
+        
+        self.countrybook['constants'] = {'spacing_interpopulation':2,
+                                         'spacing_intrapopulation':1,
+                                         'spacing_interproperty'  :4,
+                                         'total_strains': 'Total',#All strains',
+                                         'total_smears' : 'Total',
+                                         'row_index_start':2, # for when there are no disaggregations, etc.
+                                         'col_index_start':1} # 
+        
         
     
     def startFresh(self):
