@@ -105,20 +105,29 @@ class Node(object):
         self.outlink_ids.append(link_index)
         return Link(self, other_node)
 
-class Link(object):
+class Variable(object):
     '''
-    Lightweight abstract class to represent unidirectional flow between two objects in a network.
+    Lightweight abstract class to store a variable array of values (presumably corresponding to an external time vector).
+    Includes an attribute to describe the format of these values.
+    '''
+    def __init__(self, val = 0.0):
+        self.vals = np.array([float(val)])   # An abstract array of values.
+        self.val_format = 'fraction'
+
+class Link(Variable):
+    '''
+    A more involved version of Variable, representing unidirectional flow between two objects in a network.
+    The values stored in this extended version of Variable refer to flow rates.
     If used in ModelPop, the Link refers to two cascade compartments within a single population.
     If used in Model, the Link refers to two distinct population groups.
     In the latter case, intended logic should transfer agents between all (non-dead) corresponding compartments.
     '''
     def __init__(self, object_from, object_to, val = 0.0):
+        Variable.__init__(self, val = val)
         self.index_from = object_from.index
         self.index_to = object_to.index
         self.label_from = object_from.label
         self.label_to = object_to.label
-        self.vals = np.array([float(val)])   # An abstract array of values. Usually relating to flow rate.
-        self.val_format = 'probability'
 
 
 
@@ -169,13 +178,20 @@ class ModelPopulation(Node):
             if 'junction' in settings.node_specs[label].keys():
                 self.comps[-1].junction = True
             self.comp_ids[label] = k
+        j = 0
         k = 0
-        for tag in settings.links.keys():
-            for pair in settings.links[tag]:
-                self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]),link_index=k))
-                if not tag in self.link_ids:
-                    self.link_ids[tag] = []
-                self.link_ids[tag].append(k)
+        for label in settings.linkpar_specs.keys():
+            if 'tag' in settings.linkpar_specs[label]:
+                tag = settings.linkpar_specs[label]['tag']
+                for pair in settings.links[tag]:
+                    self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]),link_index=j))
+                    if not tag in self.link_ids.keys():
+                        self.link_ids[tag] = []
+                    self.link_ids[tag].append(j)
+                    j += 1
+            else:
+                self.deps.append(Variable())
+                self.dep_ids[label] = k
                 k += 1
     
 #    def stepCascadeForward(self, dt = 1.0):
@@ -340,11 +356,10 @@ class Model(object):
                         self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
                         self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
             else:
-#                for pop_label in parset.pop_labels:
-#                    dep_id = self.getPop(pop_label).dep_ids[par.label]          # Map dependency label to dependency id in ModelPop.
-#                    self.getPop(pop_label).deps[dep_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
-#                    self.getPop(pop_label).deps[dep_id].val_format = par.y_format[pop_label]
-                pass
+                for pop_label in parset.pop_labels:
+                    dep_id = self.getPop(pop_label).dep_ids[par.label]          # Map dependency label to dependency id in ModelPop.
+                    self.getPop(pop_label).deps[dep_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
+                    self.getPop(pop_label).deps[dep_id].val_format = par.y_format[pop_label]
                 
         
         # Propagating transfer parameter parset values into Model object.
