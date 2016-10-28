@@ -48,11 +48,11 @@ class Settings(object):
         # Project-data workbook metadata.
         self.databook = odict()
         self.databook['sheet_names'] = odict()
-        self.databook['sheet_names']['pops'] = 'Population Definitions'
-        self.databook['sheet_names']['transmat'] = 'Transfer Definitions'
-        self.databook['sheet_names']['transval'] = 'Transfer Details'
-        self.databook['sheet_names']['charac'] = 'Epidemic Characteristics'
-        self.databook['sheet_names']['linkpars'] = 'Cascade Parameters'
+        self.databook['sheet_names']['pops'] =      'Population Definitions'
+        self.databook['sheet_names']['transmat'] =  'Transfer Definitions'
+        self.databook['sheet_names']['transval'] =  'Transfer Details'
+        self.databook['sheet_names']['charac'] =    'Epidemic Characteristics'
+        self.databook['sheet_names']['linkpars'] =  'Cascade Parameters'
         self.databook['custom_sheet_names'] = odict()
         self.make_sheet_charac = True       # Tag for whether the default characteristics worksheet should be generated during databook creation.
         self.make_sheet_linkpars = True     # Tag for whether the default cascade parameters worksheet should be generated during databook creation.
@@ -64,10 +64,10 @@ class Settings(object):
         
         try: workbook = xlrd.open_workbook(cascade_path)
         except: raise OptimaException('ERROR: Cannot find cascade workbook from which to load model structure.')
-        ws_nodes = workbook.sheet_by_name('Compartments')
-        ws_charac = workbook.sheet_by_name('Cascade Characteristics')
-        ws_links = workbook.sheet_by_name('Transitions')
-        ws_pars = workbook.sheet_by_name('Transition Parameters')
+        ws_nodes =      workbook.sheet_by_name('Compartments')
+        ws_links =      workbook.sheet_by_name('Transitions')
+        ws_charac =     workbook.sheet_by_name('Characteristics')
+        ws_pars =       workbook.sheet_by_name('Parameters')
         try: ws_sheetnames = workbook.sheet_by_name('Databook Sheet Names')
         except: ws_sheetnames = None
         
@@ -314,7 +314,7 @@ class Settings(object):
         cid_default = None
         cid_order = None
         for col_id in xrange(ws_pars.ncols):
-            if ws_pars.cell_value(0, col_id) == 'Tag': cid_tag = col_id
+            if ws_pars.cell_value(0, col_id) == 'Transition Tag': cid_tag = col_id
             if ws_pars.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_pars.cell_value(0, col_id) == 'Full Name': cid_name = col_id
             if ws_pars.cell_value(0, col_id) == 'Sheet Label': cid_sheet = col_id
@@ -329,11 +329,13 @@ class Settings(object):
             tag = str(ws_pars.cell_value(row_id, cid_tag))
             label = str(ws_pars.cell_value(row_id, cid_label))
             name = str(ws_pars.cell_value(row_id, cid_name))
-            if row_id > 0 and tag not in [''] and label not in ['']:
-                if tag not in self.links:
-                    raise OptimaException('ERROR: Cascade transition-parameter worksheet has a tag (%s) that is not in the transition matrix.' % tag)
-                self.linkpar_specs[label] = {'tag':tag, 'name':name, 'sheet_label':'linkpars'}
+            if row_id > 0 and label not in ['']:
+                self.linkpar_specs[label] = {'name':name, 'sheet_label':'linkpars'}
                 self.linkpar_name_labels[name] = label
+                if tag not in ['']:
+                    if tag not in self.links:
+                        raise OptimaException('ERROR: Cascade transition-parameter worksheet has a tag (%s) that is not in the transition matrix.' % tag)
+                    self.linkpar_specs[label]['tag'] = tag
                 
                 # Attribute a custom sheet label to this parameter if available.
                 if not cid_sheet is None:
@@ -365,7 +367,7 @@ class Settings(object):
         
         # Final validations.            
         for tag in self.links.keys():
-            if tag not in [x['tag'] for x in self.linkpar_specs[:]]:
+            if tag not in [x['tag'] for x in self.linkpar_specs[:] if 'tag' in x]:
                 raise OptimaException('ERROR: Transition matrix tag "%s" is not represented in transition-parameter worksheet.' % tag)
         
         test_labels = self.linkpar_specs.keys() + self.charac_specs.keys()       
@@ -397,8 +399,9 @@ class Settings(object):
         # Generate edge label dictionary with tags from spreadsheet.
         el = {}
         for par_name in self.linkpar_specs.keys():
-            for link in self.links[self.linkpar_specs[par_name]['tag']]:
-                el[link] = self.linkpar_specs[par_name]['tag']
+            if 'tag' in self.linkpar_specs[par_name]:
+                for link in self.links[self.linkpar_specs[par_name]['tag']]:
+                    el[link] = self.linkpar_specs[par_name]['tag']
 
         nx.draw_networkx_nodes(G, pos, node_shape = 'o', nodelist = [x for x in G.nodes() if not 'junction' in self.node_specs[x].keys()], node_size = 1250, node_color = 'w')
         nx.draw_networkx_nodes(G, pos, node_shape = 's', nodelist = [x for x in G.nodes() if 'junction' in self.node_specs[x].keys()], node_size = 750, node_color = (0.75,0.75,0.75))

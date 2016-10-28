@@ -144,8 +144,10 @@ class ModelPopulation(Node):
         Node.__init__(self, label = label, index = index)
         self.comps = list()         # List of cascade compartments that this model population subdivides into.
         self.links = list()         # List of intra-population cascade transitions within this model population.
+        self.deps = list()          # List of value arrays for link-dependencies (both characteristic and untagged parameters) required by model.
         self.comp_ids = dict()      # Maps label of a compartment to its position index within compartments list.
         self.link_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
+        self.dep_ids = dict()       # Maps label of a relevant characteristic/parameter to its position index within dependencies list.
         self.t_index = 0            # Keeps track of array index for current timepoint data within all compartments.
         
         self.genCascade(settings = settings)    # Convert compartmental cascade into lists of compartment and link objects.
@@ -215,14 +217,14 @@ class ModelPopulation(Node):
 #            
 #        self.t_index += 1       # Update timestep index.
             
-    def printCompVars(self, full = False):
-        ''' Loop through all compartments and print out current variable values. '''
-        for comp in self.comps:
-            if not full:
-                print('[Pop: %s][Compartment: %5s][Popsize: %15.4f]' % (self.label, comp.label, comp.popsize[self.t_index]))
-            else:
-                print('[Pop: %s][Compartment: %5s][Popsize...]' % (self.label, comp.label))
-                print(comp.popsize)
+#    def printCompVars(self, full = False):
+#        ''' Loop through all compartments and print out current variable values. '''
+#        for comp in self.comps:
+#            if not full:
+#                print('[Pop: %s][Compartment: %5s][Popsize: %15.4f]' % (self.label, comp.label, comp.popsize[self.t_index]))
+#            else:
+#                print('[Pop: %s][Compartment: %5s][Popsize...]' % (self.label, comp.label))
+#                print(comp.popsize)
 
 #    def printLinkVars(self, full = False):
 #        ''' Loop through all links and print out current variable values. '''
@@ -233,14 +235,14 @@ class ModelPopulation(Node):
 #                print('[Pop: %s][%5s --> %-5s][Transit. Fraction...]' % (self.label, link.label_from, link.label_to))
 #                print(link.vals)
 
-    def makeRandomVars(self, for_comp = True, for_link = True):
-        ''' Randomise all compartment and link variables. Method used primarily for debugging. '''
-        if for_comp:
-            for comp in self.comps:
-                comp.popsize[self.t_index] = npr.rand()*1e7
-        if for_link:
-            for link in self.links:
-                link.vals = npr.rand()/self.getComp(link.label_from).num_outlinks     # Scaling makes sure fractions leaving a compartment sum to less than 1.
+#    def makeRandomVars(self, for_comp = True, for_link = True):
+#        ''' Randomise all compartment and link variables. Method used primarily for debugging. '''
+#        if for_comp:
+#            for comp in self.comps:
+#                comp.popsize[self.t_index] = npr.rand()*1e7
+#        if for_link:
+#            for link in self.links:
+#                link.vals = npr.rand()/self.getComp(link.label_from).num_outlinks     # Scaling makes sure fractions leaving a compartment sum to less than 1.
                 
     def preAllocate(self, sim_settings):
         '''
@@ -267,7 +269,7 @@ class Model(object):
     def __init__(self):
         
         self.pops = list()              # List of population groups that this model subdivides into.
-        self.pop_ids = dict()           # Maps label of a population to its position index within populations list.     
+        self.pop_ids = dict()           # Maps label of a population to its position index within populations list.
         
         self.sim_settings = odict()
         
@@ -289,9 +291,7 @@ class Model(object):
             self.pops.append(ModelPopulation(settings = settings, label = pop_label, index = k))
             self.pops[-1].preAllocate(self.sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
             self.pop_ids[pop_label] = k
-            
-#            self.pops[-1].getComp('sus').popsize[0] = 1000000   # NOTE: Temporary. Initial values inserted here.
-        
+                    
         # Propagating initial characteristic parset values into ModelPops.
         # First interpolate initial value for each relevant characteristic (i.e. one that has an entry point).
         # Maintaining definitional order (i.e. the order characteristics were defined in cascade workbook) is crucial.
@@ -333,11 +333,19 @@ class Model(object):
         
         # Propagating cascade parameter parset values into ModelPops.
         for par in parset.pars['cascade']:
-            tag = settings.linkpar_specs[par.label]['tag']          # Map parameter label -> link tag.
-            for pop_label in parset.pop_labels:
-                for link_id in self.getPop(pop_label).link_ids[tag]:           # Map link tag -> link id in ModelPop.            
-                    self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
-                    self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
+            if 'tag' in settings.linkpar_specs[par.label]:
+                tag = settings.linkpar_specs[par.label]['tag']                  # Map parameter label to link tag.
+                for pop_label in parset.pop_labels:
+                    for link_id in self.getPop(pop_label).link_ids[tag]:        # Map link tag to link id in ModelPop.            
+                        self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
+                        self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
+            else:
+#                for pop_label in parset.pop_labels:
+#                    dep_id = self.getPop(pop_label).dep_ids[par.label]          # Map dependency label to dependency id in ModelPop.
+#                    self.getPop(pop_label).deps[dep_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
+#                    self.getPop(pop_label).deps[dep_id].val_format = par.y_format[pop_label]
+                pass
+                
         
         # Propagating transfer parameter parset values into Model object.
         for trans_type in parset.transfers.keys():

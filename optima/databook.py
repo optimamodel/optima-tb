@@ -219,16 +219,18 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
                 default_val = all_specs[def_label]['default']
             
             # Make the data-entry blocks.
-            if def_label in settings.charac_specs:
+            # First handle 'count' and 'percentage' characteristics, as well as transitions for junctions.
+            if def_label in settings.charac_specs.keys():
                 if 'plot_percentage' in all_specs[def_label]:
                     data_formats = ['Fraction']
                 else:
                     data_formats = ['Number']
-            elif def_label in settings.linkpar_specs:
+            elif def_label in settings.linkpar_specs.keys():
                 data_formats = None
-                for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
-                    if 'junction' in settings.node_specs[pair[0]].keys():
-                        data_formats = ['Proportion']
+                if 'tag' in settings.linkpar_specs[def_label]:
+                    for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
+                        if 'junction' in settings.node_specs[pair[0]].keys():
+                            data_formats = ['Proportion']
             makeValueEntryArrayBlock(worksheet = ws, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = default_val, data_formats = data_formats)
             
             # Make the population references.
