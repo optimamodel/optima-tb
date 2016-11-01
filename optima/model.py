@@ -10,75 +10,75 @@ import scipy.optimize as spo
 
 
 
-#%% Calculation functions used in model
-
-def transitionRelation(v_test, v_know, v_formats, dt):
-    '''
-    Solvable function that relates Poisson-based transition event rates with fractions of people moving after time dt.
-    Input array v_know can contain any mix of rates and fractions, as long as corresponding list v_formats indicates which are marked by 'rate'.
-    A numerical solver would then solve for v_test, a mix of fractions and rates opposite to v_know.
-    '''
-    
-    f = np.zeros(len(v_know))
-    F = np.zeros(len(v_know))
-    d = np.zeros(len(v_know))
-    
-    # Rearrange arrays of values provided by solver and user into arrays of rates (f) and fractions (F).
-    for k in xrange(len(v_know)):
-        if v_formats[k] == 'rate':
-            f[k] = v_know[k]
-            F[k] = v_test[k]
-        else:
-            f[k] = v_test[k]
-            F[k] = v_know[k]
-
-    # As an array, calculate the discrepancy between calculated and given fraction values.
-    # The two correspond if the difference is zero.
-    if sum(f) == 0:
-        d = -F
-    else:
-        d = (1-np.exp(-sum(f)*dt))*f/sum(f)-F
-    
-    return d
-            
-
-def convertTransitions(values, value_formats, old_dt, new_dt):
-    ''' Function that converts yearly transition values provided in various formats (assuming old_dt is 1) into timestep-relevant fractions. '''
-    
-    new_vals = np.zeros(len(values))
-    
-    # Convert any values that are provided as probabilities into Poisson rates (average number of times transition event is encountered per year).
-    k = 0
-    for val in values:
-        if value_formats[k] == 'probability':
-            values[k] = -np.log(1-val)/old_dt
-            value_formats[k] = 'rate'
-        k += 1
-    rates = dcp(values)     # This pre-allocated array should currently be a mix of fractions and rates, but will be made all rates later.
-    
-    # Given a set of rates/fractions, solve what the corresponding fractions/rates are.
-    x = spo.fsolve(transitionRelation, np.ones(len(values))/2, args=(values, value_formats, old_dt), full_output = True)
-    
-    # If the numerical solver does not converge, print the solver output and crash.
-    if x[2] != 1: 
-        print x        
-        raise OptimaException('ERROR: Transitions cannot be reconciled. This may be due to the sum of yearly outflows for a compartment being greater than 100%.')
-    
-    # If a value passed into the solver was not a rate, then the corresponding output should be. Finish generating a Poisson rates array.
-    for k in xrange(len(values)):
-        if value_formats[k] != 'rate':
-            rates[k] = x[0][k]
-
-    # Convert Poisson rates into fractions of compartment populations that should be moved per timestep new_dt.
-    k = 0
-    for rate in rates:
-        if sum(rates) == 0:
-            new_vals[k] = 0.0
-        else:
-            new_vals[k] = (1-np.exp(-sum(rates)*new_dt))*rates[k]/sum(rates)
-        k += 1
-
-    return new_vals
+##%% Calculation functions used in model
+#
+#def transitionRelation(v_test, v_know, v_formats, dt):
+#    '''
+#    Solvable function that relates Poisson-based transition event rates with fractions of people moving after time dt.
+#    Input array v_know can contain any mix of rates and fractions, as long as corresponding list v_formats indicates which are marked by 'rate'.
+#    A numerical solver would then solve for v_test, a mix of fractions and rates opposite to v_know.
+#    '''
+#    
+#    f = np.zeros(len(v_know))
+#    F = np.zeros(len(v_know))
+#    d = np.zeros(len(v_know))
+#    
+#    # Rearrange arrays of values provided by solver and user into arrays of rates (f) and fractions (F).
+#    for k in xrange(len(v_know)):
+#        if v_formats[k] == 'rate':
+#            f[k] = v_know[k]
+#            F[k] = v_test[k]
+#        else:
+#            f[k] = v_test[k]
+#            F[k] = v_know[k]
+#
+#    # As an array, calculate the discrepancy between calculated and given fraction values.
+#    # The two correspond if the difference is zero.
+#    if sum(f) == 0:
+#        d = -F
+#    else:
+#        d = (1-np.exp(-sum(f)*dt))*f/sum(f)-F
+#    
+#    return d
+#            
+#
+#def convertTransitions(values, value_formats, old_dt, new_dt):
+#    ''' Function that converts yearly transition values provided in various formats (assuming old_dt is 1) into timestep-relevant fractions. '''
+#    
+#    new_vals = np.zeros(len(values))
+#    
+#    # Convert any values that are provided as probabilities into Poisson rates (average number of times transition event is encountered per year).
+#    k = 0
+#    for val in values:
+#        if value_formats[k] == 'probability':
+#            values[k] = -np.log(1-val)/old_dt
+#            value_formats[k] = 'rate'
+#        k += 1
+#    rates = dcp(values)     # This pre-allocated array should currently be a mix of fractions and rates, but will be made all rates later.
+#    
+#    # Given a set of rates/fractions, solve what the corresponding fractions/rates are.
+#    x = spo.fsolve(transitionRelation, np.ones(len(values))/2, args=(values, value_formats, old_dt), full_output = True)
+#    
+#    # If the numerical solver does not converge, print the solver output and crash.
+#    if x[2] != 1: 
+#        print x        
+#        raise OptimaException('ERROR: Transitions cannot be reconciled. This may be due to the sum of yearly outflows for a compartment being greater than 100%.')
+#    
+#    # If a value passed into the solver was not a rate, then the corresponding output should be. Finish generating a Poisson rates array.
+#    for k in xrange(len(values)):
+#        if value_formats[k] != 'rate':
+#            rates[k] = x[0][k]
+#
+#    # Convert Poisson rates into fractions of compartment populations that should be moved per timestep new_dt.
+#    k = 0
+#    for rate in rates:
+#        if sum(rates) == 0:
+#            new_vals[k] = 0.0
+#        else:
+#            new_vals[k] = (1-np.exp(-sum(rates)*new_dt))*rates[k]/sum(rates)
+#        k += 1
+#
+#    return new_vals
 
 
 
