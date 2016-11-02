@@ -1,6 +1,7 @@
-#%% Imports.
+#%% Imports
 
 from utils import OptimaException
+
 from pyparsing import Word, Literal, Optional, alphanums, nums, ZeroOrMore, Group, Forward
 import operator
 from copy import deepcopy as dcp
@@ -8,7 +9,7 @@ from copy import deepcopy as dcp
 
 #%% Parser for functions written as strings
 
-class functionParser(object):
+class FunctionParser(object):
     '''
     A parser that can decompose a string of numbers and variables into tokens, then evaluate the expression.
     Incorporates BODMAS operations, as well as exponentiation and negative numbers.
@@ -121,11 +122,3 @@ class functionParser(object):
         expr_stack, var_dict = self.produceStack(string)
         if not deps is None: var_dict = deps
         return self.evaluateStack(stack = expr_stack, deps = var_dict)
-
-test = "-6+(-spd_infxness*spd_infx+(-3/-4.0)^(-2+6)^0.5)/(alive-6.2)"
-#test = "-6+((-3/-4.0)^(-2+6)^0.5)/(-6.2)"
-
-blah = {"spd_infxness":2.5, "spd_infx":2.0, "alive":8.2}
-
-fp = functionParser(debug = True)
-print fp.parse(test, deps = blah)

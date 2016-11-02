@@ -94,23 +94,25 @@ class Node(object):
         self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
         self.outlink_ids = []       # List of indices corresponding to each outgoing link.
         
-    def makeLinkTo(self, other_node, link_index):
+    def makeLinkTo(self, other_node, link_index, link_label):
         '''
         Link this node to another (i.e. create a transition link).
-        Must provide an index that, by intention, represents where this link is positioned in its storage container. 
+        Must provide an index that, by intention, uniquely represents where this link is positioned in its storage container.
+        Must also provide the variable label for the link, in case Settings.linkpar_specs[link_label] need to be referred to.
         '''
         if not isinstance(other_node, Node):
             raise OptimaException('ERROR: Attempting to link compartment to something that is not a compartment.')
         self.num_outlinks += 1
         self.outlink_ids.append(link_index)
-        return Link(self, other_node)
+        return Link(object_from = self, object_to = other_node, label = link_label)
 
 class Variable(object):
     '''
     Lightweight abstract class to store a variable array of values (presumably corresponding to an external time vector).
     Includes an attribute to describe the format of these values.
     '''
-    def __init__(self, val = 0.0):
+    def __init__(self, label = 'default', val = 0.0):
+        self.label = label
         self.vals = np.array([float(val)])   # An abstract array of values.
         self.val_format = 'fraction'
 
@@ -122,8 +124,8 @@ class Link(Variable):
     If used in Model, the Link refers to two distinct population groups.
     In the latter case, intended logic should transfer agents between all (non-dead) corresponding compartments.
     '''
-    def __init__(self, object_from, object_to, val = 0.0):
-        Variable.__init__(self, val = val)
+    def __init__(self, object_from, object_to, label = 'default', val = 0.0):
+        Variable.__init__(self, label = label, val = val)
         self.index_from = object_from.index
         self.index_to = object_to.index
         self.label_from = object_from.label
@@ -166,6 +168,11 @@ class ModelPopulation(Node):
         comp_index = self.comp_ids[comp_label]
         return self.comps[comp_index]
         
+    def getDep(self, dep_label):
+        ''' Allow dependencies to be retrieved by label rather than index. '''
+        dep_index = self.dep_ids[dep_label]
+        return self.deps[dep_index]
+        
     def genCascade(self, settings):
         '''
         Generate a compartmental cascade as defined in a settings object.
@@ -184,13 +191,18 @@ class ModelPopulation(Node):
             if 'tag' in settings.linkpar_specs[label]:
                 tag = settings.linkpar_specs[label]['tag']
                 for pair in settings.links[tag]:
-                    self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]),link_index=j))
+                    self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]),link_index=j,link_label=label))
                     if not tag in self.link_ids.keys():
                         self.link_ids[tag] = []
                     self.link_ids[tag].append(j)
                     j += 1
             else:
-                self.deps.append(Variable())
+                self.deps.append(Variable(label=label))
+                self.dep_ids[label] = k
+                k += 1
+        for label in settings.charac_specs.keys():
+            if 'par_dependency' in settings.charac_specs[label]:
+                self.deps.append(Variable(label=label))
                 self.dep_ids[label] = k
                 k += 1
     
@@ -262,7 +274,7 @@ class ModelPopulation(Node):
                 
     def preAllocate(self, sim_settings):
         '''
-        Pre-allocate variable arrays in compartments and links for faster processing.
+        Pre-allocate variable arrays in compartments, links and dependent variables for faster processing.
         Array maintains initial value but pre-fills everything else with NaNs.
         Thus errors due to incorrect parset value saturation should be obvious from results.
         '''
@@ -274,6 +286,10 @@ class ModelPopulation(Node):
             init_val = link.vals[0]
             link.vals = np.ones(len(sim_settings['tvec']))*np.nan
             link.vals[0] = init_val
+        for dep in self.deps:
+            init_val = dep.vals[0]
+            dep.vals = np.ones(len(sim_settings['tvec']))*np.nan
+            dep.vals[0] = init_val
             
             
             
@@ -332,8 +348,6 @@ class Model(object):
                 entry_point = settings.charac_specs[charac_label]['entry_point']
                 for pop_label in parset.pop_labels:
                     init_dict[charac_label][pop_label] *= init_dict[denom_label][pop_label]
-
-#        print init_dict
         
         # One more loop to subtract out any included characteristics from each characteristic (e.g. susceptibles = total - infected).
         for charac_label in init_dict.keys():
@@ -346,8 +360,13 @@ class Model(object):
                     if include in charac_for_entry.keys():
                         val -= init_dict[charac_for_entry[include]][pop_label]
                 self.getPop(pop_label).getComp(entry_point).popsize[0] = val
+                
+                # While looping through characteristics/populations, fill deps list with those that must be calculated per timestep.
+                if 'par_dependency' in settings.charac_specs[charac_label]:
+                    pass   #NECESSARY?
+                    
         
-        # Propagating cascade parameter parset values into ModelPops.
+        # Propagating cascade parameter parset values into ModelPops. Handle both 'tagged' links and 'untagged' dependencies.
         for par in parset.pars['cascade']:
             if 'tag' in settings.linkpar_specs[par.label]:
                 tag = settings.linkpar_specs[par.label]['tag']                  # Map parameter label to link tag.
@@ -372,7 +391,7 @@ class Model(object):
                             trans_tag = comp.label + '_' + trans_type + '_to_' + pop_target       # NOTE: Perhaps there is a nicer way to set up transfer tagging.
                             if not comp.tag_dead and not comp.junction:
                                 num_links = len(self.getPop(pop_source).links)
-                                link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=num_links)
+                                link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=num_links,link_label=trans_tag)
                                 link.vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_target)
                                 link.val_format = par.y_format[pop_target]
                                 
@@ -515,6 +534,15 @@ class Model(object):
                         did_from = link.index_from[0] * num_comps + link.index_from[1]
                         did_to = link.index_to[0] * num_comps + link.index_to[1]
                         comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
+                        
+                        # Evaluate custom function for variable if it exists and overwrite any value that is currently stored for transition.
+                        if link.label in settings.linkpar_specs:
+                            if 'f_stack' in settings.linkpar_specs[link.label]:
+                                f_stack = dcp(settings.linkpar_specs[link.label]['f_stack'])
+                                deps = dcp(settings.linkpar_specs[link.label]['deps'])
+                                for dep_label in deps.keys():
+                                    deps[dep_label] = pop.getDep(dep_label).vals[ti]
+                                link.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = deps)
                         
                         converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
                         

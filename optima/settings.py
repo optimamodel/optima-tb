@@ -1,6 +1,7 @@
 #%% Imports
 
 from utils import flattenDict, odict, OptimaException
+from parsing import FunctionParser
 
 import xlrd
 import networkx as nx
@@ -11,21 +12,25 @@ from copy import deepcopy as dcp
 
 
 #%% Settings class (for data that is effectively static per epidemic context)
-#
-#   This refers specifically to cascade metadata (loaded from a cascade workbook) and general defaults.
-#   A cascade structure comprises of compartments/nodes and transitions/links that detail the flow of people through stages of a disease.
-#   In general use, the attributes of this object are static regardless of project/simulation.
-#
-#   Notes:
-#   Settings MUST be loaded into a project beforehand, as it details the framework for dealing with data and running the model.
 
 class Settings(object):
+    '''
+    An object for storing cascade metadata (loaded from a cascade workbook) and general defaults.
+    A cascade structure comprises of compartments/nodes and transitions/links that detail the flow of people through stages of a disease.
+    In general use, the attributes of this object are static regardless of project/simulation.
+
+    Notes:
+    Settings must be loaded into a project during its creation, as it details the framework for dealing with data and running the model.
+    '''    
+    
     def __init__(self, cascade_path = './cascade.xlsx'):
         self.tvec_start = 2000.0     # Default start year for data input and simulations.
         self.tvec_end = 2030.0       # Default end year for data input and simulations.
         self.tvec_dt = 1.0/4          # Default timestep for simulations.
         
         self.recursion_limit = 100      # Limit for recursive references, primarily used in characteristic definitions.
+        
+        self.parser = FunctionParser(debug = False)      # Decomposes and evaluates functions written as strings, in accordance with a grammar defined in the parser object.
         
         self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here for now to be explicit. 
         self.loadCascadeSettings(cascade_path)
@@ -37,13 +42,17 @@ class Settings(object):
                                                 # Key is a node label. Value is a dict including a 'dead' tag and networkx-related information.
         self.node_names = []                    # A corresponding list of full names for compartments.
         self.junction_labels = []               # A list of labels for compartments for which inflows must immediately propagated as outflows.
+        
         self.charac_specs = odict()             # Relates code-labels for defined characteristics (e.g. prevalence) with labels of compartments used in their definition.
                                                 # Key is a characteristic label. Value is a dict containing characteristic name, a list of 'inclusions' and a normalising characteristic or compartment.
                                                 # Be aware that inclusions/normalisations may refer to characteristics in the same odict.
         self.charac_name_labels = odict()       # Key is a characteristic name. Value is a characteristic label. (A partial reversed charac_specs.)
+        
         self.links = odict()                    # Key is a tag. Value is a list of compartment-label tuple.
         self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.
         self.linkpar_name_labels = odict()      # Key is a link-parameter name. Value is a link-parameter label. (A partial reversed linkpar-specs.)
+        
+#        self.deps = odict()                     # A dictionary of characteristics and untagged parameters that must be calculated at each timestep due to being dependencies for other variables.        
         
         # Project-data workbook metadata.
         self.databook = odict()
@@ -305,7 +314,7 @@ class Settings(object):
                             self.links[val] = []
                         self.links[val].append((n1, n2))
             
-        #%% Fifth sheet: Transition Parameters
+        #%% Fifth sheet: Parameters
         # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
         cid_tag = None
         cid_label = None
@@ -313,6 +322,7 @@ class Settings(object):
         cid_sheet = None
         cid_default = None
         cid_order = None
+        cid_function = None
         for col_id in xrange(ws_pars.ncols):
             if ws_pars.cell_value(0, col_id) == 'Transition Tag': cid_tag = col_id
             if ws_pars.cell_value(0, col_id) == 'Code Label': cid_label = col_id
@@ -320,6 +330,7 @@ class Settings(object):
             if ws_pars.cell_value(0, col_id) == 'Sheet Label': cid_sheet = col_id
             if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
             if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
+            if ws_pars.cell_value(0, col_id) == 'Function': cid_function = col_id
         if None in [cid_tag, cid_label, cid_name]:
             raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
         
@@ -360,6 +371,20 @@ class Settings(object):
                     val = str(ws_pars.cell_value(row_id, cid_default))
                     if val not in ['']:
                         self.linkpar_specs[label]['default'] = float(val)
+                        
+                # Store the token stack corresponding to a custom function that defines this parameter, if available.
+                if not cid_function is None:
+                    val = str(ws_pars.cell_value(row_id, cid_function))
+                    if val not in ['']:
+                        expr_stack, var_dict = self.parser.produceStack(val)
+                        self.linkpar_specs[label]['f_stack'] = expr_stack
+                        self.linkpar_specs[label]['deps'] = var_dict
+                        for dep in var_dict.keys():
+                            if not dep in self.charac_specs.keys():
+                                if not dep in self.linkpar_specs.keys():
+                                    raise OptimaException('ERROR: Dependency "%s" has not been defined by the time "%s" is loaded into settings.' % (dep, label))
+                            else:
+                                self.charac_specs[dep]['par_dependency'] = True
         
         # If all parameters in this sheet are to be printed to custom databook sheets, no need for a default.
         if standard_sheet_count <= 0:
