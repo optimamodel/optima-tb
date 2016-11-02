@@ -3,82 +3,7 @@
 from utils import flattenDict, odict, OptimaException
 
 import numpy as np
-import numpy.random as npr
 from copy import deepcopy as dcp
-
-import scipy.optimize as spo
-
-
-
-##%% Calculation functions used in model
-#
-#def transitionRelation(v_test, v_know, v_formats, dt):
-#    '''
-#    Solvable function that relates Poisson-based transition event rates with fractions of people moving after time dt.
-#    Input array v_know can contain any mix of rates and fractions, as long as corresponding list v_formats indicates which are marked by 'rate'.
-#    A numerical solver would then solve for v_test, a mix of fractions and rates opposite to v_know.
-#    '''
-#    
-#    f = np.zeros(len(v_know))
-#    F = np.zeros(len(v_know))
-#    d = np.zeros(len(v_know))
-#    
-#    # Rearrange arrays of values provided by solver and user into arrays of rates (f) and fractions (F).
-#    for k in xrange(len(v_know)):
-#        if v_formats[k] == 'rate':
-#            f[k] = v_know[k]
-#            F[k] = v_test[k]
-#        else:
-#            f[k] = v_test[k]
-#            F[k] = v_know[k]
-#
-#    # As an array, calculate the discrepancy between calculated and given fraction values.
-#    # The two correspond if the difference is zero.
-#    if sum(f) == 0:
-#        d = -F
-#    else:
-#        d = (1-np.exp(-sum(f)*dt))*f/sum(f)-F
-#    
-#    return d
-#            
-#
-#def convertTransitions(values, value_formats, old_dt, new_dt):
-#    ''' Function that converts yearly transition values provided in various formats (assuming old_dt is 1) into timestep-relevant fractions. '''
-#    
-#    new_vals = np.zeros(len(values))
-#    
-#    # Convert any values that are provided as probabilities into Poisson rates (average number of times transition event is encountered per year).
-#    k = 0
-#    for val in values:
-#        if value_formats[k] == 'probability':
-#            values[k] = -np.log(1-val)/old_dt
-#            value_formats[k] = 'rate'
-#        k += 1
-#    rates = dcp(values)     # This pre-allocated array should currently be a mix of fractions and rates, but will be made all rates later.
-#    
-#    # Given a set of rates/fractions, solve what the corresponding fractions/rates are.
-#    x = spo.fsolve(transitionRelation, np.ones(len(values))/2, args=(values, value_formats, old_dt), full_output = True)
-#    
-#    # If the numerical solver does not converge, print the solver output and crash.
-#    if x[2] != 1: 
-#        print x        
-#        raise OptimaException('ERROR: Transitions cannot be reconciled. This may be due to the sum of yearly outflows for a compartment being greater than 100%.')
-#    
-#    # If a value passed into the solver was not a rate, then the corresponding output should be. Finish generating a Poisson rates array.
-#    for k in xrange(len(values)):
-#        if value_formats[k] != 'rate':
-#            rates[k] = x[0][k]
-#
-#    # Convert Poisson rates into fractions of compartment populations that should be moved per timestep new_dt.
-#    k = 0
-#    for rate in rates:
-#        if sum(rates) == 0:
-#            new_vals[k] = 0.0
-#        else:
-#            new_vals[k] = (1-np.exp(-sum(rates)*new_dt))*rates[k]/sum(rates)
-#        k += 1
-#
-#    return new_vals
 
 
 
@@ -205,45 +130,6 @@ class ModelPopulation(Node):
                 self.deps.append(Variable(label=label))
                 self.dep_ids[label] = k
                 k += 1
-    
-#    def stepCascadeForward(self, dt = 1.0):
-#        '''
-#        Evolve model population characteristics by one timestep (defaulting as 1 year).
-#        Calculated outputs like popsize will overwrite pre-allocated NaNs.
-#        In contrast, pre-allocated arrays that are used in calculations (e.g. parameters) must be pre-filled with appropriate values.
-#        This method only works if all links in this population target compartments in the same population. Generally used only for testing/debugging.
-#        '''
-#        
-#        ti = self.t_index
-#        
-#        # If not pre-allocated, extend compartment variable arrays. Either way copy current value to the next position in the array.
-#        for comp in self.comps:
-#            if not len(comp.popsize) > ti + 1:
-#                comp.popsize = np.append(comp.popsize, 0.0)
-#            if not len(comp.popsize) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
-#                raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (comp.label))
-#            comp.popsize[ti+1] = comp.popsize[ti]
-#                
-#        dpopsize = np.zeros(len(self.links))        
-#        
-#        # First calculation loop. Extend link variable arrays if not pre-allocated. Calculate value changes for next timestep.
-#        for k, link in enumerate(self.links):
-#            if not len(link.vals) > ti + 1:
-#                link.vals = np.append(link.vals, link.vals[-1])
-#            if not len(link.vals) > ti + 1:         # If one extension did not create an index of ti+1, something is seriously wrong...
-#                raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (link.label))
-#            if link.index_to[0] != self.index:      # If a link in this population targets a compartment in another population, crash this method.
-#                raise OptimaException('ERROR: Population %s contains a link from %s to another population. Cannot step cascade independently forward.' % (self.label, link.label_from))
-#            
-#            converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
-#            dpopsize[k] = self.getComp(link.label_from).popsize[ti] * converted_frac
-#
-#        # Second calculation loop. Apply value changes at next timestep.
-#        for k, link in enumerate(self.links):
-#            self.getComp(link.label_from).popsize[ti+1] -= dpopsize[k]
-#            self.getComp(link.label_to).popsize[ti+1] += dpopsize[k]
-#            
-#        self.t_index += 1       # Update timestep index.
             
 #    def printCompVars(self, full = False):
 #        ''' Loop through all compartments and print out current variable values. '''
@@ -262,15 +148,6 @@ class ModelPopulation(Node):
 #            else:
 #                print('[Pop: %s][%5s --> %-5s][Transit. Fraction...]' % (self.label, link.label_from, link.label_to))
 #                print(link.vals)
-
-#    def makeRandomVars(self, for_comp = True, for_link = True):
-#        ''' Randomise all compartment and link variables. Method used primarily for debugging. '''
-#        if for_comp:
-#            for comp in self.comps:
-#                comp.popsize[self.t_index] = npr.rand()*1e7
-#        if for_link:
-#            for link in self.links:
-#                link.vals = npr.rand()/self.getComp(link.label_from).num_outlinks     # Scaling makes sure fractions leaving a compartment sum to less than 1.
                 
     def preAllocate(self, sim_settings):
         '''
@@ -354,7 +231,7 @@ class Model(object):
             entry_point = settings.charac_specs[charac_label]['entry_point']
             for pop_label in parset.pop_labels:
                 val = init_dict[charac_label][pop_label]
-                flat_list = flattenDict(input_dict = settings.charac_specs, base_key = charac_label, sub_key = 'includes')
+                flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = charac_label, sub_keys = ['includes'])
                 flat_list.remove(entry_point)
                 for include in flat_list:
                     if include in charac_for_entry.keys():
@@ -489,7 +366,7 @@ class Model(object):
         
         # Preallocate a change-in-popsize array. Requires each population to have the same cascade.
         num_pops = len(self.pops)
-        num_comps = len(self.pops[0].comps)     # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
+        num_comps = len(self.pops[0].comps)         # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
         dpopsize = np.zeros(num_pops*num_comps)
         
         # First loop through all pops and comps to calculate value changes.
@@ -504,11 +381,7 @@ class Model(object):
                     raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment "%s".' % (comp.label))
                 comp.popsize[ti+1] = comp.popsize[ti]
                     
-                if comp.label not in settings.junction_labels:      # Junctions collect inflows during this step.
-                    
-    #                vals = np.zeros(comp.num_outlinks)
-    #                val_formats = [None]*comp.num_outlinks
-    #                j = 0
+                if comp.label not in settings.junction_labels:      # Junctions collect inflows during this step. They do not process outflows here.
                     for lid in comp.outlink_ids:
                         link = pop.links[lid]
                         
@@ -517,19 +390,6 @@ class Model(object):
                             link.vals = np.append(link.vals, link.vals[-1])
                         if not len(link.vals) > ti + 1:         # If one extension did not create an index of ti+1, something is seriously wrong...
                             raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment "%s".' % (link.label))
-    #                    
-    #                    # Store values and formats for outlinks relevant to the current compartment.
-    #                    vals[j] = link.vals[ti]
-    #                    val_formats[j] = link.val_format
-    #                    j += 1
-    #                
-    #                # If there are transitions to be applied, convert them to movement fractions appropriate to one timestep.
-    #                if len(vals) > 0:
-    #                    new_vals = convertTransitions(values = dcp(vals), value_formats = dcp(val_formats), old_dt = 1.0, new_dt = dt)
-    #                        
-    #                    j = 0
-    #                    for lid in comp.outlink_ids:
-    #                    link = pop.links[lid]
                         
                         did_from = link.index_from[0] * num_comps + link.index_from[1]
                         did_to = link.index_to[0] * num_comps + link.index_to[1]
@@ -548,7 +408,6 @@ class Model(object):
                         
                         dpopsize[did_from] -= comp_source.popsize[ti] * converted_frac
                         dpopsize[did_to] += comp_source.popsize[ti] * converted_frac
-    #                    j += 1
                 
                 k += 1
 

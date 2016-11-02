@@ -52,7 +52,9 @@ class Settings(object):
         self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.
         self.linkpar_name_labels = odict()      # Key is a link-parameter name. Value is a link-parameter label. (A partial reversed linkpar-specs.)
         
-#        self.deps = odict()                     # A dictionary of characteristics and untagged parameters that must be calculated at each timestep due to being dependencies for other variables.        
+        self.deps = odict()                     # A dictionary of characteristics that must be calculated at each model timestep due to being dependencies for other variables.
+                                                # Should correspond to every item in charac_specs that has a 'par_dependency' tag.
+                                                # NOTE: Does not include parameters that are parameter-dependencies, though this can be changed if required.
         
         # Project-data workbook metadata.
         self.databook = odict()
@@ -210,10 +212,10 @@ class Settings(object):
                             raise OptimaException('ERROR: Cascade characteristic "%s" is being defined with an inclusion reference to "%s", which has not been defined yet.' % (charac_label, val))
                         self.charac_specs[charac_label]['includes'].append(val)
                 
-                flat_list = flattenDict(input_dict = self.charac_specs, base_key = charac_label, sub_key = 'includes', limit = self.recursion_limit)
+                flat_list, dep_list = flattenDict(input_dict = self.charac_specs, base_key = charac_label, sub_keys = ['includes'], limit = self.recursion_limit)
                 if len(flat_list) != len(set(flat_list)):
                     raise OptimaException('ERROR: Cascade characteristic "%s" contains duplicate references to a compartment (in its numerator) when all the recursion is flattened out.' % (charac_label))
-                ref_list = dcp(flat_list)   # Useful for checking what compartments this characteristic references.
+                numerator_ref_list = dcp(flat_list)   # Useful for checking what compartments the numerator characteristic references.
                 
                 # Work out which compartment/characteristic this characteristic is normalised by.
                 if not cid_denom is None:
@@ -262,10 +264,10 @@ class Settings(object):
                             raise OptimaException('ERROR: Cascade characteristic "%s" is not the first to use "%s" as an entry point.' % (charac_label, val))
                         if val not in self.node_specs.keys():
                             raise OptimaException('ERROR: There is no compartment named "%s" that can be used as an entry point by cascade characteristic "%s".' % (val, charac_label))                        
-                        ref_list = set(ref_list)
-                        try: ref_list.remove(val)
-                        except: raise OptimaException('ERROR: Entry point "%s" for characteristic "%s" must be a compartment it includes, either directly or via characteristic reference.' % (val, charac_label))
-                        entry_dict[val] = dcp(list(ref_list))
+                        numerator_ref_list = set(numerator_ref_list)
+                        try: numerator_ref_list.remove(val)
+                        except: raise OptimaException('ERROR: Entry point "%s" for characteristic "%s" must be a compartment it includes (in its numerator), either directly or via characteristic reference.' % (val, charac_label))
+                        entry_dict[val] = dcp(list(numerator_ref_list))
         
         # If all characteristics in this sheet are to be printed to custom databook sheets, no need for a default.
         if standard_sheet_count <= 0:
@@ -275,7 +277,7 @@ class Settings(object):
         # This allows for disaggregated characteristic values to be partitioned from aggregate characteristics during model-seeding.
         for entry_label in entry_dict.keys():
             try:
-                ref_list = flattenDict(input_dict = entry_dict, base_key = entry_label, limit = self.recursion_limit)
+                flattenDict(input_dict = entry_dict, base_key = entry_label, limit = self.recursion_limit)
             except OptimaException:
                 raise OptimaException('Characteristic "%s" references an entry point for another characteristic that, via some chain, eventually references the entry point of characteristic "%s". Alternatively, maximum recursion depth is set too small.' % (entry_label, entry_label))
         
@@ -379,12 +381,22 @@ class Settings(object):
                         expr_stack, var_dict = self.parser.produceStack(val)
                         self.linkpar_specs[label]['f_stack'] = expr_stack
                         self.linkpar_specs[label]['deps'] = var_dict
-                        for dep in var_dict.keys():
-                            if not dep in self.charac_specs.keys():
-                                if not dep in self.linkpar_specs.keys():
-                                    raise OptimaException('ERROR: Dependency "%s" has not been defined by the time "%s" is loaded into settings.' % (dep, label))
+                        for var in var_dict.keys():
+                            if not var in self.charac_specs.keys():
+                                if not var in self.linkpar_specs.keys():
+                                    raise OptimaException('ERROR: Dependency "%s" has not been defined by the time "%s" is loaded into settings.' % (var, label))
+#                                else:
+#                                    self.deps[var] = True
                             else:
-                                self.charac_specs[dep]['par_dependency'] = True
+                                if not var in self.deps.keys():
+                                    flat_list, dep_list = flattenDict(input_dict = self.charac_specs, base_key = var, sub_keys = ['includes','denom'], limit = self.recursion_limit)
+                                    for dep in dep_list:
+                                        self.charac_specs[dep]['par_dependency'] = True
+                                        self.deps[dep] = True
+                                    print var
+                                    print dep_list
+        
+        print self.deps        
         
         # If all parameters in this sheet are to be printed to custom databook sheets, no need for a default.
         if standard_sheet_count <= 0:
