@@ -468,24 +468,28 @@ def _writeSinglePopulationBlock(ws,row_index_start,col_index_start,col_index_end
         formats
         col_header_start
         disagg
-        pop_label_index
+        pop_label_index    index of populations
         
     
     """
-    print "pop_label_index = ",pop_label_index
-    
     
     index_total = []
     if col_header_start is None: col_header_start = col_index_start - 1
     final_row = 0
-    
+    row_index = 0
+
     for i,pop_label in enumerate(pop_labels):
         if not disagg:
-            ws.write(row_index_start+i,col_header_start,"=%s"%pop_label,formats['right_format'])
+            ws.write(row_index_start+row_index,col_header_start,"=%s"%pop_label,formats['right_format'])
         else:
-            if '' in pop_label:
+            if '' in pop_label[:-1]:
                 continue
-            print "ADDING ", pop_label
+            
+            if '' == pop_label[-1]:
+                row_index += 1
+                continue
+            
+            printv("ADDING %s"%pop_label,3)
             
             
             for (j,v) in enumerate(pop_label):
@@ -493,25 +497,25 @@ def _writeSinglePopulationBlock(ws,row_index_start,col_index_start,col_index_end
                 if j == pop_label_index:
                     cell_value = '='+cell_value
                     
-                if v=='Total':
-                    index_total.append(i)
-                    ws.write(row_index_start+i,j+col_header_start,cell_value,formats['lgrey_bground_right'])
+                    
+                if v=='Total': #@TODO make this use constants
+                    index_total.append(row_index)
+                    ws.write(row_index_start+row_index,j+col_header_start,cell_value,formats['lgrey_bground_right'])
                 else:
-                    ws.write(row_index_start+i,j+col_header_start,cell_value,formats['lblue_bground_right'])
+                    ws.write(row_index_start+row_index,j+col_header_start,cell_value,formats['lblue_bground_right'])
                 
-        ws.write(row_index_start+i,col_index_end,'OR',formats['center_format'])
-        __formatBlock(ws, row_index_start+i, row_index_start+i+1, col_index_start, col_index_end, formats['blue_bground'])
-        __formatBlock(ws, row_index_start+i, row_index_start+i+1, col_index_end+1, col_index_end+2, formats['blue_bground'])
-        final_row = i
+        ws.write(row_index_start+row_index,col_index_end,'OR',formats['center_format'])
+        __formatBlock(ws, row_index_start+row_index, row_index_start+row_index+1, col_index_start, col_index_end, formats['blue_bground'])
+        __formatBlock(ws, row_index_start+row_index, row_index_start+row_index+1, col_index_end+1, col_index_end+2, formats['blue_bground'])
+        final_row = row_index
+        row_index += 1
+        
     
-    print "indext total = ",index_total
-    print col_header_start, col_index_start 
     for j in index_total:
         __formatBlock(ws, row_index_start+j, row_index_start+j+1, col_index_start, col_index_end, formats['grey_bground']) # main block
         __formatBlock(ws, row_index_start+j, row_index_start+j+1, col_index_end+1, col_index_end+2, formats['grey_bground']) # assumption
         ws.write(row_index_start+j,col_index_end,'OR',formats['lgrey_center_format'])
     
-    print final_row
     return final_row
 
 
@@ -543,15 +547,66 @@ def __genDisaggLabels(disaggs,cb_settings):
         if cb_settings['constants'].has_key('total_%s'%dag_type):
             disagg_list.append([cb_settings['constants']['total_%s'%dag_type]]+cb_settings['disaggregations'][dag_type]+[""])
         else:
-            disagg_list.append(cb_settings['disaggregations'][dag_type])
+            disagg_list.append(cb_settings['disaggregations'][dag_type]+[""])
     
     if len(disagg_list)>0:
         tmp_list = [list(a) for a in itertools.product(*disagg_list)] 
         disagg_list = tmp_list 
     return disagg_list
 
+def _create_multivalue_block(ws,ws_name,row_index,col_index_start,col_index_end,multivalue_labels,cb_settings,formats,main_label=True):
+    for label,item in multivalue_labels.iteritems():
+        
+        # create label
+        ws.write(row_index,0,label)
+        if main_label:
+            ws.set_row(row_index,None,formats['lgrey_label'])
+        row_index += cb_settings['constants']['spacing_multivalue_label']
+        
+        if isinstance(item,odict):
+            row_index = _create_multivalue_block(ws, ws_name,row_index, col_index_start,col_index_end, item, cb_settings, formats,main_label=False)
+        elif isinstance(item,list):
+            
+            # fix up row labels based on whether we're disaggregating values or not
+            dis_list = __genDisaggLabels(item,cb_settings)
+            # write col headers (poplabels and disaggs)
+            rows_added = _writeSinglePopulationBlock(ws,row_index,col_index_start,col_index_end,dis_list,formats,col_header_start=col_index_start-len(item),disagg=True,pop_label_index=item.index('populations'))
+            # interproperty spacing 
+            row_index += rows_added + cb_settings['constants']['spacing_interproperty']
+            
+    return row_index
+            
 
 def _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
+    """
+    Create sheets with multiblock values
+    
+    Format is specified in cb_settings, where each subsection follows the format:
+    
+        cb_settings['sheet_values'][sheetname][subsection_label] = value
+        
+        where value can be:
+            - <a list of disaggregation properties>                                  #indicating a main list
+            or
+            - an odict of format "subsection": <list of disaggregation properties>   #indicating a sublist
+    
+    Examples:
+    
+        cb_settings['sheet_values']['example1'] = odict()
+        cb_settings['sheet_values']['example1']['HIV prevalence'] = ['populations','smears','strains']
+        cb_settings['sheet_values']['example1']['Diabetes prevalence'] = ['populations','strains']
+    
+        cb_settings['sheet_values']['example2'] = odict()
+        cb_settings['sheet_values']['example2']['Background testing rates'] = ['populations']
+        cb_settings['sheet_values']['example2']['Testing for latent TB'] = odict()
+        cb_settings['sheet_values']['example2']['Testing for latent TB']['Percentage of population tested for latent TB per year'] = ['populations']
+        cb_settings['sheet_values']['example2']['Testing for latent TB']['Number of people initiating treatment for latent TB each year'] = ['populations']
+        cb_settings['sheet_values']['example2']['Testing for active TB'] = odict()
+        cb_settings['sheet_values']['example2']['Testing for active TB']['Number of people lost to follow up for active TB each year'] = ['regimens','populations']
+        cb_settings['sheet_values']['example2']['Testing for active TB']['Number of people successfully completing treatment for active TB each year'] = ['regimens','populations']
+             
+    
+    """
     row_index_start = cb_settings['constants']['row_index_start']   
     # col_index_start: + number of max disaggregations for subcategories
     col_index_start =  len(max(cb_settings['sheet_values'][ws_name].values(),key=len))
@@ -559,34 +614,18 @@ def _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,
     # headers
     _writeYearHeader(ws, row=1, col_offset=col_index_start, start_year=start_year, end_year=end_year,formats=formats)
     ws.write(1,col_index_end+1,'Assumption',formats['year_header'])
-    
-    row_index = row_index_start
-    for label in cb_settings['sheet_values'][ws_name]:
-        # create label
-        ws.write(row_index,0,label)
-        ws.set_row(row_index,None,formats['lgrey_label'])
-        row_index += 1
-        # fix up row labels based on whether we're disaggregating values or not
-        disaggs = cb_settings['sheet_values'][ws_name][label]
-        dis_list = __genDisaggLabels(disaggs,cb_settings)
-        print dis_list
+    # write the blocks for each of the values as specified in cb_settings['sheet_values'][ws_name]
+    _create_multivalue_block(ws,ws_name,row_index_start,col_index_start,col_index_end,cb_settings['sheet_values'][ws_name],cb_settings,formats)
+
         
-        # write col headers (poplabels and disaggs)
-        print "Starting at ", row_index, "and will add ", len(dis_list)
-        print "Col index starting at will be ", col_index_start, "but for this parameter will be ", col_index_start-len(disaggs)-1
-        rows_added = _writeSinglePopulationBlock(ws,row_index,col_index_start,col_index_end,dis_list,formats,col_header_start=col_index_start-len(disaggs),disagg=True,pop_label_index=disaggs.index('populations'))
-        print "rows added = ", rows_added
-        # interproperty spacing 
-        row_index += rows_added + cb_settings['constants']['spacing_interproperty']
-    
 def _create_other_epidemiology(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
     _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels)
 
 def _create_comorbidity(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
     _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels)
 
-def _create_testing_treatment(ws,cb_settings):
-    pass
+def _create_testing_treatment(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
+    _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels)
 
 def _create_programs(ws,cb_settings):
     pass
@@ -642,7 +681,6 @@ def export_spreadsheet(settings,filename=DEFAULT_PATH,num_pops=4,verbose=2,pop_n
         elif name in settings.countrybook['sheet_classes']['univalue']:
             _createUnivalueSheet(ws, name, settings.countrybook, formats, settings.tvec_start,settings.tvec_end,poplabels)
         else:
-            print name
             createSheet = availfns.get('_create_%s'%name)
             if not createSheet:
                 raise NotImplementedError("No method associated in creating sheet '%s'"%name)
