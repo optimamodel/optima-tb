@@ -84,7 +84,7 @@ class Project(object):
             ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
             
             legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}                
-            ax.set_title('%s Outputs - %s' % (self.name.title(), pop.label.title()))
+            ax.set_title('%s Outputs' % (self.name.title()))
             ax.set_xlabel('Year')
             ax.set_ylabel(self.settings.charac_specs[output_id]['name'] + unit_tag)
             ax.legend([pop.label for pop in results], **legendsettings)

@@ -125,6 +125,8 @@ class ModelPopulation(Node):
                 self.deps.append(Variable(label=label))
                 self.dep_ids[label] = k
                 k += 1
+        
+        # The order of definition in the settings characs list is crucial when evaluating characteristics.
         for label in settings.charac_specs.keys():
             if 'par_dependency' in settings.charac_specs[label]:
                 self.deps.append(Variable(label=label))
@@ -237,10 +239,6 @@ class Model(object):
                     if include in charac_for_entry.keys():
                         val -= init_dict[charac_for_entry[include]][pop_label]
                 self.getPop(pop_label).getComp(entry_point).popsize[0] = val
-                
-                # While looping through characteristics/populations, fill deps list with those that must be calculated per timestep.
-                if 'par_dependency' in settings.charac_specs[charac_label]:
-                    pass   #NECESSARY?
                     
         
         # Propagating cascade parameter parset values into ModelPops. Handle both 'tagged' links and 'untagged' dependencies.
@@ -274,8 +272,10 @@ class Model(object):
                                 
                                 self.getPop(pop_source).links.append(link)
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
-                                
-        self.processJunctions(settings = settings)      # Junctions may be initialised with popsize by this stage. Flow that onwards.
+        
+        # Make sure initially-filled junctions are processed and initial dependencies are calculated.
+        self.processJunctions(settings = settings)
+        self.updateDependencies(settings = settings)
                         
                 
     def process(self, settings):
@@ -284,75 +284,9 @@ class Model(object):
         for t in self.sim_settings['tvec'][1:]:
             self.stepForward(settings = settings, dt = settings.tvec_dt)
             self.processJunctions(settings = settings)
+            self.updateDependencies(settings = settings)
         
         return self.pops, self.sim_settings
-        
-    
-    def calculateOutputs(self, settings):
-        '''
-        Calculate outputs (called cascade characteristics in settings).
-        These outputs must be calculated in the same order as defined in settings, otherwise references may break.
-        '''
-        
-        outputs = odict()
-        for cid in settings.charac_specs.keys():
-            outputs[cid] = odict()
-            for pop in self.pops:
-                outputs[cid][pop.label] = None
-                
-                # Sum up all relevant compartment popsizes (or previously calculated characteristics).
-                for inc_label in settings.charac_specs[cid]['includes']:
-                    if inc_label in self.getPop(pop.label).comp_ids.keys():
-                        vals = self.getPop(pop.label).getComp(inc_label).popsize
-                    elif inc_label in outputs.keys()[:-1]:
-                        vals = outputs[inc_label][pop.label]
-                    else:
-                        raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
-                        
-                    if outputs[cid][pop.label] is None:
-                        outputs[cid][pop.label] = dcp(vals)
-                    else:
-                        outputs[cid][pop.label] += vals
-                
-                # Divide by relevant compartment popsize (or previously calculated characteristic).
-                if 'denom' in settings.charac_specs[cid]:
-                    den_label = settings.charac_specs[cid]['denom']
-                    if den_label in outputs.keys()[:-1]:
-                        vals = outputs[den_label][pop.label]
-                    elif den_label in self.getPop(pop.label).comp_ids.keys():
-                        vals = self.getPop(pop.label).getComp(den_label).popsize
-                    else:
-                        raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
-                    
-                    outputs[cid][pop.label] /= vals
-        
-        return outputs
-        
-    def processJunctions(self, settings):
-        '''
-        For every compartment considered a junction, propagate the contents onwards until all junctions are empty.
-        '''
-        
-        ti = self.t_index
-        ti_link = ti - 1
-        if ti_link < 0: ti_link = ti    # For the case where junctions are processed immediately after model initialisation.
-        final_review = False
-        
-        while not final_review:
-            final_review = True     # Assume that this is the final sweep through junctions to verify their emptiness.
-            for pop in self.pops:
-                for junction_label in settings.junction_labels:
-                    comp = pop.getComp(junction_label)
-                    popsize = comp.popsize[ti]
-                    if popsize > 0:
-                        final_review = False    # Outflows could propagate into other junctions requiring another review.
-                        denom_val = sum(pop.links[lid].vals[ti_link] for lid in comp.outlink_ids)
-                        if denom_val == 0: raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
-                        for lid in comp.outlink_ids:
-                            link = pop.links[lid]
-                            
-                            comp.popsize[ti] -= popsize * link.vals[ti_link] / denom_val
-                            pop.getComp(link.label_to).popsize[ti] += popsize * link.vals[ti_link] / denom_val
         
 
     def stepForward(self, settings, dt = 1.0):
@@ -421,6 +355,111 @@ class Model(object):
         self.t_index += 1
         for pop in self.pops:
             pop.t_index = self.t_index       # Keeps ModelPopulations synchronised with Model object.
+
+
+    def processJunctions(self, settings):
+        '''
+        For every compartment considered a junction, propagate the contents onwards until all junctions are empty.
+        '''
+        
+        ti = self.t_index
+        ti_link = ti - 1
+        if ti_link < 0: ti_link = ti    # For the case where junctions are processed immediately after model initialisation.
+        final_review = False
+        
+        while not final_review:
+            final_review = True     # Assume that this is the final sweep through junctions to verify their emptiness.
+            for pop in self.pops:
+                for junction_label in settings.junction_labels:
+                    comp = pop.getComp(junction_label)
+                    popsize = comp.popsize[ti]
+                    if popsize > 0:
+                        final_review = False    # Outflows could propagate into other junctions requiring another review.
+                        denom_val = sum(pop.links[lid].vals[ti_link] for lid in comp.outlink_ids)
+                        if denom_val == 0: raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
+                        for lid in comp.outlink_ids:
+                            link = pop.links[lid]
+                            
+                            comp.popsize[ti] -= popsize * link.vals[ti_link] / denom_val
+                            pop.getComp(link.label_to).popsize[ti] += popsize * link.vals[ti_link] / denom_val
+
+
+    def updateDependencies(self, settings):
+        '''
+        Run through all characteristics that are flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
+        These dependencies must be calculated in the same order as defined in settings, otherwise references may break.
+        '''
+        
+        ti = self.t_index
+        
+        for cid in settings.charac_specs.keys():
+            if 'par_dependency' in settings.charac_specs[cid]:
+                for pop in self.pops:                    
+                    self.getPop(pop.label).getDep(cid).vals[ti] = 0                    
+                    
+                    # Sum up all relevant compartment popsizes (or previously calculated characteristics).
+                    for inc_label in settings.charac_specs[cid]['includes']:
+                        if inc_label in self.getPop(pop.label).comp_ids.keys():
+                            val = self.getPop(pop.label).getComp(inc_label).popsize[ti]
+                        elif inc_label in self.getPop(pop.label).dep_ids.keys():    # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
+                            val = self.getPop(pop.label).getDep(inc_label).vals[ti]
+                        else:
+                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
+                            
+                        self.getPop(pop.label).getDep(cid).vals[ti] += val
+                    
+                    # Divide by relevant compartment popsize (or previously calculated characteristic).
+                    if 'denom' in settings.charac_specs[cid]:
+                        den_label = settings.charac_specs[cid]['denom']
+                        if den_label in self.getPop(pop.label).dep_ids.keys():  # NOTE: See above note for avoiding parameter-type dependencies.
+                            val = self.getPop(pop.label).getDep(den_label).vals[ti]
+                        elif den_label in self.getPop(pop.label).comp_ids.keys():
+                            val = self.getPop(pop.label).getComp(den_label).popsize[ti]
+                        else:
+                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
+                        
+                        self.getPop(pop.label).getDep(cid).vals[ti] /= val
+
+    
+    def calculateOutputs(self, settings):
+        '''
+        Calculate outputs (called cascade characteristics in settings).
+        These outputs must be calculated in the same order as defined in settings, otherwise references may break.
+        '''
+        
+        outputs = odict()
+        for cid in settings.charac_specs.keys():
+            outputs[cid] = odict()
+            for pop in self.pops:
+                outputs[cid][pop.label] = None
+                
+                # Sum up all relevant compartment popsizes (or previously calculated characteristics).
+                for inc_label in settings.charac_specs[cid]['includes']:
+                    if inc_label in self.getPop(pop.label).comp_ids.keys():
+                        vals = self.getPop(pop.label).getComp(inc_label).popsize
+                    elif inc_label in outputs.keys()[:-1]:
+                        vals = outputs[inc_label][pop.label]
+                    else:
+                        raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
+                        
+                    if outputs[cid][pop.label] is None:
+                        outputs[cid][pop.label] = dcp(vals)
+                    else:
+                        outputs[cid][pop.label] += vals
+                
+                # Divide by relevant compartment popsize (or previously calculated characteristic).
+                if 'denom' in settings.charac_specs[cid]:
+                    den_label = settings.charac_specs[cid]['denom']
+                    if den_label in outputs.keys()[:-1]:
+                        vals = outputs[den_label][pop.label]
+                    elif den_label in self.getPop(pop.label).comp_ids.keys():
+                        vals = self.getPop(pop.label).getComp(den_label).popsize
+                    else:
+                        raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
+                    
+                    outputs[cid][pop.label] /= vals
+        
+        return outputs
         
     
 
