@@ -3,7 +3,6 @@
 from utils import flattenDict, odict, OptimaException
 
 import xlrd
-import networkx as nx
 import pylab as pl
 import numpy as np
 from copy import deepcopy as dcp
@@ -308,6 +307,9 @@ class Settings(object):
             raise OptimaException('ERROR: Cascade transition-parameter worksheet appears to have duplicate parameter code labels.')
     
     def plotCascade(self):
+        
+        import networkx as nx
+        
         fig, ax = pl.subplots(figsize=(10,10))
         G = nx.DiGraph()
         plottable_nodes = [nid for nid in self.node_specs.keys() if 'tag_no_plot' not in self.node_specs[nid]]
