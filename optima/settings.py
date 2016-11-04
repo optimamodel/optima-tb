@@ -52,9 +52,9 @@ class Settings(object):
         self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.
         self.linkpar_name_labels = odict()      # Key is a link-parameter name. Value is a link-parameter label. (A partial reversed linkpar-specs.)
         
-        self.deps = odict()                     # A dictionary of characteristics that must be calculated at each model timestep due to being dependencies for other variables.
+        self.par_deps = odict()                 # A definition-ordered dictionary of 'untagged' parameters used as dependencies for other parameters.
+        self.charac_deps = {}                   # An unordered dictionary of characteristics that must be calculated at each model timestep due to being dependencies for other variables.
                                                 # Should correspond to every item in charac_specs that has a 'par_dependency' tag.
-                                                # NOTE: Does not include parameters that are parameter-dependencies, though this can be changed if required.
         
         # Project-data workbook metadata.
         self.databook = odict()
@@ -349,6 +349,8 @@ class Settings(object):
                     if tag not in self.links:
                         raise OptimaException('ERROR: Cascade transition-parameter worksheet has a tag (%s) that is not in the transition matrix.' % tag)
                     self.linkpar_specs[label]['tag'] = tag
+                else:
+                    self.par_deps[label] = True     # Untagged parameters are dependencies for actual tagged transitions.
                 
                 # Attribute a custom sheet label to this parameter if available.
                 if not cid_sheet is None:
@@ -378,6 +380,8 @@ class Settings(object):
                 if not cid_function is None:
                     val = str(ws_pars.cell_value(row_id, cid_function))
                     if val not in ['']:
+                        if 'default' in self.linkpar_specs[label]:
+                            raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Specifying a default is thus restricted, so as to avoid user confusion.' % label)
                         expr_stack, var_dict = self.parser.produceStack(val)
                         self.linkpar_specs[label]['f_stack'] = expr_stack
                         self.linkpar_specs[label]['deps'] = var_dict
@@ -385,18 +389,12 @@ class Settings(object):
                             if not var in self.charac_specs.keys():
                                 if not var in self.linkpar_specs.keys():
                                     raise OptimaException('ERROR: Dependency "%s" has not been defined by the time "%s" is loaded into settings.' % (var, label))
-#                                else:
-#                                    self.deps[var] = True
                             else:
-                                if not var in self.deps.keys():
+                                if not var in self.charac_deps.keys():
                                     flat_list, dep_list = flattenDict(input_dict = self.charac_specs, base_key = var, sub_keys = ['includes','denom'], limit = self.recursion_limit)
                                     for dep in dep_list:
                                         self.charac_specs[dep]['par_dependency'] = True
-                                        self.deps[dep] = True
-                                    print var
-                                    print dep_list
-        
-        print self.deps        
+                                        self.charac_deps[dep] = True
         
         # If all parameters in this sheet are to be printed to custom databook sheets, no need for a default.
         if standard_sheet_count <= 0:

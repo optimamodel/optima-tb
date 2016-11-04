@@ -101,7 +101,8 @@ class ModelPopulation(Node):
     def genCascade(self, settings):
         '''
         Generate a compartmental cascade as defined in a settings object.
-        Fill out the compartment and transition lists within the model population object.
+        Fill out the compartment, transition and dependency lists within the model population object.
+        Maintaining order as defined in a cascade workbook is crucial due to cross-referencing.
         '''
         for k, label in enumerate(settings.node_specs.keys()):
             self.comps.append(ModelCompartment(label = label, index = (self.index,k)))
@@ -110,28 +111,33 @@ class ModelPopulation(Node):
             if 'junction' in settings.node_specs[label].keys():
                 self.comps[-1].junction = True
             self.comp_ids[label] = k
-        j = 0
+        
         k = 0
+        # Create actual link objects for parameters with tags, a.k.a. transitions.
         for label in settings.linkpar_specs.keys():
             if 'tag' in settings.linkpar_specs[label]:
                 tag = settings.linkpar_specs[label]['tag']
                 for pair in settings.links[tag]:
-                    self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]),link_index=j,link_label=label))
+                    self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]),link_index=k,link_label=label))
                     if not tag in self.link_ids.keys():
                         self.link_ids[tag] = []
-                    self.link_ids[tag].append(j)
-                    j += 1
-            else:
-                self.deps.append(Variable(label=label))
-                self.dep_ids[label] = k
-                k += 1
-        
-        # The order of definition in the settings characs list is crucial when evaluating characteristics.
+                    self.link_ids[tag].append(k)
+                    k += 1
+                    
+        k = 0
+        # Now create variable objects for dependencies, starting with characteristics.
         for label in settings.charac_specs.keys():
             if 'par_dependency' in settings.charac_specs[label]:
                 self.deps.append(Variable(label=label))
                 self.dep_ids[label] = k
                 k += 1
+        
+        # Finish dependencies with untagged parameters, i.e. ones that are not considered transition flow rates.
+        for label in settings.par_deps.keys():
+            self.deps.append(Variable(label=label))
+            self.dep_ids[label] = k
+            k += 1
+                    
             
 #    def printCompVars(self, full = False):
 #        ''' Loop through all compartments and print out current variable values. '''
@@ -386,39 +392,53 @@ class Model(object):
 
     def updateDependencies(self, settings):
         '''
-        Run through all characteristics that are flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
-        These dependencies must be calculated in the same order as defined in settings, otherwise references may break.
+        Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
+        These dependencies must be calculated in the same order as defined in settings, characteristics before parameters, otherwise references may break.
+        Also, parameters in the dependency list do not need to be calculated unless explicitly depending on another parameter.
         '''
         
         ti = self.t_index
         
-        for cid in settings.charac_specs.keys():
-            if 'par_dependency' in settings.charac_specs[cid]:
-                for pop in self.pops:                    
-                    self.getPop(pop.label).getDep(cid).vals[ti] = 0                    
+        for pop in self.pops:
+            for dep in pop.deps:
+                if dep.label in settings.charac_specs.keys():
+                    dep.vals[ti] = 0                    
                     
                     # Sum up all relevant compartment popsizes (or previously calculated characteristics).
-                    for inc_label in settings.charac_specs[cid]['includes']:
-                        if inc_label in self.getPop(pop.label).comp_ids.keys():
-                            val = self.getPop(pop.label).getComp(inc_label).popsize[ti]
-                        elif inc_label in self.getPop(pop.label).dep_ids.keys():    # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
-                            val = self.getPop(pop.label).getDep(inc_label).vals[ti]
+                    for inc_label in settings.charac_specs[dep.label]['includes']:
+                        if inc_label in pop.comp_ids.keys():
+                            val = pop.getComp(inc_label).popsize[ti]
+                        elif inc_label in pop.dep_ids.keys():    # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
+                            val = pop.getDep(inc_label).vals[ti]
                         else:
-                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
+                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
                             
-                        self.getPop(pop.label).getDep(cid).vals[ti] += val
+                        dep.vals[ti] += val
                     
                     # Divide by relevant compartment popsize (or previously calculated characteristic).
-                    if 'denom' in settings.charac_specs[cid]:
-                        den_label = settings.charac_specs[cid]['denom']
-                        if den_label in self.getPop(pop.label).dep_ids.keys():  # NOTE: See above note for avoiding parameter-type dependencies.
-                            val = self.getPop(pop.label).getDep(den_label).vals[ti]
-                        elif den_label in self.getPop(pop.label).comp_ids.keys():
-                            val = self.getPop(pop.label).getComp(den_label).popsize[ti]
+                    if 'denom' in settings.charac_specs[dep.label]:
+                        den_label = settings.charac_specs[dep.label]['denom']
+                        if den_label in pop.dep_ids.keys():  # NOTE: See above note for avoiding parameter-type dependencies.
+                            val = pop.getDep(den_label).vals[ti]
+                        elif den_label in pop.comp_ids.keys():
+                            val = pop.getComp(den_label).popsize[ti]
                         else:
-                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
+                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
                         
-                        self.getPop(pop.label).getDep(cid).vals[ti] /= val
+                        dep.vals[ti] /= val
+                
+                # If the dependency is a parameter, evaluate its stack.
+                elif dep.label in settings.linkpar_specs.keys():
+                    if 'deps' in settings.linkpar_specs[dep.label]:
+                        if len(settings.linkpar_specs[dep.label]['deps'].keys()) >= 0:
+                            f_stack = dcp(settings.linkpar_specs[dep.label]['f_stack'])
+                            dep_deps = dcp(settings.linkpar_specs[dep.label]['deps'])
+                            for dep_dep_label in dep_deps.keys():
+                                dep_deps[dep_dep_label] = pop.getDep(dep_dep_label).vals[ti]
+                            dep.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = dep_deps)
+
+                else:
+                    raise OptimaException('ERROR: Dependency "%s" does not appear to be either a characteristic or parameter.' % (dep.label))
 
     
     def calculateOutputs(self, settings):
