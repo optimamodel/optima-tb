@@ -51,7 +51,7 @@ def interpolateFunc(x, y, xnew, method = 'pchip'):
 #        		    ynew.append(ynew[-1]) # Duplicate the last element so the right length
     
     else:
-        raise OptimaException('ERROR: Interpolation method %s not understood.' % method)
+        raise OptimaException('ERROR: Interpolation method "%s" not understood.' % method)
     
     return ynew
     

@@ -34,9 +34,9 @@ class Project(object):
     def runSim(self, parset_name = 'default'):
         ''' Run model using a selected parset and store/return results. '''
         
-        if len(self.parsets) < 1: raise OptimaException('ERROR: Project %s appears to have no parameter sets. Cannot run model.' % self.name)
+        if len(self.parsets) < 1: raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
         try: parset = self.parsets[parset_name]
-        except: raise OptimaException('ERROR: Project %s is lacking a parset named %s. Cannot run model.' % (self.name, parset_name))
+        except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
 
         tm = tic()
         results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
@@ -84,7 +84,7 @@ class Project(object):
             ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
             
             legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}                
-            ax.set_title('%s Outputs - %s' % (self.name.title(), pop.label.title()))
+            ax.set_title('%s Outputs' % (self.name.title()))
             ax.set_xlabel('Year')
             ax.set_ylabel(self.settings.charac_specs[output_id]['name'] + unit_tag)
             ax.legend([pop.label for pop in results], **legendsettings)
@@ -112,6 +112,6 @@ class Project(object):
     def makeParset(self, name = 'default'):
         ''' Transform project data into a set of parameters that can be used in model simulations. '''
 
-        if not self.data: raise OptimaException('ERROR: No data exists for project %s.' % self.name)
+        if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
         self.parsets[name] = ParameterSet(name = name)
         self.parsets[name].makePars(self.data)

@@ -114,17 +114,26 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_pops = workbook.add_worksheet(settings.databook['sheet_names']['pops'])
     ws_transmat = workbook.add_worksheet(settings.databook['sheet_names']['transmat'])
     ws_transval = workbook.add_worksheet(settings.databook['sheet_names']['transval'])
-    ws_charac = workbook.add_worksheet(settings.databook['sheet_names']['charac'])
-    ws_linkpars = workbook.add_worksheet(settings.databook['sheet_names']['linkpars'])
+    
+    # Regarding cascade parameters and characteristics, store sheets and corresponding row ids for further writing.
+    ws_params = odict()
+    for custom_label in settings.databook['custom_sheet_names']:
+        ws_params[custom_label] = {'row_id':0, 'ws':workbook.add_worksheet(settings.databook['custom_sheet_names'][custom_label])}
+    
+    # Only produce standard sheets if there are any parameters left over that are not allocated to custom sheets.
+    if settings.make_sheet_charac:
+        ws_params['charac'] = {'row_id':0, 'ws':workbook.add_worksheet(settings.databook['sheet_names']['charac'])}
+    if settings.make_sheet_linkpars:
+        ws_params['linkpars'] = {'row_id':0, 'ws':workbook.add_worksheet(settings.databook['sheet_names']['linkpars'])}
     
     data_tvec = np.arange(settings.tvec_start, settings.tvec_end + 1.0/2)
     ws_pops_width = 15
     ws_transmat_width = 15
     ws_transval_width = 15
-    ws_charac_width = 40
+    name_width = 40
     assumption_width = 10
     
-    # Population names sheet.
+    #%% Population names sheet.
     ws_pops.write(0, 0, 'Name')
     ws_pops.write(0, 1, 'Abbreviation')
     ws_pops.write(0, 2, 'Minimum Age')
@@ -149,7 +158,7 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
         pop_names_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)))
         pop_labels_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)))
     
-    # Inter-population transfers matrix sheet (from node to corresponding node).
+    #%% Inter-population transfers matrix sheet (from node to corresponding node).
     # Produce aging matrix.
     ws_transmat.write(0, 0, 'Aging')
     makeConnectionMatrix(worksheet = ws_transmat, at_row = 0, at_col = 0, labels = pop_labels_default, formula_labels = pop_labels_formula)
@@ -171,7 +180,7 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     
     ws_transmat.set_column(0, 0, ws_transmat_width)
     
-    # Inter-population transfer details sheet.
+    #%% Inter-population transfer details sheet.
     row_id = 0
     for mid in xrange(num_migrations):
         ws_transval.write(row_id, 0, mig_types_formula[mid], None, mig_types_default[mid])
@@ -195,32 +204,33 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
     ws_transval.set_column(2, 2, ws_transval_width)
     ws_transval.set_column(3, 4, assumption_width)
     
-    # Epidemic characteristics and cascade parameters sheet.
-    ws_list = [ws_charac, ws_linkpars]
-    specs_list = [settings.charac_specs, settings.linkpar_specs]
-    for k in xrange(2):
-        ws = ws_list[k]
-        specs = specs_list[k]
-    
-        row_id = 0
-        specs_ordered = sorted(dcp(specs.keys()), key=lambda x: specs[x]['databook_order'])
-        for def_label in specs_ordered:
-            def_name = specs[def_label]['name']
-            default_val = 0
-            if 'default' in specs[def_label]:
-                default_val = specs[def_label]['default']
+    #%% Combine characteristics and parameters into one dictionary, then print out all elements to appropriate datasheets.
+    all_specs = dcp(settings.charac_specs)
+    all_specs.update(settings.linkpar_specs)
+    specs_ordered = sorted(dcp(all_specs.keys()), key=lambda x: all_specs[x]['databook_order'])
+    for def_label in specs_ordered:
+        if not all_specs[def_label]['databook_order'] < 0:      # Do not print out characteristic/parameter if databook order is negative.        
+            ws = ws_params[all_specs[def_label]['sheet_label']]['ws']
+            row_id = ws_params[all_specs[def_label]['sheet_label']]['row_id']            
+            
+            def_name = all_specs[def_label]['name']
+            default_val = 0.0
+            if 'default' in all_specs[def_label]:
+                default_val = all_specs[def_label]['default']
             
             # Make the data-entry blocks.
-            if ws == ws_charac:
-                if 'plot_percentage' in specs[def_label]:
+            # First handle 'count' and 'percentage' characteristics, as well as transitions for junctions.
+            if def_label in settings.charac_specs.keys():
+                if 'plot_percentage' in all_specs[def_label]:
                     data_formats = ['Fraction']
                 else:
                     data_formats = ['Number']
-            elif ws == ws_linkpars:
+            elif def_label in settings.linkpar_specs.keys():
                 data_formats = None
-                for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
-                    if 'junction' in settings.node_specs[pair[0]].keys():
-                        data_formats = ['Proportion']
+                if 'tag' in settings.linkpar_specs[def_label]:
+                    for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
+                        if 'junction' in settings.node_specs[pair[0]].keys():
+                            data_formats = ['Proportion']
             makeValueEntryArrayBlock(worksheet = ws, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = default_val, data_formats = data_formats)
             
             # Make the population references.
@@ -228,11 +238,16 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
             for pid in xrange(num_pops):
                 row_id += 1
                 ws.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
-            
+        
             row_id += 2
-            
-        ws.set_column(0, 0, ws_charac_width)
-        ws.set_column(1, 2, assumption_width)
+            ws_params[all_specs[def_label]['sheet_label']]['row_id'] = row_id
+
+    # Adjust widths for all custom sheets.
+    for ws_label in ws_params:
+        ws = ws_params[ws_label]['ws']
+        ws.set_column(0, 0, name_width)
+        ws.set_column(1, 2, assumption_width)    
+    
     
     workbook.close()
     
@@ -249,10 +264,21 @@ def loadSpreadsheetFunc(settings, databook_path = None):
     ws_pops = workbook.sheet_by_name(settings.databook['sheet_names']['pops'])
     ws_transmat = workbook.sheet_by_name(settings.databook['sheet_names']['transmat'])
     ws_transval = workbook.sheet_by_name(settings.databook['sheet_names']['transval'])
-    ws_charac = workbook.sheet_by_name(settings.databook['sheet_names']['charac'])
-    ws_linkpars = workbook.sheet_by_name(settings.databook['sheet_names']['linkpars'])
+    
+    # Regarding cascade parameters and characteristics, store sheets and corresponding row ids for further writing.
+    ws_params = odict()
+    for custom_label in settings.databook['custom_sheet_names'].keys():
+        ws_params[custom_label] = workbook.sheet_by_name(settings.databook['custom_sheet_names'][custom_label])
+    
+    # Only produce standard sheets if there are any parameters left over that are not allocated to custom sheets.
+    if settings.make_sheet_charac:
+        ws_params['charac'] = workbook.sheet_by_name(settings.databook['sheet_names']['charac'])
+    if settings.make_sheet_linkpars:
+        ws_params['linkpars'] = workbook.sheet_by_name(settings.databook['sheet_names']['linkpars'])
+#    ws_charac = workbook.sheet_by_name(settings.databook['sheet_names']['charac'])
+#    ws_linkpars = workbook.sheet_by_name(settings.databook['sheet_names']['linkpars'])
 
-    # Population names sheet.
+    #%% Population names sheet.
     data = odict()
     data['pops'] = odict()
     data['pops']['name_labels'] = odict()
@@ -272,7 +298,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                 if isinstance(age_min, Number) and isinstance(age_max, Number):
                     data['pops']['ages'][pop_label] = {'min':float(age_min), 'max':float(age_max), 'range':1+float(age_max)-float(age_min)}
 
-    # Inter-population transitions sheet.
+    #%% Inter-population transitions sheet.
     # Migration matrices must be divided from each other by an empty row.
     data['transfers'] = odict()
     mig_specified = False
@@ -303,7 +329,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                                 data['transfers'][mig_type][pop_source][pop_target]['y'] = np.array([float(1/data['pops']['ages'][pop_source]['range'])])
                                 data['transfers'][mig_type][pop_source][pop_target]['y_format'] = 'Fraction'.lower()
                             if len(data['transfers'][mig_type][pop_source].keys()) > 1:
-                                raise OptimaException('ERROR: There are too many outgoing %s transitions listed for population %s.' % (mig_type,pop_source))
+                                raise OptimaException('ERROR: There are too many outgoing "%s" transitions listed for population "%s".' % (mig_type,pop_source))
         
         # First row after a blank one must contain the new migration type as its first element. Parser re-activated.
         if not mig_specified and zero_col not in ['']:
@@ -311,7 +337,7 @@ def loadSpreadsheetFunc(settings, databook_path = None):
             mig_type = str(zero_col).lower().replace(' ','_')
             data['transfers'][mig_type] = odict()
     
-    # Inter-population transfer details sheet.
+    #%% Inter-population transfer details sheet.
     mig_specified = False
     mig_type = None
     array_id = 0
@@ -358,18 +384,18 @@ def loadSpreadsheetFunc(settings, databook_path = None):
 
 
     
-    # Epidemic characteristics and cascade parameters sheet.
-    data_labels = ['characs', 'linkpars']
-    ws_list = [ws_charac, ws_linkpars]
-    name_to_label_list = [settings.charac_name_labels, settings.linkpar_name_labels]
-    for k in xrange(2):
-        data_label = data_labels[k]
-        ws = ws_list[k]
-        name_to_label = name_to_label_list[k]
+    #%% Gather data value inputs for epidemic characteristics and cascade parameters sheets, be they custom or standard.
     
-        data[data_label] = odict()
+    name_to_label = dcp(settings.charac_name_labels)
+    name_to_label.update(settings.linkpar_name_labels)
+    data['characs'] = odict()
+    data['linkpars'] = odict()
+
+    for ws_label in ws_params.keys():
+        ws = ws_params[ws_label]
         current_def_name = None
         current_def_label = None
+        data_label = None
         pop_id = 0
         for row_id in xrange(ws.nrows):
             val = str(ws.cell_value(row_id, 0))
@@ -379,11 +405,17 @@ def loadSpreadsheetFunc(settings, databook_path = None):
             elif current_def_name is None:
                 current_def_name = val
                 current_def_label = name_to_label[val]
+                if current_def_label in settings.charac_specs.keys():
+                    data_label = 'characs'
+                elif current_def_label in settings.linkpar_specs.keys():
+                    data_label = 'linkpars'
+                else:
+                    raise OptimaException('ERROR: Data entry in the "%s" sheet includes "%s", which has no defined characteristic/parameter specifications.' % (ws_label, current_def_name))
                 data[data_label][current_def_label] = odict()
             else:
                 current_pop_label = data['pops']['name_labels'][val]
                 if current_pop_label != data['pops']['label_names'].keys()[pop_id]:
-                    raise OptimaException('ERROR: Somewhere in the %s parameters sheet, populations are not ordered as in the population definitions sheet.' % data_label)
+                    raise OptimaException('ERROR: Somewhere in the "%s" parameters sheet, populations are not ordered as in the population definitions sheet.' % data_label)
                 data[data_label][current_def_label][current_pop_label] = odict()
                 
                 # Run through the rows beneath the year range, but only if there is not a number in the cell corresponding to assumption.
@@ -404,5 +436,68 @@ def loadSpreadsheetFunc(settings, databook_path = None):
                 data[data_label][current_def_label][current_pop_label]['y'] = np.array(list_y)                
                 
                 pop_id += 1
+    
+#    # Epidemic characteristics and cascade parameters sheet.
+#    data_labels = ['characs', 'linkpars']
+#    ws_list = [ws_charac, ws_linkpars]
+#    name_to_label_list = [settings.charac_name_labels, settings.linkpar_name_labels]
+#    for k in xrange(2):
+#        data_label = data_labels[k]
+#        ws = ws_list[k]
+#        name_to_label = name_to_label_list[k]
+#    
+#        data[data_label] = odict()
+#        current_def_name = None
+#        current_def_label = None
+#        pop_id = 0
+#        for row_id in xrange(ws.nrows):
+#            val = str(ws.cell_value(row_id, 0))
+#            if val in ['']:
+#                current_def_name = None
+#                pop_id = 0
+#            elif current_def_name is None:
+#                current_def_name = val
+#                current_def_label = name_to_label[val]
+#                data[data_label][current_def_label] = odict()
+#            else:
+#                current_pop_label = data['pops']['name_labels'][val]
+#                if current_pop_label != data['pops']['label_names'].keys()[pop_id]:
+#                    raise OptimaException('ERROR: Somewhere in the "%s" parameters sheet, populations are not ordered as in the population definitions sheet.' % data_label)
+#                data[data_label][current_def_label][current_pop_label] = odict()
+#                
+#                # Run through the rows beneath the year range, but only if there is not a number in the cell corresponding to assumption.
+#                # NOTE: Somewhat hard-coded. Improve.
+#                list_t = []
+#                list_y = []
+#                for col_id in xrange(ws.ncols):
+#                    if col_id == 1:
+#                        data[data_label][current_def_label][current_pop_label]['y_format'] = str(ws.cell_value(row_id, col_id)).lower()
+#                    if col_id > 1 and isinstance(ws.cell_value(row_id, col_id), Number):
+#                        list_y.append(float(ws.cell_value(row_id, col_id)))
+#                        if not isinstance(ws.cell_value(row_id-1-pop_id, col_id), Number):
+#                            list_t.append(float(ws.cell_value(row_id-1-pop_id, col_id+2)))
+#                            break
+#                        else:
+#                            list_t.append(float(ws.cell_value(row_id-1-pop_id, col_id)))
+#                data[data_label][current_def_label][current_pop_label]['t'] = np.array(list_t)
+#                data[data_label][current_def_label][current_pop_label]['y'] = np.array(list_y)                
+#                
+#                pop_id += 1
+                
+    # All parameters must be defined whether they are in the project databook or not.
+    for label in settings.linkpar_specs.keys():
+        if label not in data['linkpars'].keys():
+            def_format = 'Fraction'.lower()     # NOTE: Hard-coded format assumption. Improve at some stage when allowing for default formats.
+            def_val = 0
+            if 'default' in settings.linkpar_specs[label]:
+                def_val = settings.linkpar_specs[label]['default']
+            print('WARNING: Project data sheet does not contain required cascade parameter "%s".\n         Using default format "%s" and default value %f.' % (label, def_format, def_val))
+            data['linkpars'][label] = odict()
+            for pop in data['pops']['label_names'].keys():
+                data['linkpars'][label][pop] = odict()
+                data['linkpars'][label][pop]['y_format'] = def_format
+                data['linkpars'][label][pop]['t'] = np.array([settings.tvec_start])
+                data['linkpars'][label][pop]['y'] = np.array([float(def_val)]) 
+                
             
     return data

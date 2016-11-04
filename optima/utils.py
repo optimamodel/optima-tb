@@ -63,33 +63,47 @@ def printv(string, thisverbose=1, verbose=2, newline=True, indent=False):
 
 #%% Functions for dealing with recursive structures
 
-def flattenDict(input_dict, base_key, sub_key = None, comp_list = None, limit = 100):
+def flattenDict(input_dict, base_key, sub_keys = None, comp_list = None, key_list = None, limit = 100):
     '''
-    A function for flattening out a recursive dictionary, with optional sub-key.
+    A function for flattening out a recursive dictionary, with an optional list of sub-keys (ignored if non-existent).
+    The flattened out structure is returned as comp_list. Values can be an object or a list of objects.
+    All keys (including base_key) within the recursion are returned as key_list.
     
     Specifically, this function is intended for dictionaries of the form...
-        input_dict[key1][sub_key] = [a, key2, b]
-        input_dict[key2][sub_key] = [c, d, a]
+        input_dict[key1][sub_key[0]] = [a, key2, b]
+        input_dict[key1][sub_key[1]] = [c, d]
+        input_dict[key2][sub_key[0]] = e
+        input_dict[key2][sub_key[1]] = [e, f, g]
     ...which, for this specific example, will output list...
-        [a, c, d, a, b]
+        [a, e, e, f, g, h, b, c, d]
         
     There is a max-depth of limit for the recursion.
     '''
     
     if limit < 1:
-        raise OptimaException('ERROR: A recursion limit has been reached when flattening a dictionary, stopping at key %s.' % base_key)    
+        raise OptimaException('ERROR: A recursion limit has been reached when flattening a dictionary, stopping at key "%s".' % base_key)    
     
     if comp_list is None: comp_list = []
+    if key_list is None: key_list = []
+    key_list.append(base_key)
 
-    if sub_key is None: input_list = input_dict[base_key]
-    else: input_list = input_dict[base_key][sub_key]
+    if sub_keys is None: input_list = input_dict[base_key]
+    else:
+        input_list = []
+        for sub_key in sub_keys:
+            if sub_key in input_dict[base_key]:
+                val = input_dict[base_key][sub_key]
+                if isinstance(val, list):
+                    input_list += val
+                else:
+                    input_list.append(val)      # Handle unlisted objects.
     
     for comp in input_list:
         if comp in input_dict.keys():
-            flattenDict(input_dict = input_dict, base_key = comp, sub_key = sub_key, comp_list = comp_list, limit = limit - 1)
+            flattenDict(input_dict = input_dict, base_key = comp, sub_keys = sub_keys, comp_list = comp_list, key_list = key_list, limit = limit - 1)
         else:
             comp_list.append(comp)
-    return comp_list
+    return comp_list, key_list
     
     
     
