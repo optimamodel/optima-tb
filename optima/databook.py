@@ -488,10 +488,13 @@ def loadSpreadsheetFunc(settings, databook_path = None):
     for label in settings.linkpar_specs.keys():
         if label not in data['linkpars'].keys():
             def_format = 'Fraction'.lower()     # NOTE: Hard-coded format assumption. Improve at some stage when allowing for default formats.
-            def_val = 0
+            def_val = np.nan
             if 'default' in settings.linkpar_specs[label]:
                 def_val = settings.linkpar_specs[label]['default']
-            print('WARNING: Project data sheet does not contain required cascade parameter "%s".\n         Using default format "%s" and default value %f.' % (label, def_format, def_val))
+            if 'f_stack' in settings.linkpar_specs[label]:
+                def_val = np.nan
+            else:
+                print('WARNING: Project data sheet does not contain required cascade parameter "%s".\n         Using default format "%s" and default value %f.' % (label, def_format, def_val))
             data['linkpars'][label] = odict()
             for pop in data['pops']['label_names'].keys():
                 data['linkpars'][label][pop] = odict()

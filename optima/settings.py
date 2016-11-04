@@ -381,6 +381,8 @@ class Settings(object):
                     if val not in ['']:
                         if 'default' in self.linkpar_specs[label]:
                             raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Specifying a default is thus restricted, so as to avoid user confusion.' % label)
+                        if self.linkpar_specs[label]['databook_order'] >= 0:
+                            raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Tag "Databook Order" column with a negative number so that conflicts with user-provided values do not arise.' % label)
                         expr_stack, var_dict = self.parser.produceStack(val)
                         self.linkpar_specs[label]['f_stack'] = expr_stack
                         self.linkpar_specs[label]['deps'] = var_dict
@@ -441,7 +443,7 @@ class Settings(object):
                     el[link] = self.linkpar_specs[par_name]['tag']
 
         nx.draw_networkx_nodes(G, pos, node_shape = 'o', nodelist = [x for x in G.nodes() if not 'junction' in self.node_specs[x].keys()], node_size = 1250, node_color = 'w')
-        nx.draw_networkx_nodes(G, pos, node_shape = 's', nodelist = [x for x in G.nodes() if 'junction' in self.node_specs[x].keys()], node_size = 750, node_color = (0.75,0.75,0.75))
+        nx.draw_networkx_nodes(G, pos, node_shape = 's', nodelist = [x for x in G.nodes() if 'junction' in self.node_specs[x].keys()], node_size = 750, node_color = 'w')
         ax.axis('tight')
         nx.draw_networkx_labels(G, pos)
         nx.draw_networkx_edges(G, pos)
