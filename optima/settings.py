@@ -40,15 +40,15 @@ class Settings(object):
         
         self.countrybook = odict()
         self.countrybook['sheet_names'] = odict()
-        self.countrybook['sheet_names']['populations'] = 'Population Definitions'
+        self.countrybook['sheet_names']['populations'] = 'Populations'
         self.countrybook['sheet_names']['population_sizes'] = 'Population size'
         self.countrybook['sheet_names']['total_cases'] = 'Total cases'
         self.countrybook['sheet_names']['incident_cases'] = 'Incident cases'
         self.countrybook['sheet_names']['other_epidemiology'] = 'Other epidemiology'
         self.countrybook['sheet_names']['comorbidity'] = 'Comorbidity'
         self.countrybook['sheet_names']['testing_treatment'] = 'Testing and Treatment'
-#         self.countrybook['sheet_names']['programs'] = 'Programs'
-#         self.countrybook['sheet_names']['cost_coverage'] = 'Cost and coverage'
+        self.countrybook['sheet_names']['programs'] = 'Programs'
+        self.countrybook['sheet_names']['cost_coverage'] = 'Cost and coverage'
 #         self.countrybook['sheet_names']['unitcost'] = 'Unit costs'
 #         self.countrybook['sheet_names']['poptransitions'] = 'Population transitions'
 
@@ -60,6 +60,8 @@ class Settings(object):
                                       'other_epidemiology':'Other epidemiological data:',
                                       'comorbidity' : 'Comorbidity data:',
                                       'testing_treatment': 'Testing and treatment data: ',
+                                      'programs'        : 'Enter program data:',
+                                      'cost_coverage'   : 'Cost and coverage data:',
                                       }
         
         # info
@@ -69,6 +71,7 @@ class Settings(object):
         self.countrybook['disaggregations']['smears'] = ['Smear-','Smear+'] # also potentially 'Extrapulmonary'
         self.countrybook['disaggregations']['populations'] = [] # determined dynamically at runtime
         self.countrybook['disaggregations']['regimens'] = ['DS-TB Regimen','MDR-TB Regimen','XDR-TB Regimen']
+        self.countrybook['disaggregations']['programs'] = [] # determined dynamically at runtime
         
         # for univalue sheets, includes information on how data should be disaggregated 
         self.countrybook['sheet_classes'] = odict()
@@ -90,7 +93,6 @@ class Settings(object):
         self.countrybook['sheet_values']['comorbidity']['Diabetes prevalence'] = ['populations','smears','strains']
         
         self.countrybook['sheet_values']['testing_treatment'] = odict()
-        #self.countrybook['sheet_values']['testing_treatment']['main_labels'] = ['Background testing rates','Testing for latent TB','Testing for active TB']
         self.countrybook['sheet_values']['testing_treatment']['Background testing rates'] = ['populations']
         self.countrybook['sheet_values']['testing_treatment']['Testing for latent TB'] = odict()
         self.countrybook['sheet_values']['testing_treatment']['Testing for latent TB']['Percentage of population tested for latent TB per year'] = ['populations']
@@ -111,6 +113,7 @@ class Settings(object):
                                          'spacing_multivalue_label':2,
                                          'total_strains': 'Total',#All strains',
                                          'total_smears' : 'Total',
+                                         'num_default_programs':28,
                                          'row_index_start':2, # for when there are no disaggregations, etc.
                                          'col_index_start':1} # 
         
