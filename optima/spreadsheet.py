@@ -53,6 +53,7 @@ WB_COLORS = {'blue'         : '#00CCFF',
 
 WB_FORMATS = {  'header_format': {  'bold': True,
                                     'align': 'center',
+                                    'text_wrap': True,
                                     'valign': 'vcenter'},
                 'right_format' : {'align': 'right',
                                   'bold': True,
@@ -114,6 +115,7 @@ WB_FORMATS = {  'header_format': {  'bold': True,
                                                  'font_size': 12,
                                                  'bold': True},
                 'year_header': {'align': 'center',
+                                'text_wrap': True,
                                                  'bg_color': WB_COLORS['green'],
                                                  'bold': True}
               }
@@ -435,21 +437,6 @@ def read_multivalue_sheet(sheetdata,parameters,n_years,isParameterized=True):
                   
     return data
     
-def _createPopulations(ws,ws_name,num_populations,formats):
-
-    #create headers
-    for i,header in enumerate(['Name','Minimum Age','Maximum Age']):
-        ws.write(1,i+1,header,formats['header_format'])
-    #create columns
-    for n in range(num_populations):
-        ws.write('A%s'%(n+3),'%s'%(n+1),formats['right_format'])
-    # format and prettify
-    ws.set_column(0, 0, 5)
-    ws.set_column(1, 3, 15)
-    __formatBlock(ws, 2, 2+num_populations, 1, 4, formats['lblue_bground'])
-    
-    poplabels = ['%s!$B$%g'%(ws_name,i+3) for i in range(num_populations)]
-    return poplabels
 
 
 def _writeYearHeader(ws,row,col_offset,start_year,end_year,formats):
@@ -617,6 +604,21 @@ def _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,
     # write the blocks for each of the values as specified in cb_settings['sheet_values'][ws_name]
     _create_multivalue_block(ws,ws_name,row_index_start,col_index_start,col_index_end,cb_settings['sheet_values'][ws_name],cb_settings,formats)
 
+def _create_populations(ws,ws_name,num_populations,formats):
+
+    #create headers
+    for i,header in enumerate(['Name','Minimum Age','Maximum Age']):
+        ws.write(1,i+1,header,formats['header_format'])
+    #create columns
+    for n in range(num_populations):
+        ws.write('A%s'%(n+3),'%s'%(n+1),formats['right_format'])
+    # format and prettify
+    ws.set_column(0, 0, 5)
+    ws.set_column(1, 3, 15)
+    __formatBlock(ws, 2, 2+num_populations, 1, 4, formats['lblue_bground'])
+    
+    poplabels = ['%s!$B$%g'%(ws_name,i+3) for i in range(num_populations)]
+    return poplabels
         
 def _create_other_epidemiology(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
     _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels)
@@ -627,10 +629,28 @@ def _create_comorbidity(ws,ws_name,cb_settings,formats,start_year,end_year,pop_l
 def _create_testing_treatment(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
     _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels)
 
-def _create_programs(ws,cb_settings):
-    pass
+def _create_programs(ws, ws_name, num_programs, formats):
+    #create headers
+    # TODO move these to settings
+    headers = ['Name','Short name','Intervention class','Coverage indicator (annual)','Duration of treatment (days per person on average)','Frequency of intervention (in years)']
+    for i,header in enumerate(headers):
+        ws.write(1,i+1,header,formats['year_header'])
+    #create columns
+    for n in range(num_programs):
+        ws.write('A%s'%(n+3),'%s'%(n+1),formats['right_format'])
+    # format and prettify
+    ws.set_column(0, 0, 5)
+    ws.set_column(1,4, 40)
+    ws.set_column(2,2,15)
+    ws.set_column(3,3,25)
+    ws.set_column(5,6,25)
+    __formatBlock(ws, 2, 2+num_programs, 1, 1+len(headers), formats['lgrey_bground'])
+    __formatBlock(ws, 2, 2+num_programs, 1, 2, formats['blue_bground'])
 
-def _create_cost_coverage(ws,cb_settings):
+    proglabels = ['%s!$B$%g'%(ws_name,i+3) for i in range(num_programs)]
+    return proglabels
+
+def _create_cost_coverage(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
     pass
 
 def _create_unitcost(ws,cb_settings):
@@ -663,28 +683,34 @@ def export_spreadsheet(settings,filename=DEFAULT_PATH,num_pops=4,verbose=2,pop_n
     availfns = globals().copy()
     availfns.update(locals())
     
-    for name in settings.countrybook['sheet_names']:
+    for local_name in settings.countrybook['sheet_names']:
+        name = settings.countrybook['sheet_names'][local_name]
+        print local_name, name
         print("Creating sheet for %s"%name)
         ws = workbook.add_worksheet(name)
         #label for each data sheet
-        ws.write('A1', settings.countrybook['labels'][name])
+        ws.write('A1', settings.countrybook['labels'][local_name])
         ws.set_row(0, None, formats['main_label'])
         #populate
-        if name == 'populations':
-            poplabels = _createPopulations(ws, name, num_pops, formats)
+        if local_name == 'populations':
+            poplabels = _create_populations(ws, name, num_pops, formats)
             settings.countrybook['disaggregations']['populations'] = poplabels
             ## TODO: remove (as is just a debugging measure)
             if pop_names is not None:
                 for i,pop in enumerate(pop_names):
                     ws.write(i+2,1,pop)
+        
+        elif local_name == 'programs':
+            proglabels = _create_programs(ws, local_name, settings.countrybook['constants']['num_default_programs'], formats)
+            settings.countrybook['disaggregations']['programs'] = proglabels
                     
-        elif name in settings.countrybook['sheet_classes']['univalue']:
-            _createUnivalueSheet(ws, name, settings.countrybook, formats, settings.tvec_start,settings.tvec_end,poplabels)
+        elif local_name in settings.countrybook['sheet_classes']['univalue']:
+            _createUnivalueSheet(ws, local_name, settings.countrybook, formats, settings.tvec_start,settings.tvec_end,poplabels)
         else:
-            createSheet = availfns.get('_create_%s'%name)
+            createSheet = availfns.get('_create_%s'%local_name)
             if not createSheet:
                 raise NotImplementedError("No method associated in creating sheet '%s'"%name)
-            createSheet(ws,name,settings.countrybook,formats, settings.tvec_start,settings.tvec_end,poplabels)
+            createSheet(ws,local_name,settings.countrybook,formats, settings.tvec_start,settings.tvec_end,poplabels)
         
         
     
