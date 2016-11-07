@@ -51,6 +51,7 @@ class Settings(object):
         self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.
         self.linkpar_name_labels = odict()      # Key is a link-parameter name. Value is a link-parameter label. (A partial reversed linkpar-specs.)
         
+        self.par_funcs = odict()                # A definition-ordered dictionary of parameters that are functionally defined in terms of other parameters/characteristics.
         self.par_deps = odict()                 # A definition-ordered dictionary of 'untagged' parameters used as dependencies for other parameters.
         self.charac_deps = {}                   # An unordered dictionary of characteristics that must be calculated at each model timestep due to being dependencies for other variables.
                                                 # Should correspond to every item in charac_specs that has a 'par_dependency' tag.
@@ -383,6 +384,7 @@ class Settings(object):
                             raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Specifying a default is thus restricted, so as to avoid user confusion.' % label)
                         if self.linkpar_specs[label]['databook_order'] >= 0:
                             raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Tag "Databook Order" column with a negative number so that conflicts with user-provided values do not arise.' % label)
+                        self.par_funcs[label] = True
                         expr_stack, var_dict = self.parser.produceStack(val)
                         self.linkpar_specs[label]['f_stack'] = expr_stack
                         self.linkpar_specs[label]['deps'] = var_dict

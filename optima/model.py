@@ -89,12 +89,20 @@ class ModelPopulation(Node):
         self.genCascade(settings = settings)    # Convert compartmental cascade into lists of compartment and link objects.
     
     def getComp(self, comp_label):
-        ''' Allow compartments to be retrieved by label rather than index. '''
+        ''' Allow compartments to be retrieved by label rather than index. Returns a ModelCompartment. '''
         comp_index = self.comp_ids[comp_label]
         return self.comps[comp_index]
         
+    def getLinks(self, link_tag):
+        ''' Allow links to be retrieved by tag rather than index. Returns a list of Links. '''
+        link_index_list = self.link_ids[link_tag]
+        link_list = []
+        for link_index in link_index_list:
+            link_list.append(self.links[link_index])
+        return link_list
+        
     def getDep(self, dep_label):
-        ''' Allow dependencies to be retrieved by label rather than index. '''
+        ''' Allow dependencies to be retrieved by label rather than index. Returns a Variable. '''
         dep_index = self.dep_ids[dep_label]
         return self.deps[dep_index]
         
@@ -335,14 +343,14 @@ class Model(object):
                         did_to = link.index_to[0] * num_comps + link.index_to[1]
                         comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
                         
-                        # Evaluate custom function for variable if it exists and overwrite any value that is currently stored for transition.
-                        if link.label in settings.linkpar_specs:
-                            if 'f_stack' in settings.linkpar_specs[link.label]:
-                                f_stack = dcp(settings.linkpar_specs[link.label]['f_stack'])
-                                deps = dcp(settings.linkpar_specs[link.label]['deps'])
-                                for dep_label in deps.keys():
-                                    deps[dep_label] = pop.getDep(dep_label).vals[ti]
-                                link.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = deps)
+#                        # Evaluate custom function for variable if it exists and overwrite any value that is currently stored for transition.
+#                        if link.label in settings.linkpar_specs:
+#                            if 'f_stack' in settings.linkpar_specs[link.label]:
+#                                f_stack = dcp(settings.linkpar_specs[link.label]['f_stack'])
+#                                deps = dcp(settings.linkpar_specs[link.label]['deps'])
+#                                for dep_label in deps.keys():
+#                                    deps[dep_label] = pop.getDep(dep_label).vals[ti]
+#                                link.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = deps)
                         
                         converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
                         
@@ -401,8 +409,8 @@ class Model(object):
         
         for pop in self.pops:
             for dep in pop.deps:
-                if dep.label in settings.charac_specs.keys():
-                    dep.vals[ti] = 0                    
+                if dep.label in settings.charac_deps.keys():
+                    dep.vals[ti] = 0                                    
                     
                     # Sum up all relevant compartment popsizes (or previously calculated characteristics).
                     for inc_label in settings.charac_specs[dep.label]['includes']:
@@ -412,7 +420,7 @@ class Model(object):
                             val = pop.getDep(inc_label).vals[ti]
                         else:
                             raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
-                            
+                        
                         dep.vals[ti] += val
                     
                     # Divide by relevant compartment popsize (or previously calculated characteristic).
@@ -423,22 +431,42 @@ class Model(object):
                         elif den_label in pop.comp_ids.keys():
                             val = pop.getComp(den_label).popsize[ti]
                         else:
-                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
+                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))                      
                         
                         dep.vals[ti] /= val
                 
-                # If the dependency is a parameter, evaluate its stack.
-                elif dep.label in settings.linkpar_specs.keys():
-                    if 'deps' in settings.linkpar_specs[dep.label]:
-                        if len(settings.linkpar_specs[dep.label]['deps'].keys()) >= 0:
-                            f_stack = dcp(settings.linkpar_specs[dep.label]['f_stack'])
-                            dep_deps = dcp(settings.linkpar_specs[dep.label]['deps'])
-                            for dep_dep_label in dep_deps.keys():
-                                dep_deps[dep_dep_label] = pop.getDep(dep_dep_label).vals[ti]
-                            dep.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = dep_deps)
+#                # If the dependency is a parameter, evaluate its stack.
+#                elif dep.label in settings.linkpar_specs.keys():
+#                    if 'deps' in settings.linkpar_specs[dep.label]:
+#                        if len(settings.linkpar_specs[dep.label]['deps'].keys()) >= 0:
+#                            f_stack = dcp(settings.linkpar_specs[dep.label]['f_stack'])
+#                            dep_deps = dcp(settings.linkpar_specs[dep.label]['deps'])
+#                            for dep_dep_label in dep_deps.keys():
+#                                dep_deps[dep_dep_label] = pop.getDep(dep_dep_label).vals[ti]
+#                            dep.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = dep_deps)
 
+#                else:
+#                    raise OptimaException('ERROR: Dependency "%s" does not appear to be either a characteristic or parameter.' % (dep.label))
+                    
+            for par_label in settings.par_funcs.keys():
+                pars = []
+                if par_label in settings.par_deps:
+                    pars.append(pop.getDep(par_label))
                 else:
-                    raise OptimaException('ERROR: Dependency "%s" does not appear to be either a characteristic or parameter.' % (dep.label))
+                    pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
+                specs = settings.linkpar_specs[par_label]
+                f_stack = dcp(specs['f_stack'])
+                deps = dcp(specs['deps'])
+                for dep_label in deps.keys():
+                    if dep_label in settings.par_deps.keys() or dep_label in settings.charac_deps.keys():
+                        val = pop.getDep(dep_label).vals[ti]
+                    else:
+                        val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti]    # As links are duplicated for the same tag, can pull values from the zeroth one.
+                    deps[dep_label] = val
+                new_val = settings.parser.evaluateStack(stack = f_stack, deps = deps)
+                for par in pars:
+                    par.vals[ti] = new_val
+                
 
     
     def calculateOutputs(self, settings):
