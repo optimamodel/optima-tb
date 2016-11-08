@@ -8,7 +8,7 @@ sys.path.append('../optima')
 import settings
 from spreadsheet import export_spreadsheet
 
-settings = settings.Settings('../data/cascade.xlsx')
+settings = settings.Settings('./cascade-161025.xlsx')
 
 export_spreadsheet(settings,num_pops=2,pop_names=['Pop1','Pep2'])
 

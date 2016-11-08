@@ -11,12 +11,12 @@ import pprint # just during debugging
 pp = pprint.PrettyPrinter(indent=4)
 
 
-proj= Project(name = 'test-Belarus', cascade_path = '../data/cascade.xlsx')
+proj= Project(name = 'test-Belarus', cascade_path = './cascade-161025.xlsx')
 ##when we have to make the initial spreadsheet
 #proj.makeSpreadsheet(num_pops = 5)
 
 # take test-Belarus-data.xlsx, set values and save as Belarus-cascade-data.xlsx (so that no danger of overwriting)
-proj.loadSpreadsheet(databook_path = '../diary/Belarus-cascade-data.xlsx')
+proj.loadSpreadsheet(databook_path = './Belarus-cascade-data.xlsx')
 
 proj.makeParset()
 print proj.data

@@ -16,7 +16,7 @@ from uuid import uuid4 as uuid
 class Project(object):
     ''' The main Optima project class. Almost all Optima functionality is provided by this class. '''
 
-    def __init__(self, name = 'default', cascade_path = './cascade.xlsx'):
+    def __init__(self, name = 'default', cascade_path = '../data/cascade.xlsx'):
         ''' Initialize project. '''
 
         self.name = name
@@ -54,14 +54,14 @@ class Project(object):
     def makeSpreadsheet(self, num_pops = 5, num_migrations = 2):
         ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
         
-        databook_path = './' + self.name + '-data.xlsx'
+        databook_path = '../data/' + self.name + '-data.xlsx'
         makeSpreadsheetFunc(settings = self.settings, databook_path = databook_path, num_pops = num_pops, num_migrations = num_migrations)        
         
     
     def loadSpreadsheet(self, databook_path = None):
         ''' Load data spreadsheet into Project data dictionary. '''
         
-        if databook_path is None: databook_path = './' + self.name + '-data.xlsx'
+        if databook_path is None: databook_path = '../data/' + self.name + '-data.xlsx'
         self.data = loadSpreadsheetFunc(settings = self.settings, databook_path = databook_path) 
         
     
