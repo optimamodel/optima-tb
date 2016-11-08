@@ -133,9 +133,10 @@ class Plotter():
         """
         pl.close("all") 
         self.plotPopulation(results, outputs, sim_settings, charac_specs, title)
-        # plot data points for which we have information: currently latent infections, active infections, active prevalence
-#        self.plotCompartment(results, outputs, sim_settings, charac_specs, title,outputIDs=['alive','lt_prev','sp_prev','sn_prev'])
-        self.plotCompartment(results, outputs, sim_settings, charac_specs, title,outputIDs=['lt_inf','ac_inf','ac_prev'])
+        
+        # List charac labels for those that were present in databook (i.e. could have cascade-provided defaults overwritten).
+        label_list = [x for x in charac_specs.keys() if charac_specs[x]['databook_order'] >= 0]
+        self.plotCompartment(results, outputs, sim_settings, charac_specs, title, outputIDs = label_list)
         
     def plotPopulation(self,results,outputs,sim_settings,charac_specs,title='',plotObservedData=True,saveFig=False):
         """ 

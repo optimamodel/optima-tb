@@ -45,7 +45,7 @@ class Project(object):
         if plot:
             tp = tic()
             self.plotter.updateData(self.data)
-            self.plotter.plotProjectResults(results,outputs,sim_settings,self.settings.charac_specs,title=self.name.title())
+            self.plotter.plotProjectResults(results, outputs, sim_settings, self.settings.charac_specs, title = self.name.title())
             toc(tp, label = 'plotting %s' % self.name)
         
         return results, outputs
