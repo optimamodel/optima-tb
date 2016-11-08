@@ -31,8 +31,99 @@ class Settings(object):
         
         self.parser = FunctionParser(debug = False)      # Decomposes and evaluates functions written as strings, in accordance with a grammar defined in the parser object.
         
-        self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here for now to be explicit. 
+        # Project-data workbook metadata. Constant regardless of cascade structure.
+        self.databook = odict()
+        self.databook['sheet_names'] = odict()
+        self.databook['sheet_names']['pops'] = 'Population Definitions'
+        self.databook['sheet_names']['transmat'] = 'Transfer Definitions'
+        self.databook['sheet_names']['transval'] = 'Transfer Details'
+        self.databook['sheet_names']['charac'] = 'Epidemic Characteristics'
+        self.databook['sheet_names']['linkpars'] = 'Cascade Parameters'
+        
+        self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here to be explicit. 
         self.loadCascadeSettings(cascade_path)
+        
+        self.plotSettings = PlottingSettings()
+        
+        self.countrybook = odict()
+        self.countrybook['sheet_names'] = odict()
+        self.countrybook['sheet_names']['populations'] = 'Populations'
+        self.countrybook['sheet_names']['population_sizes'] = 'Population size'
+        self.countrybook['sheet_names']['total_cases'] = 'Total cases'
+        self.countrybook['sheet_names']['incident_cases'] = 'Incident cases'
+        self.countrybook['sheet_names']['other_epidemiology'] = 'Other epidemiology'
+        self.countrybook['sheet_names']['comorbidity'] = 'Comorbidity'
+        self.countrybook['sheet_names']['testing_treatment'] = 'Testing and Treatment'
+        self.countrybook['sheet_names']['programs'] = 'Programs'
+        self.countrybook['sheet_names']['cost_coverage'] = 'Cost and coverage'
+#         self.countrybook['sheet_names']['unitcost'] = 'Unit costs'
+#         self.countrybook['sheet_names']['poptransitions'] = 'Population transitions'
+
+        # labels for each sheet
+        self.countrybook['labels'] = {'populations': '',
+                                      'population_sizes':'Population size: please enter population values for each year',
+                                      'total_cases'     : 'TB total cases: please enter number of TB cases per year for each population and strain',
+                                      'incident_cases'  : 'TB Incident cases: please enter number of new cases per year for each population group and TB strain',
+                                      'other_epidemiology':'Other epidemiological data:',
+                                      'comorbidity' : 'Comorbidity data:',
+                                      'testing_treatment': 'Testing and treatment data: ',
+                                      'programs'        : 'Enter program data:',
+                                      'cost_coverage'   : 'Cost and coverage data:',
+                                      }
+        
+        # info
+        self.countrybook['disaggregations'] = odict() # ['smears','strains']
+        # other values
+        self.countrybook['disaggregations']['strains'] = ['DS-TB','MDR-TB','XDR-TB']
+        self.countrybook['disaggregations']['smears'] = ['Smear-','Smear+'] # also potentially 'Extrapulmonary'
+        self.countrybook['disaggregations']['populations'] = [] # determined dynamically at runtime
+        self.countrybook['disaggregations']['regimens'] = ['DS-TB Regimen','MDR-TB Regimen','XDR-TB Regimen']
+        self.countrybook['disaggregations']['programs'] = [] # determined dynamically at runtime
+        
+        # for univalue sheets, includes information on how data should be disaggregated 
+        self.countrybook['sheet_classes'] = odict()
+        self.countrybook['sheet_classes']['univalue'] = odict()
+        self.countrybook['sheet_classes']['univalue']['population_sizes'] = ['populations']
+        self.countrybook['sheet_classes']['univalue']['total_cases'] = ['populations','strains']
+        self.countrybook['sheet_classes']['univalue']['incident_cases'] = ['populations','smears','strains']
+        
+        # sheet specific values
+        self.countrybook['sheet_values'] = odict()
+        self.countrybook['sheet_values']['other_epidemiology'] = odict()
+        self.countrybook['sheet_values']['other_epidemiology']['Percentage of people vaccinated per year'] = ['populations']
+        self.countrybook['sheet_values']['other_epidemiology']['Percentage of people who die from non-TB-related causes per year'] = ['populations']
+        self.countrybook['sheet_values']['other_epidemiology']['Percentage of people who die from TB-related deaths per year'] = ['populations','smears','strains']
+        self.countrybook['sheet_values']['other_epidemiology']['Birth rate (births per woman per year)'] = ['populations']
+        
+        self.countrybook['sheet_values']['comorbidity'] = odict()
+        self.countrybook['sheet_values']['comorbidity']['HIV prevalence'] = ['populations','smears','strains']
+        self.countrybook['sheet_values']['comorbidity']['Diabetes prevalence'] = ['populations','smears','strains']
+        
+        self.countrybook['sheet_values']['testing_treatment'] = odict()
+        self.countrybook['sheet_values']['testing_treatment']['Background testing rates'] = ['populations']
+        self.countrybook['sheet_values']['testing_treatment']['Testing for latent TB'] = odict()
+        self.countrybook['sheet_values']['testing_treatment']['Testing for latent TB']['Percentage of population tested for latent TB per year'] = ['populations']
+        self.countrybook['sheet_values']['testing_treatment']['Testing for latent TB']['Number of people initiating treatment for latent TB each year'] = ['populations']
+        self.countrybook['sheet_values']['testing_treatment']['Testing for latent TB']['Number of people lost to follow up for latent TB each year'] = ['populations']
+        self.countrybook['sheet_values']['testing_treatment']['Testing for latent TB']['Number of people successfully completing treatment for latent TB each year'] = ['populations']
+
+        self.countrybook['sheet_values']['testing_treatment']['Testing for active TB'] = odict()
+        self.countrybook['sheet_values']['testing_treatment']['Testing for active TB']['Percentage of population tested for active TB per year'] = ['populations']
+        self.countrybook['sheet_values']['testing_treatment']['Testing for active TB']['Number of people initiating treatment for active TB each year'] = ['regimens','populations']
+        self.countrybook['sheet_values']['testing_treatment']['Testing for active TB']['Number of people lost to follow up for active TB each year'] = ['regimens','populations']
+        self.countrybook['sheet_values']['testing_treatment']['Testing for active TB']['Number of people successfully completing treatment for active TB each year'] = ['regimens','populations']
+             
+        
+        self.countrybook['constants'] = {'spacing_interpopulation':2,
+                                         'spacing_intrapopulation':1,
+                                         'spacing_interproperty'  :4,
+                                         'spacing_multivalue_label':2,
+                                         'total_strains': 'Total',#All strains',
+                                         'total_smears' : 'Total',
+                                         'num_default_programs':28,
+                                         'row_index_start':2, # for when there are no disaggregations, etc.
+                                         'col_index_start':1} # 
+
     
     def startFresh(self):
         ''' Resets all cascade contents and settings that are fundamental to how a project is structured. '''
@@ -416,7 +507,8 @@ class Settings(object):
         if len(test_names) != len(set(test_names)):
             raise OptimaException('ERROR: Cascade workbook appears to have duplicate characteristic/parameter full names.')
             
-    
+            
+            
     def plotCascade(self):
         
         import networkx as nx
@@ -456,3 +548,55 @@ class Settings(object):
         ax.set_yticks([])
         ax.set_title('Cascade Schematic')
         pl.show()
+
+
+
+
+class PlottingSettings():
+    
+    
+    def __init__(self):
+        print("Loading plotting settings")
+        self.defaultSettings()
+        self.devSettings()
+        
+        
+    def defaultSettings(self):
+        
+        pl.rcParams['font.size'] = 12
+        pl.rcParams['font.family'] = 'sans-serif'
+        
+        pl.rcParams['savefig.dpi'] = 300
+        
+        pl.rcParams['xtick.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['xtick.major.size'] = 3
+        pl.rcParams['xtick.minor.size'] = 3
+        pl.rcParams['xtick.major.width'] = 1
+        pl.rcParams['xtick.minor.width'] = 1
+        pl.rcParams['ytick.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['ytick.major.size'] = 3
+        pl.rcParams['ytick.minor.size'] = 3
+        pl.rcParams['ytick.major.width'] = 1
+        pl.rcParams['ytick.minor.width'] = 1
+        
+        pl.rcParams['legend.frameon'] = False
+        pl.rcParams['legend.loc'] = 'center left'
+        pl.rcParams['legend.fontsize'] = pl.rcParams['font.size']
+        
+        pl.rcParams['axes.linewidth'] = 2
+        pl.rcParams['axes.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['axes.titlesize'] = 1.5*pl.rcParams['font.size']
+    
+        pl.rcParams['lines.linewidth'] = 3
+        pl.rcParams['lines.markersize'] = 40
+        pl.rcParams['lines.markeredgewidth'] = 3
+    
+
+
+    def devSettings(self):
+        pl.rcParams['figure.figsize'] = (10, 8)
+        pl.rcParams['savefig.dpi'] = 300
+        
+    def printSettings(self):
+        
+        pl.rcParams['figure.figsize'] = (15, 10)

@@ -4,12 +4,10 @@ from utils import tic, toc, odict, OptimaException
 from model import runModel
 from settings import Settings
 from parameters import ParameterSet
-from plotting import gridColorMap
+from plotting import Plotter
 from databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 
-import pylab as pl
 from uuid import uuid4 as uuid
-from copy import deepcopy as dcp
 
 
 
@@ -30,8 +28,10 @@ class Project(object):
         self.parsets = odict()
         self.results = odict()
         
+        self.plotter = Plotter({})
         
-    def runSim(self, parset_name = 'default'):
+        
+    def runSim(self, parset_name = 'default', plot = False):
         ''' Run model using a selected parset and store/return results. '''
         
         if len(self.parsets) < 1: raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
@@ -42,55 +42,11 @@ class Project(object):
         results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
         toc(tm, label = 'running %s model' % self.name)
         
-        tp = tic()
-        for pop in results:
-           
-            fig, ax = pl.subplots(figsize=(15,10))
-            colors = gridColorMap(len(pop.comps))
-            bottom = 0*sim_settings['tvec']
-            
-            k = 0
-            for comp in pop.comps:
-                top = bottom + comp.popsize
-                
-                ax.fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[k], alpha=1, lw=0)
-                ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
-                bottom = dcp(top)
-                k += 1
-            
-            box = ax.get_position()
-            ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
-            
-            legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':2}
-            ax.set_title('%s Cascade - %s' % (self.name.title(), pop.label.title()))
-            ax.set_xlabel('Year')
-            ax.set_ylabel('People')
-            ax.set_xlim((sim_settings['tvec'][0], sim_settings['tvec'][-1]))
-            ax.set_ylim((0, max(top)))
-            cascade_names = [comp.label for comp in pop.comps]
-            ax.legend(cascade_names, **legendsettings)
-        
-        for output_id in outputs.keys():
-            unit_tag = ''
-            fig, ax = pl.subplots(figsize=(15,10))
-            for pop in results:
-                vals = dcp(outputs[output_id][pop.label])
-                if 'plot_percentage' in self.settings.charac_specs[output_id].keys():
-                    vals *= 100
-                    unit_tag = ' (%)'
-                ax.plot(sim_settings['tvec'], vals)
-
-            box = ax.get_position()
-            ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
-            
-            legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}                
-            ax.set_title('%s Outputs' % (self.name.title()))
-            ax.set_xlabel('Year')
-            ax.set_ylabel(self.settings.charac_specs[output_id]['name'] + unit_tag)
-            ax.legend([pop.label for pop in results], **legendsettings)
-                
-            
-        toc(tp, label = 'plotting %s' % self.name)
+        if plot:
+            tp = tic()
+            self.plotter.updateData(self.data)
+            self.plotter.plotProjectResults(results,outputs,sim_settings,self.settings.charac_specs,title=self.name.title())
+            toc(tp, label = 'plotting %s' % self.name)
         
         return results, outputs
         
@@ -107,6 +63,8 @@ class Project(object):
         
         if databook_path is None: databook_path = './' + self.name + '-data.xlsx'
         self.data = loadSpreadsheetFunc(settings = self.settings, databook_path = databook_path) 
+        
+    
 
 
     def makeParset(self, name = 'default'):

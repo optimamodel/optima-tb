@@ -37,7 +37,7 @@ toc(tspl2, label = 'loading %s spreadsheet' % p2.name)
 tp2 = tic()
 p2.makeParset()
 toc(tp2, label = 'making parset for %s' % p2.name)
-r2, o2 = p2.runSim()
+r2, o2 = p2.runSim(plot = True)
 
 toc(tt, label = 'entire process')
 
