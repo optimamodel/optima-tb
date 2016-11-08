@@ -6,7 +6,6 @@ except: pass
 sys.path.append('../optima')
 
 from project import Project
-from spreadsheet import load_spreadsheet
 import pylab 
 import pprint # just during debugging
 pp = pprint.PrettyPrinter(indent=4)
