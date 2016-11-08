@@ -1,84 +1,9 @@
 #%% Imports
 
-from utils import odict, OptimaException
+from utils import flattenDict, odict, OptimaException
 
 import numpy as np
-import numpy.random as npr
 from copy import deepcopy as dcp
-
-import scipy.optimize as spo
-
-
-
-#%% Calculation functions used in model
-
-def transitionRelation(v_test, v_know, v_formats, dt):
-    '''
-    Solvable function that relates Poisson-based transition event rates with fractions of people moving after time dt.
-    Input array v_know can contain any mix of rates and fractions, as long as corresponding list v_formats indicates which are marked by 'rate'.
-    A numerical solver would then solve for v_test, a mix of fractions and rates opposite to v_know.
-    '''
-    
-    f = np.zeros(len(v_know))
-    F = np.zeros(len(v_know))
-    d = np.zeros(len(v_know))
-    
-    # Rearrange arrays of values provided by solver and user into arrays of rates (f) and fractions (F).
-    for k in xrange(len(v_know)):
-        if v_formats[k] == 'rate':
-            f[k] = v_know[k]
-            F[k] = v_test[k]
-        else:
-            f[k] = v_test[k]
-            F[k] = v_know[k]
-
-    # As an array, calculate the discrepancy between calculated and given fraction values.
-    # The two correspond if the difference is zero.
-    if sum(f) == 0:
-        d = -F
-    else:
-        d = (1-np.exp(-sum(f)*dt))*f/sum(f)-F
-    
-    return d
-            
-
-def convertTransitions(values, value_formats, old_dt, new_dt):
-    ''' Function that converts yearly transition values provided in various formats (assuming old_dt is 1) into timestep-relevant fractions. '''
-    
-    new_vals = np.zeros(len(values))
-    
-    # Convert any values that are provided as probabilities into Poisson rates (average number of times transition event is encountered per year).
-    k = 0
-    for val in values:
-        if value_formats[k] == 'probability':
-            values[k] = -np.log(1-val)/old_dt
-            value_formats[k] = 'rate'
-        k += 1
-    rates = dcp(values)     # This pre-allocated array should currently be a mix of fractions and rates, but will be made all rates later.
-    
-    # Given a set of rates/fractions, solve what the corresponding fractions/rates are.
-    x = spo.fsolve(transitionRelation, np.ones(len(values))/2, args=(values, value_formats, old_dt), full_output = True)
-    
-    # If the numerical solver does not converge, print the solver output and crash.
-    if x[2] != 1: 
-        print x        
-        raise OptimaException('ERROR: Transitions cannot be reconciled. This may be due to the sum of yearly outflows for a compartment being greater than 100%.')
-    
-    # If a value passed into the solver was not a rate, then the corresponding output should be. Finish generating a Poisson rates array.
-    for k in xrange(len(values)):
-        if value_formats[k] != 'rate':
-            rates[k] = x[0][k]
-
-    # Convert Poisson rates into fractions of compartment populations that should be moved per timestep new_dt.
-    k = 0
-    for rate in rates:
-        if sum(rates) == 0:
-            new_vals[k] = 0.0
-        else:
-            new_vals[k] = (1-np.exp(-sum(rates)*new_dt))*rates[k]/sum(rates)
-        k += 1
-
-    return new_vals
 
 
 
@@ -94,31 +19,42 @@ class Node(object):
         self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
         self.outlink_ids = []       # List of indices corresponding to each outgoing link.
         
-    def makeLinkTo(self, other_node, link_index):
+    def makeLinkTo(self, other_node, link_index, link_label):
         '''
         Link this node to another (i.e. create a transition link).
-        Must provide an index that, by intention, represents where this link is positioned in its storage container. 
+        Must provide an index that, by intention, uniquely represents where this link is positioned in its storage container.
+        Must also provide the variable label for the link, in case Settings.linkpar_specs[link_label] need to be referred to.
         '''
         if not isinstance(other_node, Node):
             raise OptimaException('ERROR: Attempting to link compartment to something that is not a compartment.')
         self.num_outlinks += 1
         self.outlink_ids.append(link_index)
-        return Link(self, other_node)
+        return Link(object_from = self, object_to = other_node, label = link_label)
 
-class Link(object):
+class Variable(object):
     '''
-    Lightweight abstract class to represent unidirectional flow between two objects in a network.
+    Lightweight abstract class to store a variable array of values (presumably corresponding to an external time vector).
+    Includes an attribute to describe the format of these values.
+    '''
+    def __init__(self, label = 'default', val = 0.0):
+        self.label = label
+        self.vals = np.array([float(val)])   # An abstract array of values.
+        self.val_format = 'fraction'
+
+class Link(Variable):
+    '''
+    A more involved version of Variable, representing unidirectional flow between two objects in a network.
+    The values stored in this extended version of Variable refer to flow rates.
     If used in ModelPop, the Link refers to two cascade compartments within a single population.
     If used in Model, the Link refers to two distinct population groups.
     In the latter case, intended logic should transfer agents between all (non-dead) corresponding compartments.
     '''
-    def __init__(self, object_from, object_to, val = 0.0):
+    def __init__(self, object_from, object_to, label = 'default', val = 0.0):
+        Variable.__init__(self, label = label, val = val)
         self.index_from = object_from.index
         self.index_to = object_to.index
         self.label_from = object_from.label
         self.label_to = object_to.label
-        self.vals = np.array([float(val)])   # An abstract array of values. Usually relating to flow rate.
-        self.val_format = 'probability'
 
 
 
@@ -131,6 +67,7 @@ class ModelCompartment(Node):
         Node.__init__(self, label = label, index = index)
         self.popsize = np.array([float(popsize)])   # Number of people in compartment.
         self.tag_dead = False                       # Tag for whether this compartment contains dead people.
+        self.junction = False
     
 
 class ModelPopulation(Node): 
@@ -143,83 +80,81 @@ class ModelPopulation(Node):
         Node.__init__(self, label = label, index = index)
         self.comps = list()         # List of cascade compartments that this model population subdivides into.
         self.links = list()         # List of intra-population cascade transitions within this model population.
+        self.deps = list()          # List of value arrays for link-dependencies (both characteristic and untagged parameters) required by model.
         self.comp_ids = dict()      # Maps label of a compartment to its position index within compartments list.
         self.link_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
+        self.dep_ids = dict()       # Maps label of a relevant characteristic/parameter to its position index within dependencies list.
         self.t_index = 0            # Keeps track of array index for current timepoint data within all compartments.
         
         self.genCascade(settings = settings)    # Convert compartmental cascade into lists of compartment and link objects.
     
     def getComp(self, comp_label):
-        ''' Allow compartments to be retrieved by label rather than index. '''
+        ''' Allow compartments to be retrieved by label rather than index. Returns a ModelCompartment. '''
         comp_index = self.comp_ids[comp_label]
         return self.comps[comp_index]
+        
+    def getLinks(self, link_tag):
+        ''' Allow links to be retrieved by tag rather than index. Returns a list of Links. '''
+        link_index_list = self.link_ids[link_tag]
+        link_list = []
+        for link_index in link_index_list:
+            link_list.append(self.links[link_index])
+        return link_list
+        
+    def getDep(self, dep_label):
+        ''' Allow dependencies to be retrieved by label rather than index. Returns a Variable. '''
+        dep_index = self.dep_ids[dep_label]
+        return self.deps[dep_index]
         
     def genCascade(self, settings):
         '''
         Generate a compartmental cascade as defined in a settings object.
-        Fill out the compartment and transition lists within the model population object.
+        Fill out the compartment, transition and dependency lists within the model population object.
+        Maintaining order as defined in a cascade workbook is crucial due to cross-referencing.
         '''
         for k, label in enumerate(settings.node_specs.keys()):
             self.comps.append(ModelCompartment(label = label, index = (self.index,k)))
             if 'tag_dead' in settings.node_specs[label].keys():
                 self.comps[-1].tag_dead = True
+            if 'junction' in settings.node_specs[label].keys():
+                self.comps[-1].junction = True
             self.comp_ids[label] = k
+        
         k = 0
-        for tag in settings.links.keys():
-            for pair in settings.links[tag]:
-                self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]),link_index=k))
-                if not tag in self.link_ids:
-                    self.link_ids[tag] = []
-                self.link_ids[tag].append(k)
+        # Create actual link objects for parameters with tags, a.k.a. transitions.
+        for label in settings.linkpar_specs.keys():
+            if 'tag' in settings.linkpar_specs[label]:
+                tag = settings.linkpar_specs[label]['tag']
+                for pair in settings.links[tag]:
+                    self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]),link_index=k,link_label=label))
+                    if not tag in self.link_ids.keys():
+                        self.link_ids[tag] = []
+                    self.link_ids[tag].append(k)
+                    k += 1
+                    
+        k = 0
+        # Now create variable objects for dependencies, starting with characteristics.
+        for label in settings.charac_specs.keys():
+            if 'par_dependency' in settings.charac_specs[label]:
+                self.deps.append(Variable(label=label))
+                self.dep_ids[label] = k
                 k += 1
-    
-#    def stepCascadeForward(self, dt = 1.0):
-#        '''
-#        Evolve model population characteristics by one timestep (defaulting as 1 year).
-#        Calculated outputs like popsize will overwrite pre-allocated NaNs.
-#        In contrast, pre-allocated arrays that are used in calculations (e.g. parameters) must be pre-filled with appropriate values.
-#        This method only works if all links in this population target compartments in the same population. Generally used only for testing/debugging.
-#        '''
-#        
-#        ti = self.t_index
-#        
-#        # If not pre-allocated, extend compartment variable arrays. Either way copy current value to the next position in the array.
-#        for comp in self.comps:
-#            if not len(comp.popsize) > ti + 1:
-#                comp.popsize = np.append(comp.popsize, 0.0)
-#            if not len(comp.popsize) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
-#                raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (comp.label))
-#            comp.popsize[ti+1] = comp.popsize[ti]
-#                
-#        dpopsize = np.zeros(len(self.links))        
-#        
-#        # First calculation loop. Extend link variable arrays if not pre-allocated. Calculate value changes for next timestep.
-#        for k, link in enumerate(self.links):
-#            if not len(link.vals) > ti + 1:
-#                link.vals = np.append(link.vals, link.vals[-1])
-#            if not len(link.vals) > ti + 1:         # If one extension did not create an index of ti+1, something is seriously wrong...
-#                raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (link.label))
-#            if link.index_to[0] != self.index:      # If a link in this population targets a compartment in another population, crash this method.
-#                raise OptimaException('ERROR: Population %s contains a link from %s to another population. Cannot step cascade independently forward.' % (self.label, link.label_from))
-#            
-#            converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
-#            dpopsize[k] = self.getComp(link.label_from).popsize[ti] * converted_frac
-#
-#        # Second calculation loop. Apply value changes at next timestep.
-#        for k, link in enumerate(self.links):
-#            self.getComp(link.label_from).popsize[ti+1] -= dpopsize[k]
-#            self.getComp(link.label_to).popsize[ti+1] += dpopsize[k]
-#            
-#        self.t_index += 1       # Update timestep index.
+        
+        # Finish dependencies with untagged parameters, i.e. ones that are not considered transition flow rates.
+        for label in settings.par_deps.keys():
+            self.deps.append(Variable(label=label))
+            self.dep_ids[label] = k
+            k += 1
+                    
             
-    def printCompVars(self, full = False):
-        ''' Loop through all compartments and print out current variable values. '''
-        for comp in self.comps:
-            if not full:
-                print('[Pop: %s][Compartment: %5s][Popsize: %15.4f]' % (self.label, comp.label, comp.popsize[self.t_index]))
-            else:
-                print('[Pop: %s][Compartment: %5s][Popsize...]' % (self.label, comp.label))
-                print(comp.popsize)
+#    def printCompVars(self, full = False):
+#        ''' Loop through all compartments and print out current variable values. '''
+#        for comp in self.comps:
+#            if not full:
+#                print('[Pop: %s][Compartment: %5s][Popsize: %15.4f]' % (self.label, comp.label, comp.popsize[self.t_index]))
+#            else:
+#                print('[Pop: %s][Compartment: %5s][Popsize...]' % (self.label, comp.label))
+#                print(comp.popsize)
 
 #    def printLinkVars(self, full = False):
 #        ''' Loop through all links and print out current variable values. '''
@@ -229,19 +164,10 @@ class ModelPopulation(Node):
 #            else:
 #                print('[Pop: %s][%5s --> %-5s][Transit. Fraction...]' % (self.label, link.label_from, link.label_to))
 #                print(link.vals)
-
-    def makeRandomVars(self, for_comp = True, for_link = True):
-        ''' Randomise all compartment and link variables. Method used primarily for debugging. '''
-        if for_comp:
-            for comp in self.comps:
-                comp.popsize[self.t_index] = npr.rand()*1e7
-        if for_link:
-            for link in self.links:
-                link.vals = npr.rand()/self.getComp(link.label_from).num_outlinks     # Scaling makes sure fractions leaving a compartment sum to less than 1.
                 
     def preAllocate(self, sim_settings):
         '''
-        Pre-allocate variable arrays in compartments and links for faster processing.
+        Pre-allocate variable arrays in compartments, links and dependent variables for faster processing.
         Array maintains initial value but pre-fills everything else with NaNs.
         Thus errors due to incorrect parset value saturation should be obvious from results.
         '''
@@ -253,6 +179,10 @@ class ModelPopulation(Node):
             init_val = link.vals[0]
             link.vals = np.ones(len(sim_settings['tvec']))*np.nan
             link.vals[0] = init_val
+        for dep in self.deps:
+            init_val = dep.vals[0]
+            dep.vals = np.ones(len(sim_settings['tvec']))*np.nan
+            dep.vals[0] = init_val
             
             
             
@@ -264,7 +194,7 @@ class Model(object):
     def __init__(self):
         
         self.pops = list()              # List of population groups that this model subdivides into.
-        self.pop_ids = dict()           # Maps label of a population to its position index within populations list.     
+        self.pop_ids = dict()           # Maps label of a population to its position index within populations list.
         
         self.sim_settings = odict()
         
@@ -286,16 +216,59 @@ class Model(object):
             self.pops.append(ModelPopulation(settings = settings, label = pop_label, index = k))
             self.pops[-1].preAllocate(self.sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
             self.pop_ids[pop_label] = k
-            
-            self.pops[-1].getComp('sus').popsize[0] = 1000000   # NOTE: Temporary. Initial values inserted here.
-            
-        # Propagating cascade parameter parset values into ModelPops.
-        for par in parset.pars:
-            tag = settings.linkpar_specs[par.label]['tag']          # Map parameter label -> link tag.
+                    
+        # Propagating initial characteristic parset values into ModelPops.
+        # First interpolate initial value for each relevant characteristic (i.e. one that has an entry point).
+        # Maintaining definitional order (i.e. the order characteristics were defined in cascade workbook) is crucial.
+        init_dict = odict()
+        charac_for_entry = odict()
+        t_init = np.array([self.sim_settings['tvec'][0]])
+        for charac_label in settings.charac_specs.keys():
+            if 'entry_point' in settings.charac_specs[charac_label].keys():
+                entry_point = settings.charac_specs[charac_label]['entry_point']
+                init_dict[charac_label] = odict()
+                charac_for_entry[entry_point] = charac_label
+                par = parset.pars['characs'][parset.par_ids['characs'][charac_label]]
+                for pop_label in parset.pop_labels:
+                    val = par.interpolate(tvec = t_init, pop_label = pop_label)
+                    init_dict[charac_label][pop_label] = dcp(val)
+        
+        # Next, multiply out any denominators that exist. Again, definitional order matters.
+        # These should all be other previously-defined entry-point characteristics, according to validation in settings.py.
+        for charac_label in init_dict.keys():
+            if 'denom' in settings.charac_specs[charac_label].keys():
+                denom_label = settings.charac_specs[charac_label]['denom']
+                entry_point = settings.charac_specs[charac_label]['entry_point']
+                for pop_label in parset.pop_labels:
+                    init_dict[charac_label][pop_label] *= init_dict[denom_label][pop_label]
+        
+        # One more loop to subtract out any included characteristics from each characteristic (e.g. susceptibles = total - infected).
+        for charac_label in init_dict.keys():
+            entry_point = settings.charac_specs[charac_label]['entry_point']
             for pop_label in parset.pop_labels:
-                for link_id in self.getPop(pop_label).link_ids[tag]:           # Map link tag -> link id in ModelPop.            
-                    self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
-                    self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
+                val = init_dict[charac_label][pop_label]
+                flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = charac_label, sub_keys = ['includes'])
+                flat_list.remove(entry_point)
+                for include in flat_list:
+                    if include in charac_for_entry.keys():
+                        val -= init_dict[charac_for_entry[include]][pop_label]
+                self.getPop(pop_label).getComp(entry_point).popsize[0] = val
+                    
+        
+        # Propagating cascade parameter parset values into ModelPops. Handle both 'tagged' links and 'untagged' dependencies.
+        for par in parset.pars['cascade']:
+            if 'tag' in settings.linkpar_specs[par.label]:
+                tag = settings.linkpar_specs[par.label]['tag']                  # Map parameter label to link tag.
+                for pop_label in parset.pop_labels:
+                    for link_id in self.getPop(pop_label).link_ids[tag]:        # Map link tag to link id in ModelPop.            
+                        self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
+                        self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
+            else:
+                for pop_label in parset.pop_labels:
+                    dep_id = self.getPop(pop_label).dep_ids[par.label]          # Map dependency label to dependency id in ModelPop.
+                    self.getPop(pop_label).deps[dep_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
+                    self.getPop(pop_label).deps[dep_id].val_format = par.y_format[pop_label]
+                
         
         # Propagating transfer parameter parset values into Model object.
         for trans_type in parset.transfers.keys():
@@ -305,24 +278,196 @@ class Model(object):
                     for pop_target in par.y:
                         for comp in self.getPop(pop_source).comps:
                             trans_tag = comp.label + '_' + trans_type + '_to_' + pop_target       # NOTE: Perhaps there is a nicer way to set up transfer tagging.
-                            if not comp.tag_dead:
+                            if not comp.tag_dead and not comp.junction:
                                 num_links = len(self.getPop(pop_source).links)
-                                link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=num_links)
+                                link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=num_links,link_label=trans_tag)
                                 link.vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_target)
                                 link.val_format = par.y_format[pop_target]
                                 
                                 self.getPop(pop_source).links.append(link)
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
+        
+        # Make sure initially-filled junctions are processed and initial dependencies are calculated.
+        self.processJunctions(settings = settings)
+        self.updateDependencies(settings = settings)
                         
                 
     def process(self, settings):
         ''' Run the full model. '''
         
         for t in self.sim_settings['tvec'][1:]:
-            self.stepForward(dt = settings.tvec_dt)
+            self.stepForward(settings = settings, dt = settings.tvec_dt)
+            self.processJunctions(settings = settings)
+            self.updateDependencies(settings = settings)
         
         return self.pops, self.sim_settings
         
+
+    def stepForward(self, settings, dt = 1.0):
+        '''
+        Evolve model characteristics by one timestep (defaulting as 1 year).
+        Each application of this method writes calculated values to the next position in popsize arrays, regardless of dt.
+        Thus the corresponding time vector associated with variable dt steps must be tracked externally.
+        '''
+        
+        ti = self.t_index
+        
+        # Preallocate a change-in-popsize array. Requires each population to have the same cascade.
+        num_pops = len(self.pops)
+        num_comps = len(self.pops[0].comps)         # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
+        dpopsize = np.zeros(num_pops*num_comps)
+        
+        # First loop through all pops and comps to calculate value changes.
+        k = 0
+        for pop in self.pops:
+            for comp in pop.comps:
+                
+                # If not pre-allocated, extend compartment variable arrays. Either way copy current value to the next position in the array.
+                if not len(comp.popsize) > ti + 1:
+                    comp.popsize = np.append(comp.popsize, 0.0)
+                if not len(comp.popsize) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
+                    raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment "%s".' % (comp.label))
+                comp.popsize[ti+1] = comp.popsize[ti]
+                    
+                if comp.label not in settings.junction_labels:      # Junctions collect inflows during this step. They do not process outflows here.
+                    for lid in comp.outlink_ids:
+                        link = pop.links[lid]
+                        
+                        # If link values are not pre-allocated to the required time-vector length, extend with the same value as the last index.
+                        if not len(link.vals) > ti + 1:
+                            link.vals = np.append(link.vals, link.vals[-1])
+                        if not len(link.vals) > ti + 1:         # If one extension did not create an index of ti+1, something is seriously wrong...
+                            raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment "%s".' % (link.label))
+                        
+                        did_from = link.index_from[0] * num_comps + link.index_from[1]
+                        did_to = link.index_to[0] * num_comps + link.index_to[1]
+                        comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
+                        
+#                        # Evaluate custom function for variable if it exists and overwrite any value that is currently stored for transition.
+#                        if link.label in settings.linkpar_specs:
+#                            if 'f_stack' in settings.linkpar_specs[link.label]:
+#                                f_stack = dcp(settings.linkpar_specs[link.label]['f_stack'])
+#                                deps = dcp(settings.linkpar_specs[link.label]['deps'])
+#                                for dep_label in deps.keys():
+#                                    deps[dep_label] = pop.getDep(dep_label).vals[ti]
+#                                link.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = deps)
+                        
+                        converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
+                        
+                        dpopsize[did_from] -= comp_source.popsize[ti] * converted_frac
+                        dpopsize[did_to] += comp_source.popsize[ti] * converted_frac
+                
+                k += 1
+
+        # Second loop through all pops and comps to apply value changes at next timestep index.
+        for pid in xrange(num_pops):
+            for cid in xrange(num_comps):
+                did = pid * num_comps + cid
+                self.pops[pid].comps[cid].popsize[ti+1] += dpopsize[did]
+        
+        # Update timestep index.
+        self.t_index += 1
+        for pop in self.pops:
+            pop.t_index = self.t_index       # Keeps ModelPopulations synchronised with Model object.
+
+
+    def processJunctions(self, settings):
+        '''
+        For every compartment considered a junction, propagate the contents onwards until all junctions are empty.
+        '''
+        
+        ti = self.t_index
+        ti_link = ti - 1
+        if ti_link < 0: ti_link = ti    # For the case where junctions are processed immediately after model initialisation.
+        final_review = False
+        
+        while not final_review:
+            final_review = True     # Assume that this is the final sweep through junctions to verify their emptiness.
+            for pop in self.pops:
+                for junction_label in settings.junction_labels:
+                    comp = pop.getComp(junction_label)
+                    popsize = comp.popsize[ti]
+                    if popsize > 0:
+                        final_review = False    # Outflows could propagate into other junctions requiring another review.
+                        denom_val = sum(pop.links[lid].vals[ti_link] for lid in comp.outlink_ids)
+                        if denom_val == 0: raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
+                        for lid in comp.outlink_ids:
+                            link = pop.links[lid]
+                            
+                            comp.popsize[ti] -= popsize * link.vals[ti_link] / denom_val
+                            pop.getComp(link.label_to).popsize[ti] += popsize * link.vals[ti_link] / denom_val
+
+
+    def updateDependencies(self, settings):
+        '''
+        Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
+        These dependencies must be calculated in the same order as defined in settings, characteristics before parameters, otherwise references may break.
+        Also, parameters in the dependency list do not need to be calculated unless explicitly depending on another parameter.
+        '''
+        
+        ti = self.t_index
+        
+        for pop in self.pops:
+            for dep in pop.deps:
+                if dep.label in settings.charac_deps.keys():
+                    dep.vals[ti] = 0                                    
+                    
+                    # Sum up all relevant compartment popsizes (or previously calculated characteristics).
+                    for inc_label in settings.charac_specs[dep.label]['includes']:
+                        if inc_label in pop.comp_ids.keys():
+                            val = pop.getComp(inc_label).popsize[ti]
+                        elif inc_label in pop.dep_ids.keys():    # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
+                            val = pop.getDep(inc_label).vals[ti]
+                        else:
+                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
+                        
+                        dep.vals[ti] += val
+                    
+                    # Divide by relevant compartment popsize (or previously calculated characteristic).
+                    if 'denom' in settings.charac_specs[dep.label]:
+                        den_label = settings.charac_specs[dep.label]['denom']
+                        if den_label in pop.dep_ids.keys():  # NOTE: See above note for avoiding parameter-type dependencies.
+                            val = pop.getDep(den_label).vals[ti]
+                        elif den_label in pop.comp_ids.keys():
+                            val = pop.getComp(den_label).popsize[ti]
+                        else:
+                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))                      
+                        
+                        dep.vals[ti] /= val
+                
+#                # If the dependency is a parameter, evaluate its stack.
+#                elif dep.label in settings.linkpar_specs.keys():
+#                    if 'deps' in settings.linkpar_specs[dep.label]:
+#                        if len(settings.linkpar_specs[dep.label]['deps'].keys()) >= 0:
+#                            f_stack = dcp(settings.linkpar_specs[dep.label]['f_stack'])
+#                            dep_deps = dcp(settings.linkpar_specs[dep.label]['deps'])
+#                            for dep_dep_label in dep_deps.keys():
+#                                dep_deps[dep_dep_label] = pop.getDep(dep_dep_label).vals[ti]
+#                            dep.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = dep_deps)
+
+#                else:
+#                    raise OptimaException('ERROR: Dependency "%s" does not appear to be either a characteristic or parameter.' % (dep.label))
+                    
+            for par_label in settings.par_funcs.keys():
+                pars = []
+                if par_label in settings.par_deps:
+                    pars.append(pop.getDep(par_label))
+                else:
+                    pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
+                specs = settings.linkpar_specs[par_label]
+                f_stack = dcp(specs['f_stack'])
+                deps = dcp(specs['deps'])
+                for dep_label in deps.keys():
+                    if dep_label in settings.par_deps.keys() or dep_label in settings.charac_deps.keys():
+                        val = pop.getDep(dep_label).vals[ti]
+                    else:
+                        val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti]    # As links are duplicated for the same tag, can pull values from the zeroth one.
+                    deps[dep_label] = val
+                new_val = settings.parser.evaluateStack(stack = f_stack, deps = deps)
+                for par in pars:
+                    par.vals[ti] = new_val
+                
+
     
     def calculateOutputs(self, settings):
         '''
@@ -343,7 +488,7 @@ class Model(object):
                     elif inc_label in outputs.keys()[:-1]:
                         vals = outputs[inc_label][pop.label]
                     else:
-                        raise OptimaException('ERROR: Compartment or characteristic %s has not been pre-calculated for use in calculating %s.' % (inc_label, cid))
+                        raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
                         
                     if outputs[cid][pop.label] is None:
                         outputs[cid][pop.label] = dcp(vals)
@@ -358,86 +503,11 @@ class Model(object):
                     elif den_label in self.getPop(pop.label).comp_ids.keys():
                         vals = self.getPop(pop.label).getComp(den_label).popsize
                     else:
-                        raise OptimaException('ERROR: Compartment or characteristic %s has not been pre-calculated for use in calculating %s.' % (inc_label, cid))
+                        raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
                     
                     outputs[cid][pop.label] /= vals
         
         return outputs
-        
-        
-    def stepForward(self, dt = 1.0):
-        '''
-        Evolve model characteristics by one timestep (defaulting as 1 year).
-        Each application of this method writes calculated values to the next position in popsize arrays, regardless of dt.
-        Thus the corresponding time vector associated with variable dt steps must be tracked externally.
-        '''
-        
-        ti = self.t_index
-        
-        # Preallocate a change-in-popsize array. Requires each population to have the same cascade.
-        num_pops = len(self.pops)
-        num_comps = len(self.pops[0].comps)     # NOTE: Hard-coded check for zeroth population. Improve later.
-        dpopsize = np.zeros(num_pops*num_comps)
-        
-        # First loop through all pops and comps to calculate value changes.
-        k = 0
-        for pop in self.pops:
-            for comp in pop.comps:
-                
-                # If not pre-allocated, extend compartment variable arrays. Either way copy current value to the next position in the array.
-                if not len(comp.popsize) > ti + 1:
-                    comp.popsize = np.append(comp.popsize, 0.0)
-                if not len(comp.popsize) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
-                    raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (comp.label))
-                comp.popsize[ti+1] = comp.popsize[ti]
-                
-#                vals = np.zeros(comp.num_outlinks)
-#                val_formats = [None]*comp.num_outlinks
-#                j = 0
-                for lid in comp.outlink_ids:
-                    link = pop.links[lid]
-                    
-                    # If link values are not pre-allocated to the required time-vector length, extend with the same value as the last index.
-                    if not len(link.vals) > ti + 1:
-                        link.vals = np.append(link.vals, link.vals[-1])
-                    if not len(link.vals) > ti + 1:         # If one extension did not create an index of ti+1, something is seriously wrong...
-                        raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment %s.' % (link.label))
-#                    
-#                    # Store values and formats for outlinks relevant to the current compartment.
-#                    vals[j] = link.vals[ti]
-#                    val_formats[j] = link.val_format
-#                    j += 1
-#                
-#                # If there are transitions to be applied, convert them to movement fractions appropriate to one timestep.
-#                if len(vals) > 0:
-#                    new_vals = convertTransitions(values = dcp(vals), value_formats = dcp(val_formats), old_dt = 1.0, new_dt = dt)
-#                        
-#                    j = 0
-#                    for lid in comp.outlink_ids:
-#                    link = pop.links[lid]
-                    
-                    did_from = link.index_from[0] * num_comps + link.index_from[1]
-                    did_to = link.index_to[0] * num_comps + link.index_to[1]
-                    comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
-                    
-                    converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
-                    
-                    dpopsize[did_from] -= comp_source.popsize[ti] * converted_frac
-                    dpopsize[did_to] += comp_source.popsize[ti] * converted_frac
-#                    j += 1
-                
-                k += 1
-
-        # Second loop through all pops and comps to apply value changes at next timestep index.
-        for pid in xrange(num_pops):
-            for cid in xrange(num_comps):
-                did = pid * num_comps + cid
-                self.pops[pid].comps[cid].popsize[ti+1] += dpopsize[did]
-        
-        # Update timestep index.
-        self.t_index += 1
-        for pop in self.pops:
-            pop.t_index = self.t_index       # Keeps ModelPopulations synchronised with Model object.
         
     
 
