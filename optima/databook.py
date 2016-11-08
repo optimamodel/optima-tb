@@ -11,13 +11,6 @@ from copy import deepcopy as dcp
 
 
 
-#%% Constants used across spreadsheet functions
-
-default_path = './project-data.xlsx'    # Default path if not called via a project method.
-
-# NOTE: Should cascade metadata like spreadsheet titles be moved here too...?
-
-
 #%% Utility functions to generate sub-blocks of the project databook
 
 def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, data_formats = None, print_conditions = None):
@@ -107,7 +100,7 @@ def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = Non
 #%% Function for generating project databook
 
 # NOTE: Comment this better later, especially with the fact that all Excel formulae need a fall-back value.
-def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, num_migrations = 2):
+def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 2):
     ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
     
     workbook = xw.Workbook(databook_path)
@@ -255,10 +248,9 @@ def makeSpreadsheetFunc(settings, databook_path = default_path, num_pops = 5, nu
 #%% Function for loading project databook
 
 # NOTE: This needs so much quality-assurance testing. Need to ensure that input data sheet aligns with cascade settings.
-def loadSpreadsheetFunc(settings, databook_path = None):
+def loadSpreadsheetFunc(settings, databook_path):
     ''' Load data spreadsheet into Project data dictionary. '''
     
-    if databook_path is None: databook_path = default_path
     try: workbook = xlrd.open_workbook(databook_path)
     except: raise OptimaException('ERROR: Project data workbook was unable to be loaded from... %s' % databook_path)
     ws_pops = workbook.sheet_by_name(settings.databook['sheet_names']['pops'])

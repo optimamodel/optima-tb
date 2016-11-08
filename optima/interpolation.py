@@ -40,15 +40,7 @@ def interpolateFunc(x, y, xnew, method = 'pchip'):
         ynew = pchipEval(x, y, m, xnew, deriv = False)  # Use these slopes (along with the Hermite basis function) to interpolate.
     
 #    elif method=='smoothinterp':
-#        from utils import smoothinterp
-#        ynew = smoothinterp(xnew, x, y)
-#        if deriv:
-#              if len(xnew)==1:
-#                  print('WARNING, length 1 smooth interpolation derivative not implemented')
-#                  ynew = [0.0] # WARNING, temp
-#              else:
-#        		    ynew = (diff(ynew)/diff(xnew)).tolist() # Calculate derivative explicitly
-#        		    ynew.append(ynew[-1]) # Duplicate the last element so the right length
+#        ...
     
     else:
         raise OptimaException('ERROR: Interpolation method "%s" not understood.' % method)
@@ -128,57 +120,3 @@ def pchipEval(x, y, m, xvec, deriv = False):
         nid += 1
     
     return yvec
-
-###=========================================================
-#
-#pchipeps = 1e-8
-#
-#def plotpchip(x, y, deriv = False, returnplot = False, initbudget = None, optbudget = None):
-#
-#    from pylab import figure, plot, show
-#
-#    sortzip = dcp(sorted(zip(x,y)))
-#    xs = [a for a,b in sortzip]
-#    ys = [b for a,b in sortzip]
-#    x = dcp(xs)
-#    y = dcp(ys)
-#
-#    # Process inputs
-#    if isnumber(initbudget): initbudget = [initbudget] # Plotting expects this to be a list
-#    if isnumber(optbudget): optbudget = [optbudget] # Plotting expects this to be a list
-#    
-##    try:
-#    xstart = x[0]
-#    xend = x[-1]
-#    if not initbudget == None:
-#        xstart = min(xstart,initbudget[0])
-#        xend = max(xend,initbudget[-1])
-#    if not optbudget == None:
-#        xstart = min(xstart,optbudget[0])
-#        xend = max(xend,optbudget[-1])
-#    xnew = linspace(xstart,xend,200)
-#    
-#    fig = figure(facecolor=(1,1,1))
-#    ax = fig.add_subplot(111)
-##    print(xnew)
-##    print(pchip(x,y,xnew,deriv))
-##    print(optbudget)
-##    print(pchip(x,y,optbudget,deriv))
-#    plot(xnew, pchip(x,y,xnew,deriv), linewidth=2)
-#    xs = [a+pchipeps for a in x]    # Shift the original points slightly when plotting them, otherwise derivatives become zero-like.
-#    plot(xs, pchip(x,y,xs,deriv), 'k+', markeredgewidth=2, markersize=20, label='Budget-objective curve')
-##        print(x)
-##        print(pchip(x,y,x,deriv))
-#    if not initbudget == None:
-#        plot(initbudget, pchip(x,y,initbudget,deriv), 'gs', label='Initial')
-#    if not optbudget == None:
-#        plot(optbudget, pchip(x,y,optbudget,deriv), 'ro', label='Optimized')
-#    ax.legend(loc='best')
-#    if returnplot:
-#        return ax
-#    else:
-#        show()
-##    except:
-##        print('Plotting of PCHIP-interpolated data failed!')
-#    
-#    return None
