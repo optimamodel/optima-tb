@@ -31,11 +31,6 @@ class Settings(object):
         
         self.parser = FunctionParser(debug = False)      # Decomposes and evaluates functions written as strings, in accordance with a grammar defined in the parser object.
         
-        self.plotSettings = PlottingSettings()        
-        
-        self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here to be explicit. 
-        self.loadCascadeSettings(cascade_path)      
-        
         # Project-data workbook metadata. Constant regardless of cascade structure.
         self.databook = odict()
         self.databook['sheet_names'] = odict()
@@ -45,6 +40,10 @@ class Settings(object):
         self.databook['sheet_names']['charac'] = 'Epidemic Characteristics'
         self.databook['sheet_names']['linkpars'] = 'Cascade Parameters'
         
+        self.startFresh()       # NOTE: Unnecessary as loading a cascade calls this anyway. But left here to be explicit. 
+        self.loadCascadeSettings(cascade_path)
+        
+        self.plotSettings = PlottingSettings()
         
         self.countrybook = odict()
         self.countrybook['sheet_names'] = odict()

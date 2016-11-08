@@ -31,7 +31,7 @@ class Project(object):
         self.plotter = Plotter({})
         
         
-    def runSim(self, parset_name = 'default',plot=False):
+    def runSim(self, parset_name = 'default', plot = False):
         ''' Run model using a selected parset and store/return results. '''
         
         if len(self.parsets) < 1: raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)

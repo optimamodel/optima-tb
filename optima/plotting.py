@@ -134,6 +134,7 @@ class Plotter():
         pl.close("all") 
         self.plotPopulation(results, outputs, sim_settings, charac_specs, title)
         # plot data points for which we have information: currently latent infections, active infections, active prevalence
+#        self.plotCompartment(results, outputs, sim_settings, charac_specs, title,outputIDs=['alive','lt_prev','sp_prev','sn_prev'])
         self.plotCompartment(results, outputs, sim_settings, charac_specs, title,outputIDs=['lt_inf','ac_inf','ac_prev'])
         
     def plotPopulation(self,results,outputs,sim_settings,charac_specs,title='',plotObservedData=True,saveFig=False):
