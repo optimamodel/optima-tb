@@ -6,7 +6,6 @@ from copy import deepcopy as dcp
 import numpy as np
 
 
-
 #%% General interpolation wrapper
 
 def interpolateFunc(x, y, xnew, method = 'pchip'):
