@@ -114,7 +114,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
         ws_params[custom_label] = {'row_id':0, 'ws':workbook.add_worksheet(settings.databook['custom_sheet_names'][custom_label])}
     
     # Only produce standard sheets if there are any parameters left over that are not allocated to custom sheets.
-    if settings.make_sheet_charac:
+    if settings.make_sheet_characs:
         ws_params['charac'] = {'row_id':0, 'ws':workbook.add_worksheet(settings.databook['sheet_names']['charac'])}
     if settings.make_sheet_linkpars:
         ws_params['linkpars'] = {'row_id':0, 'ws':workbook.add_worksheet(settings.databook['sheet_names']['linkpars'])}
@@ -263,7 +263,7 @@ def loadSpreadsheetFunc(settings, databook_path):
         ws_params[custom_label] = workbook.sheet_by_name(settings.databook['custom_sheet_names'][custom_label])
     
     # Only produce standard sheets if there are any parameters left over that are not allocated to custom sheets.
-    if settings.make_sheet_charac:
+    if settings.make_sheet_characs:
         ws_params['charac'] = workbook.sheet_by_name(settings.databook['sheet_names']['charac'])
     if settings.make_sheet_linkpars:
         ws_params['linkpars'] = workbook.sheet_by_name(settings.databook['sheet_names']['linkpars'])

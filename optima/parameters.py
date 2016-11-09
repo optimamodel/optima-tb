@@ -11,10 +11,12 @@ import numpy as np
 #%% Parameter class that stores one array of values converted from raw project data
 
 class Parameter(object):
-    ''' Class to hold one group of parameter values. '''
+    ''' Class to hold one set of parameter values disaggregated by populations. '''
     
     def __init__(self, label, t = None, y = None, y_format = None):
         self.label = label
+        
+        # These ordered dictionaries have population labels as keys.
         if t is None: t = odict()
         if y is None: y = odict()
         if y_format is None: y_format = odict()
@@ -23,7 +25,7 @@ class Parameter(object):
         self.y_format = y_format        # Value format data (e.g. Probability, Fraction or Number).
         
     def interpolate(self, tvec = None, pop_label = None):
-        ''' Take parameter values and construct an array matching input time vector. '''
+        ''' Take parameter values and construct an interpolated array corresponding to the input time vector. '''
         
         # Validate input.
         if pop_label not in self.t.keys(): raise OptimaException('ERROR: Cannot interpolate parameter "%s" without referring to a proper population label.' % pop_label)
@@ -32,17 +34,18 @@ class Parameter(object):
         if not len(self.t[pop_label]) == len(self.y[pop_label]): raise OptimaException('ERROR: Parameter "%s", population "%s", does not have corresponding values and timepoints.' % (self.label, pop_label))
 
         if len(self.t[pop_label]) == 1:
-            output = np.ones(len(tvec))*self.y[pop_label][0]    # Don't bother running interpolation loops if constant.
+            output = np.ones(len(tvec))*self.y[pop_label][0]    # Don't bother running interpolation loops if constant. Good for performance.
         else:
             input_t = dcp(self.t[pop_label])
             input_y = dcp(self.y[pop_label])
             
-            # Pad the input vectors for interpolation with minimum and maximum timepoint values, to avoid extrapolation blowing up.
+            # Pad the input vectors for interpolation with minimum and maximum timepoint values, to avoid extrapolated values blowing up.
             ind_min, t_min = min(enumerate(self.t[pop_label]), key = lambda p: p[1])
             ind_max, t_max = max(enumerate(self.t[pop_label]), key = lambda p: p[1])
             y_at_t_min = self.y[pop_label][ind_min]
             y_at_t_max = self.y[pop_label][ind_max]
             
+            # This padding effectively keeps edge values constant for desired time ranges larger than data-provided time ranges.
             if tvec[0] < t_min:
                 input_t = np.append(tvec[0], input_t)
                 input_y = np.append(y_at_t_min, input_y)
