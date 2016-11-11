@@ -1,4 +1,6 @@
 #%% Imports
+import logging
+logger = logging.getLogger(__name__)
 
 
 import pylab as pl
@@ -201,7 +203,7 @@ class Plotter():
                 
         colors = self.gridColorMap(len(results))        
         for output_id in outputIDs:
-            print output_id
+            
             unit_tag = ''
             fig, ax = pl.subplots(figsize=(15,10))
             for k,pop in enumerate(results):

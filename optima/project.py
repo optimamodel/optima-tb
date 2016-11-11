@@ -1,4 +1,9 @@
 #%% Imports
+import logging
+import logging.config
+
+logging.config.fileConfig('./logging.ini', disable_existing_loggers=False)
+logger = logging.getLogger()
 
 from utils import tic, toc, odict, OptimaException
 from model import runModel
@@ -16,8 +21,10 @@ from uuid import uuid4 as uuid
 class Project(object):
     ''' The main Optima project class. Almost all Optima functionality is provided by this class. '''
 
-    def __init__(self, name = 'default', cascade_path = '../data/cascade.xlsx'):
+    def __init__(self, name = 'default', cascade_path = './data/cascade.xlsx'):
         ''' Initialize project. '''
+
+ 
 
         self.name = name
         self.uid = uuid()
@@ -29,6 +36,8 @@ class Project(object):
         self.results = odict()
         
         self.plotter = Plotter({})
+        
+        logger.info("Created project: %s"%self.name)
         
         
     def runSim(self, parset_name = 'default', plot = False):
