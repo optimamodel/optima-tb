@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+
 from utils import odict, printv, OptimaException
 
 import xlrd
@@ -153,14 +156,14 @@ def check_headings(sheetname,subparlist,parcount=0):
     
     
 
-def load_spreadsheet(filename="simple.xlsx",verbose=2):
+def load_old_spreadsheet(filename="simple.xlsx",verbose=2):
     """
     Load data entry spreadsheet, check the data and return as a data object.
     
     Note: data object structure is expected to change in near-future.
     
     """
-    printv('Loading data from %s...' % filename, 1, verbose)
+    logging.info('Loading data from %s...' % filename)
     
     
     # Initial check: workbook can be loaded
@@ -223,7 +226,7 @@ def load_spreadsheet(filename="simple.xlsx",verbose=2):
     
     try:
         sheetdata = workbook.sheet_by_name('Populations')
-        printv('Loading "Populations"...', 2, verbose)
+        logging.info('Loading "Populations"...')
         # TODO: implement for that happy day when we have a summary spreadsheet
     except XLRDError:
         ## -- Populations is not an explicit sheet for TB workbooks [... no comment]
@@ -258,14 +261,14 @@ def load_spreadsheet(filename="simple.xlsx",verbose=2):
     ## Loop over remaining sheets
     
     for sheetname in UNIVALUE_SHEETS:
-        printv('Loading "%s"...' % sheetname, 2, verbose)
+        logging.info('Loading "%s"...' % sheetname)
         # this is for all sheets where only one value is being read in
         sheetdata = workbook.sheet_by_name(sheetname)
         thispar = sheets[sheetname][0]
         data[thispar] = read_univalue_sheet(sheetdata, n_years)
      
     for sheetname in MULTIVALUE_SHEETS: 
-        printv('Loading "%s"...' % sheetname, 2, verbose)
+        logging.info('Loading "%s"...' % sheetname, 2, verbose)
         sheetdata = workbook.sheet_by_name(sheetname)
         parameters = sheets[sheetname]
         if len(parameters)==1:
@@ -409,7 +412,7 @@ def read_multivalue_sheet(sheetdata,parameters,n_years,isParameterized=True):
                 par = parameters[parindex]
             else:
                 par = str(sheetdata.cell_value(row,0))
-            printv("creating label for %s"%par,2, 2)
+            logging.debug("creating label for %s"%par)
             # TODO convert to odict
             data[par] = {'label': str(sheetdata.cell_value(row,0))} # for debugging purposes
             parindex += 1
@@ -476,7 +479,7 @@ def _writeSinglePopulationBlock(ws,row_index_start,col_index_start,col_index_end
                 row_index += 1
                 continue
             
-            printv("ADDING %s"%pop_label,3)
+            logging.debug("ADDING %s"%pop_label)
             
             
             for (j,v) in enumerate(pop_label):
@@ -557,7 +560,12 @@ def _create_multivalue_block(ws,ws_name,row_index,col_index_start,col_index_end,
             # fix up row labels based on whether we're disaggregating values or not
             dis_list = __genDisaggLabels(item,cb_settings)
             # write col headers (poplabels and disaggs)
-            rows_added = _writeSinglePopulationBlock(ws,row_index,col_index_start,col_index_end,dis_list,formats,col_header_start=col_index_start-len(item),disagg=True,pop_label_index=item.index('populations'))
+            
+            try: 
+                pop_label_index = item.index('populations') 
+            except:
+                pop_label_index =-1
+            rows_added = _writeSinglePopulationBlock(ws,row_index,col_index_start,col_index_end,dis_list,formats,col_header_start=col_index_start-len(item),disagg=True,pop_label_index=pop_label_index)
             # interproperty spacing 
             row_index += rows_added + cb_settings['constants']['spacing_interproperty']
             
@@ -604,10 +612,10 @@ def _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,
     # write the blocks for each of the values as specified in cb_settings['sheet_values'][ws_name]
     _create_multivalue_block(ws,ws_name,row_index_start,col_index_start,col_index_end,cb_settings['sheet_values'][ws_name],cb_settings,formats)
 
-def _create_populations(ws,ws_name,num_populations,formats):
+def _create_populations(ws,ws_name,num_populations,formats, headers):
 
     #create headers
-    for i,header in enumerate(['Name','Minimum Age','Maximum Age']):
+    for i,header in enumerate(headers):
         ws.write(1,i+1,header,formats['header_format'])
     #create columns
     for n in range(num_populations):
@@ -629,10 +637,9 @@ def _create_comorbidity(ws,ws_name,cb_settings,formats,start_year,end_year,pop_l
 def _create_testing_treatment(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
     _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels)
 
-def _create_programs(ws, ws_name, num_programs, formats):
+def _create_programs(ws, ws_name, num_programs, formats, headers):
     #create headers
-    # TODO move these to settings
-    headers = ['Name','Short name','Intervention class','Coverage indicator (annual)','Duration of treatment (days per person on average)','Frequency of intervention (in years)']
+    
     for i,header in enumerate(headers):
         ws.write(1,i+1,header,formats['year_header'])
     #create columns
@@ -677,23 +684,26 @@ def export_spreadsheet(settings,filename=DEFAULT_PATH,num_pops=4,verbose=2,pop_n
     
     
     """
-    workbook = xw.Workbook(DEFAULT_PATH)
+    workbook = xw.Workbook(filename)
     workbook,formats = createFormats(workbook)
     # functions
     availfns = globals().copy()
     availfns.update(locals())
-    
+    #year range:
+    start_year = settings.tvec_start
+    end_year= settings.tvec_observed_end
+
     for local_name in settings.countrybook['sheet_names']:
         name = settings.countrybook['sheet_names'][local_name]
-        print local_name, name
-        print("Creating sheet for %s"%name)
+        logging.debug("%s %s"%(local_name, name))
+        logging.info("Creating sheet for %s"%name)
         ws = workbook.add_worksheet(name)
         #label for each data sheet
         ws.write('A1', settings.countrybook['labels'][local_name])
         ws.set_row(0, None, formats['main_label'])
         #populate
         if local_name == 'populations':
-            poplabels = _create_populations(ws, name, num_pops, formats)
+            poplabels = _create_populations(ws, name, num_pops, formats, settings.countrybook['headers']['populations'])
             settings.countrybook['disaggregations']['populations'] = poplabels
             ## TODO: remove (as is just a debugging measure)
             if pop_names is not None:
@@ -701,18 +711,81 @@ def export_spreadsheet(settings,filename=DEFAULT_PATH,num_pops=4,verbose=2,pop_n
                     ws.write(i+2,1,pop)
         
         elif local_name == 'programs':
-            proglabels = _create_programs(ws, local_name, settings.countrybook['constants']['num_default_programs'], formats)
+            proglabels = _create_programs(ws, local_name, settings.countrybook['constants']['num_default_programs'], formats, settings.countrybook['headers']['programs'])
             settings.countrybook['disaggregations']['programs'] = proglabels
                     
         elif local_name in settings.countrybook['sheet_classes']['univalue']:
-            _createUnivalueSheet(ws, local_name, settings.countrybook, formats, settings.tvec_start,settings.tvec_end,poplabels)
+            _createUnivalueSheet(ws, local_name, settings.countrybook, formats, start_year,end_year,poplabels)
         else:
             createSheet = availfns.get('_create_%s'%local_name)
             if not createSheet:
                 raise NotImplementedError("No method associated in creating sheet '%s'"%name)
-            createSheet(ws,local_name,settings.countrybook,formats, settings.tvec_start,settings.tvec_end,poplabels)
+            createSheet(ws,local_name,settings.countrybook,formats, start_year,end_year,poplabels)
         
-        
+def _load_populations(ws,name,cb,num_cols):
+    return _load_univalue_sheet(ws, name, cb, num_cols,col_index=1)
+
+def _load_programs(ws,name,cb,num_cols):   
+    return _load_univalue_sheet(ws, name, cb, num_cols,col_index=1)
+
+
+def _load_univalue_sheet(ws,ws_name,cb_settings,num_cols,col_index):
+    disaggs = cb_settings['sheet_classes']['univalue'][ws_name]
+    row_index_start = cb_settings['constants']['row_index_start']   
+    col_index_start = cb_settings['constants']['col_index_start']+len(disaggs) -1
+    col_index_end = col_index_start + int(end_year-start_year) + 1
     
+    row = 0
+    while row < sheetdata.nrows-1: 
+        row += 1
+        if sheetdata.cell_value(row,col_index_start-1) == '': # check whether label for row or whether there's a space between 
+            continue # as this is a filler row
+
+        assumptiondata = sheetdata.cell_value(row, col_index_end)
+        if assumptiondata != '': 
+            row_data = [assumptiondata] # Use if a non-blank assumption has been entered
+        else:
+            row_data = blank2nan(sheetdata.row_values(row, start_colx=dataColIndex, end_colx=dataColIndex+n_years)) # Data starts in 3rd column
+        print row_data
+    return {'tmp':'tmp'}
+    
+def load_spreadsheet(settings,filename=DEFAULT_PATH):
+            
+    try: 
+        ws = open_workbook(filename) # Open workbook
+    except: 
+        errormsg = 'Failed to load spreadsheet: file "%s" not found or other problem' % filename
+        raise OptimaException(errormsg)
+    
+    # functions
+    availfns = globals().copy()
+    availfns.update(locals())
+    #year range:
+    start_year = settings.tvec_start
+    end_year= settings.tvec_observed_end
+    
+    cb = settings.countrybook
+    
+    for local_name in settings.countrybook['sheet_names']:
+        name = settings.countrybook['sheet_names'][local_name]
+        logging.info("Loading sheet %s"%name)
+        if local_name == 'populations':
+            popdata = _load_populations(ws, name, cb, len(settings.countrybook['headers']['populations']))
+            poplabels = popdata.keys()
+            settings.countrybook['disaggregations']['populations'] = poplabels
+        
+        elif local_name == 'programs':
+            progdata = _load_programs(ws, local_name, cb, len(settings.countrybook['headers']['programs']))
+            proglabels = progdata.keys()
+            settings.countrybook['disaggregations']['programs'] = proglabels
+                    
+        elif local_name in settings.countrybook['sheet_classes']['univalue']:
+            pass
+            #_createUnivalueSheet(ws, local_name, settings.countrybook, formats, start_year,end_year,poplabels)
+        else:
+            pass
+
+    print settings.countrybook
+
 
 
