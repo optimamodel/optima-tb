@@ -1,4 +1,6 @@
 #%% Imports
+import logging
+logger = logging.getLogger(__name__)
 
 from utils import flattenDict, odict, OptimaException
 from parsing import FunctionParser
@@ -24,6 +26,7 @@ class Settings(object):
     def __init__(self, cascade_path = '../data/cascade.xlsx'):
         self.tvec_start = 2000.0     # Default start year for data input and simulations.
         self.tvec_end = 2030.0       # Default end year for data input and simulations.
+        self.tvec_observed_end = 2015.0
         self.tvec_dt = 1.0/4         # Default timestep for simulations.
         
         self.recursion_limit = 100      # Limit for recursive references, primarily used in avoiding circular references for definitions using dependencies.
@@ -485,6 +488,9 @@ class Settings(object):
 
 
     def loadCustomDatabookFramework(self):
+        """
+        Country data book
+        """
         
         self.countrybook = odict()
         self.countrybook['sheet_names'] = odict()
@@ -497,9 +503,14 @@ class Settings(object):
         self.countrybook['sheet_names']['testing_treatment'] = 'Testing and Treatment'
         self.countrybook['sheet_names']['programs'] = 'Programs'
         self.countrybook['sheet_names']['cost_coverage'] = 'Cost and coverage'
-#         self.countrybook['sheet_names']['unitcost'] = 'Unit costs'
-#         self.countrybook['sheet_names']['poptransitions'] = 'Population transitions'
-
+        #self.countrybook['sheet_names']['unitcost'] = 'Unit costs'
+        #self.countrybook['sheet_names']['poptransitions'] = 'Population transitions'
+        
+        # headers for special sheets (i.e. headers aren't years)
+        self.countrybook['headers'] = odict()
+        self.countrybook['headers']['populations'] = ['Name','Minimum Age','Maximum Age']
+        self.countrybook['headers']['programs'] = ['Name','Short name','Intervention class','Coverage indicator (annual)','Duration of treatment (days per person on average)','Frequency of intervention (in years)']
+        
         # labels for each sheet
         self.countrybook['labels'] = {'populations': '',
                                       'population_sizes':'Population size: please enter population values for each year',
@@ -513,19 +524,20 @@ class Settings(object):
                                       }
         
         # info
-        self.countrybook['disaggregations'] = odict() # ['smears','strains']
+        self.countrybook['disaggregations'] = odict() 
         # other values
         self.countrybook['disaggregations']['strains'] = ['DS-TB','MDR-TB','XDR-TB']
         self.countrybook['disaggregations']['smears'] = ['Smear-','Smear+'] # also potentially 'Extrapulmonary'
         self.countrybook['disaggregations']['populations'] = [] # determined dynamically at runtime
         self.countrybook['disaggregations']['regimens'] = ['DS-TB Regimen','MDR-TB Regimen','XDR-TB Regimen']
         self.countrybook['disaggregations']['programs'] = [] # determined dynamically at runtime
+        self.countrybook['disaggregations']['total_pop'] = ['Total population']
         
         # for univalue sheets, includes information on how data should be disaggregated 
         self.countrybook['sheet_classes'] = odict()
         self.countrybook['sheet_classes']['univalue'] = odict()
         self.countrybook['sheet_classes']['univalue']['population_sizes'] = ['populations']
-        self.countrybook['sheet_classes']['univalue']['total_cases'] = ['populations','strains']
+        self.countrybook['sheet_classes']['univalue']['total_cases'] = ['populations','smears','strains']
         self.countrybook['sheet_classes']['univalue']['incident_cases'] = ['populations','smears','strains']
         
         # sheet specific values
@@ -534,7 +546,7 @@ class Settings(object):
         self.countrybook['sheet_values']['other_epidemiology']['Percentage of people vaccinated per year'] = ['populations']
         self.countrybook['sheet_values']['other_epidemiology']['Percentage of people who die from non-TB-related causes per year'] = ['populations']
         self.countrybook['sheet_values']['other_epidemiology']['Percentage of people who die from TB-related deaths per year'] = ['populations','smears','strains']
-        self.countrybook['sheet_values']['other_epidemiology']['Birth rate (births per woman per year)'] = ['populations']
+        self.countrybook['sheet_values']['other_epidemiology']['Birth rate (births per woman per year)'] = ['total_pop']
         
         self.countrybook['sheet_values']['comorbidity'] = odict()
         self.countrybook['sheet_values']['comorbidity']['HIV prevalence'] = ['populations','smears','strains']
@@ -570,7 +582,7 @@ class PlottingSettings():
     
     
     def __init__(self):
-        print("Loading plotting settings")
+        logging.info("Loading plotting settings")
         self.defaultSettings()
         self.devSettings()
         
