@@ -39,7 +39,19 @@ class Project(object):
         
         logger.info("Created project: %s"%self.name)
         
+    def setYear(self, yearRange,observed_data=True):
+        '''
         
+        @param yearRange: tuple or list 
+        @param observed_data: bool indicating whether to change observed date end or simulation date end 
+        '''
+        self.settings.tvec_start = yearRange[0]
+        if observed_data:
+            self.settings.tvec_observed_end = yearRange[1]
+        else:
+            self.settings.tvec_end = yearRange[1]
+    
+    
     def runSim(self, parset_name = 'default', plot = False):
         ''' Run model using a selected parset and store/return results. '''
         
@@ -64,16 +76,18 @@ class Project(object):
         ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
         
         if databook_path is None: databook_path = '../data/' + self.name + '-data.xlsx'
+        logging.info("Attempting to create databook %s"%databook_path)
+        
         makeSpreadsheetFunc(settings = self.settings, databook_path = databook_path, num_pops = num_pops, num_migrations = num_migrations)        
         
     
     def loadSpreadsheet(self, databook_path = None):
         ''' Load data spreadsheet into Project data dictionary. '''
-        
         if databook_path is None: databook_path = '../data/' + self.name + '-data.xlsx'
+        logging.info("Attempting to load databook %s"%databook_path)
+        
         self.data = loadSpreadsheetFunc(settings = self.settings, databook_path = databook_path) 
         
-    
 
 
     def makeParset(self, name = 'default'):
@@ -82,3 +96,4 @@ class Project(object):
         if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
         self.parsets[name] = ParameterSet(name = name)
         self.parsets[name].makePars(self.data)
+        
