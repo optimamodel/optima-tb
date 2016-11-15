@@ -2,7 +2,6 @@
 import logging
 logger = logging.getLogger(__name__)
 
-
 import pylab as pl
 from copy import deepcopy as dcp
 
@@ -148,7 +147,7 @@ class Plotter():
         
         for pop in results:
                
-            fig, ax = pl.subplots(figsize=(15,10))
+            fig, ax = pl.subplots()
             colors = self.gridColorMap(len(pop.comps))
             bottom = 0*sim_settings['tvec']
             
@@ -205,7 +204,7 @@ class Plotter():
         for output_id in outputIDs:
             
             unit_tag = ''
-            fig, ax = pl.subplots(figsize=(15,10))
+            fig, ax = pl.subplots()
             for k,pop in enumerate(results):
                 vals = dcp(outputs[output_id][pop.label])
                 if 'plot_percentage' in charac_specs[output_id].keys():

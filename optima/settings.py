@@ -1,9 +1,9 @@
 #%% Imports
-import logging
-logger = logging.getLogger(__name__)
-
 from utils import flattenDict, odict, OptimaException
 from parsing import FunctionParser
+
+import logging
+logger = logging.getLogger(__name__)
 
 import xlrd
 import pylab as pl
@@ -24,6 +24,9 @@ class Settings(object):
     '''    
     
     def __init__(self, cascade_path = '../data/cascade.xlsx'):
+        
+        logging.info("Loading settings")
+
         self.tvec_start = 2000.0     # Default start year for data input and simulations.
         self.tvec_end = 2030.0       # Default end year for data input and simulations.
         self.tvec_observed_end = 2015.0
@@ -46,6 +49,7 @@ class Settings(object):
         self.plot_settings = PlottingSettings()        
         
         self.loadCascadeSettings(cascade_path)
+        logging.info("Created settings based on cascade: %s"%cascade_path)
 
     
     def startFresh(self):
@@ -115,7 +119,6 @@ class Settings(object):
                     if sheet_label in self.databook['sheet_names'].keys():
                         raise OptimaException('ERROR: Custom sheet label "%s" is already used as a standard label when generating project databooks.' % sheet_label)
                     self.databook['custom_sheet_names'][sheet_label] = sheet_name        
-        
         
         #%% First core sheet: Compartments
         # This worksheet defines nodes/compartments of the cascade network, with label and name required at a bare minimum.
@@ -235,6 +238,8 @@ class Settings(object):
             if ws_characs.cell_value(0, col_id) == 'Default Value': cid_default = col_id
             if ws_characs.cell_value(0, col_id) == 'Entry Point': cid_entry = col_id
             if ws_characs.cell_value(0, col_id) == 'Includes': cid_include_start = col_id
+        
+        
         
         # Work out where the 'include' columns end when defining cascade characteristics.
         cid_list = np.array(sorted([cid_label, cid_name, cid_sheet, cid_percentage, cid_denom, cid_order, cid_default, cid_entry, ws_characs.ncols]))
@@ -581,10 +586,14 @@ class Settings(object):
 class PlottingSettings():
     
     
-    def __init__(self):
+    def __init__(self,output='dev'):
         logging.info("Loading plotting settings")
         self.defaultSettings()
-        self.devSettings()
+        try:
+            outputSettings = getattr(self, '%sSettings'%output)
+            outputSettings()
+        except:
+            logging.debug("Could not load rcParams for plotting for output: %s"%output)
         
         
     def defaultSettings(self):
