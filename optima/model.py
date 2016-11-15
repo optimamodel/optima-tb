@@ -268,6 +268,7 @@ class Model(object):
         
         # Propagating cascade parameter parset values into ModelPops. Handle both 'tagged' links and 'untagged' dependencies.
         for par in parset.pars['cascade']:
+            
             if 'tag' in settings.linkpar_specs[par.label]:
                 tag = settings.linkpar_specs[par.label]['tag']                  # Map parameter label to link tag.
                 for pop_label in parset.pop_labels:
@@ -286,10 +287,12 @@ class Model(object):
             if parset.transfers[trans_type]:
                 for pop_source in parset.transfers[trans_type].keys():
                     par = parset.transfers[trans_type][pop_source]
+                    
                     for pop_target in par.y:
                         for comp in self.getPop(pop_source).comps:
                             trans_tag = comp.label + '_' + trans_type + '_to_' + pop_target       # NOTE: Perhaps there is a nicer way to set up transfer tagging.
                             if not comp.tag_dead and not comp.junction:
+                                
                                 num_links = len(self.getPop(pop_source).links)
                                 link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=num_links,link_label=trans_tag)
                                 link.vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_target)
@@ -363,11 +366,33 @@ class Model(object):
 #                                    deps[dep_label] = pop.getDep(dep_label).vals[ti]
 #                                link.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = deps)
                         
-                        converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
+                        #logging.debug("updating compartment: format: %s \t dt: %g \t link val: %g"%(link.val_format, dt, link.vals[ti]))
+                        #logging.debug("DPOP was: %g \t %g "%(dpopsize[did_from] , dpopsize[did_to]))
                         
-                        dpopsize[did_from] -= comp_source.popsize[ti] * converted_frac
-                        dpopsize[did_to] += comp_source.popsize[ti] * converted_frac
-                
+                        if link.val_format == 'fraction':
+                            
+                            converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
+                            dpopsize[did_from] -= comp_source.popsize[ti] * converted_frac
+                            dpopsize[did_to] += comp_source.popsize[ti] * converted_frac
+                            
+                        elif link.val_format == 'number':
+                            
+                            converted_amt = link.vals[ti] * dt
+                            
+                            # @TODO: enforce that can't delete from an empty compartment
+                            # Note that this isn't the correct location for this check, as we have to check for all val_format
+                            if dpopsize[did_from] < converted_amt:
+                                dpopsize[did_to]  += dpopsize[did_from]
+                                dpopsize[did_from] = 0
+                            else: # Note that this isn't the correct location for this check
+                                dpopsize[did_from] -= converted_amt
+                                dpopsize[did_to] += converted_amt
+                            
+                        else:
+                            raise OptimaException("Unknown link type: %s in model\nObserved for population %s, compartment %s"%(link.val_format,pop.label,comp.label))
+                        
+                        #logging.debug("DPOP now: %g \t %g "%(dpopsize[did_from] , dpopsize[did_to]))
+
                 k += 1
 
         # Second loop through all pops and comps to apply value changes at next timestep index.

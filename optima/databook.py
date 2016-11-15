@@ -33,7 +33,7 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
                                 List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
     '''
     
-    if data_formats is None: data_formats = ['Fraction']#, 'Number']#, 'Probability', 'Number']
+    if data_formats is None: data_formats = ['Fraction', 'Number']#, 'Probability', 'Number']
     offset = at_col + 3     # This is the column at which the input year range and corresponding values should be written.
     
     worksheet.write(at_row, at_col, 'Format')
