@@ -3,6 +3,9 @@
 from utils import odict, OptimaException
 from interpolation import interpolateFunc
 
+import logging
+logger = logging.getLogger(__name__)
+
 from copy import deepcopy as dcp
 import numpy as np
 
@@ -56,6 +59,10 @@ class Parameter(object):
             output = interpolateFunc(input_t, input_y, tvec)
         
         return output
+    
+    def __repr__(self, *args, **kwargs):
+        return "Parameter: %s \npt: %s \n y: %s"%(self.label,self.t,self.y)
+        
 
 
 #%% Parset class that contains one set of parameters converted from raw project data
@@ -109,3 +116,6 @@ class ParameterSet(object):
                     self.transfers[trans_type][source].t[target] = data['transfers'][trans_type][source][target]['t']
                     self.transfers[trans_type][source].y[target] = data['transfers'][trans_type][source][target]['y']
                     self.transfers[trans_type][source].y_format[target] = data['transfers'][trans_type][source][target]['y_format']
+                    
+    def __repr__(self, *args, **kwargs):
+        return "ParameterSet: %s \npars: \n%s"%(self.name, self.pars) 
