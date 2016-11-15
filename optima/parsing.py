@@ -2,6 +2,9 @@
 
 from utils import OptimaException
 
+import logging
+logger = logging.getLogger(__name__)
+
 from pyparsing import Word, Literal, Optional, alphanums, nums, ZeroOrMore, Group, Forward
 import operator
 from copy import deepcopy as dcp
