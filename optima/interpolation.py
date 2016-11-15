@@ -2,6 +2,9 @@
 
 from utils import OptimaException
 
+import logging
+logger = logging.getLogger(__name__)
+
 from copy import deepcopy as dcp
 import numpy as np
 

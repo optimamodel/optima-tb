@@ -2,6 +2,9 @@
 
 from utils import odict, OptimaException
 
+import logging
+logger = logging.getLogger(__name__)
+
 import xlrd
 import xlsxwriter as xw
 import numpy as np
@@ -119,7 +122,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     if settings.make_sheet_linkpars:
         ws_params['linkpars'] = {'row_id':0, 'ws':workbook.add_worksheet(settings.databook['sheet_names']['linkpars'])}
     
-    data_tvec = np.arange(settings.tvec_start, settings.tvec_end + 1.0/2)
+    data_tvec = np.arange(settings.tvec_start, settings.tvec_observed_end + 1.0/2)
     ws_pops_width = 15
     ws_transmat_width = 15
     ws_transval_width = 15
