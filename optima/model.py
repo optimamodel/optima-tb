@@ -2,6 +2,9 @@
 
 from utils import flattenDict, odict, OptimaException
 
+import logging
+logger = logging.getLogger(__name__)
+
 import numpy as np
 from copy import deepcopy as dcp
 
@@ -69,6 +72,10 @@ class ModelCompartment(Node):
         self.tag_dead = False                       # Tag for whether this compartment contains dead people.
         self.junction = False
     
+    def __repr__(self, *args, **kwargs):
+        # @TODO fix this so it's not just the first point 
+        return "%s : %g"%(self.label,self.popsize[0])
+    
 
 class ModelPopulation(Node): 
     '''
@@ -87,6 +94,10 @@ class ModelPopulation(Node):
         self.t_index = 0            # Keeps track of array index for current timepoint data within all compartments.
         
         self.genCascade(settings = settings)    # Convert compartmental cascade into lists of compartment and link objects.
+    
+    def __repr__(self, *args, **kwargs):
+        return "".join("%s"%self.comps)
+        
     
     def getComp(self, comp_label):
         ''' Allow compartments to be retrieved by label rather than index. Returns a ModelCompartment. '''
@@ -290,8 +301,8 @@ class Model(object):
         # Make sure initially-filled junctions are processed and initial dependencies are calculated.
         self.processJunctions(settings = settings)
         self.updateDependencies(settings = settings)
-                        
-                
+
+            
     def process(self, settings):
         ''' Run the full model. '''
         
@@ -508,6 +519,12 @@ class Model(object):
                     outputs[cid][pop.label] /= vals
         
         return outputs
+    
+    def printModelState(self):
+        
+        for pop in self.pops:
+            print("Population: %s"%pop.label)
+            print(pop)
         
     
 
@@ -518,6 +535,7 @@ def runModel(settings, parset):
     
     m = Model()
     m.build(settings = settings, parset = parset)
+    m.printModelState()
     m.process(settings = settings)
     outputs = m.calculateOutputs(settings = settings)
     m_pops = m.pops
