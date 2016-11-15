@@ -61,7 +61,7 @@ class Parameter(object):
         return output
     
     def __repr__(self, *args, **kwargs):
-        return "Parameter: %s \npt: %s \n y: %s"%(self.label,self.t,self.y)
+        return "Parameter: %s \n t       : %s \n y       : %s \n y_format: %s"%(self.label,self.t,self.y,self.y_format)
         
 
 
