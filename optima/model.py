@@ -1,6 +1,7 @@
 #%% Imports
 
 from utils import flattenDict, odict, OptimaException
+from validation import checkNegativePopulation
 
 import logging
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ class ModelCompartment(Node):
     
     def __repr__(self, *args, **kwargs):
         # @TODO fix this so it's not just the first point 
-        return "%s : %g"%(self.label,self.popsize[0])
+        return "%s"%(self.label)
     
 
 class ModelPopulation(Node): 
@@ -97,7 +98,6 @@ class ModelPopulation(Node):
     
     def __repr__(self, *args, **kwargs):
         return "".join("%s"%self.comps)
-        
     
     def getComp(self, comp_label):
         ''' Allow compartments to be retrieved by label rather than index. Returns a ModelCompartment. '''
@@ -315,24 +315,21 @@ class Model(object):
             self.updateDependencies(settings = settings)
         
         return self.pops, self.sim_settings
-        
 
-    def stepForward(self, settings, dt = 1.0):
-        '''
-        Evolve model characteristics by one timestep (defaulting as 1 year).
-        Each application of this method writes calculated values to the next position in popsize arrays, regardless of dt.
-        Thus the corresponding time vector associated with variable dt steps must be tracked externally.
-        '''
+    def _calculateDPops(self,settings,ti,dt,modified_compartment={},empty_compartment=[]):
+        """
         
-        ti = self.t_index
+        
+        
+        """
         
         # Preallocate a change-in-popsize array. Requires each population to have the same cascade.
+        # TODO: preallocation should happen in stepForward. Move this back there!!
         num_pops = len(self.pops)
         num_comps = len(self.pops[0].comps)         # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
         dpopsize = np.zeros(num_pops*num_comps)
         
-        # First loop through all pops and comps to calculate value changes.
-        k = 0
+        #k = 0
         for pop in self.pops:
             for comp in pop.comps:
                 
@@ -372,28 +369,56 @@ class Model(object):
                         if link.val_format == 'fraction':
                             
                             converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
-                            dpopsize[did_from] -= comp_source.popsize[ti] * converted_frac
-                            dpopsize[did_to] += comp_source.popsize[ti] * converted_frac
+                            converted_amt = comp_source.popsize[ti] * converted_frac
+                            #dpopsize[did_from] -= converted_amt
+                            #dpopsize[did_to] += converted_amt
                             
                         elif link.val_format == 'number':
                             
                             converted_amt = link.vals[ti] * dt
-                            
-                            # @TODO: enforce that can't delete from an empty compartment
-                            # Note that this isn't the correct location for this check, as we have to check for all val_format
-                            if dpopsize[did_from] < converted_amt:
-                                dpopsize[did_to]  += dpopsize[did_from]
-                                dpopsize[did_from] = 0
-                            else: # Note that this isn't the correct location for this check
-                                dpopsize[did_from] -= converted_amt
-                                dpopsize[did_to] += converted_amt
+                            #dpopsize[did_from] -= converted_amt
+                            #dpopsize[did_to] += converted_amt
                             
                         else:
                             raise OptimaException("Unknown link type: %s in model\nObserved for population %s, compartment %s"%(link.val_format,pop.label,comp.label))
                         
+                        if did_from in empty_compartment:
+                            logging.debug("Empty compartment: no change made for link from=%g,to=%g"%(did_from,did_to))
+                            converted_amt = 0
+                        
+                        elif did_from in modified_compartment.keys():
+                            # during validation, we encountered an outflow from a compartment that was more than 
+                            logging.debug("DID from=%g,to=%g: Modifying flow amount by %g: old amount = %g, new amount = %g"%(did_from,did_to,modified_compartment[did_from],converted_amt,modified_compartment[did_from]*converted_amt))
+                            converted_amt *= modified_compartment[did_from]
+                            
+                        dpopsize[did_from] -= converted_amt
+                        dpopsize[did_to] += converted_amt
+                            
+                        
                         #logging.debug("DPOP now: %g \t %g "%(dpopsize[did_from] , dpopsize[did_to]))
+                #k += 1
+        return dpopsize
 
-                k += 1
+    def stepForward(self, settings, dt = 1.0):
+        '''
+        Evolve model characteristics by one timestep (defaulting as 1 year).
+        Each application of this method writes calculated values to the next position in popsize arrays, regardless of dt.
+        Thus the corresponding time vector associated with variable dt steps must be tracked externally.
+        '''
+        
+        ti = self.t_index
+        
+        # Requires each population to have the same cascade.
+        num_pops = len(self.pops)
+        num_comps = len(self.pops[0].comps)         # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
+        
+        
+        # First loop through all pops and comps to calculate value changes.
+        dpopsize = self._calculateDPops(settings,ti,dt)
+                  
+        # Check calculated rates for 
+        validation = settings.validation['negative_population']
+        dpopsize = checkNegativePopulation(self,settings,dpopsize,ti,validation)
 
         # Second loop through all pops and comps to apply value changes at next timestep index.
         for pid in xrange(num_pops):
@@ -545,11 +570,11 @@ class Model(object):
         
         return outputs
     
-    def printModelState(self):
-        
+    def printModelState(self,ti):
+        # TODO: improve so that it can print the value for ti
         for pop in self.pops:
-            print("Population: %s"%pop.label)
-            print(pop)
+            logging.info("Population: %s"%pop.label)
+            logging.info(pop.getValue(ti))
         
     
 
@@ -560,7 +585,7 @@ def runModel(settings, parset):
     
     m = Model()
     m.build(settings = settings, parset = parset)
-    m.printModelState()
+    #m.printModelState()
     m.process(settings = settings)
     outputs = m.calculateOutputs(settings = settings)
     m_pops = m.pops

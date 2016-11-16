@@ -21,15 +21,13 @@ from uuid import uuid4 as uuid
 class Project(object):
     ''' The main Optima project class. Almost all Optima functionality is provided by this class. '''
 
-    def __init__(self, name = 'default', cascade_path = './data/cascade.xlsx'):
+    def __init__(self, name = 'default', cascade_path = './data/cascade.xlsx', **args):
         ''' Initialize project. '''
-
- 
 
         self.name = name
         self.uid = uuid()
         
-        self.settings = Settings(cascade_path = cascade_path)        
+        self.settings = Settings(cascade_path = cascade_path, **args)        
         self.data = odict()
 
         self.parsets = odict()

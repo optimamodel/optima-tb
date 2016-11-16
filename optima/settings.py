@@ -12,6 +12,10 @@ from copy import deepcopy as dcp
 
 
 #%% Settings class (for data that is effectively static per epidemic context)
+VALIDATION_IGNORE = 0
+VALIDATION_WARN = 1
+VALIDATION_ERROR = 2
+VALIDATION_AVERT = 3
 
 class Settings(object):
     '''
@@ -23,7 +27,11 @@ class Settings(object):
     Settings must be loaded into a project during its creation, as it details the framework for dealing with data and running the model.
     '''    
     
-    def __init__(self, cascade_path = '../data/cascade.xlsx'):
+    def __init__(self, cascade_path = '../data/cascade.xlsx', **args):
+        """
+        
+        
+        """
         
         logging.info("Loading settings")
 
@@ -50,6 +58,12 @@ class Settings(object):
         
         self.loadCascadeSettings(cascade_path)
         logging.info("Created settings based on cascade: %s"%cascade_path)
+        
+        if 'validation_level' in args.keys():
+            self.validation = ValidationSettings(args['validation_level']).settings
+        else:
+            self.validation = ValidationSettings().settings
+        
 
     
     def startFresh(self):
@@ -582,6 +596,45 @@ class Settings(object):
                                          'row_index_start':2, # for when there are no disaggregations, etc.
                                          'col_index_start':1} # 
 
+class ValidationSettings():
+    
+    
+    
+    def __init__(self,level='error'):
+        
+        self.defaultSettings()
+        try:
+            validationSettings = getattr(self, '%sSettings'%level)
+            validationSettings()
+            logging.info("Validation settings: %s"%level)
+        
+        except:
+            logging.info("Could not load validation settings for level: %s"%level)
+            
+
+    def getValidationTypes(self):
+        return ['negative_population']        
+            
+    def defaultSettings(self):
+        
+        self.settings = odict()
+        self.errorSettings()
+     
+    def setValidationLevel(self,validation_level):   
+        for v in self.getValidationTypes():
+            self.settings[v] = validation_level
+            
+    def errorSettings(self):
+        self.setValidationLevel(VALIDATION_ERROR)
+    
+    def ignoreSettings(self):
+        self.setValidationLevel(VALIDATION_IGNORE)
+        
+    def warnSettings(self):
+        self.setValidationLevel(VALIDATION_WARN)
+        
+    def avertSettings(self):
+        self.setValidationLevel(VALIDATION_AVERT)
 
 class PlottingSettings():
     
@@ -593,7 +646,7 @@ class PlottingSettings():
             outputSettings = getattr(self, '%sSettings'%output)
             outputSettings()
         except:
-            logging.debug("Could not load rcParams for plotting for output: %s"%output)
+            logging.info("Could not load rcParams for plotting for output: %s"%output)
         
         
     def defaultSettings(self):
