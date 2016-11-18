@@ -1,7 +1,7 @@
 #%% Imports
 
 from utils import flattenDict, odict, OptimaException
-from validation import checkNegativePopulation
+from validation import checkNegativePopulation, isDPopValid
 
 import logging
 logger = logging.getLogger(__name__)
@@ -74,9 +74,11 @@ class ModelCompartment(Node):
         self.junction = False
     
     def __repr__(self, *args, **kwargs):
-        # @TODO fix this so it's not just the first point 
-        return "%s"%(self.label)
+        return "%s: %g"%(self.label, self.popsize[0])
     
+    def getValue(self, ti):
+        """ Get value of population at timestep ti """
+        return self.popsize[ti]
 
 class ModelPopulation(Node): 
     '''
@@ -98,6 +100,10 @@ class ModelPopulation(Node):
     
     def __repr__(self, *args, **kwargs):
         return "".join("%s"%self.comps)
+    
+    def getModelState(self,ti):
+        states = [c.getValue(ti) for c in self.comps]
+        return states
     
     def getComp(self, comp_label):
         ''' Allow compartments to be retrieved by label rather than index. Returns a ModelCompartment. '''
@@ -310,26 +316,36 @@ class Model(object):
         ''' Run the full model. '''
         
         for t in self.sim_settings['tvec'][1:]:
+            self.printModelState(self.t_index)
             self.stepForward(settings = settings, dt = settings.tvec_dt)
             self.processJunctions(settings = settings)
             self.updateDependencies(settings = settings)
         
         return self.pops, self.sim_settings
 
-    def _calculateDPops(self,settings,ti,dt,modified_compartment={},empty_compartment=[]):
+    def _calculateDPops(self,settings,ti,dt,modified_compartment={},empty_compartment=[],reset_compartment=[]):
         """
         
+        This function gets called from model.stepForward() but also from within a validation check. 
         
+        Params:
+            settings
+            ti
+            dt
+            modified_compartment optional: Dictionary of (did,reduction_ratio) pairs that indicate by what percentage an dpop amount should be reduced.  
+            empty_compartment    optional: List of compartment did that are empty
+            reset_compartment    optional: List of compartment did that already have a negative value
         
         """
         
         # Preallocate a change-in-popsize array. Requires each population to have the same cascade.
-        # TODO: preallocation should happen in stepForward. Move this back there!!
         num_pops = len(self.pops)
         num_comps = len(self.pops[0].comps)         # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
         dpopsize = np.zeros(num_pops*num_comps)
+        # Variables for tracking in and out amounts to a compartment, separately
+        #dpop_in = np.zeros(num_pops*num_comps)
+        dpop_out = np.zeros(num_pops*num_comps)
         
-        #k = 0
         for pop in self.pops:
             for comp in pop.comps:
                 
@@ -363,41 +379,49 @@ class Model(object):
 #                                    deps[dep_label] = pop.getDep(dep_label).vals[ti]
 #                                link.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = deps)
                         
-                        #logging.debug("updating compartment: format: %s \t dt: %g \t link val: %g"%(link.val_format, dt, link.vals[ti]))
-                        #logging.debug("DPOP was: %g \t %g "%(dpopsize[did_from] , dpopsize[did_to]))
                         
-                        if link.val_format == 'fraction':
+                        convert_amt = 0 
+                        
+                        if link.val_format == 'fraction': 
+                            #TODO: enforce/assert that comp_source.popsize[ti] >= 0. :
                             
                             converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
                             converted_amt = comp_source.popsize[ti] * converted_frac
-                            #dpopsize[did_from] -= converted_amt
-                            #dpopsize[did_to] += converted_amt
                             
                         elif link.val_format == 'number':
                             
                             converted_amt = link.vals[ti] * dt
-                            #dpopsize[did_from] -= converted_amt
-                            #dpopsize[did_to] += converted_amt
                             
                         else:
                             raise OptimaException("Unknown link type: %s in model\nObserved for population %s, compartment %s"%(link.val_format,pop.label,comp.label))
                         
+                        
+                        # If we've observed that this link contributes to the creation of a negative population size, we modify the amounts: 
                         if did_from in empty_compartment:
+                            # If the compartment is an empty one, we shouldn't update
                             logging.debug("Empty compartment: no change made for link from=%g,to=%g"%(did_from,did_to))
                             converted_amt = 0
                         
                         elif did_from in modified_compartment.keys():
-                            # during validation, we encountered an outflow from a compartment that was more than 
-                            logging.debug("DID from=%g,to=%g: Modifying flow amount by %g: old amount = %g, new amount = %g"%(did_from,did_to,modified_compartment[did_from],converted_amt,modified_compartment[did_from]*converted_amt))
+                            # during validation, we encountered an outflow from a compartment that was more than the population size
+                            logging.debug("Modifying flow amount for link (from=%g,to=%g) by %g: prev amount = %g, new amount = %g"%(did_from,did_to,modified_compartment[did_from],converted_amt,modified_compartment[did_from]*converted_amt))
                             converted_amt *= modified_compartment[did_from]
+                        
+                        elif did_from in reset_compartment:
+                            # set converted amount in the other direction. Hmm still not perfect
+                            converted_amt = 0
+                            
                             
                         dpopsize[did_from] -= converted_amt
                         dpopsize[did_to] += converted_amt
-                            
                         
-                        #logging.debug("DPOP now: %g \t %g "%(dpopsize[did_from] , dpopsize[did_to]))
-                #k += 1
-        return dpopsize
+                        # Tracking in and out for a compartment
+                        #dpop_in[did_to] += converted_amt
+                        dpop_out[did_from] += converted_amt
+                            
+        return dpopsize, dpop_out
+    
+    
 
     def stepForward(self, settings, dt = 1.0):
         '''
@@ -413,12 +437,22 @@ class Model(object):
         num_comps = len(self.pops[0].comps)         # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
         
         
-        # First loop through all pops and comps to calculate value changes.
-        dpopsize = self._calculateDPops(settings,ti,dt)
+        # First loop through all pops and compartments to calculate value changes.
+        dpopsize, dpop_out = self._calculateDPops(settings,ti,dt)
                   
-        # Check calculated rates for 
+        # Check calculated rates for proposed dpop value. Note that this should be made an iterative process for 
+        # when we avert an incorrect dpop change, as the avert may result in new errors. 
+        # TODO: create validation as an iterative process (currently found that it was possible that there was no good solution found
+        """
+        # SUGGESTION: 
+        count = 0 
+        while count < some_limit_count: 
+            if isDPopValid(self,settings,dpopsize,ti,validation):
+                break
+            dpopsize,dpop_out,reset_ids = checkNegativePopulation(self,settings,dpopsize,dpop_out,ti,validation)
+        """
         validation = settings.validation['negative_population']
-        dpopsize = checkNegativePopulation(self,settings,dpopsize,ti,validation)
+        dpopsize,dpop_out,reset_ids = checkNegativePopulation(self,settings,dpopsize,dpop_out,ti,dt,validation)
 
         # Second loop through all pops and comps to apply value changes at next timestep index.
         for pid in xrange(num_pops):
@@ -571,10 +605,9 @@ class Model(object):
         return outputs
     
     def printModelState(self,ti):
-        # TODO: improve so that it can print the value for ti
         for pop in self.pops:
             logging.info("Population: %s"%pop.label)
-            logging.info(pop.getValue(ti))
+            logging.info(pop.getModelState(ti))
         
     
 
@@ -585,7 +618,6 @@ def runModel(settings, parset):
     
     m = Model()
     m.build(settings = settings, parset = parset)
-    #m.printModelState()
     m.process(settings = settings)
     outputs = m.calculateOutputs(settings = settings)
     m_pops = m.pops

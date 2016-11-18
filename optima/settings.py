@@ -63,7 +63,6 @@ class Settings(object):
             self.validation = ValidationSettings(args['validation_level']).settings
         else:
             self.validation = ValidationSettings().settings
-        
 
     
     def startFresh(self):
@@ -600,7 +599,7 @@ class ValidationSettings():
     
     
     
-    def __init__(self,level='error'):
+    def __init__(self,level='warn'):
         
         self.defaultSettings()
         try:
@@ -610,8 +609,8 @@ class ValidationSettings():
         
         except:
             logging.info("Could not load validation settings for level: %s"%level)
-            
-
+        
+        
     def getValidationTypes(self):
         return ['negative_population']        
             
