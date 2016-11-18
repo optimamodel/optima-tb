@@ -151,8 +151,8 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     pop_names_formula = []
     pop_labels_formula = []
     for pid in xrange(num_pops):
-        pop_names_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0)))
-        pop_labels_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1)))
+        pop_names_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0,True,True)))
+        pop_labels_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1,True,True)))
     
     #%% Inter-population transfers matrix sheet (from node to corresponding node).
     # Produce aging matrix.
