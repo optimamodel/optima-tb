@@ -158,6 +158,8 @@ def checkSummedOutflowRate():
     For this reason, this check should NEVER be run as an AVERT or ERROR level, but only as IGNORE or WARN.
     
     """
+    # TODO: implement checkSummedOutflowRate
+
     pass
 
 
@@ -169,5 +171,28 @@ def checkInitialization():
     It checks that all states have been initialized and should either WARN, ERROR or IGNORE if not.
     
     """
+    # TODO: implement checkInitialization
+
+    pass
+
+
+def checkPopulationExplosion():
+    """
+    Validation to check on whether our populations have exploded in size or not, beyond some tolerance epsilon. This is due to the fact
+    that initial populations are used as well as a parameter transitions, but that the population size after this is not enforced or checked
+    to determine how the population grows. 
+    
+    For validation settings for ERROR or WARN: if the summed population change for Population P between time t and t+1 is beyond
+        some tolerance value epsilon*, either an error is raised or print a warning.
+        *Note that this change is in addition to aging, other migrations or interpopulation transfers.
+    
+    For validation settings for AVERT: if the summed population change for Population P between time t and t+1 is beyond
+        some tolerance value epsilon*, then the values for each compartment are normalized so that the sum total is P(t) ± epsilon.
+        *Note that this change is in addition to aging, other migrations or interpopulation transfers.
+    
+    For validation settings for IGNORE: no check is performed
+    
+    """
+    # TODO: implement checkPopulationExplosion
     pass
     
