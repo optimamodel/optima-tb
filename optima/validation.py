@@ -187,7 +187,7 @@ def checkPopulationExplosion():
         *Note that this change is in addition to aging, other migrations or interpopulation transfers.
     
     For validation settings for AVERT: if the summed population change for Population P between time t and t+1 is beyond
-        some tolerance value epsilon*, then the values for each compartment are normalized so that the sum total is P(t) ± epsilon.
+        some tolerance value epsilon*, then the values for each compartment are normalized so that the sum total is P(t) +/- epsilon.
         *Note that this change is in addition to aging, other migrations or interpopulation transfers.
     
     For validation settings for IGNORE: no check is performed
