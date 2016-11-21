@@ -69,6 +69,10 @@ def checkNegativePopulation(model,msettings,dpopsizes,dpop_out,ti,dt,validationS
         # go through each compartment and check that the value of the corresponding dpop is less than the current compartment's value
         for pid in xrange(num_pops):
             for cid in xrange(num_comps):
+                
+                if model.isBirthCompartment(cid,msettings):
+                    continue
+                
                 did = pid * num_comps + cid
                 #logging.debug("%g %g %g"%(did, pops[pid].comps[cid].popsize[ti+1] , dpopsizes[did]))
                 
@@ -92,8 +96,12 @@ def checkNegativePopulation(model,msettings,dpopsizes,dpop_out,ti,dt,validationS
         
         for pid in xrange(num_pops):
             for cid in xrange(num_comps):
+                
+                if model.isBirthCompartment(cid,msettings):
+                    continue
+                
                 did = pid * num_comps + cid
-    
+                    
                 warning = "... encountered for: population=%g, cid=%g, did=%g, t=%g : value = %g, dpop = %g"%(pid,cid,did,ti,pops[pid].comps[cid].popsize[ti+1],dpopsizes[did])
                     
                 if pops[pid].comps[cid].popsize[ti+1] == 0. and dpopsizes[did] < 0.:
@@ -195,4 +203,8 @@ def checkPopulationExplosion():
     """
     # TODO: implement checkPopulationExplosion
     pass
+
+
+
+
     
