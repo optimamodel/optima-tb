@@ -1,6 +1,6 @@
 #%% Imports
 
-from utils import odict, OptimaException
+from utils import odict, OptimaException, flattenDict
 
 import logging
 logger = logging.getLogger(__name__)
@@ -499,3 +499,373 @@ def loadSpreadsheetFunc(settings, databook_path):
                 
             
     return data
+
+
+def loadCascadeSettings(cascade_path, settings):
+    ''' Generates node and link settings based on cascade spreadsheet. 
+    
+    Note: at the moment, this function is intended to be called from settings.py, and takes in settings as a parameter, 
+    updates the relevants fields and then returns settings. This isn't the most elegant way, but was better than returning 11 parameters.
+    It can - and should - be improved. 
+    '''    
+    
+    try: workbook = xlrd.open_workbook(cascade_path)
+    except: raise OptimaException('ERROR: Cannot find cascade workbook from which to load model structure.')
+    ws_nodes =      workbook.sheet_by_name('Compartments')
+    ws_links =      workbook.sheet_by_name('Transitions')
+    ws_characs =    workbook.sheet_by_name('Characteristics')
+    ws_pars =       workbook.sheet_by_name('Parameters')
+    try: ws_sheetnames = workbook.sheet_by_name('Databook Sheet Names')
+    except: ws_sheetnames = None
+    
+    
+    #%% Optional sheet: Databook Sheet Names
+    # This worksheet, if it exists, defines custom sheets to produce when generating a project databook.
+    
+    if ws_sheetnames:
+        cid_label = None
+        cid_name = None
+        for col_id in xrange(ws_sheetnames.ncols):
+            if ws_sheetnames.cell_value(0, col_id) == 'Sheet Label': cid_label = col_id
+            if ws_sheetnames.cell_value(0, col_id) == 'Sheet Name': cid_name = col_id
+                
+        for row_id in xrange(ws_sheetnames.nrows):
+            if row_id > 0 and ws_sheetnames.cell_value(row_id, cid_label) not in ['']:
+                sheet_label = str(ws_sheetnames.cell_value(row_id, cid_label))
+                sheet_name = str(ws_sheetnames.cell_value(row_id, cid_name))
+                if sheet_label in settings.databook['sheet_names'].keys():
+                    raise OptimaException('ERROR: Custom sheet label "%s" is already used as a standard label when generating project databooks.' % sheet_label)
+                settings.databook['custom_sheet_names'][sheet_label] = sheet_name        
+    
+    #%% First core sheet: Compartments
+    # This worksheet defines nodes/compartments of the cascade network, with label and name required at a bare minimum.
+    
+    cid_label = None
+    cid_name = None
+    cid_coords = None
+    cid_no_plot = None
+    cid_dead = None
+    cid_junction = None
+    for col_id in xrange(ws_nodes.ncols):
+        if ws_nodes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
+        if ws_nodes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+        if ws_nodes.cell_value(0, col_id) == 'Plot Coordinates': cid_coords = col_id
+        if ws_nodes.cell_value(0, col_id) == 'No Plot': cid_no_plot = col_id
+        if ws_nodes.cell_value(0, col_id) == 'Dead Tag': cid_dead = col_id
+        if ws_nodes.cell_value(0, col_id) == 'Junction': cid_junction = col_id
+    if None in [cid_label, cid_name]:
+        raise OptimaException('ERROR: Cascade compartment worksheet does not have correct column headers.')
+    
+    # Append node labels and full names to relevant odicts and lists. Labels are crucial.
+    for row_id in xrange(ws_nodes.nrows):
+        if row_id > 0 and ws_nodes.cell_value(row_id, cid_label) not in ['']:
+            node_label = str(ws_nodes.cell_value(row_id, cid_label))
+            settings.node_specs[node_label] = odict()
+            settings.node_names.append(str(ws_nodes.cell_value(row_id, cid_name)))
+            
+            # Store optional graph coordinates for this node in the cascade network. Used when plotting schematic.
+            if not cid_coords is None:
+                val = str(ws_nodes.cell_value(row_id, cid_coords))
+                if val not in ['']:
+                    try: coords = val.strip('()').split(',')
+                    except: raise OptimaException('ERROR: Plot Coordinates for "%s" are not written in "(x,y)" format.' % node_label)
+                    settings.node_specs[node_label]['coords'] = (float(coords[0]),float(coords[1]))
+            
+            # Store optional information about whether to avoid plotting node in the schematic.
+            if not cid_no_plot is None:
+                val = str(ws_nodes.cell_value(row_id, cid_no_plot))
+                if val not in ['']:
+                    settings.node_specs[node_label]['tag_no_plot'] = val
+            
+            # Store optional information about whether this node is a compartment for the dead.
+            if not cid_dead is None:
+                val = str(ws_nodes.cell_value(row_id, cid_dead))
+                if val not in ['']:
+                    settings.node_specs[node_label]['tag_dead'] = val
+
+            # Optionally note down whether the compartment is just a junction.
+            # Junctions empty themselves via outflows at the end of each model timestep.
+            if not cid_junction is None:
+                val = str(ws_nodes.cell_value(row_id, cid_junction))
+                if val not in ['']:
+                    settings.node_specs[node_label]['junction'] = val
+                    settings.junction_labels.append(node_label)
+
+
+    #%% Second core sheet: Transitions
+    # This worksheet describes links/transitions of the cascade network with respect to the nodes/compartments.
+
+    # Validate bijectivity of compartments defined in previous sheet and those that mark the edges of the adjacency matrix in this sheet.
+    test = {}
+    for row_id in xrange(ws_links.nrows):
+        val = str(ws_links.cell_value(row_id, 0))
+        if row_id > 0 and val not in ['']:
+            if val not in settings.node_specs.keys():
+                raise OptimaException('ERROR: Cascade transitions worksheet has a row header ("%s") that is not a known compartment code label.' % val)
+            test[val] = True
+    for node_label in settings.node_specs.keys():
+        if node_label not in test.keys():
+            raise OptimaException('ERROR: Compartment code label "%s" is not represented in row headers of transitions worksheet.' % node_label)
+    test = {}
+    for col_id in xrange(ws_links.ncols):
+        val = str(ws_links.cell_value(0, col_id))
+        if col_id > 0 and val not in ['']:
+            if val not in settings.node_specs.keys():
+                raise OptimaException('ERROR: Cascade transitions worksheet has a column header ("%s") that is not a known compartment code label.' % val)
+            test[val] = True
+    for node_label in settings.node_specs.keys():
+        if node_label not in test.keys():
+            raise OptimaException('ERROR: Compartment code label "%s" is not represented in column headers of transitions worksheet.' % node_label)
+    
+    # Store linked node tuples by tag.
+    for row_id in xrange(ws_links.nrows):
+        for col_id in xrange(ws_links.ncols):
+            if row_id > 0 and col_id > 0:
+                n1 = str(ws_links.cell_value(row_id, 0))
+                n2 = str(ws_links.cell_value(0, col_id))
+                val = str(ws_links.cell_value(row_id, col_id))
+                if not '' in [n1,n2,val]:
+                    if not val in settings.links.keys():
+                        settings.links[val] = []
+                    settings.links[val].append((n1, n2))
+                    
+                
+    #%% Third core sheet: Characteristics
+    # This worksheet describes characteristics of the model (i.e. they can be considered as outputs).
+    # A label, name and set of included compartments is required.
+                
+    # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
+    cid_label = None
+    cid_name = None
+    cid_sheet = None
+    cid_percentage = None
+    cid_denom = None
+    cid_order = None
+    cid_default = None
+    cid_entry = None
+    cid_include_start = None
+    cid_include_end = None
+    for col_id in xrange(ws_characs.ncols):
+        if ws_characs.cell_value(0, col_id) == 'Code Label': cid_label = col_id
+        if ws_characs.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+        if ws_characs.cell_value(0, col_id) == 'Sheet Label': cid_sheet = col_id
+        if ws_characs.cell_value(0, col_id) == 'Plot Percentage': cid_percentage = col_id
+        if ws_characs.cell_value(0, col_id) == 'Denominator': cid_denom = col_id
+        if ws_characs.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
+        if ws_characs.cell_value(0, col_id) == 'Default Value': cid_default = col_id
+        if ws_characs.cell_value(0, col_id) == 'Entry Point': cid_entry = col_id
+        if ws_characs.cell_value(0, col_id) == 'Includes': cid_include_start = col_id
+    
+    
+    
+    # Work out where the 'include' columns end when defining cascade characteristics.
+    cid_list = np.array(sorted([cid_label, cid_name, cid_sheet, cid_percentage, cid_denom, cid_order, cid_default, cid_entry, ws_characs.ncols]))
+    cid_include_end = cid_list[sum(cid_include_start > cid_list)] - 1
+    
+    if None in [cid_label, cid_name, cid_include_start, cid_include_end]:
+        raise OptimaException('ERROR: Cascade characteristics worksheet does not have correct column headers.')
+    
+    # Actually append characteristic labels and full names to relevant odicts and lists. Labels are crucial.
+    entry_dict = {}
+    standard_sheet_count = ws_characs.nrows - 1      # All characteristics are printed to the standard databook sheet to begin with.
+    for row_id in xrange(ws_characs.nrows):
+        if row_id > 0 and ws_characs.cell_value(row_id, cid_label) not in ['']:
+            charac_label = str(ws_characs.cell_value(row_id, cid_label))
+            charac_name = str(ws_characs.cell_value(row_id, cid_name))
+            
+            settings.charac_name_labels[charac_name] = charac_label
+            settings.charac_specs[charac_label] = odict()
+            settings.charac_specs[charac_label]['name'] = charac_name
+            settings.charac_specs[charac_label]['includes'] = []
+            settings.charac_specs[charac_label]['sheet_label'] = 'charac'    # Default label of databook sheet to print to.
+            
+            # Attribute a custom sheet label to this characteristic if available.
+            if not cid_sheet is None:
+                val = str(ws_characs.cell_value(row_id, cid_sheet))
+                if val not in ['']:
+                    if not val in settings.databook['custom_sheet_names'].keys():
+                        raise OptimaException('ERROR: Project databook sheet-label "%s" for characteristic "%s" has not been previously defined.' % (val, charac_label))
+                    settings.charac_specs[charac_label]['sheet_label'] = val
+                    standard_sheet_count -= 1
+            
+            # Work out which compartments/characteristics this characteristic is a sum of.
+            for col_id_inc in xrange(cid_include_end - cid_include_start + 1):
+                col_id = cid_include_start + col_id_inc
+                val = str(ws_characs.cell_value(row_id, col_id))
+                if val not in ['']:
+                    if val not in settings.node_specs.keys() + settings.charac_specs.keys()[:-1]:
+                        raise OptimaException('ERROR: Cascade characteristic "%s" is being defined with an inclusion reference to "%s", which has not been defined yet.' % (charac_label, val))
+                    settings.charac_specs[charac_label]['includes'].append(val)
+            
+            flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = charac_label, sub_keys = ['includes'], limit = settings.recursion_limit)
+            if len(flat_list) != len(set(flat_list)):
+                raise OptimaException('ERROR: Cascade characteristic "%s" contains duplicate references to a compartment (in its numerator) when all the recursion is flattened out.' % (charac_label))
+            numerator_ref_list = dcp(flat_list)   # Useful for checking what compartments the numerator characteristic references.
+            
+            # Work out which compartment/characteristic this characteristic is normalised by.
+            if not cid_denom is None:
+                val = str(ws_characs.cell_value(row_id, cid_denom))
+                if val not in ['']:
+                    if val not in settings.node_specs.keys() + settings.charac_specs.keys()[:-1]:
+                        raise OptimaException('ERROR: Cascade characteristic "%s" is being defined with reference to denominator "%s", which has not been defined yet.' % (charac_label, val))
+                    settings.charac_specs[charac_label]['denom'] = val
+            
+            # Store whether characteristic should be converted to percentages when plotting.
+            if not cid_percentage is None:
+                val = str(ws_characs.cell_value(row_id, cid_percentage))
+                if val not in ['']:
+                    settings.charac_specs[charac_label]['plot_percentage'] = val
+            
+            # Store order that characteristics should be printed in project databook.
+            # Defaults to high value (i.e. low priority), even if column does not exist.
+            settings.charac_specs[charac_label]['databook_order'] = ws_characs.nrows + 1   # Any value missing from a databook order column means their printouts are lowest priority.
+            if not cid_order is None:
+                val = ws_characs.cell_value(row_id, cid_order)
+                if val not in ['']:
+                    settings.charac_specs[charac_label]['databook_order'] = int(val)
+                    if int(val) < 0:
+                        standard_sheet_count -= 1   # Unprinted characteristics do not end up on the standard sheet.
+                    
+            # Store characteristic default value if available.
+            if not cid_default is None:
+                val = str(ws_characs.cell_value(row_id, cid_default))
+                if val not in ['']:
+                    settings.charac_specs[charac_label]['default'] = float(val)
+                    
+            # Store characteristic entry point if available.
+            # Without this, the characteristic will not be converted into an initial value for the model.
+            if not cid_entry is None:
+                val = str(ws_characs.cell_value(row_id, cid_entry))
+                if val not in ['']:
+                    settings.charac_specs[charac_label]['entry_point'] = val
+                    
+                    if settings.charac_specs[charac_label]['databook_order'] < 0:
+                        raise OptimaException('ERROR: Characteristic "%s" cannot be used to seed a model (i.e. have an entry point) if it does not feature in the databook (i.e. if it has a negative databook order).' % (charac_label))
+                    if 'denom' in settings.charac_specs[charac_label].keys():
+                        denom_label = settings.charac_specs[charac_label]['denom']
+                        if denom_label not in settings.charac_specs.keys()[:-1] or 'entry_point' not in settings.charac_specs[denom_label].keys():
+                            raise OptimaException('ERROR: At this time, characteristic "%s" cannot be used to seed a model (i.e. have an entry point) if its denominator "%s" is not a model-seeding characteristic.' % (charac_label, denom_label))
+                    if val in entry_dict.keys():
+                        raise OptimaException('ERROR: Cascade characteristic "%s" is not the first to use "%s" as an entry point.' % (charac_label, val))
+                    if val not in settings.node_specs.keys():
+                        raise OptimaException('ERROR: There is no compartment named "%s" that can be used as an entry point by cascade characteristic "%s".' % (val, charac_label))                        
+                    numerator_ref_list = set(numerator_ref_list)
+                    try: numerator_ref_list.remove(val)
+                    except: raise OptimaException('ERROR: Entry point "%s" for characteristic "%s" must be a compartment it includes (in its numerator), either directly or via characteristic reference.' % (val, charac_label))
+                    entry_dict[val] = dcp(list(numerator_ref_list))
+    
+    # If all characteristics in this sheet are to be printed to custom databook sheets, no need for a default.
+    if standard_sheet_count <= 0:
+        settings.make_sheet_characs = False
+                        
+    # Ensuring that no two characteristics with entry-points include each other's entry-points (or more complex referencing cycles).
+    # This allows for disaggregated characteristic values to be partitioned from aggregate characteristics during model-seeding.
+    for entry_label in entry_dict.keys():
+        try:
+            flattenDict(input_dict = entry_dict, base_key = entry_label, limit = settings.recursion_limit)
+        except OptimaException:
+            raise OptimaException('Characteristic "%s" references an entry point for another characteristic that, via some chain, eventually references the entry point of characteristic "%s". Alternatively, maximum recursion depth is set too small.' % (entry_label, entry_label))
+    
+        
+    #%% Fourth core sheet: Parameters
+    # Sweep through column headers to make sure the right tags exist. Basically checking spreadsheet format.
+    cid_tag = None
+    cid_label = None
+    cid_name = None
+    cid_sheet = None
+    cid_default = None
+    cid_order = None
+    cid_function = None
+    for col_id in xrange(ws_pars.ncols):
+        if ws_pars.cell_value(0, col_id) == 'Transition Tag': cid_tag = col_id
+        if ws_pars.cell_value(0, col_id) == 'Code Label': cid_label = col_id
+        if ws_pars.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+        if ws_pars.cell_value(0, col_id) == 'Sheet Label': cid_sheet = col_id
+        if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
+        if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
+        if ws_pars.cell_value(0, col_id) == 'Function': cid_function = col_id
+    if None in [cid_tag, cid_label, cid_name]:
+        raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
+    
+    # Store transition details in settings and make sure there is tag bijectivity between this sheet and the transition matrix.
+    standard_sheet_count = ws_pars.nrows - 1      # All parameters are printed to the standard databook sheet to begin with.
+    for row_id in xrange(ws_pars.nrows):
+        tag = str(ws_pars.cell_value(row_id, cid_tag))
+        label = str(ws_pars.cell_value(row_id, cid_label))
+        name = str(ws_pars.cell_value(row_id, cid_name))
+        if row_id > 0 and label not in ['']:
+            settings.linkpar_specs[label] = {'name':name, 'sheet_label':'linkpars'}
+            settings.linkpar_name_labels[name] = label
+            if tag not in ['']:
+                if tag not in settings.links:
+                    raise OptimaException('ERROR: Cascade transition-parameter worksheet has a tag (%s) that is not in the transition matrix.' % tag)
+                settings.linkpar_specs[label]['tag'] = tag
+            else:
+                settings.par_deps[label] = True     # Untagged parameters are dependencies for actual tagged transitions.
+            
+            # Attribute a custom sheet label to this parameter if available.
+            if not cid_sheet is None:
+                val = str(ws_pars.cell_value(row_id, cid_sheet))
+                if val not in ['']:
+                    if not val in settings.databook['custom_sheet_names'].keys():
+                        raise OptimaException('ERROR: Project databook sheet-label "%s" for parameter "%s" has not been previously defined.' % (val, label))
+                    settings.linkpar_specs[label]['sheet_label'] = val
+                    standard_sheet_count -= 1
+            
+            # Store order that cascade parameters should be printed in project databook.
+            settings.linkpar_specs[label]['databook_order'] = ws_pars.nrows+1   # Any value missing from a databook order column means their printouts are lowest priority.
+            if not cid_order is None:
+                val = ws_pars.cell_value(row_id, cid_order)
+                if val not in ['']:
+                    settings.linkpar_specs[label]['databook_order'] = int(val)
+                    if int(val) < 0:    
+                        standard_sheet_count -= 1   # Unprinted parameters do not end up on the standard sheet.
+            
+            # Store parameter default value if available.
+            if not cid_default is None:
+                val = str(ws_pars.cell_value(row_id, cid_default))
+                if val not in ['']:
+                    settings.linkpar_specs[label]['default'] = float(val)
+                    
+            # Store the token stack corresponding to a custom function that defines this parameter, if available.
+            if not cid_function is None:
+                val = str(ws_pars.cell_value(row_id, cid_function))
+                if val not in ['']:
+                    if 'default' in settings.linkpar_specs[label]:
+                        raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Specifying a default is thus restricted, so as to avoid user confusion.' % label)
+                    if settings.linkpar_specs[label]['databook_order'] >= 0:
+                        raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Tag "Databook Order" column with a negative number so that conflicts with user-provided values do not arise.' % label)
+                    settings.par_funcs[label] = True
+                    expr_stack, var_dict = settings.parser.produceStack(val)
+                    settings.linkpar_specs[label]['f_stack'] = expr_stack
+                    settings.linkpar_specs[label]['deps'] = var_dict
+                    for var in var_dict.keys():
+                        if not var in settings.charac_specs.keys():
+                            if not var in settings.linkpar_specs.keys():
+                                raise OptimaException('ERROR: Dependency "%s" has not been defined by the time "%s" is loaded into settings.' % (var, label))
+                        else:
+                            if not var in settings.charac_deps.keys():
+                                flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = var, sub_keys = ['includes','denom'], limit = settings.recursion_limit)
+                                for dep in dep_list:
+                                    settings.charac_specs[dep]['par_dependency'] = True
+                                    settings.charac_deps[dep] = True
+    
+    # If all parameters in this sheet are to be printed to custom databook sheets, no need for a default.
+    if standard_sheet_count <= 0:
+        settings.make_sheet_linkpars = False
+    
+    # Final validations.            
+    for tag in settings.links.keys():
+        if tag not in [x['tag'] for x in settings.linkpar_specs[:] if 'tag' in x]:
+            raise OptimaException('ERROR: Transition matrix tag "%s" is not represented in transition-parameter worksheet.' % tag)
+    
+    test_labels = settings.linkpar_specs.keys() + settings.charac_specs.keys()       
+    if len(test_labels) != len(set(test_labels)):
+        raise OptimaException('ERROR: Cascade workbook appears to have duplicate characteristic/parameter code labels.')
+    
+    test_names = settings.linkpar_name_labels.keys() + settings.charac_name_labels.keys()
+    if len(test_names) != len(set(test_names)):
+        raise OptimaException('ERROR: Cascade workbook appears to have duplicate characteristic/parameter full names.')
+       
+    return settings
+
