@@ -70,6 +70,7 @@ class ModelCompartment(Node):
     def __init__(self, label = 'default', index = 0, popsize = 0.0):
         Node.__init__(self, label = label, index = index)
         self.popsize = np.array([float(popsize)])   # Number of people in compartment.
+        self.tag_birth = False                      # Tag for whether this compartment contains unborn people.
         self.tag_dead = False                       # Tag for whether this compartment contains dead people.
         self.junction = False
     
@@ -131,6 +132,8 @@ class ModelPopulation(Node):
         '''
         for k, label in enumerate(settings.node_specs.keys()):
             self.comps.append(ModelCompartment(label = label, index = (self.index,k)))
+            if 'tag_birth' in settings.node_specs[label].keys():
+                self.comps[-1].tag_birth = True
             if 'tag_dead' in settings.node_specs[label].keys():
                 self.comps[-1].tag_dead = True
             if 'junction' in settings.node_specs[label].keys():
@@ -227,7 +230,9 @@ class Model(object):
         
     def build(self, settings, parset):
         ''' Build the full model. '''
+        
         self.sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
+        
         
         for k, pop_label in enumerate(parset.pop_labels):
             self.pops.append(ModelPopulation(settings = settings, label = pop_label, index = k))
@@ -297,7 +302,7 @@ class Model(object):
                     for pop_target in par.y:
                         for comp in self.getPop(pop_source).comps:
                             trans_tag = comp.label + '_' + trans_type + '_to_' + pop_target       # NOTE: Perhaps there is a nicer way to set up transfer tagging.
-                            if not comp.tag_dead and not comp.junction:
+                            if not comp.tag_birth and not comp.tag_dead and not comp.junction:
                                 
                                 num_links = len(self.getPop(pop_source).links)
                                 link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=num_links,link_label=trans_tag)
@@ -311,9 +316,24 @@ class Model(object):
         self.processJunctions(settings = settings)
         self.updateDependencies(settings = settings)
 
+
+        # set up sim_settings for later use wrt population tags
+        self.sim_settings['tag_birth'] = []
+        self.sim_settings['tag_death'] = []
+        self.sim_settings['tag_no_plot'] = []
+        for node_label in settings.node_specs.keys():
+            for tag in ['tag_birth','tag_death','tag_no_plot']:
+                if tag in settings.node_specs[node_label]:
+                    self.sim_settings[tag] = node_label
+
             
     def process(self, settings):
-        ''' Run the full model. '''
+        ''' 
+        Run the full model. 
+        
+        Note that updateBirths is called before stepForward: this can be set to be after the other interpopulation transitions, but requires
+        some care with how the values are set up. 
+        '''
         
         for t in self.sim_settings['tvec'][1:]:
             self.printModelState(self.t_index)
@@ -493,6 +513,7 @@ class Model(object):
                             pop.getComp(link.label_to).popsize[ti] += popsize * link.vals[ti_link] / denom_val
 
 
+
     def updateDependencies(self, settings):
         '''
         Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
@@ -608,6 +629,24 @@ class Model(object):
         for pop in self.pops:
             logging.info("Population: %s"%pop.label)
             logging.info(pop.getModelState(ti))
+            
+    
+    def isBirthCompartment(self,comp_id,settings):
+        """
+        Returns True if comp_label is label for a compartment tagged as births. 
+        """
+        if 'tag_birth' in settings.node_specs[comp_id].keys():
+            return True
+        return False
+    
+    def isDeadCompartment(self,comp_id,settings):
+        """
+        Returns True if comp_label is label for a compartment tagged as dead. 
+    
+        """
+        if 'tag_dead' in settings.node_specs[comp_id].keys():
+            return True
+        return False
         
     
 

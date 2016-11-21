@@ -126,7 +126,15 @@ class Plotter():
         pl.gca().yaxis.set_ticks_position('left')
     
     
-    
+    def isPlottable(self,comp_label,sim_settings):
+        """ 
+        Returns bool indicating whether a population label should be included in metrics
+        for population reporting 
+        """
+        if comp_label in sim_settings['tag_no_plot']:
+            return False
+        return True
+        
     
     def plotProjectResults(self,results,outputs,sim_settings,charac_specs,title=''):
         """
@@ -152,9 +160,14 @@ class Plotter():
             bottom = 0*sim_settings['tvec']
             
             k = 0
+            labels = []
             for comp in pop.comps:
-                top = bottom + comp.popsize
                 
+                if not self.isPlottable(comp.label,sim_settings):
+                    continue
+                
+                top = bottom + comp.popsize
+                labels.append(comp.label)  #explicitly gather comp.label names as not all cascade names are going to be plotted
                 ax.fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[k], alpha=1,lw=0) # for some reason, lw=0 leads to no plot
                 ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
                 bottom = dcp(top)
@@ -175,8 +188,7 @@ class Plotter():
             ax.set_ylabel('People')
             ax.set_xlim((sim_settings['tvec'][0], sim_settings['tvec'][-1]))
             ax.set_ylim((0, max(top)))
-            cascade_names = [comp.label for comp in pop.comps]
-            ax.legend(cascade_names, **legendsettings)
+            ax.legend(labels,**legendsettings)
             self.turnOffBorder()
             if saveFig:
                 fig.savefig('%sCascade-%s.png' % (title, pop.label.title()))

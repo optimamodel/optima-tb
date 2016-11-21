@@ -544,6 +544,7 @@ def loadCascadeSettings(cascade_path, settings):
     cid_name = None
     cid_coords = None
     cid_no_plot = None
+    cid_birth = None
     cid_dead = None
     cid_junction = None
     for col_id in xrange(ws_nodes.ncols):
@@ -551,6 +552,7 @@ def loadCascadeSettings(cascade_path, settings):
         if ws_nodes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
         if ws_nodes.cell_value(0, col_id) == 'Plot Coordinates': cid_coords = col_id
         if ws_nodes.cell_value(0, col_id) == 'No Plot': cid_no_plot = col_id
+        if ws_nodes.cell_value(0, col_id) == 'Birth Tag': cid_birth = col_id
         if ws_nodes.cell_value(0, col_id) == 'Dead Tag': cid_dead = col_id
         if ws_nodes.cell_value(0, col_id) == 'Junction': cid_junction = col_id
     if None in [cid_label, cid_name]:
@@ -577,6 +579,12 @@ def loadCascadeSettings(cascade_path, settings):
                 if val not in ['']:
                     settings.node_specs[node_label]['tag_no_plot'] = val
             
+            # Store optional information about whether this node is a compartment representing births.
+            if not cid_birth is None:
+                val = str(ws_nodes.cell_value(row_id, cid_birth))
+                if val not in ['']:
+                    settings.node_specs[node_label]['tag_birth'] = val
+
             # Store optional information about whether this node is a compartment for the dead.
             if not cid_dead is None:
                 val = str(ws_nodes.cell_value(row_id, cid_dead))
