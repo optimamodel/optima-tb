@@ -11,6 +11,7 @@ from settings import Settings
 from parameters import ParameterSet
 from plotting import Plotter
 from databook import makeSpreadsheetFunc, loadSpreadsheetFunc
+from calibration import makeManualCalibration
 
 from uuid import uuid4 as uuid
 
@@ -94,4 +95,16 @@ class Project(object):
         if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
         self.parsets[name] = ParameterSet(name = name)
         self.parsets[name].makePars(self.data)
+        
+        
+    def makeManualCalibration(self, parset_name, rate_dict):
+        ''' Take in dictionary of updated values for rates that can be used for manual calibration
+            Update values dict: {pop_name : {parameter : value} '''
+        if not parset_name in self.parsets.keys():
+            self.makeParset(name=parset_name)
+        paramset = self.parsets[parset_name]
+        logging.info("Updating parameter values in parset=%s"%(parset_name))
+        
+        makeManualCalibration(paramset,rate_dict)
+    
         

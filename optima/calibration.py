@@ -52,22 +52,16 @@ def _calc_R2(y_obs,y_fit):
     """
     pass
 
-def runRateCalibration(project,parsetname,rate_dict,plot=False):
+
+def makeManualCalibration(paramset,rate_dict,plot=False):
     """
     
     """
-    if not parsetname in project.parsets.keys():
-        project.makeParset(name=parsetname)
-    ps = project.parsets[parsetname]
-    
+
     for pop_label in rate_dict.keys():
-        logging.info("Updating parameter values for parameter set %s for population=%s"%(parsetname,pop_label))
-        _setRateCalibration(ps, rate_dict[pop_label], pop_label)
-        
-    project.runSim(parset_name=parsetname,plot=plot)
-
+        logging.info("Updating parameter values for population=%s"%(pop_label))
+        _setRateCalibration(paramset, rate_dict[pop_label], pop_label)
     
-
 
 def _setRateCalibration(parset,value_dictionary,pop_label):
     """
