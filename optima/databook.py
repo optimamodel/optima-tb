@@ -31,9 +31,19 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
                                 This is not data validation, but will determine the form of calculations during model processing.
         print_conditions    -   A list of Excel-string conditions that are used to test whether data-entry arrays should be shown.
                                 List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
+                                
+    Note that if no data format is specified, data formats for 'Fraction' or 'Number' are available. The default choice of the 
+    data format is assumed that if the assumption value is larger than 1., then it is likely to be a Number, otherwise it is assumed to be a Fraction.
     '''
-    
-    if data_formats is None: data_formats = ['Fraction', 'Number']#, 'Probability', 'Number']
+
+    if data_formats is None: 
+        data_formats = ['Fraction', 'Number']#, 'Probability', 'Number']
+        data_format_assumption = data_formats[0]
+        if assumption > 1.:
+            data_format_assumption = data_formats[1] # Number
+    else:
+        data_format_assumption = data_formats[0]
+                            
     offset = at_col + 3     # This is the column at which the input year range and corresponding values should be written.
     
     worksheet.write(at_row, at_col, 'Format')
@@ -44,14 +54,15 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
     for aid in xrange(num_arrays):
         row_id = at_row + aid + 1
         offset = at_col + 3
-        worksheet.write(row_id, at_col, data_formats[0])      # Default choice for data format.
+        
+        worksheet.write(row_id, at_col, data_format_assumption)      # Default choice for data format.
         worksheet.data_validation('%s' % rc(row_id,at_col), {'validate': 'list', 'source': data_formats, 'ignore_blank': False}) 
         if not print_conditions is None and not print_conditions[aid] is None:
-            worksheet.write(row_id, at_col, '=IF(%s,"%s","")' % (print_conditions[aid], data_formats[0]), None, '')      # Default choice for data format.
+            worksheet.write(row_id, at_col, '=IF(%s,"%s","")' % (print_conditions[aid], data_format_assumption), None, '')      # Default choice for data format.
             worksheet.write(row_id, at_col + 1, '=IF(%s,IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A."),"")' % (print_conditions[aid], rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption), None, '')
             worksheet.write(row_id, at_col + 2, '=IF(%s,"OR","")' % print_conditions[aid], None, '')
         else:
-            worksheet.write(row_id, at_col, data_formats[0])      # Default choice for data format.
+            worksheet.write(row_id, at_col, data_format_assumption)      # Default choice for data format.
             worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption), None, assumption)
             worksheet.write(row_id, at_col + 2, 'OR')
         
