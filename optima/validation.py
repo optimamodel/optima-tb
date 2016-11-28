@@ -63,7 +63,7 @@ def checkNegativePopulation(model,msettings,dpopsizes,dpop_out,ti,dt,validationS
     num_pops = len(pops)
     num_comps = len(pops[0].comps) 
     
-    logging.info("(t=%g) Checking validation of negative populations "%ti)
+    #logging.info("(t=%g) Checking validation of negative populations "%ti)
     
     if validationSetting == settings.VALIDATION_ERROR or validationSetting == settings.VALIDATION_WARN:
         # go through each compartment and check that the value of the corresponding dpop is less than the current compartment's value
