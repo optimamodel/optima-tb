@@ -665,6 +665,7 @@ def loadCascadeSettings(cascade_path, settings):
     cid_label = None
     cid_name = None
     cid_sheet = None
+    cid_plot = None
     cid_percentage = None
     cid_denom = None
     cid_order = None
@@ -676,6 +677,7 @@ def loadCascadeSettings(cascade_path, settings):
         if ws_characs.cell_value(0, col_id) == 'Code Label': cid_label = col_id
         if ws_characs.cell_value(0, col_id) == 'Full Name': cid_name = col_id
         if ws_characs.cell_value(0, col_id) == 'Sheet Label': cid_sheet = col_id
+        if ws_characs.cell_value(0, col_id) == 'Plot Value': cid_plot = col_id
         if ws_characs.cell_value(0, col_id) == 'Plot Percentage': cid_percentage = col_id
         if ws_characs.cell_value(0, col_id) == 'Denominator': cid_denom = col_id
         if ws_characs.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
@@ -736,6 +738,13 @@ def loadCascadeSettings(cascade_path, settings):
                     if val not in settings.node_specs.keys() + settings.charac_specs.keys()[:-1]:
                         raise OptimaException('ERROR: Cascade characteristic "%s" is being defined with reference to denominator "%s", which has not been defined yet.' % (charac_label, val))
                     settings.charac_specs[charac_label]['denom'] = val
+            
+            # Store whether we should plot this value as a default or not
+            if not cid_plot is None:
+                val = str(ws_characs.cell_value(row_id, cid_plot))
+                print "---- ", val
+                if val not in ['']:
+                    settings.charac_specs[charac_label]['plot_characteristic'] = val
             
             # Store whether characteristic should be converted to percentages when plotting.
             if not cid_percentage is None:
