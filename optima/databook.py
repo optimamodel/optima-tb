@@ -881,7 +881,9 @@ def loadCascadeSettings(cascade_path, settings):
                                     
             if not cid_yfactor is None:
                 val = str(ws_pars.cell_value(row_id, cid_yfactor))
-                if val not in ['']:
+                if val.lower() == 'n' :
+                    settings.linkpar_specs[label]['y_factor'] = project_settings.DO_NOT_SCALE
+                elif val not in ['']:
                     settings.linkpar_specs[label]['y_factor'] = float(val)
                 else:
                     settings.linkpar_specs[label]['y_factor'] = project_settings.DEFAULT_YFACTOR

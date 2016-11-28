@@ -20,7 +20,7 @@ VALIDATION_ERROR = 2
 VALIDATION_AVERT = 3
 
 DEFAULT_YFACTOR = 1.
-DO_NOT_SCALE = -1
+DO_NOT_SCALE = -1.
 
 class Settings(object):
     '''
