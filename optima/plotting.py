@@ -134,6 +134,18 @@ class Plotter():
         if comp_label in sim_settings['tag_no_plot']:
             return False
         return True
+    
+    def isPlottableCharac(self,output_id,charac_specs):
+        """
+        Returns False if specified in cascade spreadsheet as 'n' or 'N' for plot characteristic.
+        Else returns True
+        """
+        try: # Better to try and ask for forgiveness than for permission ... 
+            if charac_specs[output_id]['plot_characteristic'].lower() == 'n':
+                return False
+        except: 
+            return True
+        
         
     
     def plotProjectResults(self,results,outputs,sim_settings,charac_specs,title=''):
@@ -214,6 +226,10 @@ class Plotter():
                 
         colors = self.gridColorMap(len(results))        
         for output_id in outputIDs:
+            
+            if not self.isPlottableCharac(output_id,charac_specs):
+                continue
+            
             
             unit_tag = ''
             fig, ax = pl.subplots()
