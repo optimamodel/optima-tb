@@ -2,6 +2,7 @@
 from project import Project
 import numpy as np
 import pylab 
+from calibration import runRateCalibration
 
 """
 Aim: test and validation that implementation of births
@@ -59,7 +60,6 @@ rate_dict = {'Pop1' : dict_change_params,
 
 
 pname2='testCalib'
-#runRateCalibration(proj,pname2,rate_dict,plot=plot)
-proj.makeManualCalibration(pname2,rate_dict)
-proj.runSim(parset_name=pname2,plot=plot)
+runRateCalibration(proj,pname2,rate_dict,plot=plot)
+
 pylab.show()

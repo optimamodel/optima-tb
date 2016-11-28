@@ -16,16 +16,18 @@ import numpy as np
 class Parameter(object):
     ''' Class to hold one set of parameter values disaggregated by populations. '''
     
-    def __init__(self, label, t = None, y = None, y_format = None):
+    def __init__(self, label, t = None, y = None, y_format = None, y_factor = None):
         self.label = label
         
         # These ordered dictionaries have population labels as keys.
         if t is None: t = odict()
         if y is None: y = odict()
         if y_format is None: y_format = odict()
+        if y_factor is None: y_factor = odict()
         self.t = t                      # Time data.
         self.y = y                      # Value data.
         self.y_format = y_format        # Value format data (e.g. Probability, Fraction or Number).
+        self.y_factor = y_factor        # Scale factor of data (i.e. 1., or None indicating that scaling should not occur during automated calibration
         
     def interpolate(self, tvec = None, pop_label = None):
         ''' Take parameter values and construct an interpolated array corresponding to the input time vector. '''
@@ -61,7 +63,7 @@ class Parameter(object):
         return output
     
     def __repr__(self, *args, **kwargs):
-        return "Parameter: %s \n t       : %s \n y       : %s \n y_format: %s"%(self.label,self.t,self.y,self.y_format)
+        return "Parameter: %s \n t       : %s \n y       : %s \n y_format: %s\n  y_factor: %s\n"%(self.label,self.t,self.y,self.y_format,self.y_factor)
         
 
 
@@ -80,6 +82,8 @@ class ParameterSet(object):
         self.par_ids = {'cascade':{}, 'characs':{}}
         
         self.transfers = odict()    # Dictionary of inter-population transitions.
+        
+        logging.info("Created ParameterSet: %s"%self.name)
     
     def makePars(self, data):
         self.pop_names = data['pops']['name_labels'].keys()
@@ -95,6 +99,7 @@ class ParameterSet(object):
                 self.pars['cascade'][-1].t[pop_id] = data['linkpars'][label][pop_id]['t']
                 self.pars['cascade'][-1].y[pop_id] = data['linkpars'][label][pop_id]['y']
                 self.pars['cascade'][-1].y_format[pop_id] = data['linkpars'][label][pop_id]['y_format']
+                self.pars['cascade'][-1].y_factor[pop_id] = data['linkpars'][label][pop_id]['y_factor']
                 
         # Characteristic parameters (e.g. popsize/prevalence).
         # Despite being mostly data to calibrate against, is still stored in full so as to interpolate initial value.
@@ -105,6 +110,7 @@ class ParameterSet(object):
                 self.pars['characs'][-1].t[pop_id] = data['characs'][label][pop_id]['t']
                 self.pars['characs'][-1].y[pop_id] = data['characs'][label][pop_id]['y']
                 self.pars['characs'][-1].y_format[pop_id] = data['characs'][label][pop_id]['y_format']
+                self.pars['characs'][-1].y_factor[pop_id] = data['characs'][label][pop_id]['y_factor']
         
         # Migrations, including aging.
         for trans_type in data['transfers'].keys():
@@ -116,6 +122,7 @@ class ParameterSet(object):
                     self.transfers[trans_type][source].t[target] = data['transfers'][trans_type][source][target]['t']
                     self.transfers[trans_type][source].y[target] = data['transfers'][trans_type][source][target]['y']
                     self.transfers[trans_type][source].y_format[target] = data['transfers'][trans_type][source][target]['y_format']
+                    self.transfers[trans_type][source].y_factor[target] = data['transfers'][trans_type][source][target]['y_factor']
                     
     def __repr__(self, *args, **kwargs):
         return "ParameterSet: %s \npars: \n%s"%(self.name, self.pars) 
