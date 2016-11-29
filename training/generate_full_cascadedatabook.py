@@ -27,9 +27,8 @@ Populations are:
     - 15-64 HIV
     - 65+ HIV
 """
-num_pop = 8 
-#this is a test - OVERRULED!
-#new comment!
+
+num_pop = 7 
 
 databook = './training/Belarus-databook-cascade_161122.xlsx'
 cascade = './training/cascade_161122.xlsx'
