@@ -27,7 +27,7 @@ Populations are:
     - 15-64 HIV
     - 65+ HIV
 """
-num_pop = 7 
+num_pop = 8 
 #this is a test - OVERRULED!
 #new comment!
 
