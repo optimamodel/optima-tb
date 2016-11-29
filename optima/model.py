@@ -670,12 +670,14 @@ def runModel(settings, parset):
     m = Model()
     m.build(settings = settings, parset = parset)
     m.process(settings = settings)
+    
+    # Intention: to replace these 3 lines
     outputs = m.calculateOutputs(settings = settings)
     m_pops = m.pops
     sim_settings = m.sim_settings
-    
-    
+    # with 
+    #results = ResultSet(model,parset)
+    #return results
     
     #%% Collect and return raw results    
-    
     return m_pops, sim_settings, outputs
