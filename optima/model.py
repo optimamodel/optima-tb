@@ -2,6 +2,7 @@
 
 from utils import flattenDict, odict, OptimaException
 from validation import checkNegativePopulation, isDPopValid
+import settings as project_settings
 
 import logging
 logger = logging.getLogger(__name__)
@@ -43,7 +44,11 @@ class Variable(object):
     def __init__(self, label = 'default', val = 0.0):
         self.label = label
         self.vals = np.array([float(val)])   # An abstract array of values.
-        self.val_format = 'fraction'
+        if val > 1:
+            self.val_format = 'number'
+        else:
+            self.val_format = 'fraction'
+        
 
 class Link(Variable):
     '''
@@ -53,14 +58,17 @@ class Link(Variable):
     If used in Model, the Link refers to two distinct population groups.
     In the latter case, intended logic should transfer agents between all (non-dead) corresponding compartments.
     '''
-    def __init__(self, object_from, object_to, label = 'default', val = 0.0):
+    def __init__(self, object_from, object_to, label = 'default', val = 0.0, scale_factor = 1.):
         Variable.__init__(self, label = label, val = val)
         self.index_from = object_from.index
         self.index_to = object_to.index
         self.label_from = object_from.label
         self.label_to = object_to.label
+        self.scale_factor = scale_factor
 
-
+    def __repr__(self, *args, **kwargs):
+        print "self.scale_factor = ", self.scale_factor, type(self.scale_factor)
+        return "Link %s: from (%s, %s) to (%s, %s) with scale_factor=%g"%(self.label,self.index_from,self.label_from,self.index_to,self.label_to,self.scale_factor)
 
 #%% Cascade compartment and population classes
 
@@ -286,12 +294,14 @@ class Model(object):
                     for link_id in self.getPop(pop_label).link_ids[tag]:        # Map link tag to link id in ModelPop.            
                         self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
                         self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
+                        self.getPop(pop_label).links[link_id].scale_factor = par.y_factor[pop_label]
             else:
                 for pop_label in parset.pop_labels:
                     dep_id = self.getPop(pop_label).dep_ids[par.label]          # Map dependency label to dependency id in ModelPop.
                     self.getPop(pop_label).deps[dep_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
                     self.getPop(pop_label).deps[dep_id].val_format = par.y_format[pop_label]
-                
+                    self.getPop(pop_label).deps[dep_id].scale_factor = par.y_factor[pop_label]
+
         
         # Propagating transfer parameter parset values into Model object.
         for trans_type in parset.transfers.keys():
@@ -308,6 +318,7 @@ class Model(object):
                                 link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=num_links,link_label=trans_tag)
                                 link.vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_target)
                                 link.val_format = par.y_format[pop_target]
+                                link.scale_factor = par.y_factor[pop_target]
                                 
                                 self.getPop(pop_source).links.append(link)
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
@@ -402,16 +413,17 @@ class Model(object):
                         
                         convert_amt = 0 
                         
+                        transition = link.vals[ti]
+                        
+                        if link.scale_factor is not None and link.scale_factor != project_settings.DO_NOT_SCALE : # scale factor should be available to be used 
+                            transition *= link.scale_factor
+                        
+                        
                         if link.val_format == 'fraction': 
-                            #TODO: enforce/assert that comp_source.popsize[ti] >= 0. :
-                            
-                            converted_frac = 1 - (1 - link.vals[ti]) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
+                            converted_frac = 1 - (1 - transition) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
                             converted_amt = comp_source.popsize[ti] * converted_frac
-                            
                         elif link.val_format == 'number':
-                            
-                            converted_amt = link.vals[ti] * dt
-                            
+                            converted_amt = transition * dt
                         else:
                             raise OptimaException("Unknown link type: %s in model\nObserved for population %s, compartment %s"%(link.val_format,pop.label,comp.label))
                         

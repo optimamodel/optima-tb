@@ -1,6 +1,7 @@
 #%% Imports
 
 from utils import odict, OptimaException, flattenDict
+import settings as project_settings
 
 import logging
 logger = logging.getLogger(__name__)
@@ -428,8 +429,9 @@ def loadSpreadsheetFunc(settings, databook_path):
                 # NOTE: Somewhat hard-coded. Improve.
                 list_t = []
                 list_y = []
+
                 for col_id in xrange(ws.ncols):
-                    if col_id == 1:
+                    if col_id == 1: #TODO: DK to remove hard-coded variables in code ... 
                         data[data_label][current_def_label][current_pop_label]['y_format'] = str(ws.cell_value(row_id, col_id)).lower()
                     if col_id > 1 and isinstance(ws.cell_value(row_id, col_id), Number):
                         list_y.append(float(ws.cell_value(row_id, col_id)))
@@ -439,7 +441,13 @@ def loadSpreadsheetFunc(settings, databook_path):
                         else:
                             list_t.append(float(ws.cell_value(row_id-1-pop_id, col_id)))
                 data[data_label][current_def_label][current_pop_label]['t'] = np.array(list_t)
-                data[data_label][current_def_label][current_pop_label]['y'] = np.array(list_y)                
+                data[data_label][current_def_label][current_pop_label]['y'] = np.array(list_y)
+                # if there is a corresponding data value for y_factor already in cascacade structure in settings, use that; else default to settings value
+                try: 
+                    data[data_label][current_def_label][current_pop_label]['y_factor'] = settings.linkpar_specs[current_def_label]['y_factor']
+                except:
+                    data[data_label][current_def_label][current_pop_label]['y_factor'] = project_settings.DEFAULT_YFACTOR
+            
                 
                 pop_id += 1
     
@@ -804,6 +812,7 @@ def loadCascadeSettings(cascade_path, settings):
     cid_default = None
     cid_order = None
     cid_function = None
+    cid_yfactor = None
     for col_id in xrange(ws_pars.ncols):
         if ws_pars.cell_value(0, col_id) == 'Transition Tag': cid_tag = col_id
         if ws_pars.cell_value(0, col_id) == 'Code Label': cid_label = col_id
@@ -812,6 +821,7 @@ def loadCascadeSettings(cascade_path, settings):
         if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
         if ws_pars.cell_value(0, col_id) == 'Function': cid_function = col_id
+        if ws_pars.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id
     if None in [cid_tag, cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
     
@@ -877,6 +887,17 @@ def loadCascadeSettings(cascade_path, settings):
                                 for dep in dep_list:
                                     settings.charac_specs[dep]['par_dependency'] = True
                                     settings.charac_deps[dep] = True
+                                    
+            if not cid_yfactor is None:
+                val = str(ws_pars.cell_value(row_id, cid_yfactor))
+                if val.lower() == 'n' :
+                    settings.linkpar_specs[label]['y_factor'] = project_settings.DO_NOT_SCALE
+                elif val not in ['']:
+                    settings.linkpar_specs[label]['y_factor'] = float(val)
+                else:
+                    settings.linkpar_specs[label]['y_factor'] = project_settings.DEFAULT_YFACTOR
+                    
+
     
     # If all parameters in this sheet are to be printed to custom databook sheets, no need for a default.
     if standard_sheet_count <= 0:
