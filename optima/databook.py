@@ -515,6 +515,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                 data['linkpars'][label][pop]['y_format'] = def_format
                 data['linkpars'][label][pop]['t'] = np.array([settings.tvec_start])
                 data['linkpars'][label][pop]['y'] = np.array([float(def_val)]) 
+                data['linkpars'][label][pop]['y_factor'] = project_settings.DEFAULT_YFACTOR
                 
             
     return data
@@ -742,7 +743,6 @@ def loadCascadeSettings(cascade_path, settings):
             # Store whether we should plot this value as a default or not
             if not cid_plot is None:
                 val = str(ws_characs.cell_value(row_id, cid_plot))
-                print "---- ", val
                 if val not in ['']:
                     settings.charac_specs[charac_label]['plot_characteristic'] = val
             
