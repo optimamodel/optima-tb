@@ -335,6 +335,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                                 data['transfers'][mig_type][pop_source][pop_target]['t'] = np.array([settings.tvec_start])
                                 data['transfers'][mig_type][pop_source][pop_target]['y'] = np.array([float(1/data['pops']['ages'][pop_source]['range'])])
                                 data['transfers'][mig_type][pop_source][pop_target]['y_format'] = 'Fraction'.lower()
+                                data['transfers'][mig_type][pop_source][pop_target]['y_factor'] = project_settings.DEFAULT_YFACTOR    # NOTE: Quick hack to make aging work with calibration branch.
                             if len(data['transfers'][mig_type][pop_source].keys()) > 1:
                                 raise OptimaException('ERROR: There are too many outgoing "%s" transitions listed for population "%s".' % (mig_type,pop_source))
         
