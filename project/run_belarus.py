@@ -23,5 +23,5 @@ proj.loadSpreadsheet(databook_path = './databook_belarus.xlsx')
 proj.makeParset()
 
 r1,o1,s1,results = proj.runSim(plot = True)
-proj.calculateFit(results)
+#proj.calculateFit(results)
 pylab.show()
