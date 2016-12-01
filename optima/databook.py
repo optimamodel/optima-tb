@@ -380,6 +380,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                                 
                 data['transfers'][mig_type][pop_source_label][pop_target_label]['t'] = np.array(list_t)
                 data['transfers'][mig_type][pop_source_label][pop_target_label]['y'] = np.array(list_y)
+                data['transfers'][mig_type][pop_source_label][pop_target_label]['y_factor'] = project_settings.DEFAULT_YFACTOR    # NOTE: Quick hack to make migrations work with calibration branch.
             array_id += 1
 
 
