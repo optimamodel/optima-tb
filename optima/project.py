@@ -11,10 +11,10 @@ from settings import Settings
 from parameters import ParameterSet
 from plotting import Plotter
 from databook import makeSpreadsheetFunc, loadSpreadsheetFunc
-from calibration import makeManualCalibration
+from calibration import makeManualCalibration, calculateFitFunc
 
 from uuid import uuid4 as uuid
-
+from numpy import max
 
 
 #%% Project class (i.e. one self-contained geographical unit)
@@ -59,7 +59,8 @@ class Project(object):
         except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
 
         tm = tic()
-        results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
+        #results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
+        robj, results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
         toc(tm, label = 'running %s model' % self.name)
         
         if plot:
@@ -68,7 +69,7 @@ class Project(object):
             self.plotter.plotProjectResults(results, outputs, sim_settings, self.settings.charac_specs, title = self.name.title())
             toc(tp, label = 'plotting %s' % self.name)
         
-        return results, outputs
+        return results, outputs, sim_settings, robj
         
     
     def makeSpreadsheet(self, databook_path = None, num_pops = 5, num_migrations = 2):
@@ -107,4 +108,26 @@ class Project(object):
         
         makeManualCalibration(paramset,rate_dict)
     
+    def calculateFit(self,results,metric=None):
+        '''
+        Calculates the score for the fit during manual calibration and prints to output. 
+        
+        Params:
+            results    resultSet object
+            metric     type of metric used (defaults to default specified in settings).
+        
+        Future: can consider saving results into resultset and accessing results by name / parset name
+        '''
+        if metric is None:
+            metric = self.settings.fit_metric
+        
+        if results is None:
+            raise OptimaException('ERROR: no result is specified. Cannot calculate fit.')
+        
+        if self.data is None or len(self.data)==0:
+            raise OptimaException('ERROR: no data is specified. Cannot calculate fit.')
+        
+        datapoints = results.getCharacteristicDatapoints()
+        score = calculateFitFunc(datapoints,results.t_observed_data,self.data['characs'],metric)
+        logger.info("Calculated scores for fit using %s: largest value=%.2f"%(metric,max(score)))
         

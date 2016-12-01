@@ -3,6 +3,7 @@
 from utils import flattenDict, odict, OptimaException
 from validation import checkNegativePopulation, isDPopValid
 import settings as project_settings
+from results import ResultSet
 
 import logging
 logger = logging.getLogger(__name__)
@@ -666,16 +667,23 @@ class Model(object):
 
 def runModel(settings, parset):
     ''' Processes the TB epidemiological model. '''
-    
+
     m = Model()
     m.build(settings = settings, parset = parset)
     m.process(settings = settings)
+    
+    # Intention: to replace these 3 lines
     outputs = m.calculateOutputs(settings = settings)
     m_pops = m.pops
     sim_settings = m.sim_settings
+    # with 
+    results = ResultSet(m,parset,settings)
+    # and
+    #return results
     
-    
-    
+    # For moment, we'll return all, as further plotting methods require  m_pops, sim_settings, outputs
+    # (which are within results, but we'll do it in a piecewise manner at the moment)
     #%% Collect and return raw results    
-    
-    return m_pops, sim_settings, outputs
+    return results, m_pops, sim_settings, outputs
+
+

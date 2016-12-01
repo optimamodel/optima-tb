@@ -22,5 +22,6 @@ proj.makeSpreadsheet(databook_path = './databook_belarus_template.xlsx', num_pop
 proj.loadSpreadsheet(databook_path = './databook_belarus.xlsx')
 proj.makeParset()
 
-proj.runSim(plot = True)
+r1,o1,s1,results = proj.runSim(plot = True)
+proj.calculateFit(results)
 pylab.show()

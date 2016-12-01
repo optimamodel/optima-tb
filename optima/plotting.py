@@ -187,10 +187,13 @@ class Plotter():
             
             if plotObservedData:
                 # TODO confirm that alive will always be tag. It probably won't be, so better to have this named in the settings? userdefined?
-                ys = self.data['characs']['alive'][pop.label]['y']
-                ts = self.data['characs']['alive'][pop.label]['t']
-                ax.scatter(ts,ys,marker='o',edgecolors='k',facecolors='none',s=40,zorder=10,linewidth=3)
-            
+                try:
+                    ys = self.data['characs']['alive'][pop.label]['y']
+                    ts = self.data['characs']['alive'][pop.label]['t']
+                    ax.scatter(ts,ys,marker='o',edgecolors='k',facecolors='none',s=40,zorder=10,linewidth=3)
+                except:
+                    logger.info("No observed data with label='alive' for plotting in plotPopulations() [plotting.py]")
+                
             box = ax.get_position()
             ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
             

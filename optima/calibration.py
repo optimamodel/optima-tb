@@ -19,15 +19,27 @@ def performSensitivityAnalysis(project,transmission,epsilon=0.05):
     """
     pass
 
-def calculateFit(model,parset_name):
+def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
     """
     
-    
-    TODO implement
     """
-    pass
+    score = []
+    char_labels = sim_data.keys()
+    pop_labels = sim_data[0].keys()
     
-def _calculateFitscore(y_obs, y_fit,metric="minsquare"):
+    for char in char_labels:
+        for pop in pop_labels:
+            y_obs = obs_data[char][pop]['y']
+            t_obs = obs_data[char][pop]['t']
+            # only grab sim_data and sim_tvec where there are corresponding values of obs_data
+            t_indices = np.nonzero(np.in1d(sim_tvec, t_obs))[0]
+            y_fit = sim_data[char][pop][t_indices]
+            # calc and add to scores
+            score.append(_calculateFitscore(y_obs, y_fit, metric))
+    
+    return score
+    
+def _calculateFitscore(y_obs, y_fit,metric="meansquare"):
     """
     
     TODO implement calculateFit
@@ -35,22 +47,25 @@ def _calculateFitscore(y_obs, y_fit,metric="minsquare"):
     availfns = globals().copy()
     availfns.update(locals())
     try:
-        availfns.get('_calc_%s'%metric)(y_obs,y_fit)
+        return availfns.get('_calc_%s'%metric)(y_obs,y_fit)
     except:
         raise NotImplementedError("No method associated with _calc_%s (calibration.py)"%metric)
 
 
-def _calc_minsquare(y_obs,y_fit):
+def _calc_meansquare(y_obs,y_fit):
     """
+    Calcs the RMS error. 
     
+    Note: could also use implementation from sklearn in future ... 
     """
-    pass
+    return np.sqrt(((y_fit - y_obs) ** 2).mean())
+
 
 def _calc_R2(y_obs,y_fit):
     """
     
     """
-    pass
+    raise NotImplementedError
 
 
 def makeManualCalibration(paramset,rate_dict,plot=False):
