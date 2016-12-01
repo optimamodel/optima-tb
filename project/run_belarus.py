@@ -5,8 +5,11 @@ Created on Tue Nov 29 13:12:24 2016
 @author: Lara
 """
 
-#new file
 import sys
+try:
+    sys.path.remove('d:\\work projects\\optima\\optima 2.0')
+    sys.path.remove('d:\\work projects\\optima\\optima 2.0\\optima')
+except: pass
 sys.path.append('../optima')
 
 from project import Project
