@@ -13,6 +13,7 @@ except: pass
 sys.path.append('../optima')
 
 from project import Project
+import pylab
 
 proj= Project(name = 'Belarus', cascade_path = './cascade_belarus.xlsx')
 
@@ -22,3 +23,4 @@ proj.loadSpreadsheet(databook_path = './databook_belarus.xlsx')
 proj.makeParset()
 
 proj.runSim(plot = True)
+pylab.show()
