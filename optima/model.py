@@ -348,7 +348,7 @@ class Model(object):
         '''
         
         for t in self.sim_settings['tvec'][1:]:
-            self.printModelState(self.t_index)
+#            self.printModelState(self.t_index)
             self.stepForward(settings = settings, dt = settings.tvec_dt)
             self.processJunctions(settings = settings)
             self.updateDependencies(settings = settings)
