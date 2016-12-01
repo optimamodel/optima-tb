@@ -301,6 +301,8 @@ class PlottingSettings():
         
         pl.rcParams['savefig.dpi'] = 300
         
+        pl.rcParams['figure.max_open_warning'] = 40
+        
         pl.rcParams['xtick.labelsize'] = pl.rcParams['font.size']
         pl.rcParams['xtick.major.size'] = 3
         pl.rcParams['xtick.minor.size'] = 3
