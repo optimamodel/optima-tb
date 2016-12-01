@@ -107,7 +107,11 @@ def checkNegativePopulation(model,msettings,dpopsizes,dpop_out,ti,dt,validationS
                 if pops[pid].comps[cid].popsize[ti+1] == 0. and dpopsizes[did] < 0.:
                     logging.debug("--- Compartment is empty; cannot remove from empty compartment: %s"%warning)
                     empty_compartment.append(did)
-                    
+                
+                elif dpopsizes[did] == 0 and pops[pid].comps[cid].popsize[ti+1] < 0.:
+                    logging.debug("--- Compartment value is negative: %s"%warning)
+                    reset_compartment.append(did)
+                
                 elif pops[pid].comps[cid].popsize[ti+1] + dpopsizes[did] < 0.:
                     logging.debug("Have to reduce the corresponding flow for this compartment: %s"%warning)
                     #print did, dpopsizes[did], pops[pid].comps[cid].popsize[ti+1]
