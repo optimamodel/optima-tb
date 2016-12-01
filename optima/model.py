@@ -348,7 +348,7 @@ class Model(object):
         '''
         
         for t in self.sim_settings['tvec'][1:]:
-            #self.printModelState(self.t_index)
+            self.printModelState(self.t_index)
             self.stepForward(settings = settings, dt = settings.tvec_dt)
             self.processJunctions(settings = settings)
             self.updateDependencies(settings = settings)
@@ -515,7 +515,10 @@ class Model(object):
                 for junction_label in settings.junction_labels:
                     comp = pop.getComp(junction_label)
                     popsize = comp.popsize[ti]
-                    if popsize > 0:
+                    if popsize < 0:     # NOTE: Hacky fix for negative values. Needs work in case of super-negatives.
+                        comp.popsize[ti] = 0
+                        popsize = 0
+                    if popsize > 1e-9:  # NOTE: Hard-coded tolerance. Bad.
                         final_review = False    # Outflows could propagate into other junctions requiring another review.
                         denom_val = sum(pop.links[lid].vals[ti_link] for lid in comp.outlink_ids)
                         if denom_val == 0: raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
