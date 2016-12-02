@@ -28,6 +28,10 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
     pop_labels = sim_data[0].keys()
     
     for char in char_labels:
+        if char not in obs_data.keys():
+            logger.info("Results: could not extract characteristic datapoint values for characteristic '%s' as this does not appear in databook"%char)
+            continue
+        logger.debug("calculating fit for char=%s"%char)
         for pop in pop_labels:
             y_obs = obs_data[char][pop]['y']
             t_obs = obs_data[char][pop]['t']
@@ -35,14 +39,16 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
             t_indices = np.nonzero(np.in1d(sim_tvec, t_obs))[0]
             y_fit = sim_data[char][pop][t_indices]
             # calc and add to scores
-            score.append(_calculateFitscore(y_obs, y_fit, metric))
+            s = _calculateFitscore(y_obs, y_fit, metric)
+            logger.debug("--- calc fit score = %g"%s)
+            score.append(s)
     
     return score
     
 def _calculateFitscore(y_obs, y_fit,metric="meansquare"):
     """
     
-    TODO implement calculateFit
+
     """
     availfns = globals().copy()
     availfns.update(locals())
