@@ -1,7 +1,7 @@
 #%% Imports
 from utils import odict
 from parsing import FunctionParser
-from cascade import loadCascadeSettings
+from cascade import loadCascadeSettingsFunc, plotCascadeFunc
 
 
 import logging
@@ -57,8 +57,8 @@ class Settings(object):
         
         self.parser = FunctionParser(debug = False)      # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
                 
-        # Initialize all cascade and databook parameters for fresh import, via reset
-        self.resetCascade()
+#        # Initialize all cascade and databook parameters for fresh import, via reset
+#        self.resetCascade()
         
         # Settings for databooks / spreadsheets / workbooks / cascades:
         self.loadCascadeSettings(cascade_path)
@@ -104,54 +104,16 @@ class Settings(object):
         self.make_sheet_characs = True      # Tag for whether the default characteristics worksheet should be generated during databook creation.
         self.make_sheet_linkpars = True     # Tag for whether the default cascade parameters worksheet should be generated during databook creation.
 
-    
-                     
-    def plotCascade(self):
-        
-        import networkx as nx
-        
-        fig, ax = pl.subplots(figsize=(10,10))
-        G = nx.DiGraph()
-        plottable_nodes = [nid for nid in self.node_specs.keys() if 'tag_no_plot' not in self.node_specs[nid]]
-        plottable_links = [link for lid in self.links for link in self.links[lid] if (link[0] in plottable_nodes and link[1] in plottable_nodes)]
-        G.add_nodes_from(plottable_nodes)
-        G.add_edges_from(plottable_links)
-
-        # Use plot coordinates if stored and arrange the rest of the cascade out in a unit circle.
-        pos = {}
-        num_nodes = len(plottable_nodes)
-        k = 0
-        for node in plottable_nodes:
-            try: pos[node] = (self.node_specs[node]['coords'][0], self.node_specs[node]['coords'][1])
-            except: pos[node] = (np.sin(2.0*np.pi*k/num_nodes), np.cos(2.0*np.pi*k/num_nodes))
-            k += 1
-        
-        # Generate edge label dictionary with tags from spreadsheet.
-        el = {}
-        for par_name in self.linkpar_specs.keys():
-            if 'tag' in self.linkpar_specs[par_name]:
-                for link in self.links[self.linkpar_specs[par_name]['tag']]:
-                    el[link] = self.linkpar_specs[par_name]['tag']
-
-        nx.draw_networkx_nodes(G, pos, node_shape = 'o', nodelist = [x for x in G.nodes() if not 'junction' in self.node_specs[x].keys()], node_size = 1250, node_color = 'w')
-        nx.draw_networkx_nodes(G, pos, node_shape = 's', nodelist = [x for x in G.nodes() if 'junction' in self.node_specs[x].keys()], node_size = 750, node_color = 'w')
-        ax.axis('tight')
-        nx.draw_networkx_labels(G, pos)
-        nx.draw_networkx_edges(G, pos)
-#        nx.draw_networkx_edge_labels(G, pos, edge_labels = el, label_pos = 0.25, font_size = 14)
-        
-        [sp.set_visible(False) for sp in ax.spines.values()]
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.set_title('Cascade Schematic')
-        pl.show()
-
-
     def loadCascadeSettings(self, cascade_path):
         ''' Generates node and link settings based on cascade spreadsheet. '''
         self.resetCascade()
-        self = loadCascadeSettings(cascade_path, self)
+        loadCascadeSettingsFunc(cascade_path, settings = self)
         
+    def plotCascade(self):
+        ''' Plots cascade network. '''
+        plotCascadeFunc(settings = self)
+        
+
 
     def initCustomDatabookFramework(self):
         """

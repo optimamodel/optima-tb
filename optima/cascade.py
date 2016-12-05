@@ -8,13 +8,14 @@ logger = logging.getLogger(__name__)
 
 import xlrd
 import numpy as np
+import pylab as pl
 from copy import deepcopy as dcp
 
 
 
 #%% Function to convert a cascade workbook into a framework to store in project settings
 
-def loadCascadeSettings(cascade_path, settings):
+def loadCascadeSettingsFunc(cascade_path, settings):
     ''' Generates node and link settings based on cascade spreadsheet. 
     
     Note: at the moment, this function is intended to be called from settings.py, and takes in settings as a parameter, 
@@ -408,5 +409,47 @@ def loadCascadeSettings(cascade_path, settings):
     test_names = settings.linkpar_name_labels.keys() + settings.charac_name_labels.keys()
     if len(test_names) != len(set(test_names)):
         raise OptimaException('ERROR: Cascade workbook appears to have duplicate characteristic/parameter full names.')
-       
-    return settings
+    
+
+
+#%% Function to plot a cascade framework loaded into settings
+    
+def plotCascadeFunc(settings):
+    
+    import networkx as nx
+    
+    fig, ax = pl.subplots(figsize=(10,10))
+    G = nx.DiGraph()
+    plottable_nodes = [nid for nid in settings.node_specs.keys() if 'tag_no_plot' not in settings.node_specs[nid]]
+    plottable_links = [link for lid in settings.links for link in settings.links[lid] if (link[0] in plottable_nodes and link[1] in plottable_nodes)]
+    G.add_nodes_from(plottable_nodes)
+    G.add_edges_from(plottable_links)
+
+    # Use plot coordinates if stored and arrange the rest of the cascade out in a unit circle.
+    pos = {}
+    num_nodes = len(plottable_nodes)
+    k = 0
+    for node in plottable_nodes:
+        try: pos[node] = (settings.node_specs[node]['coords'][0], settings.node_specs[node]['coords'][1])
+        except: pos[node] = (np.sin(2.0*np.pi*k/num_nodes), np.cos(2.0*np.pi*k/num_nodes))
+        k += 1
+    
+    # Generate edge label dictionary with tags from spreadsheet.
+    el = {}
+    for par_name in settings.linkpar_specs.keys():
+        if 'tag' in settings.linkpar_specs[par_name]:
+            for link in settings.links[settings.linkpar_specs[par_name]['tag']]:
+                el[link] = settings.linkpar_specs[par_name]['tag']
+
+    nx.draw_networkx_nodes(G, pos, node_shape = 'o', nodelist = [x for x in G.nodes() if not 'junction' in settings.node_specs[x].keys()], node_size = 1250, node_color = 'w')
+    nx.draw_networkx_nodes(G, pos, node_shape = 's', nodelist = [x for x in G.nodes() if 'junction' in settings.node_specs[x].keys()], node_size = 750, node_color = 'w')
+    ax.axis('tight')
+    nx.draw_networkx_labels(G, pos)
+    nx.draw_networkx_edges(G, pos)
+#        nx.draw_networkx_edge_labels(G, pos, edge_labels = el, label_pos = 0.25, font_size = 14)
+    
+    [sp.set_visible(False) for sp in ax.spines.values()]
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_title('Cascade Schematic')
+    pl.show()
