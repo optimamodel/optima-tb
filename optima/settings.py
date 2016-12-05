@@ -22,6 +22,8 @@ VALIDATION_AVERT = 3
 DEFAULT_YFACTOR = 1.
 DO_NOT_SCALE = -1.
 
+TOLERANCE = 1e-9
+
 class Settings(object):
     '''
     An object for storing cascade metadata (loaded from a cascade workbook) and general defaults.
@@ -51,7 +53,7 @@ class Settings(object):
         self.tvec_dt = 1.0/4         # Default timestep for simulations.
         
         self.recursion_limit = 100      # Limit for recursive references, primarily used in avoiding circular references for definitions using dependencies.
-        self.fit_metric = 'meansquare'
+        self.fit_metric = 'wape'
         
         self.parser = FunctionParser(debug = False)      # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
                 

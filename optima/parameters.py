@@ -123,6 +123,22 @@ class ParameterSet(object):
                     self.transfers[trans_type][source].y[target] = data['transfers'][trans_type][source][target]['y']
                     self.transfers[trans_type][source].y_format[target] = data['transfers'][trans_type][source][target]['y_format']
                     self.transfers[trans_type][source].y_factor[target] = data['transfers'][trans_type][source][target]['y_factor']
-                    
+    
+    
+    def extract(self):
+        """
+        Extract parameters values into a list
+        """        
+        # TODO: extract vectors        
+        return np.arange(20)
+    
+    
+    def update(self,parlist):
+        """
+        Update parameters from a list of values
+        """
+        # TODO: update from vector list of parameters
+        pass
+    
     def __repr__(self, *args, **kwargs):
         return "ParameterSet: %s \npars: \n%s"%(self.name, self.pars) 
