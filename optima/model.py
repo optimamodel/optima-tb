@@ -1,7 +1,7 @@
 #%% Imports
 
 from utils import flattenDict, odict, OptimaException
-from validation import checkNegativePopulation, isDPopValid
+from validation import checkNegativePopulation
 import settings as project_settings
 from results import ResultSet
 
@@ -509,7 +509,9 @@ class Model(object):
         if ti_link < 0: ti_link = ti    # For the case where junctions are processed immediately after model initialisation.
         final_review = False
         
+        review_count = 0
         while not final_review:
+            if review_count > settings.recursion_limit: raise OptimaException('ERROR: Processing junctions (i.e. propagating contents onwards) for timestep %i is taking far too long. Infinite loop suspected.' % ti_link)
             final_review = True     # Assume that this is the final sweep through junctions to verify their emptiness.
             for pop in self.pops:
                 for junction_label in settings.junction_labels:
@@ -518,7 +520,7 @@ class Model(object):
                     if popsize < 0:     # NOTE: Hacky fix for negative values. Needs work in case of super-negatives.
                         comp.popsize[ti] = 0
                         popsize = 0
-                    if popsize > 1e-9:  # NOTE: Hard-coded tolerance. Bad.
+                    if popsize > project_settings.TOLERANCE:  # NOTE: Hard-coded tolerance. Bad.
                         final_review = False    # Outflows could propagate into other junctions requiring another review.
                         denom_val = sum(pop.links[lid].vals[ti_link] for lid in comp.outlink_ids)
                         if denom_val == 0: raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
@@ -527,6 +529,7 @@ class Model(object):
                             
                             comp.popsize[ti] -= popsize * link.vals[ti_link] / denom_val
                             pop.getComp(link.label_to).popsize[ti] += popsize * link.vals[ti_link] / denom_val
+            review_count += 1
 
 
 
