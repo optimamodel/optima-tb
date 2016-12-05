@@ -1,19 +1,19 @@
 #%% Imports
-from utils import flattenDict, odict, OptimaException
+from utils import odict
 from parsing import FunctionParser
-from databook import loadCascadeSettings
+from cascade import loadCascadeSettings
 
 
 import logging
 logger = logging.getLogger(__name__)
 
-import xlrd
 import pylab as pl
 import numpy as np
-from copy import deepcopy as dcp
+
 
 
 #%% Settings class (for data that is effectively static per epidemic context)
+
 VALIDATION_IGNORE = 0
 VALIDATION_WARN = 1
 VALIDATION_ERROR = 2
@@ -54,10 +54,10 @@ class Settings(object):
         self.fit_metric = 'meansquare'
         
         self.parser = FunctionParser(debug = False)      # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
-        
-        
+                
         # Initialize all cascade and databook parameters for fresh import, via reset
-        self.resetCascade()  
+        self.resetCascade()
+        
         # Settings for databooks / spreadsheets / workbooks / cascades:
         self.loadCascadeSettings(cascade_path)
         self.initCustomDatabookFramework()              # creates self.countrybook
