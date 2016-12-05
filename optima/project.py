@@ -51,7 +51,7 @@ class Project(object):
             self.settings.tvec_end = yearRange[1]
     
     
-    def runSim(self, parset_name = 'default', parameterset = None, plot = False):
+    def runSim(self, parset_name = 'default', parameterset = None, plot = False, debug = False):
         ''' Run model using a selected parset and store/return results. '''
         
         if len(self.parsets) < 1: raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
@@ -66,7 +66,7 @@ class Project(object):
         if plot:
             tp = tic()
             self.plotter.updateData(self.data)
-            self.plotter.plotProjectResults(results, outputs, sim_settings, self.settings.charac_specs, title = self.name.title())
+            self.plotter.plotProjectResults(results, outputs, sim_settings, self.settings.charac_specs, title = self.name.title(), debug = debug)
             toc(tp, label = 'plotting %s' % self.name)
         
         return results, outputs, sim_settings, robj

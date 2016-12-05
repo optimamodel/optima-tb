@@ -18,14 +18,14 @@ import pylab as pl
 tt = tic()
 
 proj = Project(name = 'test', cascade_path = '../data/cascade.xlsx')
-proj.makeSpreadsheet(databook_path = '../data/databook_test.xlsx', num_pops = 3, num_migrations = 2)
+proj.makeSpreadsheet(databook_path = '../data/databook-test.xlsx', num_pops = 3, num_migrations = 2)
 
 
-proj.loadSpreadsheet(databook_path = '../data/databook_test.xlsx')
+proj.loadSpreadsheet(databook_path = '../data/databook-test-mod.xlsx')
 proj.makeParset()
 
 # run and plot simulations
-r1,o1,s1,results = proj.runSim(plot = True)
+r1,o1,s1,results = proj.runSim(plot = True, debug = True)
 
 toc(tt, label = 'entire process')
 

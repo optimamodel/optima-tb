@@ -148,7 +148,7 @@ class Plotter():
         
         
     
-    def plotProjectResults(self,results,outputs,sim_settings,charac_specs,title=''):
+    def plotProjectResults(self,results,outputs,sim_settings,charac_specs,title='',debug=False):
         """
         Placeholder plotting function, originally located in project.py
         """
@@ -158,6 +158,9 @@ class Plotter():
         # List charac labels for those that were present in databook (i.e. could have cascade-provided defaults overwritten).
         label_list = [x for x in charac_specs.keys() if charac_specs[x]['databook_order'] >= 0]
         self.plotCompartment(results, outputs, sim_settings, charac_specs, title, outputIDs = label_list)
+        
+        if debug:
+            self.plotOutflows(results, sim_settings)
         
     def plotPopulation(self,results,outputs,sim_settings,charac_specs,title='',plotObservedData=True,saveFig=False):
         """ 
@@ -266,3 +269,57 @@ class Plotter():
             self.turnOffBorder()
             if saveFig:
                 fig.savefig('%sOutputs-%s.png' % (title, charac_specs[output_id]['name']))                    
+
+                
+    def plotOutflows(self, results, sim_settings, num_subplots = 5):
+        """ 
+        Visualise outflows for each compartment in each population as fractions of compartment size
+        """
+        
+        # NOTE: Hard coding is bad, but results/plots need a lot more refining before propagating stable reference.
+        num_links = len(results[0].links)
+        
+        colors = self.gridColorMap(num_links)          
+        legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':2}        
+
+        
+        
+        pid = 0
+        for pop in results:
+            cid = 0
+            for comp in pop.comps:
+                plot_id = cid % num_subplots
+                patch_labels = []
+                if plot_id == 0:
+                    fig, ax = pl.subplots(nrows = num_subplots, sharex = True)
+                    pl.suptitle('Population (%i): %s' % (pid, pop.label.title()))
+                    ax[num_subplots-1].set_xlabel('Year')
+                bottom = 0*sim_settings['tvec']
+                for link_id in comp.outlink_ids:
+                    extra = dcp(pl.nan_to_num(pop.links[link_id].vals))
+                    top = bottom + extra
+                    ax[plot_id].fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[link_id], alpha=1, lw=0)
+                    target_label = pop.comps[pop.links[link_id].index_to[1]].label
+                    target_pid = pop.links[link_id].index_to[0]
+                    if target_pid != pid: target_label += '(' + str(target_pid) + ')'
+                    patch_labels.append(target_label)
+                    ax[plot_id].plot((0, 0), (0, 0), color=colors[link_id], linewidth=10)
+                    bottom = dcp(top)
+                
+                ax[plot_id].set_ylabel(comp.label)
+                ax[plot_id].set_xlim((sim_settings['tvec'][0], sim_settings['tvec'][-1]))
+                ax[plot_id].set_ylim((0, max(top)))
+                box = ax[plot_id].get_position()
+                ax[plot_id].set_position([box.x0, box.y0, box.width*0.75, box.height])
+                ax[plot_id].legend(patch_labels,**legendsettings)
+
+                cid += 1
+            
+            while cid % num_subplots != 0:
+                plot_id = cid % num_subplots
+                box = ax[plot_id].get_position()
+                ax[plot_id].set_position([box.x0, box.y0, box.width*0.75, box.height])
+                cid += 1
+                
+                
+            pid += 1
