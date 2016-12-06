@@ -129,7 +129,7 @@ class ParameterSet(object):
     def __getMinMax(self,y_format):
         if y_format.lower() == 'fraction':
             return (0.,1.)
-        elif y_format.lower() == 'number':
+        elif y_format.lower() in ['number','proportion']:
             return (0.,None)
         else:
             raise OptimaException("Unknown y_format '%s' encountered while returning min-max bounds"%y_format)
