@@ -54,9 +54,13 @@ class Project(object):
     def runSim(self, parset_name = 'default', parameterset = None, plot = False):
         ''' Run model using a selected parset and store/return results. '''
         
-        if len(self.parsets) < 1: raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
-        try: parset = self.parsets[parset_name]
-        except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
+        if parameterset is not None:
+            parset = parameterset
+        elif len(self.parsets) < 1: 
+            raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
+        else:
+            try: parset = self.parsets[parset_name]
+            except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
 
         tm = tic()
         #results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
@@ -143,11 +147,13 @@ class Project(object):
             self.makeParset(name=old_parset_name)
         paramset = self.parsets[old_parset_name]
         
-        logger.info("About to run autofit on parameters using parameter set = %s"%old_parset_name) 
-        performAutofit(self,paramset)
-        
         if new_parset_name is None:
-            new_parset_name = "autofit" # TODO: check that autofit doesn't already exist; if so, add suffix
-        # TODO: save resulting parameters in new parset wih
+            # TODO: check that autofit doesn't already exist; if so, add suffix
+            new_parset_name = "autofit" 
+        
+        logger.info("About to run autofit on parameters using parameter set = %s"%old_parset_name)
+        new_parset = performAutofit(self,paramset,new_parset_name=new_parset_name)
+        logger.info("Created new parameter set '%s' using autofit"%new_parset_name)
+        self.parsets[new_parset_name] = new_parset
         
          
