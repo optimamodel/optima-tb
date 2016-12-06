@@ -74,6 +74,8 @@ class ParameterSet(object):
     
     def __init__(self, name='default'):
         self.name = name 
+        # TODO: for DK, define what difference is between pop_names and pop_labels, and when 
+        # each should be used
         self.pop_names = []         # List of population names.
         self.pop_labels = []        # List of population labels.
         self.pars = odict()
@@ -123,6 +125,70 @@ class ParameterSet(object):
                     self.transfers[trans_type][source].y[target] = data['transfers'][trans_type][source][target]['y']
                     self.transfers[trans_type][source].y_format[target] = data['transfers'][trans_type][source][target]['y_format']
                     self.transfers[trans_type][source].y_factor[target] = data['transfers'][trans_type][source][target]['y_factor']
-                    
+    
+    def __getMinMax(self,y_format):
+        if y_format.lower() == 'fraction':
+            return (0.,1.)
+        elif y_format.lower() == 'number':
+            return (0.,None)
+        else:
+            raise OptimaException("Unknown y_format '%s' encountered while returning min-max bounds"%y_format)
+    
+    
+    def extract(self,getMinMax=False):
+        """
+        Extract parameters values into a list
+        
+        Note that this method is expecting one y-value per parameter, and does 
+        not allow for time-varying parameters. 
+        
+        To avoid this, users should use the assumption value to specify values, or 
+        mark the 'Calibrate?' column in the cascade spreadsheet with "-1" (== settings.DO_NOT_SCALE value)
+        
+        If getMinMax=True, additionally returns the min and max values for each of the parameters returned.
+        This depends on their format.
+        """    
+        import settings 
+        
+        paramvec = [] # Not efficient - would prefer: np.zeros(len(self.pop_labels)*len(self.pars['cascade']))
+        minmax = []
+        index= 0
+        for pop_id in self.pop_labels:
+            for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+                
+                if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
+                    continue
+                #paramvec[index] = [self.pars['cascade'][j].y[pop_id]]
+                paramvec.append(self.pars['cascade'][j].y[pop_id])
+                if getMinMax:
+                    minmax.append(self.__getMinMax(self.pars['cascade'][j].y_format[pop_id]))
+                index+=1
+                
+        if getMinMax:
+            # Hmm, not a big fan of different return signatures for the one method ... 
+            return paramvec,minmax
+        return paramvec#[:index]
+    
+    
+    def update(self,paramvec):
+        """
+        Update parameters from a list of values
+        """
+        import settings
+        
+        index = 0
+        for (i,pop_id) in enumerate(self.pop_labels):
+            for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+                if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
+                    continue
+                self.pars['cascade'][j].y[pop_id] = paramvec[index]
+                index += 1
+                
+        logger.info("Updated ParameterSet %s with new values"%self.name)
+    
+    
     def __repr__(self, *args, **kwargs):
         return "ParameterSet: %s \npars: \n%s"%(self.name, self.pars) 
+    
+    
+    

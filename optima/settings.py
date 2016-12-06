@@ -22,6 +22,8 @@ VALIDATION_AVERT = 3
 DEFAULT_YFACTOR = 1.
 DO_NOT_SCALE = -1.
 
+TOLERANCE = 1e-9
+
 class Settings(object):
     '''
     An object for storing cascade metadata (loaded from a cascade workbook) and general defaults.
@@ -51,10 +53,14 @@ class Settings(object):
         self.tvec_dt = 1.0/4         # Default timestep for simulations.
         
         self.recursion_limit = 100      # Limit for recursive references, primarily used in avoiding circular references for definitions using dependencies.
-        self.fit_metric = 'meansquare'
+        self.fit_metric = 'wape'
         
         self.parser = FunctionParser(debug = False)      # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
-        
+
+        # separate autofit and optimization parameters so that can use the asd algorithm
+        # with different settings
+        self.autofit_params = self.resetCalibrationParameters()
+        self.optimization_params = self.resetCalibrationParameters()
         
         # Initialize all cascade and databook parameters for fresh import, via reset
         self.resetCascade()  
@@ -103,6 +109,23 @@ class Settings(object):
         self.make_sheet_linkpars = True     # Tag for whether the default cascade parameters worksheet should be generated during databook creation.
 
     
+    def resetCalibrationParameters(self):
+        """
+        Sets calibration parameters for use in ASD algorithm, 
+        which is used for autofitting the calibration and running optimizations
+        For full list of calibration parameters, see asd.py > asd() function signature.
+        """
+        calibration = odict()
+        calibration['stepsize'] = 0.1
+        calibration['MaxIter'] = 500
+        calibration['timelimit'] = 300. #seconds
+        
+        calibration['sinc'] = 1.5
+        calibration['sdec'] = 2.
+        calibration['fulloutput'] = False
+        
+        return calibration
+         
                      
     def plotCascade(self):
         
