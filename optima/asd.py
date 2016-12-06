@@ -3,10 +3,10 @@ logger = logging.getLogger(__name__)
 
 
 
-def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
-    pinitial=None, sinitial=None, absinitial=None, xmin=None, xmax=None, MaxRangeIter=1000,
-    MaxFunEvals=None, MaxIter=1e3, AbsTolFun=1e-6, RelTolFun=1e-2, TolX=None, StallIterLimit=100,
-    fulloutput=False, maxarraysize=1e6, timelimit=3600, stoppingfunc=None, randseed=None):
+def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None, 
+        sinc=2, sdec=2, pinc=2, pdec=2, pinitial=None, sinitial=None, absinitial=None, MaxRangeIter=1000,
+        MaxFunEvals=None, MaxIter=1e3, AbsTolFun=1e-6, RelTolFun=1e-2, TolX=None, StallIterLimit=100,
+        fulloutput=False, maxarraysize=1e6, timelimit=3600, stoppingfunc=None, randseed=None):
     """
     Optimization using the adaptive stochastic descent algorithm.
     
@@ -36,14 +36,14 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     # TODO : update documentation <-----------!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
       stepsize       {0.1}      -- Initial step size as a fraction of each parameter
+      xmin           {[]}       -- Min value allowed for each parameter  
+      xmax           {[]}       -- Max value allowed for each parameter 
       sinc           {2}        -- Step size learning rate (increase)
       sdec           {2}        -- Step size learning rate (decrease)
       pinc           {2}        -- Parameter selection learning rate (increase)
       pdec           {2}        -- Parameter selection learning rate (decrease)
       pinitial       {ones(2N)} -- Set initial parameter selection probabilities
       sinitial       {[]}       -- Set initial step sizes; if empty, calculated from stepsize instead
-      xmin           {[]}       -- Min value allowed for each parameter  
-      xmax           {[]}       -- Max value allowed for each parameter 
       MaxRangeIter   {1000}     -- Maximum number of iterations to calculate new parameter when out of range
       MaxFunEvals    {N*1e3}    -- Maximum number of function evaluations
       MaxIter        {1e3}      -- Maximum number of iterations (1 iteration = 1 function evaluation)

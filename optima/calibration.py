@@ -136,7 +136,7 @@ def _setRateCalibration(parset,value_dictionary,pop_label):
             parset.pars['cascade'][par_index].t[pop_label] = np.array([parset.pars['cascade'][par_index].t[pop_label][0]])
 
 
-def performAutofit(project,paramset,new_parset_name,maxiters=500,maxtime=None):
+def performAutofit(project,paramset,new_parset_name,**calibration_settings):
     """
     Run an autofit and save resulting parameterset
     
@@ -164,7 +164,7 @@ def performAutofit(project,paramset,new_parset_name,maxiters=500,maxtime=None):
         return score
     
     
-    parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, MaxIter=maxiters,stepsize=0.6,xmin=mins,xmax=maxs)
+    parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, xmin=mins,xmax=maxs,**calibration_settings)
     
     sample_param.update(parvecnew)
     sample_param.name = new_parset_name

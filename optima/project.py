@@ -152,7 +152,7 @@ class Project(object):
             new_parset_name = "autofit" 
         
         logger.info("About to run autofit on parameters using parameter set = %s"%old_parset_name)
-        new_parset = performAutofit(self,paramset,new_parset_name=new_parset_name)
+        new_parset = performAutofit(self,paramset,new_parset_name=new_parset_name,**self.settings.autofit_params)
         logger.info("Created new parameter set '%s' using autofit"%new_parset_name)
         self.parsets[new_parset_name] = new_parset
         

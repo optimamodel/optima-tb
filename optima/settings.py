@@ -56,7 +56,11 @@ class Settings(object):
         self.fit_metric = 'wape'
         
         self.parser = FunctionParser(debug = False)      # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
-        
+
+        # separate autofit and optimization parameters so that can use the asd algorithm
+        # with different settings
+        self.autofit_params = self.resetCalibrationParameters()
+        self.optimization_params = self.resetCalibrationParameters()
         
         # Initialize all cascade and databook parameters for fresh import, via reset
         self.resetCascade()  
@@ -105,6 +109,23 @@ class Settings(object):
         self.make_sheet_linkpars = True     # Tag for whether the default cascade parameters worksheet should be generated during databook creation.
 
     
+    def resetCalibrationParameters(self):
+        """
+        Sets calibration parameters for use in ASD algorithm, 
+        which is used for autofitting the calibration and running optimizations
+        For full list of calibration parameters, see asd.py > asd() function signature.
+        """
+        calibration = odict()
+        calibration['stepsize'] = 0.1
+        calibration['MaxIter'] = 500
+        calibration['timelimit'] = 300. #seconds
+        
+        calibration['sinc'] = 1.5
+        calibration['sdec'] = 2.
+        calibration['fulloutput'] = False
+        
+        return calibration
+         
                      
     def plotCascade(self):
         
