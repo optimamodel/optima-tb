@@ -135,10 +135,8 @@ def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None,
             elif (xmax is None) and (xmin is not None) and (newval >= xmin[par]):
                 inrange = 1
             elif (xmax is not None) and (xmin is not None) and (newval <= xmax[par]) and (newval >= xmin[par]):
-                #print "eee", xmin[par], newval, xmax[par]
                 inrange = 1
             else:
-                #print "ffff",xmin[par], newval, xmax[par]
                 p[choice] = p[choice]/pdec # decrease probability of picking this parameter again
                 steps[choice] = steps[choice]/sdec # decrease size of step for next time
                 

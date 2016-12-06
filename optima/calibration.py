@@ -142,9 +142,9 @@ def performAutofit(project,paramset,new_parset_name,**calibration_settings):
     
     Params:
         project
-        name        name of resulting parameterset
-        maxiters    max number of maximum iterations
-        maxtime
+        paramset
+        new_parset_name     name of resulting parameterset
+        calibration_settings
    
     """
     # setup:

@@ -139,8 +139,12 @@ class Project(object):
       
     def runAutofitCalibration(self,new_parset_name = None, old_parset_name="default"):
         """
+        Runs the autofitting calibration routine, as according to the parameter settings in the 
+        settings.autofit_params configuration.
         
-        TODO: implement changes with old and new parameter set name
+        Params:
+            new_parset_name    name to save the resulting autofit to
+            old_parset_name    name of the parset to use as a base. Default value="default"
         """
         
         if not old_parset_name in self.parsets.keys():
