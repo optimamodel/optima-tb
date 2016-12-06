@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Nov 29 13:12:24 2016
-
-@author: Lara
-"""
+#%% DJK System Hack
 
 import sys
 try:
@@ -11,6 +6,8 @@ try:
     sys.path.remove('d:\\work projects\\optima\\optima 2.0\\optima')
 except: pass
 sys.path.append('../optima')
+
+#%% Actual script
 
 from project import Project
 import pylab
@@ -24,8 +21,8 @@ proj.loadSpreadsheet(databook_path = './databook_belarus_template.xlsx')
 proj.makeParset()
 
 # run and plot simulations
-r1,o1,s1,results = proj.runSim(plot = True)
-# calculate a score for how good a fit the model is to the observed data 
-proj.calculateFit(results)
+r1, o1, s1, results1 = proj.runSim(parset_name = 'default', plot = True)
+proj.runAutofitCalibration(new_parset_name='bob')
+r2, o2, s2, results2 = proj.runSim(parset_name = 'autocalibrated', plot = True)
 
 pylab.show()
