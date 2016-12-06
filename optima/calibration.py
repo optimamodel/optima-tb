@@ -2,8 +2,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 from utils import OptimaException, tic, toc
+import settings
+import asd
+from parameters import ParameterSet
 
 import numpy as np
+from copy import deepcopy as dcp
 
 """
 
@@ -15,7 +19,7 @@ Calibration and sensitivity analysis
 def performSensitivityAnalysis(project,transmission,epsilon=0.05):
     """
     
-    
+    TODO: implement performSensitivityAnalysis
     """
     pass
 
@@ -31,7 +35,7 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
         if char not in obs_data.keys():
             logger.info("Results: could not extract characteristic datapoint values for characteristic '%s' as this does not appear in databook"%char)
             continue
-        logger.debug("calculating fit for char=%s"%char)
+        #logger.debug("calculating fit for char=%s"%char)
         for pop in pop_labels:
             y_obs = obs_data[char][pop]['y']
             t_obs = obs_data[char][pop]['t']
@@ -40,23 +44,31 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
             y_fit = sim_data[char][pop][t_indices]
             # calc and add to scores
             s = _calculateFitscore(y_obs, y_fit, metric)
-            logger.debug("--- calc fit score = %g"%s)
+            #logger.debug("--- calc fit score = %s"%' '.join("%.2f"%ii for ii in s))
             score.append(s)
     
-    return score
+    return np.concatenate(score).ravel()
+    
+def _getFitscoreFunc(metric):
+    """
+    
+    
+    """
+    availfns = globals().copy()
+    availfns.update(locals())
+    try:
+        return availfns.get('_calc_%s'%metric)
+    except:
+        raise NotImplementedError("No method associated with _calc_%s (calibration.py)"%metric)
+        
     
 def _calculateFitscore(y_obs, y_fit,metric="meansquare"):
     """
     
 
     """
-    availfns = globals().copy()
-    availfns.update(locals())
-    try:
-        return availfns.get('_calc_%s'%metric)(y_obs,y_fit)
-    except:
-        raise NotImplementedError("No method associated with _calc_%s (calibration.py)"%metric)
-
+    return _getFitscoreFunc(metric)(y_obs,y_fit)
+    
 
 def _calc_meansquare(y_obs,y_fit):
     """
@@ -65,6 +77,13 @@ def _calc_meansquare(y_obs,y_fit):
     Note: could also use implementation from sklearn in future ... 
     """
     return np.sqrt(((y_fit - y_obs) ** 2).mean())
+
+
+def _calc_wape(y_obs,y_fit):
+    """
+    Calculates the weighted absolute percentage error 
+    """
+    return abs(y_fit - y_obs) / (y_obs.mean() + settings.TOLERANCE)
 
 
 def _calc_R2(y_obs,y_fit):
@@ -105,8 +124,7 @@ def _setRateCalibration(parset,value_dictionary,pop_label):
     
     """
     
-    
-    # update the values for a given popuation
+    # update the values for a given population
     for k,v in value_dictionary.iteritems():
         par_index = parset.par_ids['cascade'][k]
         if isinstance(v,list):
@@ -118,46 +136,40 @@ def _setRateCalibration(parset,value_dictionary,pop_label):
             parset.pars['cascade'][par_index].t[pop_label] = np.array([parset.pars['cascade'][par_index].t[pop_label][0]])
 
 
-
-
-
-class Calibration():
+def performAutofit(project,paramset,new_parset_name,**calibration_settings):
     """
+    Run an autofit and save resulting parameterset
     
-    
+    Params:
+        project
+        paramset
+        new_parset_name     name of resulting parameterset
+        calibration_settings
+   
     """
+    # setup:
+    metric = project.settings.fit_metric
+    paramvec,minmax = paramset.extract(getMinMax=True)  # array representation of initial values for p0
+    mins, maxs = zip(*minmax)
+    sample_param = dcp(paramset)   # ParameterSet created just to be overwritten
+    sample_param.name = "calibrating"
     
-    def performAutofit(project,name=None,maxiters=1000,maxtime=None):
-        """
-        Run an autofit and save resulting parameterset
-        
-        Params:
-            project
-            name        name of resulting parameterset
-            maxiters    max number of maximum iterations
-            maxtime
-        
-        Currently, autofit is separated from loadAutofit to allow later interfacing to 
-        other FEs.  
-        
-        """
-        self.maxiters = maxiters
-        
-        loadAutofit(project)
-        autofit()
-    
-    def loadAutofit(project):
-        """
-        
-        TODO impement loading of autofit
-        """
-        pass
+    def objective_calc(p_est):
+        ''' Function used by ASD algorithm to run and evaluate fit of parameter set'''    
+        sample_param.update(p_est)
+        #results = project.runSim(parameterset = full_p_est)
+        _,_,_,results = project.runSim(parameterset = sample_param)
+        datapoints = results.getCharacteristicDatapoints()
+        score = calculateFitFunc(datapoints,results.t_observed_data,project.data['characs'],metric)
+        return score
     
     
-    def autofit():
-        """
+    parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, xmin=mins,xmax=maxs,**calibration_settings)
+    
+    sample_param.update(parvecnew)
+    sample_param.name = new_parset_name
+    
+    return sample_param
+    
         
-        TODO implement autofit
-        """
-        pass 
         

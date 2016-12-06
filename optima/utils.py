@@ -1,4 +1,6 @@
 #%% Imports
+import logging
+logger = logging.getLogger(__name__)
 
 from collections import OrderedDict
 from numpy import array
@@ -26,7 +28,7 @@ def toc(start=0, label='', sigfigs=3):
     elapsed = time() - start
     if label=='': base = 'Elapsed time: '
     else: base = 'Elapsed time for %s: ' % label
-    print(base + '%.*f s' % (sigfigs, elapsed))
+    logger.debug(base + '%.*f s' % (sigfigs, elapsed))
     return None
 
 

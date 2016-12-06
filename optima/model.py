@@ -292,7 +292,7 @@ class Model(object):
             if 'tag' in settings.linkpar_specs[par.label]:
                 tag = settings.linkpar_specs[par.label]['tag']                  # Map parameter label to link tag.
                 for pop_label in parset.pop_labels:
-                    for link_id in self.getPop(pop_label).link_ids[tag]:        # Map link tag to link id in ModelPop.            
+                    for link_id in self.getPop(pop_label).link_ids[tag]:        # Map link tag to link id in ModelPop.
                         self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_label)
                         self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
                         self.getPop(pop_label).links[link_id].scale_factor = par.y_factor[pop_label]
