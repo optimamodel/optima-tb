@@ -3,10 +3,10 @@ logger = logging.getLogger(__name__)
 
 
 
-def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
-    pinitial=None, sinitial=None, absinitial=None, xmin=None, xmax=None, MaxRangeIter=1000,
-    MaxFunEvals=None, MaxIter=1e3, AbsTolFun=1e-6, RelTolFun=1e-2, TolX=None, StallIterLimit=100,
-    fulloutput=False, maxarraysize=1e6, timelimit=3600, stoppingfunc=None, randseed=None):
+def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None, 
+        sinc=2, sdec=2, pinc=2, pdec=2, pinitial=None, sinitial=None, absinitial=None, MaxRangeIter=1000,
+        MaxFunEvals=None, MaxIter=1e3, AbsTolFun=1e-6, RelTolFun=1e-2, TolX=None, StallIterLimit=100,
+        fulloutput=False, maxarraysize=1e6, timelimit=3600, stoppingfunc=None, randseed=None):
     """
     Optimization using the adaptive stochastic descent algorithm.
     
@@ -36,14 +36,14 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     # TODO : update documentation <-----------!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
       stepsize       {0.1}      -- Initial step size as a fraction of each parameter
+      xmin           {[]}       -- Min value allowed for each parameter  
+      xmax           {[]}       -- Max value allowed for each parameter 
       sinc           {2}        -- Step size learning rate (increase)
       sdec           {2}        -- Step size learning rate (decrease)
       pinc           {2}        -- Parameter selection learning rate (increase)
       pdec           {2}        -- Parameter selection learning rate (decrease)
       pinitial       {ones(2N)} -- Set initial parameter selection probabilities
       sinitial       {[]}       -- Set initial step sizes; if empty, calculated from stepsize instead
-      xmin           {[]}       -- Min value allowed for each parameter  
-      xmax           {[]}       -- Max value allowed for each parameter 
       MaxRangeIter   {1000}     -- Maximum number of iterations to calculate new parameter when out of range
       MaxFunEvals    {N*1e3}    -- Maximum number of function evaluations
       MaxIter        {1e3}      -- Maximum number of iterations (1 iteration = 1 function evaluation)
@@ -75,12 +75,13 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     seed(randseed)
     
     # Initialization of required variables
-    nparams = 20
+    nparams = len(x)
+    #print "nparams for asd = ======", nparams
     p = ones(2*nparams)  # Set initial parameter selection probabilities -- uniform by default
     p = p/sum(p) # Normalize probabilities
     steps = ones(2*nparams)*stepsize
-    print "steps = ", steps
-    print "pi = ", p
+    #print "steps = ", steps
+    #print "pi = ", p
     # helper variables
     MaxFunEvals = 1000*nparams if MaxFunEvals == None else MaxFunEvals # Maximum number of function evaluations
     TolX = 1e-6 if TolX == None else TolX  # Minimum change in parameters
@@ -108,7 +109,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     offset = ' '*4 # Offset the print statements
     
     while True:
-        logger.debug(offset+'Iteration %i; elapsed %0.1f s; objective: --' % (count+1, time()-start))
+        logger.info(offset+'Iteration %i; elapsed %0.1f s; objective: --' % (count+1, time()-start))
         # Calculate next step
         count += 1 # On each iteration there are two function evaluations
         p = p/sum(p) # Normalize probabilities
@@ -121,11 +122,13 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
             par = mod(choice,nparams) # Which parameter was chosen
             pm = floor((choice)/nparams) # Plus or minus
             newval = x[par] + ((-1)**pm)*steps[choice] # Calculate the new parameter set
+            #print "oldval =", x[par] 
+            #print "newval =", newval
             if inner_count > MaxRangeIter: # f stuck due to x range limits, exit after 1000 iterations
                 newval = x[par]
                 #exitflag = -1
                 inrange = 1
-            elif (xmax is None) and (xmin is None): 
+            elif (xmax is None) and (xmin is None):
                 inrange = 1
             elif (xmin is None) and (xmax is not None) and (newval <= xmax[par]):
                 inrange = 1
@@ -136,7 +139,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
             else:
                 p[choice] = p[choice]/pdec # decrease probability of picking this parameter again
                 steps[choice] = steps[choice]/sdec # decrease size of step for next time
-
+                
         
         # Set up copies
         xnew = deepcopy(x) # Initialize the new parameter set
@@ -150,7 +153,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
         abserrorhistory[mod(count,StallIterLimit)] = max(0, fval-fvalnew) # Keep track of improvements in the error
         relerrorhistory[mod(count,StallIterLimit)] = max(0, fval/float(fvalnew)-1.0) # Keep track of improvements in the error  
         
-        logger.debug(offset+'step=%i choice=%s, par=%s, pm=%s, origval=%s, newval=%s, inrange=%s' % (count, choice, par, pm, x[par], xnew[par], inrange))
+        logger.info(offset+'step=%i choice=%s, par=%s, pm=%s, origval=%s, newval=%s, inrange=%s' % (count, choice, par, pm, x[par], xnew[par], inrange))
 
         # Check if this step was an improvement
         fvalold = sum(fval) # Store old fval
@@ -169,7 +172,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
             exitflag = -1
             logger.info('======== Objective function returned NaN, terminating ========')
             break
-        logger.debug(offset + 'Step %i (%0.1f s): %s (orig: %s | best:%s | new:%s | diff:%s | ratio:%0.5f)' % ((count, time()-start, flag)+multisigfig([fvalorig, fvalold, fvalnew, fvalnew-fvalold]) + (fvalnew/fvalold,)))
+        logger.info(offset + 'Step %i (%0.1f s): %s (orig: %s | best:%s | new:%s | diff:%s | ratio:%0.5f)' % ((count, time()-start, flag)+multisigfig([fvalorig, fvalold, fvalnew, fvalnew-fvalold]) + (fvalnew/fvalold,)))
         
         # Optionally store output information
         if fulloutput: # Include additional output structure
@@ -220,13 +223,13 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
             
     output = makeoutput()
     
-    
+    """
     # For debugging: check on variables 
     print p
     print steps
     print abserrorhistory
     print relerrorhistory
-    
+    """
     return x, fval, exitflag, output
 
 

@@ -7,6 +7,7 @@ import asd
 from parameters import ParameterSet
 
 import numpy as np
+from copy import deepcopy as dcp
 
 """
 
@@ -18,7 +19,7 @@ Calibration and sensitivity analysis
 def performSensitivityAnalysis(project,transmission,epsilon=0.05):
     """
     
-    
+    TODO: implement performSensitivityAnalysis
     """
     pass
 
@@ -34,7 +35,7 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
         if char not in obs_data.keys():
             logger.info("Results: could not extract characteristic datapoint values for characteristic '%s' as this does not appear in databook"%char)
             continue
-        logger.debug("calculating fit for char=%s"%char)
+        #logger.debug("calculating fit for char=%s"%char)
         for pop in pop_labels:
             y_obs = obs_data[char][pop]['y']
             t_obs = obs_data[char][pop]['t']
@@ -43,10 +44,10 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
             y_fit = sim_data[char][pop][t_indices]
             # calc and add to scores
             s = _calculateFitscore(y_obs, y_fit, metric)
-            logger.debug("--- calc fit score = %s"%' '.join("%.2f"%ii for ii in s))
+            #logger.debug("--- calc fit score = %s"%' '.join("%.2f"%ii for ii in s))
             score.append(s)
     
-    return score
+    return np.concatenate(score).ravel()
     
 def _getFitscoreFunc(metric):
     """
@@ -123,8 +124,7 @@ def _setRateCalibration(parset,value_dictionary,pop_label):
     
     """
     
-    
-    # update the values for a given popuation
+    # update the values for a given population
     for k,v in value_dictionary.iteritems():
         par_index = parset.par_ids['cascade'][k]
         if isinstance(v,list):
@@ -136,24 +136,23 @@ def _setRateCalibration(parset,value_dictionary,pop_label):
             parset.pars['cascade'][par_index].t[pop_label] = np.array([parset.pars['cascade'][par_index].t[pop_label][0]])
 
 
-def performAutofit(project,paramset,new_parset_name=None,maxiters=2,maxtime=None):
+def performAutofit(project,paramset,new_parset_name,**calibration_settings):
     """
     Run an autofit and save resulting parameterset
     
     Params:
         project
-        name        name of resulting parameterset
-        maxiters    max number of maximum iterations
-        maxtime
-    
-    Currently, autofit is separated from loadAutofit to allow later interfacing to 
-    other FEs.  
-    
+        paramset
+        new_parset_name     name of resulting parameterset
+        calibration_settings
+   
     """
     # setup:
     metric = project.settings.fit_metric
-    paramvec = paramset.extract()  # array representation of initial values for p0
-    sample_param = ParameterSet()  # ParameterSet created just to be overwritten
+    paramvec,minmax = paramset.extract(getMinMax=True)  # array representation of initial values for p0
+    mins, maxs = zip(*minmax)
+    sample_param = dcp(paramset)   # ParameterSet created just to be overwritten
+    sample_param.name = "calibrating"
     
     def objective_calc(p_est):
         ''' Function used by ASD algorithm to run and evaluate fit of parameter set'''    
@@ -165,8 +164,12 @@ def performAutofit(project,paramset,new_parset_name=None,maxiters=2,maxtime=None
         return score
     
     
-    parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, MaxIter=maxiters)
-    # TODO: set parvecnew --> proper parameter set with new name
+    parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, xmin=mins,xmax=maxs,**calibration_settings)
+    
+    sample_param.update(parvecnew)
+    sample_param.name = new_parset_name
+    
+    return sample_param
     
         
         
