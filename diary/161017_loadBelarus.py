@@ -20,7 +20,7 @@ proj.loadSpreadsheet(databook_path = './Belarus-cascade-data.xlsx')
 
 proj.makeParset()
 print proj.data
-r1, o1 = proj.runSim(plot=True)
+r1 = proj.runSim(plot=True)
 
 pylab.show()
 

@@ -25,7 +25,7 @@ proj.loadSpreadsheet(databook_path = '../data/databook-test.xlsx')
 proj.makeParset()
 
 # run and plot simulations
-r1,o1,s1,results = proj.runSim(plot = True, debug = True)
+results = proj.runSim(plot = True, debug = True)
 
 toc(tt, label = 'entire process')
 

@@ -124,6 +124,7 @@ def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None,
             newval = x[par] + ((-1)**pm)*steps[choice] # Calculate the new parameter set
             #print "oldval =", x[par] 
             #print "newval =", newval
+            
             if inner_count > MaxRangeIter: # f stuck due to x range limits, exit after 1000 iterations
                 newval = x[par]
                 #exitflag = -1

@@ -148,16 +148,21 @@ class Plotter():
         
         
     
-    def plotProjectResults(self,results,outputs,sim_settings,charac_specs,title='',debug=False):
+    def plotProjectResults(self,results,charac_specs,title='',debug=False):
         """
         Placeholder plotting function, originally located in project.py
         """
         pl.close("all") 
-        self.plotPopulation(results, outputs, sim_settings, charac_specs, title)
+        
+        m_pops = results.m_pops
+        outputs = results.outputs
+        sim_settings = results.sim_settings
+        
+        self.plotPopulation(m_pops, outputs, sim_settings, charac_specs, title)
         
         # List charac labels for those that were present in databook (i.e. could have cascade-provided defaults overwritten).
         label_list = [x for x in charac_specs.keys() if charac_specs[x]['databook_order'] >= 0]
-        self.plotCompartment(results, outputs, sim_settings, charac_specs, title, outputIDs = label_list)
+        self.plotCompartment(m_pops, outputs, sim_settings, charac_specs, title, outputIDs = label_list)
         
         if debug:
             self.plotOutflows(results, sim_settings)

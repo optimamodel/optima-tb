@@ -19,9 +19,9 @@ plot = True
 #plot=False
 
 
-databook = '../data/databook-simple-cascade-autocalibration.xlsx'
+databook = './data/databook-simple-cascade-autocalibration.xlsx'
   
-proj= Project(name = 'test-Belarus-simple', cascade_path = '../data/cascade-simple-calibration.xlsx')
+proj= Project(name = 'test-Belarus-simple', cascade_path = './data/cascade-simple-calibration.xlsx')
 proj.setYear([2000.,2030.],False) 
 
 """
@@ -37,7 +37,7 @@ proj.loadSpreadsheet(databook_path = databook)
  
 proj.makeParset()
 
-r1, o1,s1,results1 = proj.runSim(plot=plot)
-proj.runAutofitCalibration(new_parset_name='bob')
-r2, o2,s2,results2 = proj.runSim(parset_name='bob',plot=plot)
+results1 = proj.runSim(plot=plot)
+#proj.runAutofitCalibration(new_parset_name='bob')
+results2 = proj.runSim(parset_name='bob',plot=plot)
 pylab.show()

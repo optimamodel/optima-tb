@@ -170,9 +170,12 @@ class ParameterSet(object):
         return paramvec#[:index]
     
     
-    def update(self,paramvec):
+    def update(self,paramvec,yearvec=None,y_format_vec=None,y_factor_vec=None):
         """
         Update parameters from a list of values
+        
+        TODO: added yearvec,y_format_vec,y_factor_vec with intention that they can be used to fully update
+        the parameter set cascade parameter
         """
         import settings
         
@@ -181,6 +184,8 @@ class ParameterSet(object):
             for (j,casc_id) in enumerate(self.par_ids['cascade']): 
                 if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
                     continue
+                if len(self.pars['cascade'][j].y[pop_id]) != len(paramvec[index]):
+                    raise OptimaException("Could not update parameter set '%s' for pop=%s,cascade=%s as updated parameter has different length."%(self.name,pop_id,casc_id))
                 self.pars['cascade'][j].y[pop_id] = paramvec[index]
                 index += 1
                 
