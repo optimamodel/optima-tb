@@ -15,12 +15,12 @@ sys.path.append('../optima')
 from project import Project
 import pylab
 
-proj= Project(name = 'Belarus', cascade_path = './cascade_belarus.xlsx')
+proj= Project(name = 'Belarus', cascade_path = './cascade-belarus.xlsx')
 #proj.makeSpreadsheet(databook_path = './databook_belarus_template.xlsx', num_pops = 7, num_migrations = 3)
 
 
 
-proj.loadSpreadsheet(databook_path = './databook_belarus.xlsx')
+proj.loadSpreadsheet(databook_path = './databook-belarus.xlsx')
 proj.makeParset()
 
 # Run the autofit calibration process. ----------------------------
