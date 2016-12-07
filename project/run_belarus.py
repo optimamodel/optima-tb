@@ -17,7 +17,7 @@ proj.makeSpreadsheet(databook_path = './databook-belarus-template.xlsx', num_pop
 
 
 
-proj.loadSpreadsheet(databook_path = './databook-belarus-template.xlsx')
+proj.loadSpreadsheet(databook_path = './databook-belarus.xlsx')
 proj.makeParset(name = 'default')
 
 # run and plot simulations
