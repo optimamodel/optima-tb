@@ -64,16 +64,16 @@ class Project(object):
 
         tm = tic()
         #results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
-        robj, results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
+        results = runModel(settings = self.settings, parset = parset)
         toc(tm, label = 'running %s model' % self.name)
         
         if plot:
             tp = tic()
             self.plotter.updateData(self.data)
-            self.plotter.plotProjectResults(results, outputs, sim_settings, self.settings.charac_specs, title = self.name.title())
+            self.plotter.plotProjectResults(results, self.settings.charac_specs, title = self.name.title())
             toc(tp, label = 'plotting %s' % self.name)
         
-        return results, outputs, sim_settings, robj
+        return results
         
     
     def makeSpreadsheet(self, databook_path = None, num_pops = 5, num_migrations = 2):

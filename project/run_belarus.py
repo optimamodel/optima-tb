@@ -24,7 +24,7 @@ proj.loadSpreadsheet(databook_path = './databook_belarus.xlsx')
 proj.makeParset()
 
 # run and plot simulations
-r1,o1,s1,results = proj.runSim(plot = True)
+results = proj.runSim(plot = True)
 # calculate a score for how good a fit the model is to the observed data 
 proj.calculateFit(results)
 

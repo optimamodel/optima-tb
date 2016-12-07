@@ -160,8 +160,7 @@ def performAutofit(project,paramset,new_parset_name,**calibration_settings):
     def objective_calc(p_est):
         ''' Function used by ASD algorithm to run and evaluate fit of parameter set'''    
         sample_param.update(p_est)
-        #results = project.runSim(parameterset = full_p_est)
-        _,_,_,results = project.runSim(parameterset = sample_param)
+        results = project.runSim(parameterset = sample_param)
         datapoints = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,project.data['characs'],metric)
         return score

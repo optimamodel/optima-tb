@@ -10,7 +10,7 @@ Aim: test and validation that implementation of births
 
 num_pop = 2
 plot = True
-plot=False
+#plot=False
 
 
 databook = './data/databook-simple-cascade-calibration.xlsx'
@@ -31,7 +31,7 @@ proj.loadSpreadsheet(databook_path = databook)
  
 proj.makeParset()
 #print proj.data
-r1, o1,s1,results1 = proj.runSim(plot=plot)
+results1 = proj.runSim(plot=plot)
 proj.calculateFit(results1)
 
 
@@ -48,6 +48,6 @@ rate_dict = {'Pop1' : dict_change_params,
 
 pname2='testCalib'
 proj.makeManualCalibration(pname2,rate_dict)
-r2,o2,s2,results = proj.runSim(parset_name=pname2,plot=plot)
+results = proj.runSim(parset_name=pname2,plot=plot)
 proj.calculateFit(results)
 pylab.show()
