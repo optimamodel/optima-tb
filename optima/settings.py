@@ -1,19 +1,19 @@
 #%% Imports
-from utils import flattenDict, odict, OptimaException
+from utils import odict
 from parsing import FunctionParser
-from databook import loadCascadeSettings
+from cascade import loadCascadeSettingsFunc, plotCascadeFunc
 
 
 import logging
 logger = logging.getLogger(__name__)
 
-import xlrd
 import pylab as pl
 import numpy as np
-from copy import deepcopy as dcp
+
 
 
 #%% Settings class (for data that is effectively static per epidemic context)
+
 VALIDATION_IGNORE = 0
 VALIDATION_WARN = 1
 VALIDATION_ERROR = 2
@@ -21,6 +21,8 @@ VALIDATION_AVERT = 3
 
 DEFAULT_YFACTOR = 1.
 DO_NOT_SCALE = -1.
+
+TOLERANCE = 1e-9
 
 class Settings(object):
     '''
@@ -51,17 +53,19 @@ class Settings(object):
         self.tvec_dt = 1.0/4         # Default timestep for simulations.
         
         self.recursion_limit = 100      # Limit for recursive references, primarily used in avoiding circular references for definitions using dependencies.
-        self.fit_metric = 'meansquare'
+        self.fit_metric = 'wape'
         
         self.parser = FunctionParser(debug = False)      # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
+
+        # Separate autofit and optimization parameters so that can use the asd algorithm
+        # with different settings.
+        self.autofit_params = self.resetCalibrationParameters()
+        self.optimization_params = self.resetCalibrationParameters()
         
-        
-        # Initialize all cascade and databook parameters for fresh import, via reset
-        self.resetCascade()  
         # Settings for databooks / spreadsheets / workbooks / cascades:
         self.loadCascadeSettings(cascade_path)
-        self.initCustomDatabookFramework()              # creates self.countrybook
-                                                        # NOTE: databook will hopefully one day be capable of replicating countrybook, making the two different
+        self.initCustomDatabookFramework()              # Creates self.countrybook.
+                                                        # NOTE: Databook will hopefully one day be capable of replicating countrybook, making the two different
                                                         # unnecessary.
                                                          
         logging.info("Created settings based on cascade: %s"%cascade_path)
@@ -101,55 +105,34 @@ class Settings(object):
         self.databook['custom_sheet_names'] = odict()
         self.make_sheet_characs = True      # Tag for whether the default characteristics worksheet should be generated during databook creation.
         self.make_sheet_linkpars = True     # Tag for whether the default cascade parameters worksheet should be generated during databook creation.
-
     
-                     
-    def plotCascade(self):
+    def resetCalibrationParameters(self):
+        """
+        Sets calibration parameters for use in ASD algorithm, 
+        which is used for autofitting the calibration and running optimizations
+        For full list of calibration parameters, see asd.py > asd() function signature.
+        """
+        calibration = odict()
+        calibration['stepsize'] = 0.1
+        calibration['MaxIter'] = 500
+        calibration['timelimit'] = 300.     # Time in seconds.
         
-        import networkx as nx
+        calibration['sinc'] = 1.5
+        calibration['sdec'] = 2.
+        calibration['fulloutput'] = False
         
-        fig, ax = pl.subplots(figsize=(10,10))
-        G = nx.DiGraph()
-        plottable_nodes = [nid for nid in self.node_specs.keys() if 'tag_no_plot' not in self.node_specs[nid]]
-        plottable_links = [link for lid in self.links for link in self.links[lid] if (link[0] in plottable_nodes and link[1] in plottable_nodes)]
-        G.add_nodes_from(plottable_nodes)
-        G.add_edges_from(plottable_links)
-
-        # Use plot coordinates if stored and arrange the rest of the cascade out in a unit circle.
-        pos = {}
-        num_nodes = len(plottable_nodes)
-        k = 0
-        for node in plottable_nodes:
-            try: pos[node] = (self.node_specs[node]['coords'][0], self.node_specs[node]['coords'][1])
-            except: pos[node] = (np.sin(2.0*np.pi*k/num_nodes), np.cos(2.0*np.pi*k/num_nodes))
-            k += 1
-        
-        # Generate edge label dictionary with tags from spreadsheet.
-        el = {}
-        for par_name in self.linkpar_specs.keys():
-            if 'tag' in self.linkpar_specs[par_name]:
-                for link in self.links[self.linkpar_specs[par_name]['tag']]:
-                    el[link] = self.linkpar_specs[par_name]['tag']
-
-        nx.draw_networkx_nodes(G, pos, node_shape = 'o', nodelist = [x for x in G.nodes() if not 'junction' in self.node_specs[x].keys()], node_size = 1250, node_color = 'w')
-        nx.draw_networkx_nodes(G, pos, node_shape = 's', nodelist = [x for x in G.nodes() if 'junction' in self.node_specs[x].keys()], node_size = 750, node_color = 'w')
-        ax.axis('tight')
-        nx.draw_networkx_labels(G, pos)
-        nx.draw_networkx_edges(G, pos)
-#        nx.draw_networkx_edge_labels(G, pos, edge_labels = el, label_pos = 0.25, font_size = 14)
-        
-        [sp.set_visible(False) for sp in ax.spines.values()]
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.set_title('Cascade Schematic')
-        pl.show()
-
+        return calibration
 
     def loadCascadeSettings(self, cascade_path):
         ''' Generates node and link settings based on cascade spreadsheet. '''
         self.resetCascade()
-        self = loadCascadeSettings(cascade_path, self)
+        loadCascadeSettingsFunc(cascade_path, settings = self)
         
+    def plotCascade(self):
+        ''' Plots cascade network. '''
+        plotCascadeFunc(settings = self)
+        
+
 
     def initCustomDatabookFramework(self):
         """

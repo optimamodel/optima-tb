@@ -22,7 +22,7 @@ tt = tic()
 #tp1 = tic()
 #p1.makeParset()
 #toc(tp1, label = 'making parset for %s' % p1.name)
-#r1, o1 = p1.runSim()
+#r1 = p1.runSim()
 
 ts2 = tic()
 p2 = Project(name = 'standard-test')
@@ -37,7 +37,7 @@ toc(tspl2, label = 'loading %s spreadsheet' % p2.name)
 tp2 = tic()
 p2.makeParset()
 toc(tp2, label = 'making parset for %s' % p2.name)
-r2, o2 = p2.runSim(plot = True)
+r2 = p2.runSim(plot = True)
 
 toc(tt, label = 'entire process')
 
@@ -51,7 +51,7 @@ toc(tt, label = 'entire process')
 #t_make = tic()
 #p.makeParset()
 #toc(t_make, label = 'making parset for %s' % p.name)
-#r, o = p.runSim()
+#r = p.runSim()
 #
 #invdt = int(1/p.settings.tvec_dt)
 #dpop = 1 - o['alive'][0][invdt]/o['alive'][0][0]

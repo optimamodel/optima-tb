@@ -110,6 +110,7 @@ class ResultSet():
         @param comp_id: compartment id, either as single id or as list
                 
         """
+        pass
         
     
     

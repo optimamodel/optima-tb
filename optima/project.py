@@ -11,7 +11,7 @@ from settings import Settings
 from parameters import ParameterSet
 from plotting import Plotter
 from databook import makeSpreadsheetFunc, loadSpreadsheetFunc
-from calibration import makeManualCalibration, calculateFitFunc
+from calibration import makeManualCalibration, calculateFitFunc, performAutofit
 
 from uuid import uuid4 as uuid
 from numpy import max
@@ -51,25 +51,29 @@ class Project(object):
             self.settings.tvec_end = yearRange[1]
     
     
-    def runSim(self, parset_name = 'default', plot = False):
+    def runSim(self, parset_name = 'default', parameterset = None, plot = False, debug = False):
         ''' Run model using a selected parset and store/return results. '''
         
-        if len(self.parsets) < 1: raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
-        try: parset = self.parsets[parset_name]
-        except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
+        if parameterset is not None:
+            parset = parameterset
+        elif len(self.parsets) < 1: 
+            raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
+        else:
+            try: parset = self.parsets[parset_name]
+            except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
 
         tm = tic()
         #results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
-        robj, results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
+        results = runModel(settings = self.settings, parset = parset)
         toc(tm, label = 'running %s model' % self.name)
         
         if plot:
             tp = tic()
             self.plotter.updateData(self.data)
-            self.plotter.plotProjectResults(results, outputs, sim_settings, self.settings.charac_specs, title = self.name.title())
+            self.plotter.plotProjectResults(results,self.settings.charac_specs, title = self.name.title(), debug = debug)
             toc(tp, label = 'plotting %s' % self.name)
         
-        return results, outputs, sim_settings, robj
+        return results
         
     
     def makeSpreadsheet(self, databook_path = None, num_pops = 5, num_migrations = 2):
@@ -108,6 +112,7 @@ class Project(object):
         
         makeManualCalibration(paramset,rate_dict)
     
+    
     def calculateFit(self,results,metric=None):
         '''
         Calculates the score for the fit during manual calibration and prints to output. 
@@ -130,4 +135,29 @@ class Project(object):
         datapoints = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,self.data['characs'],metric)
         logger.info("Calculated scores for fit using %s: largest value=%.2f"%(metric,max(score)))
+      
+      
+    def runAutofitCalibration(self,new_parset_name = None, old_parset_name="default"):
+        """
+        Runs the autofitting calibration routine, as according to the parameter settings in the 
+        settings.autofit_params configuration.
         
+        Params:
+            new_parset_name    name to save the resulting autofit to
+            old_parset_name    name of the parset to use as a base. Default value="default"
+        """
+        
+        if not old_parset_name in self.parsets.keys():
+            self.makeParset(name=old_parset_name)
+        paramset = self.parsets[old_parset_name]
+        
+        if new_parset_name is None:
+            # TODO: check that autofit doesn't already exist; if so, add suffix
+            new_parset_name = "autofit" 
+        
+        logger.info("About to run autofit on parameters using parameter set = %s"%old_parset_name)
+        new_parset = performAutofit(self,paramset,new_parset_name=new_parset_name,**self.settings.autofit_params)
+        logger.info("Created new parameter set '%s' using autofit"%new_parset_name)
+        self.parsets[new_parset_name] = new_parset
+        
+         

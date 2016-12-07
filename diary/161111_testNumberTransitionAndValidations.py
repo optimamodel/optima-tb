@@ -31,7 +31,7 @@ def runSimpleCascade(validation_lvl):
      
     proj.makeParset()
     #print proj.data
-    r1, o1 = proj.runSim(plot=plot)
+    r1 = proj.runSim(plot=plot)
     
 
 
@@ -57,7 +57,7 @@ def runFullCascade(validation_lvl):
     ps = proj2.parsets[0]
     
     
-    r1, o1 = proj2.runSim(plot=plot) 
+    r1 = proj2.runSim(plot=plot) 
 
 
 for vlvl in ['ignore','avert','warn','error']:
