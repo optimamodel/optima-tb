@@ -165,7 +165,7 @@ class Plotter():
         self.plotCompartment(m_pops, outputs, sim_settings, charac_specs, title, outputIDs = label_list)
         
         if debug:
-            self.plotOutflows(results, sim_settings)
+            self.plotOutflows(m_pops, sim_settings)
         
     def plotPopulation(self,results,outputs,sim_settings,charac_specs,title='',plotObservedData=True,saveFig=False):
         """ 
