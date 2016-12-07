@@ -21,7 +21,7 @@ proj = Project(name = 'test', cascade_path = '../data/cascade.xlsx')
 proj.makeSpreadsheet(databook_path = '../data/databook-test.xlsx', num_pops = 3, num_migrations = 2)
 
 
-proj.loadSpreadsheet(databook_path = '../data/databook-test-mod.xlsx')
+proj.loadSpreadsheet(databook_path = '../data/databook-test.xlsx')
 proj.makeParset()
 
 # run and plot simulations

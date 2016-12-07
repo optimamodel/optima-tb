@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 import numpy as np
 from copy import deepcopy as dcp
+from collections import Counter
 
 
 
@@ -249,6 +250,7 @@ class Model(object):
             self.pop_ids[pop_label] = k
                     
         # Propagating initial characteristic parset values into ModelPops.
+        # NOTE: Extremely involved process, so might be worth extracting the next few paragraphs as a separate method.
         # First interpolate initial value for each relevant characteristic (i.e. one that has an entry point).
         # Maintaining definitional order (i.e. the order characteristics were defined in cascade workbook) is crucial.
         init_dict = odict()
@@ -272,18 +274,57 @@ class Model(object):
                 entry_point = settings.charac_specs[charac_label]['entry_point']
                 for pop_label in parset.pop_labels:
                     init_dict[charac_label][pop_label] *= init_dict[denom_label][pop_label]
+#        print init_dict
+#        print charac_for_entry
         
-        # One more loop to subtract out any included characteristics from each characteristic (e.g. susceptibles = total - infected).
+        # Then map each characteristic to those that include its entry point.
+        sub_dict = odict()
+        for charac_label in init_dict.keys():
+            entry_point = settings.charac_specs[charac_label]['entry_point']
+            flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = charac_label, sub_keys = ['includes'])
+            flat_list.remove(entry_point)
+            for include in flat_list:
+                if include in charac_for_entry.keys():
+                    if charac_for_entry[include] not in sub_dict.keys(): sub_dict[charac_for_entry[include]] = []
+                    sub_dict[charac_for_entry[include]].append(charac_label)
+#        print sub_dict
+                    
+        # Flatten the previous mapping and remove duplicates to determine the smallest sets that include the entry point of each characteristic.
+        # This process determines which values should be subtracted from which characteristics.
+        # For example, if a is a subgroup of b and c, but b is a subgroup of c, subtracting both a and b from c would b double-counting.
+        # In this example, b should be extracted from c and a should be extracted from b alone.
+        minus_dict = odict()
+        for charac_label in init_dict.keys():
+            try:
+                sub_list, key_list = flattenDict(input_dict = sub_dict, base_key = charac_label)
+            except:
+                sub_list = []
+                key_list = [charac_label]
+            combine_list = key_list + sub_list
+            combine_list.remove(charac_label)
+            minus_list = [k for k,v in Counter(combine_list).items() if v==1]
+            minus_dict[charac_label] = minus_list
+#        print minus_dict
+        
+        # Another loop to set compartment values.
         for charac_label in init_dict.keys():
             entry_point = settings.charac_specs[charac_label]['entry_point']
             for pop_label in parset.pop_labels:
                 val = init_dict[charac_label][pop_label]
-                flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = charac_label, sub_keys = ['includes'])
-                flat_list.remove(entry_point)
-                for include in flat_list:
-                    if include in charac_for_entry.keys():
-                        val -= init_dict[charac_for_entry[include]][pop_label]
                 self.getPop(pop_label).getComp(entry_point).popsize[0] = val
+        
+        # A final loop to apply the subtractions determined previously (e.g. susceptibles = total - infected).        
+        for minus_label in minus_dict.keys():
+            for charac_label in minus_dict[minus_label]:
+                entry_point = settings.charac_specs[charac_label]['entry_point']
+                for pop_label in parset.pop_labels:
+                    val = init_dict[minus_label][pop_label]
+                    self.getPop(pop_label).getComp(entry_point).popsize[0] -= val
+                    
+#        for charac_label in init_dict.keys():
+#            entry_point = settings.charac_specs[charac_label]['entry_point']
+#            print entry_point
+#            print self.getPop(pop_label).getComp(entry_point).popsize[0]
                     
         
         # Propagating cascade parameter parset values into ModelPops. Handle both 'tagged' links and 'untagged' dependencies.
