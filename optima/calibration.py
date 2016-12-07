@@ -150,6 +150,9 @@ def performAutofit(project,paramset,new_parset_name,**calibration_settings):
     # setup:
     metric = project.settings.fit_metric
     paramvec,minmax = paramset.extract(getMinMax=True)  # array representation of initial values for p0
+    if len(paramvec) == 0:
+        raise OptimaException("No available cascade parameters to calibrate during autofitting. Please set at least one 'Calibrate?' value to be not equal to %g"%settings.DO_NOT_SCALE)
+    
     mins, maxs = zip(*minmax)
     sample_param = dcp(paramset)   # ParameterSet created just to be overwritten
     sample_param.name = "calibrating"
