@@ -152,6 +152,7 @@ class ParameterSet(object):
         
         paramvec = [] # Not efficient - would prefer: np.zeros(len(self.pop_labels)*len(self.pars['cascade']))
         minmax = []
+        casc_labels = []
         index= 0
         for pop_id in self.pop_labels:
             for (j,casc_id) in enumerate(self.par_ids['cascade']): 
@@ -162,11 +163,12 @@ class ParameterSet(object):
                 paramvec.append(self.pars['cascade'][j].y[pop_id])
                 if getMinMax:
                     minmax.append(self.__getMinMax(self.pars['cascade'][j].y_format[pop_id]))
+                    casc_labels.append(casc_id)
                 index+=1
                 
         if getMinMax:
             # Hmm, not a big fan of different return signatures for the one method ... 
-            return paramvec,minmax
+            return paramvec,minmax,casc_labels
         return paramvec#[:index]
     
     

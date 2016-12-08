@@ -681,8 +681,8 @@ class Model(object):
                     else:
                         raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
                     
-                    outputs[cid][pop.label] /= vals
-        
+                    outputs[cid][pop.label] /= (vals+project_settings.TOLERANCE)
+                    
         return outputs
     
     def printModelState(self,ti):

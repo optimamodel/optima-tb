@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Nov 29 13:12:24 2016
-
-@author: Lara
-"""
+#%% DJK System Hack
 
 import sys
 try:
@@ -12,18 +7,23 @@ try:
 except: pass
 sys.path.append('../optima')
 
+#%% Actual script
+
 from project import Project
 import pylab
 
-proj= Project(name = 'Belarus', cascade_path = './cascade_belarus.xlsx')
-#proj.makeSpreadsheet(databook_path = './databook_belarus_template.xlsx', num_pops = 7, num_migrations = 3)
+proj = Project(name = 'Belarus', cascade_path = './cascade-belarus.xlsx', validation_level = 'avert')
+#proj.makeSpreadsheet(databook_path = './databook-belarus-template.xlsx', num_pops = 6, num_migrations = 2)
+
+#set the year range we simulate over as starting in 1995:
+#proj.setYear([1995,2030],False)
 
 
-
-proj.loadSpreadsheet(databook_path = './databook_belarus.xlsx')
-proj.makeParset()
+proj.loadSpreadsheet(databook_path = './databook-belarus.xlsx')
+proj.makeParset(name = 'default')
 
 # run and plot simulations
+
 results = proj.runSim(plot = True)
 # calculate a score for how good a fit the model is to the observed data 
 proj.calculateFit(results)

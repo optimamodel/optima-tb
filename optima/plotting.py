@@ -210,7 +210,7 @@ class Plotter():
             ax.set_xlabel('Year')
             ax.set_ylabel('People')
             ax.set_xlim((sim_settings['tvec'][0], sim_settings['tvec'][-1]))
-            ax.set_ylim((0, max(top)))
+            ax.set_ylim((0, max(top)*1.2))
             ax.legend(labels,**legendsettings)
             self.turnOffBorder()
             if saveFig:
