@@ -49,7 +49,8 @@ class ResultSet():
     def __init__(self,model,parset,settings):
         
         self.parset_name = parset.name
-
+        self.parset_id  = parset.uid
+        
         self.dt = settings.tvec_dt
         self.t_step = model.sim_settings['tvec']
         self.indices_observed_data = np.where(self.t_step%1.0==0)

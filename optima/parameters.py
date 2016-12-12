@@ -8,6 +8,8 @@ logger = logging.getLogger(__name__)
 
 from copy import deepcopy as dcp
 import numpy as np
+from uuid import uuid4 as uuid
+
 
 
 
@@ -74,6 +76,8 @@ class ParameterSet(object):
     
     def __init__(self, name='default'):
         self.name = name 
+        self.id   = uuid()
+    
         # TODO: for DK, define what difference is between pop_names and pop_labels, and when 
         # each should be used
         self.pop_names = []         # List of population names.
