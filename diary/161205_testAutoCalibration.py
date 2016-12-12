@@ -38,6 +38,6 @@ proj.loadSpreadsheet(databook_path = databook)
 proj.makeParset()
 
 results1 = proj.runSim(plot=plot)
-#proj.runAutofitCalibration(new_parset_name='bob')
+proj.runAutofitCalibration(new_parset_name='bob')
 results2 = proj.runSim(parset_name='bob',plot=plot)
 pylab.show()
