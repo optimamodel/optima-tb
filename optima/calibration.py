@@ -1,7 +1,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from utils import OptimaException, tic, toc
+from utils import OptimaException, tic, toc, odict
 import settings
 import asd
 from parameters import ParameterSet
@@ -33,7 +33,7 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
     
     for char in char_labels:
         if char not in obs_data.keys():
-            logger.info("Results: could not extract characteristic datapoint values for characteristic '%s' as this does not appear in databook"%char)
+            logger.debug("Results: could not extract characteristic datapoint values for characteristic '%s' as this does not appear in databook"%char)
             continue
         #logger.debug("calculating fit for char=%s"%char)
         for pop in pop_labels:
@@ -136,7 +136,7 @@ def _setRateCalibration(parset,value_dictionary,pop_label):
             parset.pars['cascade'][par_index].t[pop_label] = np.array([parset.pars['cascade'][par_index].t[pop_label][0]])
 
 
-def performAutofit(project,paramset,new_parset_name,**calibration_settings):
+def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibration_settings):
     """
     Run an autofit and save resulting parameterset
     
@@ -154,13 +154,26 @@ def performAutofit(project,paramset,new_parset_name,**calibration_settings):
     sample_param = dcp(paramset)   # ParameterSet created just to be overwritten
     sample_param.name = "calibrating"
     
+    if target_characs is None: 
+        # if no targets characteristics are supplied, then we autofit to all characteristics 
+        target_data_characs = project.data['characs']
+        print target_data_characs
+        logger.info("Autofit: fitting to all characteristics")
+    else:
+        target_data_characs = odict()
+        for k in target_characs:
+            target_data_characs[k] = project.data['characs'][k]
+        print target_data_characs
+        logger.info("Autofit: fitting to the following target characteristics =[%s]"%(",".join(target_characs)))
+    
+    
     def objective_calc(p_est):
         ''' Function used by ASD algorithm to run and evaluate fit of parameter set'''    
         sample_param.update(p_est)
         #results = project.runSim(parameterset = full_p_est)
         _,_,_,results = project.runSim(parameterset = sample_param)
         datapoints = results.getCharacteristicDatapoints()
-        score = calculateFitFunc(datapoints,results.t_observed_data,project.data['characs'],metric)
+        score = calculateFitFunc(datapoints,results.t_observed_data,target_data_characs,metric)
         return score
     
     
