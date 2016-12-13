@@ -287,7 +287,7 @@ class Model(object):
                 if include in charac_for_entry.keys():
                     if charac_for_entry[include] not in sub_dict.keys(): sub_dict[charac_for_entry[include]] = []
                     sub_dict[charac_for_entry[include]].append(charac_label)
-#        print sub_dict
+        print sub_dict
                     
         # Flatten the previous mapping and remove duplicates to determine the smallest sets that include the entry point of each characteristic.
         # This process determines which values should be subtracted from which characteristics.
@@ -304,7 +304,7 @@ class Model(object):
             combine_list.remove(charac_label)
             minus_list = [k for k,v in Counter(combine_list).items() if v==1]
             minus_dict[charac_label] = minus_list
-#        print minus_dict
+        print minus_dict
         
         # Another loop to set compartment values.
         for charac_label in init_dict.keys():
@@ -320,11 +320,15 @@ class Model(object):
                 for pop_label in parset.pop_labels:
                     val = init_dict[minus_label][pop_label]
                     self.getPop(pop_label).getComp(entry_point).popsize[0] -= val
-                    
-#        for charac_label in init_dict.keys():
-#            entry_point = settings.charac_specs[charac_label]['entry_point']
-#            print entry_point
-#            print self.getPop(pop_label).getComp(entry_point).popsize[0]
+        
+        # Validation for negative-valued intialisations
+        for charac_label in init_dict.keys():
+            entry_point = settings.charac_specs[charac_label]['entry_point']
+            val = self.getPop(pop_label).getComp(entry_point).popsize[0]
+            print entry_point
+            print val
+            if self.getPop(pop_label).getComp(entry_point).popsize[0] < 0.:
+                raise OptimaException('ERROR: Initial value calculated for compartment "%s" is %f. Review and make sure superset characteristics have at least as many people as their subsets.' % (entry_point, val))
                     
         
         # Propagating cascade parameter parset values into ModelPops. Handle both 'tagged' links and 'untagged' dependencies.
@@ -561,7 +565,7 @@ class Model(object):
                     if popsize < 0:     # NOTE: Hacky fix for negative values. Needs work in case of super-negatives.
                         comp.popsize[ti] = 0
                         popsize = 0
-                    if popsize > project_settings.TOLERANCE:  # NOTE: Hard-coded tolerance. Bad.
+                    if popsize > project_settings.TOLERANCE:
                         final_review = False    # Outflows could propagate into other junctions requiring another review.
                         denom_val = sum(pop.links[lid].vals[ti_link] for lid in comp.outlink_ids)
                         if denom_val == 0: raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)

@@ -138,7 +138,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     ws_pops_width = 15
     ws_transmat_width = 15
     ws_transval_width = 15
-    name_width = 40
+    name_width = 60
     assumption_width = 10
     
     #%% Population names sheet.
@@ -217,6 +217,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     all_specs.update(settings.linkpar_specs)
     specs_ordered = sorted(dcp(all_specs.keys()), key=lambda x: all_specs[x]['databook_order'])
     for def_label in specs_ordered:
+        opt_suffix = ''     # A tag at the end of characteristic/parameter label to indicate something about it in the databook.
         if not all_specs[def_label]['databook_order'] < 0:      # Do not print out characteristic/parameter if databook order is negative.        
             ws = ws_params[all_specs[def_label]['sheet_label']]['ws']
             row_id = ws_params[all_specs[def_label]['sheet_label']]['row_id']            
@@ -229,11 +230,16 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
             # Make the data-entry blocks.
             # First handle 'count' and 'percentage' characteristics, as well as transitions for junctions.
             if def_label in settings.charac_specs.keys():
+                if 'entry_point' in settings.charac_specs[def_label]:
+                    opt_suffix = settings.databook['suffix']['seed']
+                else:
+                    opt_suffix = settings.databook['suffix']['output']
                 if 'plot_percentage' in all_specs[def_label]:
                     data_formats = ['Fraction']
                 else:
                     data_formats = ['Number']
             elif def_label in settings.linkpar_specs.keys():
+                opt_suffix = settings.databook['suffix']['par']
                 data_formats = None
                 if 'tag' in settings.linkpar_specs[def_label]:
                     for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
@@ -242,7 +248,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
             makeValueEntryArrayBlock(worksheet = ws, at_row = row_id, at_col = 1, num_arrays = num_pops, tvec = data_tvec, assumption = default_val, data_formats = data_formats)
             
             # Make the population references.
-            ws.write(row_id, 0, def_name)
+            ws.write(row_id, 0, def_name + opt_suffix)
             for pid in xrange(num_pops):
                 row_id += 1
                 ws.write(row_id, 0, pop_names_formula[pid], None, pop_names_default[pid])
@@ -412,6 +418,9 @@ def loadSpreadsheetFunc(settings, databook_path):
                 current_def_name = None
                 pop_id = 0
             elif current_def_name is None:
+                for suffix in settings.databook['suffix'].values():     # Remove any optional suffixes. NOTE: Might need validation in cascade sheet in case somebody uses those suffixes.
+                    if val.endswith(suffix):
+                        val = val[:-len(suffix)]
                 current_def_name = val
                 current_def_label = name_to_label[val]
                 if current_def_label in settings.charac_specs.keys():
