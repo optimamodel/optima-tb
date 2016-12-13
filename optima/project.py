@@ -8,7 +8,7 @@ logger = logging.getLogger()
 from utils import tic, toc, odict, OptimaException
 from model import runModel
 from settings import Settings
-from parameters import ParameterSet
+from parameters import ParameterSet, export_paramset, load_paramset
 from plotting import Plotter
 from databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from calibration import makeManualCalibration, calculateFitFunc, performAutofit
@@ -101,6 +101,26 @@ class Project(object):
         self.parsets[name] = ParameterSet(name = name)
         self.parsets[name].makePars(self.data)
         
+    def exportParset(self,parset_name):
+        ''' Exports parset to .csv file '''
+        if not parset_name in self.parsets.keys():
+            raise OptimaException("ERROR: no parameter set '%s' found"%parset_name)
+        export_paramset(self.parsets[parset_name])
+        
+    def importParset(self,parset_filename,new_name=None):
+        ''' Imports parameter set from .csv file '''
+        paramset = load_paramset(parset_filename)
+        if new_name is None:
+            new_name = paramset.name
+        else:
+            paramset.name = new_name
+            
+        if not new_name in self.parsets.keys():
+            logger.info("Imported new parameter set: %s"%new_name)
+        else:
+            logger.info("Imported and overwriting parameter set: %s"%new_name)
+        self.parsets[new_name] = paramset
+        
         
     def makeManualCalibration(self, parset_name, rate_dict):
         ''' Take in dictionary of updated values for rates that can be used for manual calibration
@@ -137,7 +157,7 @@ class Project(object):
         logger.info("Calculated scores for fit using %s: largest value=%.2f"%(metric,max(score)))
       
       
-    def runAutofitCalibration(self,new_parset_name = None, old_parset_name="default"):
+    def runAutofitCalibration(self,new_parset_name = None, old_parset_name="default", target_characs=None):
         """
         Runs the autofitting calibration routine, as according to the parameter settings in the 
         settings.autofit_params configuration.
@@ -156,7 +176,7 @@ class Project(object):
             new_parset_name = "autofit" 
         
         logger.info("About to run autofit on parameters using parameter set = %s"%old_parset_name)
-        new_parset = performAutofit(self,paramset,new_parset_name=new_parset_name,**self.settings.autofit_params)
+        new_parset = performAutofit(self,paramset,new_parset_name=new_parset_name,target_characs=target_characs,**self.settings.autofit_params)
         logger.info("Created new parameter set '%s' using autofit"%new_parset_name)
         self.parsets[new_parset_name] = new_parset
         

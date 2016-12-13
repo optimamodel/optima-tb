@@ -475,3 +475,28 @@ def loadSpreadsheetFunc(settings, databook_path):
                 
             
     return data
+
+
+def getEmptyData():
+    """
+    Create empty data structure, following structure returned in loadSpreadsheetFunc()
+    
+    This skeleton structure is used elsewhere within the framework, as 
+    
+    Clarification:
+        pops        population definitions, with name, label and ages
+        link_pars   inter-compartment (intra-population) transfer parameters 
+        characs     characteristics
+        transfers   inter-populations transfer parameters
+    """
+    data = odict()
+    data['pops'] = odict()
+    data['pops']['name_labels'] = odict()
+    data['pops']['label_names'] = odict()
+    
+    data['characs'] = odict()
+    data['transfers'] = odict()
+    data['linkpars'] = odict()
+    return data
+    
+    
