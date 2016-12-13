@@ -2,6 +2,7 @@
 
 from utils import odict, OptimaException
 from interpolation import interpolateFunc
+from databook import getEmptyData
 
 import logging
 logger = logging.getLogger(__name__)
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 from copy import deepcopy as dcp
 import numpy as np
 from uuid import uuid4 as uuid
-
+from csv import reader, writer
 
 
 
@@ -198,8 +199,168 @@ class ParameterSet(object):
         logger.info("Updated ParameterSet %s with new values"%self.name)
     
     
+    
     def __repr__(self, *args, **kwargs):
         return "ParameterSet: %s \npars: \n%s"%(self.name, self.pars) 
+
+
+def __read_block(csvdata,pops,index_start,index_end):
+    import itertools
+
+    datadict = odict()
     
+    c_label = None
+    p_label = None
+    y_format = None
+    y_factor = None
+    ts = []
+    ys = []
+    for i in range(index_start, index_end):
+        row = csvdata[i]
+        if len(row)!=2: # either a cascade label or population label
+            # clear out buffer from previous rows for the previous c_label and p_labels
+            if c_label is not None and p_label is not None:
+                datadict[c_label][p_label]['t'] = np.array(ts)
+                datadict[c_label][p_label]['y'] = np.array(ys)
+                datadict[c_label][p_label]['y_factor'] = y_factor
+                datadict[c_label][p_label]['y_format'] = y_format
+                p_label = None
+            # set up for next c_label or p_label
+            if len(row)==1: # and not row[0] in pops:
+                c_label = row[0]
+                datadict[c_label] = odict()
+            elif len(row)==3:
+                p_label = row[0]
+                y_format, y_factor = row[1:]
+                datadict[c_label][p_label] = odict()
+                ys = []
+                ts = []
+                
+        else:
+            ts.append(float(row[0]))
+            ys.append(float(row[1]))
+    # finish off and empty buffer: 
+    datadict[c_label][p_label]['t'] = np.array(ts)
+    datadict[c_label][p_label]['y'] = np.array(ys)
+    datadict[c_label][p_label]['y_factor'] = y_factor
+    datadict[c_label][p_label]['y_format'] = y_format
+    return datadict
+                
+
+def __write_block(csvwriter,datadict):
+    for cid in datadict:
+        csvwriter.writerow([cid.label])
+        for (p,tdata) in cid.t.iteritems():
+            csvwriter.writerow([p,cid.y_format[p],cid.y_factor[p]])
+            for (i,ti) in enumerate(tdata):
+                csvwriter.writerow([ti,cid.y[p][i]])
+         
+def export_paramset(parset):
+    """
+    Saves to file: <parset.name>.csv
     
+    Format:
+        Populations
+        label1,name1
+        label2,name2
+        Cascade
+        <casc_label1>
+        <Pop1>,<y_format>,<y_factor>
+        t1,y1
+        t2,y2
+        t3,y3
+        <Pop2>,<y_format>,<y_factor>
+        t1,y1
+        t2,y2
+        t3,y3
+        <casc_label2>
+        <Pop1>,<y_format>,<y_factor>
+        t1,y1
+        <Pop2>,<y_format>,<y_factor>
+        t1,y1
+        t2,y2
+        ...
+        Characteristic
+        <char_label1>
+        <Pop1>,<y_format>,<y_factor>
+        t1,y1
+        <Pop2>,<y_format>,<y_factor>
+        t1,y1
+        <char_label2>
+        <Pop1>,<y_format>,<y_factor>
+        t1,y1
+        <Pop2>,<y_format>,<y_factor>
+        t1,y1
+        ...
+    """
+    # setup writer
+    filename = parset.name + ".csv"
+    with open(filename, 'wb') as csvfile:
+        pswriter = writer(csvfile, delimiter=',')
+        # write populations
+        pswriter.writerow(['Populations'])
+        for (i,p) in enumerate(parset.pop_labels):
+            pswriter.writerow([p,parset.pop_names[i]])
+        # write cascade
+        pswriter.writerow(['Cascade'])
+        __write_block(pswriter, parset.pars['cascade'])
+        # write characteristics
+        pswriter.writerow(['Characteristics'])
+        __write_block(pswriter, parset.pars['characs'])
+        
+    # finish
+    logger.info("Exported Parameterset '%s' to %s"%(parset.name,filename))
+    
+
+
+def load_paramset(parset_filename):
+    """
+    Loads and builds paramset of a csv file, assuming structure as specified in export_paramset(). 
+    In the new parset, the parset.name is set as the filename (without the csv extension) and a new uid is assigned.
+    
+    Params:
+        parset_filename    filename as string
+        
+        
+    TODO: add 
+    """
+    import os
+    import itertools
+    
+    # Setup data structure
+    data = getEmptyData()
+    index = 0
+    indices = {}
+    # Fill in data from csv
+    with open(parset_filename, 'rb') as csvfile:
+        psreader = reader(csvfile, delimiter=',')
+        csvdata = list(psreader)
+    row_count = len(csvdata)
+    # obtain row indices for the three sections: 'Populations','Cascade' and 'Characteristics'
+    for row in csvdata:
+        if len(row) == 1 and row[0] in ['Populations','Cascade','Characteristics']:
+            indices[row[0]] = index
+        index += 1
+       
+    with open(parset_filename, 'rb') as csvfile:
+        # Read in populations
+        psreader = reader(csvfile, delimiter=',')
+        for i in range(indices['Populations']+1,indices['Cascade']):
+            row = csvdata[i]
+            data['pops']['name_labels'][row[1]] = row[0]
+            data['pops']['label_names'][row[0]] = row[1]
+        pops = data['pops']['label_names'].keys()
+
+        # Read in cascade
+        data['linkpars'] = __read_block(csvdata, pops, indices['Cascade']+1, indices['Characteristics'])
+        
+        # Read in characteristics
+        data['characs'] = __read_block(csvdata, pops, indices['Characteristics']+1,row_count)
+        
+        
+    # Use ps.makePars method to automagically construct the parset from the data
+    parset_name = os.path.splitext(parset_filename)[0]
+    ps = ParameterSet(name=parset_name)
+    ps.makePars(data)
+    return ps
     

@@ -8,7 +8,7 @@ logger = logging.getLogger()
 from utils import tic, toc, odict, OptimaException
 from model import runModel
 from settings import Settings
-from parameters import ParameterSet
+from parameters import ParameterSet, export_paramset, load_paramset
 from plotting import Plotter
 from databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from calibration import makeManualCalibration, calculateFitFunc, performAutofit
@@ -100,6 +100,26 @@ class Project(object):
         if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
         self.parsets[name] = ParameterSet(name = name)
         self.parsets[name].makePars(self.data)
+        
+    def exportParset(self,parset_name):
+        ''' Exports parset to .csv file '''
+        if not parset_name in self.parsets.keys():
+            raise OptimaException("ERROR: no parameter set '%s' found"%parset_name)
+        export_paramset(self.parsets[parset_name])
+        
+    def importParset(self,parset_filename,new_name=None):
+        ''' Imports parameter set from .csv file '''
+        paramset = load_paramset(parset_filename)
+        if new_name is None:
+            new_name = paramset.name
+        else:
+            paramset.name = new_name
+            
+        if not new_name in self.parsets.keys():
+            logger.info("Imported new parameter set: %s"%new_name)
+        else:
+            logger.info("Imported and overwriting parameter set: %s"%new_name)
+        self.parsets[new_name] = paramset
         
         
     def makeManualCalibration(self, parset_name, rate_dict):
