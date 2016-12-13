@@ -76,7 +76,7 @@ class ParameterSet(object):
     
     def __init__(self, name='default'):
         self.name = name 
-        self.id   = uuid()
+        self.uid   = uuid()
     
         # TODO: for DK, define what difference is between pop_names and pop_labels, and when 
         # each should be used
