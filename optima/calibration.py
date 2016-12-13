@@ -44,7 +44,8 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
             y_fit = sim_data[char][pop][t_indices]
             # calc and add to scores
             s = _calculateFitscore(y_obs, y_fit, metric)
-            #logger.debug("--- calc fit score = %s"%' '.join("%.2f"%ii for ii in s))
+            #logger.debug("---- for values obs = "+' '.join("%.2f"%ii for ii in y_obs)+" and yfit = "+' '.join("%.2f"%ii for ii in y_fit))
+            #logger.debug("-------- calc fit score = %s"%' '.join("%.2f"%ii for ii in s))
             score.append(s)
     
     return np.concatenate(score).ravel()
@@ -149,7 +150,10 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibr
     """
     # setup:
     metric = project.settings.fit_metric
-    paramvec,minmax = paramset.extract(getMinMax=True)  # array representation of initial values for p0
+    paramvec,minmax,casc_labels = paramset.extract(getMinMax=True)  # array representation of initial values for p0
+    if len(paramvec) == 0:
+        raise OptimaException("No available cascade parameters to calibrate during autofitting. Please set at least one 'Calibrate?' value to be not equal to %g"%settings.DO_NOT_SCALE)
+    
     mins, maxs = zip(*minmax)
     sample_param = dcp(paramset)   # ParameterSet created just to be overwritten
     sample_param.name = "calibrating"
@@ -170,14 +174,13 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibr
     def objective_calc(p_est):
         ''' Function used by ASD algorithm to run and evaluate fit of parameter set'''    
         sample_param.update(p_est)
-        #results = project.runSim(parameterset = full_p_est)
-        _,_,_,results = project.runSim(parameterset = sample_param)
+        results = project.runSim(parameterset = sample_param)
         datapoints = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,target_data_characs,metric)
         return score
     
     
-    parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, xmin=mins,xmax=maxs,**calibration_settings)
+    parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, xmin=mins,xmax=maxs,xnames=casc_labels,**calibration_settings)
     
     sample_param.update(parvecnew)
     sample_param.name = new_parset_name

@@ -8,6 +8,8 @@ logger = logging.getLogger(__name__)
 
 from copy import deepcopy as dcp
 import numpy as np
+from uuid import uuid4 as uuid
+
 
 
 
@@ -74,6 +76,8 @@ class ParameterSet(object):
     
     def __init__(self, name='default'):
         self.name = name 
+        self.uid   = uuid()
+    
         # TODO: for DK, define what difference is between pop_names and pop_labels, and when 
         # each should be used
         self.pop_names = []         # List of population names.
@@ -129,7 +133,7 @@ class ParameterSet(object):
     def __getMinMax(self,y_format):
         if y_format.lower() == 'fraction':
             return (0.,1.)
-        elif y_format.lower() == 'number':
+        elif y_format.lower() in ['number','proportion']:
             return (0.,None)
         else:
             raise OptimaException("Unknown y_format '%s' encountered while returning min-max bounds"%y_format)
@@ -152,6 +156,7 @@ class ParameterSet(object):
         
         paramvec = [] # Not efficient - would prefer: np.zeros(len(self.pop_labels)*len(self.pars['cascade']))
         minmax = []
+        casc_labels = []
         index= 0
         for pop_id in self.pop_labels:
             for (j,casc_id) in enumerate(self.par_ids['cascade']): 
@@ -162,17 +167,21 @@ class ParameterSet(object):
                 paramvec.append(self.pars['cascade'][j].y[pop_id])
                 if getMinMax:
                     minmax.append(self.__getMinMax(self.pars['cascade'][j].y_format[pop_id]))
+                    casc_labels.append(casc_id)
                 index+=1
                 
         if getMinMax:
             # Hmm, not a big fan of different return signatures for the one method ... 
-            return paramvec,minmax
+            return paramvec,minmax,casc_labels
         return paramvec#[:index]
     
     
-    def update(self,paramvec):
+    def update(self,paramvec,yearvec=None,y_format_vec=None,y_factor_vec=None):
         """
         Update parameters from a list of values
+        
+        TODO: added yearvec,y_format_vec,y_factor_vec with intention that they can be used to fully update
+        the parameter set cascade parameter
         """
         import settings
         
@@ -181,6 +190,8 @@ class ParameterSet(object):
             for (j,casc_id) in enumerate(self.par_ids['cascade']): 
                 if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
                     continue
+                if len(self.pars['cascade'][j].y[pop_id]) != len(paramvec[index]):
+                    raise OptimaException("Could not update parameter set '%s' for pop=%s,cascade=%s as updated parameter has different length."%(self.name,pop_id,casc_id))
                 self.pars['cascade'][j].y[pop_id] = paramvec[index]
                 index += 1
                 

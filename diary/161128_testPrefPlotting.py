@@ -28,5 +28,5 @@ proj.makeParset()
 print proj.settings.charac_specs
 #print proj.data
 plot=True
-r1, o1 = proj.runSim(plot=plot)
+r1 = proj.runSim(plot=plot)
 pylab.show()

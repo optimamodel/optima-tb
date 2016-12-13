@@ -3,7 +3,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None, 
+def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None, xnames=None,
         sinc=2, sdec=2, pinc=2, pdec=2, pinitial=None, sinitial=None, absinitial=None, MaxRangeIter=1000,
         MaxFunEvals=None, MaxIter=1e3, AbsTolFun=1e-6, RelTolFun=1e-2, TolX=None, StallIterLimit=100,
         fulloutput=False, maxarraysize=1e6, timelimit=3600, stoppingfunc=None, randseed=None):
@@ -108,6 +108,8 @@ def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None,
     start = time()
     offset = ' '*4 # Offset the print statements
     
+    xlabel = ''
+    
     while True:
         logger.info(offset+'Iteration %i; elapsed %0.1f s; objective: --' % (count+1, time()-start))
         # Calculate next step
@@ -124,6 +126,7 @@ def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None,
             newval = x[par] + ((-1)**pm)*steps[choice] # Calculate the new parameter set
             #print "oldval =", x[par] 
             #print "newval =", newval
+            
             if inner_count > MaxRangeIter: # f stuck due to x range limits, exit after 1000 iterations
                 newval = x[par]
                 #exitflag = -1
@@ -152,8 +155,10 @@ def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None,
         
         abserrorhistory[mod(count,StallIterLimit)] = max(0, fval-fvalnew) # Keep track of improvements in the error
         relerrorhistory[mod(count,StallIterLimit)] = max(0, fval/float(fvalnew)-1.0) # Keep track of improvements in the error  
+        if xnames is not None: 
+            xlabel = ' (xlabel=%s)'%xnames[par]
         
-        logger.info(offset+'step=%i choice=%s, par=%s, pm=%s, origval=%s, newval=%s, inrange=%s' % (count, choice, par, pm, x[par], xnew[par], inrange))
+        logger.info(offset+'step=%i choice=%s%s, par=%s, pm=%s, origval=%s, newval=%s, inrange=%s' % (count, choice, xlabel,par, pm, x[par], xnew[par], inrange))
 
         # Check if this step was an improvement
         fvalold = sum(fval) # Store old fval
