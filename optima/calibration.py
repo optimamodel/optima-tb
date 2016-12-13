@@ -161,13 +161,11 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibr
     if target_characs is None: 
         # if no targets characteristics are supplied, then we autofit to all characteristics 
         target_data_characs = project.data['characs']
-        print target_data_characs
         logger.info("Autofit: fitting to all characteristics")
     else:
         target_data_characs = odict()
         for k in target_characs:
             target_data_characs[k] = project.data['characs'][k]
-        print target_data_characs
         logger.info("Autofit: fitting to the following target characteristics =[%s]"%(",".join(target_characs)))
     
     
