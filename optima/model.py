@@ -251,84 +251,83 @@ class Model(object):
                     
         # Propagating initial characteristic parset values into ModelPops.
         # NOTE: Extremely involved process, so might be worth extracting the next few paragraphs as a separate method.
-        # First interpolate initial value for each relevant characteristic (i.e. one that has an entry point).
-        # Maintaining definitional order (i.e. the order characteristics were defined in cascade workbook) is crucial.
-        init_dict = odict()
-        charac_for_entry = odict()
+        
         t_init = np.array([self.sim_settings['tvec'][0]])
+        seed_dict = {}              # Compartment values to initialise with.
+        include_dict = odict()      # Lowest-level nodes included for each entry-point characteristic, keyed by entry-point.
+                                    # They are often inserted in definitional order, so useful to keep as an odict. Speeds up calculation process.
+        calc_done = {}
+        
+        # All compartments are either characteristic entry-points or contain zero people.
+        # First, generate a dictionary of prospective values to seed compartments with, all assumed to be zero.
+        # Assume the values for all compartments have been calculated.
+        for node_label in settings.node_specs.keys():
+            seed_dict[node_label] = odict()
+            calc_done[node_label] = True    # Values are technically already settled for nodes if a node is not an entry-point.
+                                            # Alternatively, the node can be an entry-point of a characteristic including only the entry-point.
+            for pop_label in parset.pop_labels:
+                seed_dict[node_label][pop_label] = 0.
+        
+        # Now update assumptions by looping through all characteristics containing entry-points.
+        # We note that initial values for entry-points are derived from the value of the characteristic minus the values of all other 'included' compartments.
+        # For inclusions of only the entry-point and nothing else, its seeding value is simply updated with the interpolated value of the characteristic.
+        # For inclusions of more compartments (once flattened out), calculations are more difficult.
+        # The characteristic seeding value is still updated, but the entry-point must be removed from the dictionary that tracks calculated compartments.
         for charac_label in settings.charac_specs.keys():
             if 'entry_point' in settings.charac_specs[charac_label].keys():
-                entry_point = settings.charac_specs[charac_label]['entry_point']
-                init_dict[charac_label] = odict()
-                charac_for_entry[entry_point] = charac_label
+                ep_label = settings.charac_specs[charac_label]['entry_point']
+                flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = charac_label, sub_keys = ['includes'])
+                flat_list.remove(ep_label)
+                if len(flat_list) > 0:
+                    del calc_done[ep_label]
+                    include_dict[ep_label] = dcp(flat_list)
                 par = parset.pars['characs'][parset.par_ids['characs'][charac_label]]
                 for pop_label in parset.pop_labels:
-                    val = par.interpolate(tvec = t_init, pop_label = pop_label)
-                    init_dict[charac_label][pop_label] = dcp(val)
+                    val = par.interpolate(tvec = t_init, pop_label = pop_label)[0]
+                    seed_dict[ep_label][pop_label] = val
+
+#        print include_dict
+#        print calc_done
+#        print [(key,seed_dict[key][0]) for key in calc_done.keys()]
         
-        # Next, multiply out any denominators that exist. Again, definitional order matters.
-        # These should all be other previously-defined entry-point characteristics, according to validation in settings.py.
-        for charac_label in init_dict.keys():
-            if 'denom' in settings.charac_specs[charac_label].keys():
-                denom_label = settings.charac_specs[charac_label]['denom']
-                entry_point = settings.charac_specs[charac_label]['entry_point']
-                for pop_label in parset.pop_labels:
-                    init_dict[charac_label][pop_label] *= init_dict[denom_label][pop_label]
-#        print init_dict
-#        print charac_for_entry
-        
-        # Then map each characteristic to those that include its entry point.
-        sub_dict = odict()
-        for charac_label in init_dict.keys():
-            entry_point = settings.charac_specs[charac_label]['entry_point']
-            flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = charac_label, sub_keys = ['includes'])
-            flat_list.remove(entry_point)
-            for include in flat_list:
-                if include in charac_for_entry.keys():
-                    if charac_for_entry[include] not in sub_dict.keys(): sub_dict[charac_for_entry[include]] = []
-                    sub_dict[charac_for_entry[include]].append(charac_label)
-        print sub_dict
+        # Now loop through all 'uncalculated entry-points'.
+        # If any of their remaining inclusions have been calculated in previous loops, stop tracking the included compartment and subtract its value from the entry-point.
+        # Eventually, an entry-point should be equal to its characteristic seeding value minus the correction of all other included compartments.
+        # With no more inclusions to keep track of, this entry-point is considered fully calculated and can be subtracted from other 'uncalculated entry-points'.
+        # Eventually there will be no inclusions left for any entry-point, meaning all initial values are calculated.        
+        review_count = 0        
+        while len(include_dict.keys()) > 0:
+            for entry_point in dcp(include_dict.keys()):
+                for include in dcp(include_dict[entry_point]):
                     
-        # Flatten the previous mapping and remove duplicates to determine the smallest sets that include the entry point of each characteristic.
-        # This process determines which values should be subtracted from which characteristics.
-        # For example, if a is a subgroup of b and c, but b is a subgroup of c, subtracting both a and b from c would b double-counting.
-        # In this example, b should be extracted from c and a should be extracted from b alone.
-        minus_dict = odict()
-        for charac_label in init_dict.keys():
-            try:
-                sub_list, key_list = flattenDict(input_dict = sub_dict, base_key = charac_label)
-            except:
-                sub_list = []
-                key_list = [charac_label]
-            combine_list = key_list + sub_list
-            combine_list.remove(charac_label)
-            minus_list = [k for k,v in Counter(combine_list).items() if v==1]
-            minus_dict[charac_label] = minus_list
-        print minus_dict
+                    # Subtract the values of any included already-calculated nodes from the value of an entry-point.
+                    if include in calc_done.keys():
+                        for pop_label in parset.pop_labels:
+                            seed_dict[entry_point][pop_label] -= seed_dict[include][pop_label]
+                        include_dict[entry_point].remove(include)
+                        
+                    # If all included nodes have been calculated and subtracted from an entry-point, then the entry-point is now a fully calculated node.
+                    # It can be used in subtractions for other nodes.
+                    if len(include_dict[entry_point]) == 0:
+                        calc_done[entry_point] = True
+                        del include_dict[entry_point]
+            review_count += 1
+            if review_count > len(settings.node_specs.keys()):
+                raise OptimaException('ERROR: Calculation phase for initial compartment values has looped more times than the number of compartments. Something is likely wrong with characteristic definitions.')
+
+#        print include_dict
+#        print calc_done
+        print [(key,seed_dict[key][0]) for key in calc_done.keys()]
+        print sum([seed_dict[key][0] for key in calc_done.keys()])
         
-        # Another loop to set compartment values.
-        for charac_label in init_dict.keys():
-            entry_point = settings.charac_specs[charac_label]['entry_point']
+        # Now initialise all model compartments with these calculated values.
+        for seed_label in seed_dict.keys():
             for pop_label in parset.pop_labels:
-                val = init_dict[charac_label][pop_label]
-                self.getPop(pop_label).getComp(entry_point).popsize[0] = val
-        
-        # A final loop to apply the subtractions determined previously (e.g. susceptibles = total - infected).        
-        for minus_label in minus_dict.keys():
-            for charac_label in minus_dict[minus_label]:
-                entry_point = settings.charac_specs[charac_label]['entry_point']
-                for pop_label in parset.pop_labels:
-                    val = init_dict[minus_label][pop_label]
-                    self.getPop(pop_label).getComp(entry_point).popsize[0] -= val
-        
-        # Validation for negative-valued intialisations
-        for charac_label in init_dict.keys():
-            entry_point = settings.charac_specs[charac_label]['entry_point']
-            val = self.getPop(pop_label).getComp(entry_point).popsize[0]
-            print entry_point
-            print val
-            if self.getPop(pop_label).getComp(entry_point).popsize[0] < 0.:
-                raise OptimaException('ERROR: Initial value calculated for compartment "%s" is %f. Review and make sure superset characteristics have at least as many people as their subsets.' % (entry_point, val))
+                val = seed_dict[seed_label][pop_label]
+                if val < 0.:
+                    raise OptimaException('ERROR: Initial value calculated for compartment "%s" in population "%s" is %f. Review and make sure each characteristic has at least as many people as the sum of all included compartments.' % (seed_label, pop_label, val))
+                self.getPop(pop_label).getComp(seed_label).popsize[0] = val
+
                     
         
         # Propagating cascade parameter parset values into ModelPops. Handle both 'tagged' links and 'untagged' dependencies.
