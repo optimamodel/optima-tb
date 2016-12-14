@@ -285,6 +285,18 @@ class Model(object):
                 for pop_label in parset.pop_labels:
                     val = par.interpolate(tvec = t_init, pop_label = pop_label)[0]
                     seed_dict[ep_label][pop_label] = val
+        
+        # Loop through and handle prevalences (i.e. characteristics with denominators).
+        # The denominator value will be drawn from the parset, not the seed dictionary, so beware a prevalence as a denominator.
+        for charac_label in settings.charac_specs.keys():
+            if 'entry_point' in settings.charac_specs[charac_label].keys():
+                if 'denom' in settings.charac_specs[charac_label].keys():
+                    ep_label = settings.charac_specs[charac_label]['entry_point']
+                    denom_label = settings.charac_specs[charac_label]['denom']
+                    par = parset.pars['characs'][parset.par_ids['characs'][denom_label]]
+                    for pop_label in parset.pop_labels:
+                        val = par.interpolate(tvec = t_init, pop_label = pop_label)[0]
+                        seed_dict[ep_label][pop_label] *= val
 
 #        print include_dict
 #        print calc_done
