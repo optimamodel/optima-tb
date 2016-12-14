@@ -69,12 +69,17 @@ class Project(object):
         
         if plot:
             tp = tic()
-            self.plotter.updateData(self.data)
-            self.plotter.plotProjectResults(results,self.settings.charac_specs, title = self.name.title(), debug = debug)
+            self.plotResults(results, debug)
             toc(tp, label = 'plotting %s' % self.name)
         
         return results
         
+    def plotResults(self,results, debug=False):
+        ''' Plot all available results '''
+        self.plotter.updateData(self.data)
+        self.plotter.plotProjectResults(results,self.settings.charac_specs, title = self.name.title(), debug = debug)
+            
+    
     
     def makeSpreadsheet(self, databook_path = None, num_pops = 5, num_migrations = 2):
         ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''

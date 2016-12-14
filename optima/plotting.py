@@ -2,10 +2,15 @@
 import logging
 logger = logging.getLogger(__name__)
 
+import numpy as np
+
 import pylab as pl
 from copy import deepcopy as dcp
 
 
+CMAPS = ['Blues', 'Purples', 'Reds', 'Greys', 'Greens', 'Oranges', ]
+        # Suscep  #Latent  # Red    # Dead   # Recovered
+   
    
 class Plotter():
         
@@ -154,127 +159,259 @@ class Plotter():
         """
         pl.close("all") 
         
-        m_pops = results.m_pops
-        outputs = results.outputs
-        sim_settings = results.sim_settings
         
-        self.plotPopulation(m_pops, outputs, sim_settings, charac_specs, title)
+        self.plotPopulation(results, charac_specs, title)
         
         # List charac labels for those that were present in databook (i.e. could have cascade-provided defaults overwritten).
         label_list = [x for x in charac_specs.keys() if charac_specs[x]['databook_order'] >= 0]
-        self.plotCompartment(m_pops, outputs, sim_settings, charac_specs, title, outputIDs = label_list)
+        self.plotCompartment(results, charac_specs, title, outputIDs = label_list)
         
         if debug:
             self.plotOutflows(m_pops, sim_settings)
         
-    def plotPopulation(self,results,outputs,sim_settings,charac_specs,title='',plotObservedData=True,saveFig=False):
+        
+        
+    def plotPopulation(self,results,title='',plotObservedData=True,save_fig=False):
         """ 
         
         Plot all compartments for a population
-        """
         
-        for pop in results:
-               
-            fig, ax = pl.subplots()
-            colors = self.gridColorMap(len(pop.comps))
-            bottom = 0*sim_settings['tvec']
-            
-            k = 0
+        """
+        # setup
+        tvec = results.sim_settings['tvec']
+        mpops = results.m_pops
+        sim_settings = results.sim_settings
+        pop_labels = results.pop_labels
+        save_figname=None
+        
+        # iterate for each key population group
+        for (i,pop) in enumerate(mpops):
+            comps = []
             labels = []
             for comp in pop.comps:
-                
-                if not self.isPlottable(comp.label,sim_settings):
-                    continue
-                
-                top = bottom + comp.popsize
-                labels.append(comp.label)  #explicitly gather comp.label names as not all cascade names are going to be plotted
-                ax.fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[k], alpha=1,lw=0) # for some reason, lw=0 leads to no plot
-                ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
-                bottom = dcp(top)
-                k += 1
-            
+                if self.isPlottable(comp.label,sim_settings):
+                    comps.append(comp)
+                    labels.append(comp.label)
             if plotObservedData:
-                # TODO confirm that alive will always be tag. It probably won't be, so better to have this named in the settings? userdefined?
-                try:
-                    ys = self.data['characs']['alive'][pop.label]['y']
-                    ts = self.data['characs']['alive'][pop.label]['t']
-                    ax.scatter(ts,ys,marker='o',edgecolors='k',facecolors='none',s=40,zorder=10,linewidth=3)
-                except:
-                    logger.info("No observed data with label='alive' for plotting in plotPopulations() [plotting.py]")
+                ys = self.data['characs']['alive'][pop.label]['y']
+                ts = self.data['characs']['alive'][pop.label]['t']
+                dataobs = (ts,ys)
+            xlim = ()
+            
+            pl_title = 'Compartments for Population: %s' % (pop_labels[i])
+            if save_fig:
+                save_figname = 'Full_compartment_%s'%pop_labels[i]
+            kwargs = {'xlim': (tvec[0],tvec[-1]),
+                      'ymin': 0,
+                      'xlabel': 'Year',
+                      'ylabel': 'People',
+                      'mec' : 'k',
+                      'marker':'o',
+                      's':40,
+                      'linewidth':3,
+                      'facecolors':'none',
+                      }
+            legendsettings =  {'loc':'center left', 
+                               'bbox_to_anchor':(1.05, 0.5), 
+                               'ncol':2}
+       
+            self._plotStackedCompartments(tvec, comps, labels,datapoints=dataobs,title=pl_title,legendsettings=legendsettings, 
+                                         save_fig=save_fig,save_figname=save_figname,**kwargs)
+            
+          
+    def _plotStackedCompartments(self,tvec,comps,labels=None,datapoints=None,title='',ylabel=None,xlabel=None,xlim=None,ymin=None,ylim=None,save_figname=None,
+                                save_fig=False,colors=None,marker='o',edgecolors='k',facecolors='none',s=40,zorder=10,linewidth=3,legendsettings={},**kwargs):  
+        """ 
+        Plot compartments in time. 
+        This creates a stacked plot of several compartments, over a given period.
+        Observed data points can also be additionally plotted, overlaying the data
+            
+        Params:
+            tvec        time period
+            comps       compartment sizes
+            labels      list of labels
+            datapoints  observed datapoints, specified as a list of tuples 
+            **kwargs    further keyword arguments, such as ylims
+        """
+        if colors is None:
+            colors = self.gridColorMap(len(comps))
+        
+        
+        # setup
+        fig, ax = pl.subplots()
+        bottom = 0*tvec
+        max_val = 0
+        
+        for (k,comp) in enumerate(comps):
+            top = bottom + comp.popsize
+            ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=0) # for some reason, lw=0 leads to no plot
+            reg, = ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
+            bottom = dcp(top)
+            
+        max_val = max(top)
+            
+        if datapoints is not None:
+            ts,ys= datapoints[0],datapoints[1]
+            ax.scatter(ts,ys,marker=marker,edgecolors=edgecolors,facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
+            if max(ys) > max_val:
+                max_val = max(ys) 
                 
-            box = ax.get_position()
-            ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
+        
+        ax.set_title(title)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_xlim(xlim)
+        ax.set_ylim(ymax=max_val*1.05)
+        if ylim is not None:
+            ax.set_ylim(ylim)
+        elif ymin is not None:
+            ax.set_ylim(ymin=ymin)
+        
+        ax.legend(labels,**legendsettings)
+        self.turnOffBorder()
+        pl.suptitle('')
+        
+        if save_fig:
+            fig.savefig('%s_stacked.png' % (save_figname))
+            logger.info("Saved figure: '%s_stacked.png'"%save_figname)
             
-            legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':2}
-            ax.set_title('%s Cascade - %s' % (title, pop.label.title()))
-            ax.set_xlabel('Year')
-            ax.set_ylabel('People')
-            ax.set_xlim((sim_settings['tvec'][0], sim_settings['tvec'][-1]))
-            ax.set_ylim((0, max(top)*1.2))
-            ax.legend(labels,**legendsettings)
-            self.turnOffBorder()
-            if saveFig:
-                fig.savefig('%sCascade-%s.png' % (title, pop.label.title()))
+        
             
-            
+        
+        
+        
+              
     
-    def plotCompartment(self,results,outputs,sim_settings,charac_specs,title='',outputIDs=None,plotObservedData=True,saveFig=False):
+    def plotCompartment(self,results,charac_specs,title='',outputIDs=None,plotObservedData=True,save_fig=False,colors=None):
         """
         Plot a compartment across all populations
         
         Params:
             results
-            outputs
-            sim_settings
             charac_specs
             title
             outputIDs        list of compartment labels (characs.keys()) which will be selectively be plotted
                              Default: None, which causes all labels to be plotted
             plotObservedData plot observed data points on top of simulated data. Useful for calibration
-        """
-        if outputIDs is None:
-                outputIDs = outputs.keys()
-                
-        colors = self.gridColorMap(len(results))        
-        for output_id in outputIDs:
+            save_fig         bool to indicate whether to save the figure to file
+            colors           list of colors for populations
             
+            
+        Example dict:
+            dict = {'y_hat': yhat,
+                    't_hat': that,
+                    'unit_tag': unit_tag,
+                    'xlabel':'Year',
+                    'ylabel': charac_specs[output_id]['name'] + unit_tag,
+                    'title': '%s Outputs - %s' % (title, charac_specs[output_id]['name']),
+                    'marker': 'o',
+                    'x_ticks' : ([2000,2030],[2000,2030]),
+                    'save_figname': 'MyPlot'}
+            
+        """
+        # setup
+        tvec = results.sim_settings['tvec']
+        year_inc = 5.  # TODO: move this to setting
+        yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)
+        mpops = results.m_pops
+        sim_settings = results.sim_settings
+        pop_labels = results.pop_labels
+        outputs = results.outputs
+        save_figname=None    
+        unit_tag = ''
+        
+        if outputIDs is None:
+            outputIDs = outputs.keys()
+            
+        for output_id in outputIDs:
             if not self.isPlottableCharac(output_id,charac_specs):
                 continue
             
+            y_values = []
+            t_values = []
+            yhat = []
+            that = []
             
-            unit_tag = ''
-            fig, ax = pl.subplots()
-            for k,pop in enumerate(results):
+            for k,pop in enumerate(mpops):
+                
                 vals = dcp(outputs[output_id][pop.label])
                 if 'plot_percentage' in charac_specs[output_id].keys():
                     vals *= 100
                     unit_tag = ' (%)'
-                ax.plot(sim_settings['tvec'], vals,c=colors[k])
+                y_values.append(vals)
+                t_values.append(sim_settings['tvec'])
                 
                 if plotObservedData:
                     ys = self.data['characs'][output_id][pop.label]['y']
-                    if len(ys)==0 and ys[0]==0:
-                        # don't bother plotting if there's nothing to plot
-                        # TODO better methods of indicating absent data?
-                        continue
+                    ts = self.data['characs'][output_id][pop.label]['t']
                     if 'plot_percentage' in charac_specs[output_id].keys():
                         ys *= 100
-                    ts = self.data['characs'][output_id][pop.label]['t']
-                    ax.scatter(ts,ys,marker='o',edgecolors=colors[k],facecolors='none',s=40,zorder=10,linewidth=3)
+                    if len(ys)==0 and ys[0]==0:
+                        # add an empty list to preserve label colours
+                        ys,ts = [],[]
+                    yhat.append(ys)
+                    that.append(ts)
+                
                     
-    
-            box = ax.get_position()
-            ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
+            dict = {'y_hat': yhat,
+                    't_hat': that,
+                    'unit_tag': unit_tag,
+                    'xlabel':'Year',
+                    'ylabel': charac_specs[output_id]['name'] + unit_tag,
+                    'title': '%s Outputs - %s' % (title, charac_specs[output_id]['name']),
+                    'marker': 'o',
+                    'facecolors':'none',
+                    's': 40,
+                    'linewidth':3,
+                    'x_ticks' : (yr_range,yr_range),
+                    'save_figname': 'PlotCompartment_%s_%s'%(title, charac_specs[output_id]['name'])}
+            legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}         
+             
+            self._plotLine(y_values, t_values, pop_labels, legendsettings=legendsettings,save_fig=save_fig,**dict)
             
-            legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}                
-            ax.set_title('%s Outputs - %s' % (title, charac_specs[output_id]['name']))
-            ax.set_xlabel('Year')
-            ax.set_ylabel(charac_specs[output_id]['name'] + unit_tag)
-            ax.legend([pop.label for pop in results], **legendsettings)
-            self.turnOffBorder()
-            if saveFig:
-                fig.savefig('%sOutputs-%s.png' % (title, charac_specs[output_id]['name']))                    
+        
+    def _plotLine(self,ys,ts,labels,colors=None,y_hat=[],t_hat=[],
+                 legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None,
+                 marker='o',s=40,facecolors='none',linewidth=3,zorder=10,save_fig=False,save_figname=None,**kwargs):
+        """
+        
+        """
+        if colors is None:        
+            colors = self.gridColorMap(len(ys))       
+            
+        fig, ax = pl.subplots()
+        
+        for k,yval in enumerate(ys):
+            
+            ax.plot(ts[k], yval, c=colors[k])
+            ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
+  
 
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
+        
+              
+        ax.set_title(title)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.legend(labels, **legendsettings)
+        
+        if x_ticks is not None:
+            ax.set_xticks(x_ticks[0])
+            ax.set_xticklabels(x_ticks[1])
+        if y_ticks is not None:
+            ax.set_yticks(y_ticks[0])
+            ax.set_yticklabels(y_ticks[1])
+            
+        self.turnOffBorder()
+        if save_fig:
+            fig.savefig('%s.png' % (save_figname))                    
+            logger.info("Saved figure: '%s.png'"%save_figname)
+        
+        
+        
                 
     def plotOutflows(self, results, sim_settings, num_subplots = 5):
         """ 
