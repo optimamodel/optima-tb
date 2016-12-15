@@ -381,6 +381,7 @@ class Model(object):
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
         
         # Make sure initially-filled junctions are processed and initial dependencies are calculated.
+        self.updateDependencies(settings = settings)
         self.processJunctions(settings = settings)
         self.updateDependencies(settings = settings)
 
@@ -468,7 +469,7 @@ class Model(object):
 #                                link.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = deps)
                         
                         
-                        convert_amt = 0 
+                        converted_amt = 0 
                         
                         transition = link.vals[ti]
                         
