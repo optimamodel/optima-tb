@@ -2,20 +2,25 @@
 import logging
 logger = logging.getLogger(__name__)
 
+from utils import odict
+
 import numpy as np
 
 import pylab as pl
 from copy import deepcopy as dcp
+import matplotlib.cm as cmx
+import matplotlib.colors as colors
+from random import shuffle
 
 
-CMAPS = ['Blues', 'Purples', 'Reds', 'Greys', 'Greens', 'Oranges', ]
-        # Suscep  #Latent  # Red    # Dead   # Recovered
+CMAPS = ['Blues', 'Purples', 'Reds','Oranges',  'Greys', 'Greens', ]
+        # Suscep  #Latent  # SP TB    #SN TB    # Dead   # Recovered
    
    
 class Plotter():
         
     
-    def __init__(self,data):
+    def __init__(self,data={}):
         self.updateData(data)
         
     def updateData(self,data):
@@ -122,6 +127,68 @@ class Plotter():
         
         return output
     
+    
+    def _getColormapRange(self,cmap,ncols=10,order='alternate'):
+        """
+        Returns a list of colors values, according to colormaps
+        
+        Params:
+            cmap    name of matplotlib.cmap (String)
+            ncols   number of colors to be returned (int)
+            order   order in which colors should be chosen. Possible values are 'alternate','sequential' or 'random'
+            
+        Usage:
+            cmap = 'jet'
+            n = 6
+            clist = _getColormapRange(cmap,n,'random')
+            for i in range(n):
+                pylab.plot(xs[i],ys[i],c=clist[i])
+        """
+        color_norm  = colors.Normalize(vmin=0, vmax=ncols+1)
+        scalar_map = cmx.ScalarMappable(norm=color_norm, cmap=cmap) 
+        order_map = range(ncols)
+        if order == 'random':
+            shuffle(order_map)
+        elif order == 'alternate':
+            hw = ncols/2
+            a = order_map[:ncols/2]
+            b = order_map[ncols/2:]
+            order_map = [item for sublist in zip(a,b) for item in sublist]
+        else: # order == 'sequential', so leave in order 
+            pass
+        return [scalar_map.to_rgba(index) for index in order_map]
+    
+    
+    def getCategoryColors(self,category_list):
+        """
+        For an ordered dictionary of category list
+        
+        Params:
+            category_list    odict of list
+            
+        Returns:
+            an odict of 
+            
+        Usage:
+            cat_list = odict()
+            cat_list['Blues'] =    ['sus','vac'],
+            cat_list['Reds'] =     ['inf','vir'],
+            cat_list['Greens'] =   ['treat','rec']
+            col_list = self.getCategoryColors(cat_list)
+            print col_list['inf'] 
+            > (200, 50,  50)
+            print col_list[-1] #rec
+            > (40, 250, 40)
+        
+        """
+        col_list = odict()
+        for k,v in category_list.iteritems():
+            tmp_list = self._getColormapRange(k,len(v))
+            for i,label in enumerate(v):
+                col_list[label] = tmp_list[i]
+        return col_list
+        
+        
     
     def turnOffBorder(self):
         
