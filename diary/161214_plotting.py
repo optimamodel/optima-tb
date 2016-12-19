@@ -15,26 +15,34 @@ databook = './data/databook-simple-cascade-calibration.xlsx'
 proj= Project(name = 'test-Belarus-simple', cascade_path = 'data/cascade-simple-calibration.xlsx')
 proj.setYear([2000.,2030.],False) 
 
+# setup: define category color list. Note that using colormappings will index by compartment keys, so
+# the color maps do not have to be defined in sequence of their appearance within a population's compartment list.
+# The only constraint is that all plottable compartments must be assigned a colour. If a compartment is included
+# in more than one colormap list, its cmap will be set as last list it appeared on. 
+cat_list = odict()
+cat_list['Blues'] =    ['sus','vac']
+cat_list['Purples'] =  ['ltu','ltt']
+cat_list['Reds'] =     ['acu','act']
+cat_list['Greens'] =   ['rec']
+cat_list['Greys'] =    ['dead']
+
+
 """
-# 1. make spreadsheet after implementing number format
-proj.makeSpreadsheet(databook_path=databook, num_pops = num_pop)
+# 1. Test category color list
+print cat_list
+plotter = Plotter()
+col_list = plotter.getCategoryColors(cat_list)
+print col_list
+"""
+
 
 
 # 2, load spreadsheet with number format. 
 # Test by setting aging --> n
 #print proj.settings.linkpar_specs
 proj.loadSpreadsheet(databook_path = databook)
-
- 
 proj.makeParset()
-#print proj.data
-results1 = proj.runSim(plot=plot)
+results1 = proj.runSim()
+proj.plotResults(results1,colormappings=cat_list)
 pylab.show()
-"""
 
-cat_list = odict()
-cat_list['Blues'] =    ['sus','vac','1','2','3','4']
-cat_list['Reds'] =     ['inf','vir']
-cat_list['Greens'] =   ['treat','rec']
-plotter = Plotter()
-col_list = plotter.getCategoryColors(cat_list)

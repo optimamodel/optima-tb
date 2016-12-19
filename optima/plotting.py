@@ -144,30 +144,40 @@ class Plotter():
             for i in range(n):
                 pylab.plot(xs[i],ys[i],c=clist[i])
         """
-        color_norm  = colors.Normalize(vmin=0, vmax=ncols+1)
+        color_norm  = colors.Normalize(vmin=-1.5, vmax=ncols+0.5)
         scalar_map = cmx.ScalarMappable(norm=color_norm, cmap=cmap) 
         order_map = range(ncols)
         if order == 'random':
             shuffle(order_map)
         elif order == 'alternate':
-            hw = ncols/2
-            a = order_map[:ncols/2]
-            b = order_map[ncols/2:]
-            order_map = [item for sublist in zip(a,b) for item in sublist]
+            a = order_map[ncols/2:]
+            b = order_map[:ncols/2]
+            order_map[::2] = a 
+            order_map[1::2] = b 
         else: # order == 'sequential', so leave in order 
             pass
+        
         return [scalar_map.to_rgba(index) for index in order_map]
     
     
-    def getCategoryColors(self,category_list):
+    def getCategoryColors(self,category_list,order='alternate'):
         """
-        For an ordered dictionary of category list
+        For an ordered dictionary of category list, return a mapping of compartment labels to colors (rgba). 
+        
+        Note that using colormappings will index by compartment keys, so the color maps do not have to be 
+        defined in sequence of their appearance within a population's compartment list. 
+        The only constraint is that all plottable compartments must be assigned a colour. 
+        If a compartment is included in more than one colormap list, its cmap will be set as last list it appeared on. 
         
         Params:
             category_list    odict of list
+            order            defines how neighbouring values within a list should be defined. Values are
+                                'alternate' 
+                                'random'    :
+                                'sequential' : 
             
         Returns:
-            an odict of 
+            an odict of (comp_label, rgba) items
             
         Usage:
             cat_list = odict()
@@ -176,9 +186,9 @@ class Plotter():
             cat_list['Greens'] =   ['treat','rec']
             col_list = self.getCategoryColors(cat_list)
             print col_list['inf'] 
-            > (200, 50,  50)
+            > (0.96, 0.5,  0.5, 1.)
             print col_list[-1] #rec
-            > (40, 250, 40)
+            > (0.4, 0.96, 0.4, 1.)
         
         """
         col_list = odict()
@@ -220,14 +230,14 @@ class Plotter():
         
         
     
-    def plotProjectResults(self,results,charac_specs,title='',debug=False):
+    def plotProjectResults(self,results,charac_specs,title='',colormappings=None,debug=False):
         """
         Placeholder plotting function, originally located in project.py
         """
         pl.close("all") 
         
         
-        self.plotPopulation(results, charac_specs, title)
+        self.plotPopulation(results, title, colormappings=colormappings)
         
         # List charac labels for those that were present in databook (i.e. could have cascade-provided defaults overwritten).
         label_list = [x for x in charac_specs.keys() if charac_specs[x]['databook_order'] >= 0]
@@ -238,11 +248,20 @@ class Plotter():
         
         
         
-    def plotPopulation(self,results,title='',plotObservedData=True,save_fig=False):
+    def plotPopulation(self,results,title='',colormappings=None,plotObservedData=True,save_fig=False,use_full_labels=True,**kwargs):
         """ 
         
-        Plot all compartments for a population
+        Plot all compartments for all populations
         
+        Params:
+            results         Results objet
+            title           String, for title of plots
+            colormapping    odict with comp.labels as keys and corresponding rgba colors as values
+            plotObservedData    boolean flag: whether observed data should be plotted
+            save_fig        boolean flag, whether to save figure as "Full_compartment_<pop_label>"
+            use_full_labels     boolean flag: whether to use full compartment label (i.e. 'Susceptible') or short label version (i.e. 'sus')
+                                The latter is easier for debugging purposes
+            
         """
         # setup
         tvec = results.sim_settings['tvec']
@@ -251,14 +270,33 @@ class Plotter():
         pop_labels = results.pop_labels
         save_figname=None
         
+        if use_full_labels:
+            comp_labels = results.comp_labels
+            ncol = 1
+        else:
+            ncol = 2
+        
+        if colormappings is not None:
+            colors_dict = self.getCategoryColors(colormappings)
+            colors = []
+            # reorder so that colors are same as expected for plotting the population
+            for (j,comp) in enumerate(mpops[0].comps):
+                if self.isPlottable(comp.label,sim_settings):
+                    colors.append(colors_dict[comp.label])
+        
+            
         # iterate for each key population group
         for (i,pop) in enumerate(mpops):
             comps = []
             labels = []
-            for comp in pop.comps:
+            for (j,comp) in enumerate(pop.comps):
                 if self.isPlottable(comp.label,sim_settings):
                     comps.append(comp)
-                    labels.append(comp.label)
+                    if use_full_labels:
+                        c_label = comp_labels[j]
+                    else:
+                        c_label = comp.label
+                    labels.append(c_label)
             if plotObservedData:
                 ys = self.data['characs']['alive'][pop.label]['y']
                 ts = self.data['characs']['alive'][pop.label]['t']
@@ -277,10 +315,11 @@ class Plotter():
                       's':40,
                       'linewidth':3,
                       'facecolors':'none',
+                      'colors': colors
                       }
             legendsettings =  {'loc':'center left', 
                                'bbox_to_anchor':(1.05, 0.5), 
-                               'ncol':2}
+                               'ncol':1}
        
             self._plotStackedCompartments(tvec, comps, labels,datapoints=dataobs,title=pl_title,legendsettings=legendsettings, 
                                          save_fig=save_fig,save_figname=save_figname,**kwargs)
@@ -300,9 +339,10 @@ class Plotter():
             datapoints  observed datapoints, specified as a list of tuples 
             **kwargs    further keyword arguments, such as ylims
         """
-        if colors is None:
+        if colors is None or len(colors) != len(comps):
+            if len(colors) != len(comps):
+                logger.info("Plotting: setting color scheme to be default colormap, as not all compartments had color assigned")
             colors = self.gridColorMap(len(comps))
-        
         
         # setup
         fig, ax = pl.subplots()
@@ -345,11 +385,6 @@ class Plotter():
             logger.info("Saved figure: '%s_stacked.png'"%save_figname)
             
         
-            
-        
-        
-        
-              
     
     def plotCompartment(self,results,charac_specs,title='',outputIDs=None,plotObservedData=True,save_fig=False,colors=None):
         """

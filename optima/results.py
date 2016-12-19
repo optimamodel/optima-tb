@@ -77,6 +77,8 @@ class ResultSet():
         self.m_pops = model.pops
         self.sim_settings = model.sim_settings
         self.pop_labels = self.outputs[0].keys()
+        self.comp_labels = settings.node_names
+        self.comp_specs = settings.node_specs
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
         # /work-in-progress
         

@@ -74,10 +74,11 @@ class Project(object):
         
         return results
         
-    def plotResults(self,results, debug=False):
+    def plotResults(self,results, colormappings=None, debug=False):
         ''' Plot all available results '''
+
         self.plotter.updateData(self.data)
-        self.plotter.plotProjectResults(results,self.settings.charac_specs, title = self.name.title(), debug = debug)
+        self.plotter.plotProjectResults(results,self.settings.charac_specs, title = self.name.title(), colormappings=colormappings, debug = debug)
             
     
     
