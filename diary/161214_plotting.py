@@ -1,3 +1,9 @@
+import sys
+try:
+    sys.path.remove('d:\\work projects\\optima\\optima 2.0')
+    sys.path.remove('d:\\work projects\\optima\\optima 2.0\\optima')
+except: pass
+sys.path.append('../optima')
 
 from utils import odict
 from project import Project
@@ -10,9 +16,9 @@ plot = True
 #plot=False
 
 
-databook = './data/databook-simple-cascade-calibration.xlsx'
+databook = '../data/databook-simple-cascade-autocalibration.xlsx'
   
-proj= Project(name = 'test-Belarus-simple', cascade_path = 'data/cascade-simple-calibration.xlsx')
+proj= Project(name = 'test-Belarus-simple', cascade_path = '../data/cascade-simple-calibration.xlsx')
 proj.setYear([2000.,2030.],False) 
 
 # setup: define category color list. Note that using colormappings will index by compartment keys, so
