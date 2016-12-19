@@ -69,12 +69,12 @@ class Project(object):
         
         if plot:
             tp = tic()
-            self.plotResults(results, debug)
+            self.plotResults(results = results, debug = debug)
             toc(tp, label = 'plotting %s' % self.name)
         
         return results
         
-    def plotResults(self,results, colormappings=None, debug=False):
+    def plotResults(self, results, colormappings=None, debug=False):
         ''' Plot all available results '''
 
         self.plotter.updateData(self.data)
