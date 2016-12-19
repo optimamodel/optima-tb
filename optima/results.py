@@ -77,6 +77,9 @@ class ResultSet():
         self.m_pops = model.pops
         self.sim_settings = model.sim_settings
         self.pop_labels = self.outputs[0].keys()
+        self.comp_labels = settings.node_names
+        self.comp_specs = settings.node_specs
+        self.comp_label_names = self.__generateLabelNames(self.comp_specs.keys(),self.comp_labels)
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
         # /work-in-progress
         
@@ -89,6 +92,17 @@ class ResultSet():
         this in fitting for calibration.
         """
         pass
+        
+    def __generateLabelNames(self,labels,names):
+        """
+        
+        Note: this could potentially go in utils or another location, as it's not really 
+        specific to results.py. 
+        """
+        label_names = odict()
+        for (i,label) in enumerate(labels):
+            label_names[label] = names[i]
+        return label_names
         
         
         
