@@ -276,9 +276,9 @@ class Plotter():
         else:
             ncol = 2
         
+        colors = []
         if colormappings is not None:
             colors_dict = self.getCategoryColors(colormappings)
-            colors = []
             # reorder so that colors are same as expected for plotting the population
             for (j,comp) in enumerate(mpops[0].comps):
                 if self.isPlottable(comp.label,sim_settings):
