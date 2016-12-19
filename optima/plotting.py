@@ -271,7 +271,7 @@ class Plotter():
         save_figname=None
         
         if use_full_labels:
-            comp_labels = results.comp_labels
+            comp_labels = results.comp_label_names
             ncol = 1
         else:
             ncol = 2
@@ -293,7 +293,7 @@ class Plotter():
                 if self.isPlottable(comp.label,sim_settings):
                     comps.append(comp)
                     if use_full_labels:
-                        c_label = comp_labels[j]
+                        c_label = comp_labels[comp.label]
                     else:
                         c_label = comp.label
                     labels.append(c_label)
@@ -319,7 +319,7 @@ class Plotter():
                       }
             legendsettings =  {'loc':'center left', 
                                'bbox_to_anchor':(1.05, 0.5), 
-                               'ncol':1}
+                               'ncol':ncol}
        
             self._plotStackedCompartments(tvec, comps, labels,datapoints=dataobs,title=pl_title,legendsettings=legendsettings, 
                                          save_fig=save_fig,save_figname=save_figname,**kwargs)
