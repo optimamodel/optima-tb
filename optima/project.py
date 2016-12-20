@@ -9,7 +9,7 @@ from utils import tic, toc, odict, OptimaException
 from model import runModel
 from settings import Settings
 from parameters import ParameterSet, export_paramset, load_paramset
-from plotting import Plotter
+from plotting import plotProjectResults
 from databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from calibration import makeManualCalibration, calculateFitFunc, performAutofit
 
@@ -34,7 +34,6 @@ class Project(object):
         self.parsets = odict()
         self.results = odict()
         
-        self.plotter = Plotter({})
         
         logger.info("Created project: %s"%self.name)
         
@@ -77,8 +76,7 @@ class Project(object):
     def plotResults(self, results, colormappings=None, debug=False):
         ''' Plot all available results '''
 
-        self.plotter.updateData(self.data)
-        self.plotter.plotProjectResults(results,self.settings.charac_specs, title = self.name.title(), colormappings=colormappings, debug = debug)
+        plotProjectResults(results,self.settings.charac_specs, data=self.data,title = self.name.title(), colormappings=colormappings, debug = debug)
             
     
     
