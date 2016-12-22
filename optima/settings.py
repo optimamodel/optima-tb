@@ -283,6 +283,8 @@ class PlottingSettings():
         pl.rcParams['font.family'] = 'sans-serif'
         
         pl.rcParams['savefig.dpi'] = 300
+        pl.rcParams['savefig.format'] = 'png'
+        pl.rcParams['savefig.transparent'] =  'True'
         
         pl.rcParams['figure.max_open_warning'] = 40
         
@@ -306,15 +308,24 @@ class PlottingSettings():
         pl.rcParams['axes.titlesize'] = 1.5*pl.rcParams['font.size']
     
         pl.rcParams['lines.linewidth'] = 3
-        pl.rcParams['lines.markersize'] = 40
-        pl.rcParams['lines.markeredgewidth'] = 3
+        pl.rcParams['lines.marker'] = 'None'
+        
+        # Non-standard list of parameters used in plotting
+        self.plotdict = {# scatter plotting values
+                         'marker' : 'o',
+                         'facecolors' : 'none',
+                         's' : 40,
+                         # axes format
+                         'year_inc':5}
     
 
 
     def devSettings(self):
         pl.rcParams['figure.figsize'] = (10, 8)
-        pl.rcParams['savefig.dpi'] = 300
+        pl.rcParams['savefig.dpi'] = 100
         
     def printSettings(self):
         
         pl.rcParams['figure.figsize'] = (15, 10)
+        pl.rcParams['savefig.dpi'] = 300
+        

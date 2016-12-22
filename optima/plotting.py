@@ -223,7 +223,7 @@ def isPlottableCharac(output_id,charac_specs):
     
     
 
-def plotProjectResults(results,charac_specs,data,title='',colormappings=None,debug=False):
+def plotProjectResults(results,settings,data,title='',colormappings=None,debug=False,save_fig=False):
     """
     Plot all results associated with a project. By default, this is a disease cascade for 
     each population, as well as characteristics of interest. 
@@ -239,18 +239,20 @@ def plotProjectResults(results,charac_specs,data,title='',colormappings=None,deb
     """
     # close all remaining windows
     pl.close("all") 
-    
+    # setup
+    charac_specs = settings.charac_specs
+    plotdict = settings.plot_settings.plotdict
     # plot each disease cascade for every population
-    plotPopulation(results=results, data=data, title=title, colormappings=colormappings)
+    plotPopulation(results=results, data=data, title=title, colormappings=colormappings,save_fig=save_fig,plotdict=plotdict)
     # plot characteristics
-    plotCompartment(results=results, charac_specs=charac_specs, data=data, title=title)
+    plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title,save_fig=save_fig,plotdict=plotdict)
     # internal plotting
     if debug:
         plotOutflows(results)
     
     
     
-def plotPopulation(results,data,title='',colormappings=None,plotObservedData=True,save_fig=False,use_full_labels=True,**kwargs):
+def plotPopulation(results,data,title='',colormappings=None,plotObservedData=True,save_fig=False,use_full_labels=True,plotdict={}):
     """ 
     
     Plot all compartments for all populations
@@ -308,27 +310,29 @@ def plotPopulation(results,data,title='',colormappings=None,plotObservedData=Tru
         pl_title = 'Compartments for Population: %s' % (pop_labels[i])
         if save_fig:
             save_figname = 'Full_compartment_%s'%pop_labels[i]
-        kwargs = {'xlim': (tvec[0],tvec[-1]),
+        dict = {  'xlim': (tvec[0],tvec[-1]),
                   'ymin': 0,
                   'xlabel': 'Year',
+                  'year_inc' :  5.,
                   'ylabel': 'People',
                   'mec' : 'k',
-                  'marker':'o',
-                  's':40,
-                  'linewidth':3,
-                  'facecolors':'none',
                   'colors': colors
                   }
+        dict.update(plotdict)
+        if 'yr_range' not in dict.keys():
+            dict['yr_range'] = np.arange(tvec[0],tvec[-1]+0.1,dict['year_inc'],dtype=int)
+            dict['x_ticks']  = (dict['yr_range'],dict['yr_range'])
+    
         legendsettings =  {'loc':'center left', 
                            'bbox_to_anchor':(1.05, 0.5), 
                            'ncol':ncol}
    
         _plotStackedCompartments(tvec, comps, labels,datapoints=dataobs,title=pl_title,legendsettings=legendsettings, 
-                                     save_fig=save_fig,save_figname=save_figname,**kwargs)
+                                     save_fig=save_fig,save_figname=save_figname,**dict)
         
       
 def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',ylabel=None,xlabel=None,xlim=None,ymin=None,ylim=None,save_figname=None,
-                            save_fig=False,colors=None,marker='o',edgecolors='k',facecolors='none',s=40,zorder=10,linewidth=3,legendsettings={},**kwargs):  
+                            save_fig=False,colors=None,marker='o',edgecolors='k',facecolors='none',s=40,zorder=10,linewidth=3,x_ticks=None,legendsettings={},**kwargs):  
     """ 
     Plot compartments in time. 
     This creates a stacked plot of several compartments, over a given period.
@@ -378,6 +382,10 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
     elif ymin is not None:
         ax.set_ylim(ymin=ymin)
     
+    if x_ticks is not None:
+        ax.set_xticks(x_ticks[0])
+        ax.set_xticklabels(x_ticks[1])
+    
     ax.legend(labels,**legendsettings)
     _turnOffBorder()
     pl.suptitle('')
@@ -388,9 +396,9 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
         
     
 
-def plotCompartment(results,charac_specs,data,title='',outputIDs=None,plotObservedData=True,save_fig=False,colors=None):
+def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None,plotObservedData=True,save_fig=False,colors=None,plotdict={}):
     """
-    Plot a compartment across all populations
+    Plot a characteristic across all populations
     
     Params:
         results
@@ -417,8 +425,6 @@ def plotCompartment(results,charac_specs,data,title='',outputIDs=None,plotObserv
     """
     # setup
     tvec = results.sim_settings['tvec']
-    year_inc = 5.  # TODO: move this to setting
-    yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)
     mpops = results.m_pops
     sim_settings = results.sim_settings
     pop_labels = results.pop_labels
@@ -461,16 +467,17 @@ def plotCompartment(results,charac_specs,data,title='',outputIDs=None,plotObserv
                 
         dict = {'y_hat': yhat,
                 't_hat': that,
+                'year_inc' :  5.,
                 'unit_tag': unit_tag,
                 'xlabel':'Year',
                 'ylabel': charac_specs[output_id]['name'] + unit_tag,
                 'title': '%s Outputs - %s' % (title, charac_specs[output_id]['name']),
-                'marker': 'o',
-                'facecolors':'none',
-                's': 40,
-                'linewidth':3,
-                'x_ticks' : (yr_range,yr_range),
                 'save_figname': 'PlotCompartment_%s_%s'%(title, charac_specs[output_id]['name'])}
+        dict.update(plotdict)
+        if 'yr_range' not in dict.keys():
+            dict['yr_range'] = np.arange(tvec[0],tvec[-1]+0.1,dict['year_inc'],dtype=int)
+            dict['x_ticks']  = (dict['yr_range'],dict['yr_range'])
+    
         legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}         
          
         _plotLine(y_values, t_values, pop_labels, legendsettings=legendsettings,save_fig=save_fig,**dict)
@@ -482,6 +489,9 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     """
     
     """
+    
+    ymin_val = np.min(ys[0])
+    
     if colors is None:        
         colors = gridColorMap(len(ys))       
         
@@ -491,7 +501,10 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         
         ax.plot(ts[k], yval, c=colors[k])
         ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
-
+        if np.min(yval) < ymin_val:
+            ymin_val = np.min(yval)
+        if np.min(y_hat) < ymin_val:
+            ymin_val = np.min(y_hat)
 
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
@@ -501,6 +514,14 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.legend(labels, **legendsettings)
+    
+    ymin = ax.get_ylim()[0]
+    # Set the ymin to be halfway between the ymin_val and current ymin. 
+    # This seems to get rid of the worst of bad choices for ylabels[0] = -5 when the real ymin=0
+    tmp_val = (ymin+ymin_val)/2.
+    ax.set_ylim(ymin=tmp_val)
+    if ylim is not None:
+        ax.set_ylim(ylim)
     
     if x_ticks is not None:
         ax.set_xticks(x_ticks[0])

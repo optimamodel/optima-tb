@@ -48,6 +48,6 @@ print col_list
 proj.loadSpreadsheet(databook_path = databook)
 proj.makeParset()
 results1 = proj.runSim()
-proj.plotResults(results1,debug=True,colormappings=cat_list)
+proj.plotResults(results1,debug=False,colormappings=cat_list,save_fig=False)
 pylab.show()
 
