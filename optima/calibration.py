@@ -137,7 +137,7 @@ def _setRateCalibration(parset,value_dictionary,pop_label):
             parset.pars['cascade'][par_index].t[pop_label] = np.array([parset.pars['cascade'][par_index].t[pop_label][0]])
 
 
-def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibration_settings):
+def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFactor=False,**calibration_settings):
     """
     Run an autofit and save resulting parameterset
     
@@ -146,15 +146,19 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibr
         paramset
         new_parset_name     name of resulting parameterset
         calibration_settings
+        useYFactor            boolean of flag whether we should use yvalues directly, or y_factor
    
     """
     # setup:
-    useYFactor = calibration_settings['useYFactor']
     logger.debug("Autofit: useYFactor == %s"%useYFactor)
     metric = project.settings.fit_metric
     paramvec,minmax,casc_labels = paramset.extract(getMinMax=True,getYFactor=useYFactor)  # array representation of initial values for p0, with bounds
-    if len(paramvec) == 0:
-        raise OptimaException("No available cascade parameters to calibrate during autofitting. Please set at least one 'Calibrate?' value to be not equal to %g"%settings.DO_NOT_SCALE)
+    # TODO --------------------------------
+    compartment_init = paramset.extractEntryPoints(project.settings)
+    # -------------------------------------
+    
+    if len(paramvec)+len(compartment_init) == 0:
+        raise OptimaException("No available cascade parameters or initial populations to calibrate during autofitting. Please set at least one 'Calibrate?' value to be not equal to %g OR at least one entry point for a population."%settings.DO_NOT_SCALE)
     
     mins, maxs = zip(*minmax)
     sample_param = dcp(paramset)   # ParameterSet created just to be overwritten
