@@ -170,12 +170,9 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibr
             target_data_characs[k] = project.data['characs'][k]
         logger.info("Autofit: fitting to the following target characteristics =[%s]"%(",".join(target_characs)))
     
-    print paramvec
-    print minmax
     
     def objective_calc(p_est):
         ''' Function used by ASD algorithm to run and evaluate fit of parameter set'''    
-        print p_est
         sample_param.update(p_est,isYFactor=useYFactor)
         results = project.runSim(parameterset = sample_param)
         datapoints = results.getCharacteristicDatapoints()
@@ -185,16 +182,10 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibr
     
     parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, xmin=mins,xmax=maxs,xnames=casc_labels,**calibration_settings)
     
-    print "pre ---------------------------"
-    print sample_param.pars['cascade']
-    print "/pre ---------------------------"
     sample_param.update(parvecnew,isYFactor=useYFactor)
     sample_param._updateFromYFactor()
     sample_param.name = new_parset_name
-    print "post ---------------------------"
-    print sample_param.pars['cascade']
-    print "/post ---------------------------"
-  
+    
     return sample_param
     
         
