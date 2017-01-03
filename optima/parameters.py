@@ -140,7 +140,7 @@ class ParameterSet(object):
             raise OptimaException("Unknown y_format '%s' encountered while returning min-max bounds"%y_format)
     
     
-    def extract(self,getMinMax=False):
+    def extract(self,getMinMax=False,getYFactor=False):
         """
         Extract parameters values into a list
         
@@ -152,6 +152,16 @@ class ParameterSet(object):
         
         If getMinMax=True, additionally returns the min and max values for each of the parameters returned.
         This depends on their format.
+        
+        Params:
+            getMinMax     boolean. Additionally return min and max values for each of the parameters returned in format: 
+                            @TODO: document format for this and return statements
+            getYFactor    boolean: 
+                            
+        Return:
+            paramvec
+            minmax        minmax values. None if getMinMax was False
+            casc_labels    
         """    
         import settings 
         
@@ -165,40 +175,90 @@ class ParameterSet(object):
                 if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
                     continue
                 #paramvec[index] = [self.pars['cascade'][j].y[pop_id]]
-                paramvec.append(self.pars['cascade'][j].y[pop_id])
+                if getYFactor:
+                    paramvec.append(self.pars['cascade'][j].y_factor[pop_id])
+                else:
+                    paramvec.append(self.pars['cascade'][j].y[pop_id])
+                    
                 if getMinMax:
-                    minmax.append(self.__getMinMax(self.pars['cascade'][j].y_format[pop_id]))
+                    minmax_bounds = self.__getMinMax(self.pars['cascade'][j].y_format[pop_id])
+                    if getYFactor and minmax_bounds[1] is not None:
+                        # use the bounds to calculate the corresponding minmax values for the bounds: 
+                        # possibilities are (0.,1.) for fraction, and (0,None) for number and proportion.
+                        # - yfactor-min has to remain 0, so leave
+                        yval_max= np.max(self.pars['cascade'][j].y[pop_id])
+                        if yval_max == 0:
+                            logger.info("ParameterSet: max value of 0 observed for fraction for casc_id=%s"%casc_id)
+                            yval_max = setting.TOLERANCE
+                        tmp_upper = minmax_bounds[1]
+                        tmp_upper /= yval_max
+                        print tmp_upper, yval_max
+                        minmax_bounds = (minmax_bounds[0], tmp_upper)
+                    # if we're grabbing the minmax values for the y-values directly, then use the values
+                    minmax.append(minmax_bounds)
+                    # also grab the cascade labels for debugging and logging purposes
                     casc_labels.append(casc_id)
                 index+=1
                 
         if getMinMax:
-            # Hmm, not a big fan of different return signatures for the one method ... 
             return paramvec,minmax,casc_labels
-        return paramvec#[:index]
+        
+        return paramvec,None,casc_labels 
     
     
-    def update(self,paramvec,yearvec=None,y_format_vec=None,y_factor_vec=None):
+    def update(self,paramvec,isYFactor=False):
         """
         Update parameters from a list of values
         
-        TODO: added yearvec,y_format_vec,y_factor_vec with intention that they can be used to fully update
-        the parameter set cascade parameter
+        Params:
+            paramvec    new values
+            y_factor_vec
+        
+        TODO: improve this function to future proof it and make it more robust i.e. reference only by population and compartment id.
+        TODO: extend function so that can also add years or format values
+        TODO: remove index ...?
         """
         import settings
         
         index = 0
         for (i,pop_id) in enumerate(self.pop_labels):
             for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+                # perform checks
                 if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
                     continue
-                if len(self.pars['cascade'][j].y[pop_id]) != len(paramvec[index]):
+                if not isYFactor and len(self.pars['cascade'][j].y[pop_id]) != len(paramvec[index]):
                     raise OptimaException("Could not update parameter set '%s' for pop=%s,cascade=%s as updated parameter has different length."%(self.name,pop_id,casc_id))
-                self.pars['cascade'][j].y[pop_id] = paramvec[index]
+                # update y or y_factor, based on parameters
+                if isYFactor:
+                    self.pars['cascade'][j].y_factor[pop_id] = paramvec[index]
+                else:
+                    self.pars['cascade'][j].y[pop_id] = paramvec[index]
+                # finally, update index count
                 index += 1
                 
         logger.info("Updated ParameterSet %s with new values"%self.name)
     
+    def _updateFromYFactor(self):
+        """
+        Goes through each of the cascade parameters and updates the y-values to be
+        y-value*y_factor. This is used for example in autocalibration (which uses y_factor),
+        which may have set the y_factor to a non-unary value but then needs to update y values at the end. 
+        The benefit of doing this is that most values will inspect y_value and 
+        not y_value*y_factor; updating it thus avoids any instances where checks don't take both into account.
     
+        
+        """
+        import settings
+        
+        for (i,pop_id) in enumerate(self.pop_labels):
+            for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+                if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
+                    continue
+                self.pars['cascade'][j].y[pop_id] *= self.pars['cascade'][j].y_factor[pop_id] 
+                self.pars['cascade'][j].y_factor[pop_id] = 1.0
+        
+        
+        
     
     def __repr__(self, *args, **kwargs):
         return "ParameterSet: %s \npars: \n%s"%(self.name, self.pars) 

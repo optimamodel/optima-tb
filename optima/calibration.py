@@ -149,8 +149,10 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibr
    
     """
     # setup:
+    useYFactor = calibration_settings['useYFactor']
+    logger.debug("Autofit: useYFactor == %s"%useYFactor)
     metric = project.settings.fit_metric
-    paramvec,minmax,casc_labels = paramset.extract(getMinMax=True)  # array representation of initial values for p0
+    paramvec,minmax,casc_labels = paramset.extract(getMinMax=True,getYFactor=useYFactor)  # array representation of initial values for p0, with bounds
     if len(paramvec) == 0:
         raise OptimaException("No available cascade parameters to calibrate during autofitting. Please set at least one 'Calibrate?' value to be not equal to %g"%settings.DO_NOT_SCALE)
     
@@ -168,10 +170,13 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibr
             target_data_characs[k] = project.data['characs'][k]
         logger.info("Autofit: fitting to the following target characteristics =[%s]"%(",".join(target_characs)))
     
+    print paramvec
+    print minmax
     
     def objective_calc(p_est):
         ''' Function used by ASD algorithm to run and evaluate fit of parameter set'''    
-        sample_param.update(p_est)
+        print p_est
+        sample_param.update(p_est,isYFactor=useYFactor)
         results = project.runSim(parameterset = sample_param)
         datapoints = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,target_data_characs,metric)
@@ -180,10 +185,29 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibr
     
     parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, xmin=mins,xmax=maxs,xnames=casc_labels,**calibration_settings)
     
-    sample_param.update(parvecnew)
+    print "pre ---------------------------"
+    print sample_param.pars['cascade']
+    print "/pre ---------------------------"
+    sample_param.update(parvecnew,isYFactor=useYFactor)
+    sample_param._updateFromYFactor()
     sample_param.name = new_parset_name
-    
+    print "post ---------------------------"
+    print sample_param.pars['cascade']
+    print "/post ---------------------------"
+  
     return sample_param
     
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         
         

@@ -37,13 +37,13 @@ proj.loadSpreadsheet(databook_path = databook)
  
 proj.makeParset()
 
-#r1, o1,s1,results1 = proj.runSim(plot=plot)
+results1 = proj.runSim(plot=plot)
 
 # Autofit over *all* characteristics:
 proj.runAutofitCalibration(new_parset_name='bob')
 # Autofit over a subset of characteristics:
-proj.runAutofitCalibration(new_parset_name='eve',target_characs=['vaccin','lt_treat','at_treat','lt_inf','ac_inf'])
+proj.runAutofitCalibration(new_parset_name='eve',target_characs=['vaccin','at_treat','lt_treat','at_treat','lt_inf','ac_inf'])
 # Run using the second autofitted parameters
-r2, o2,s2,results2 = proj.runSim(parset_name='eve',plot=plot)
+results2 = proj.runSim(parset_name='eve',plot=plot)
 
 pylab.show()

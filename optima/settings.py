@@ -121,6 +121,8 @@ class Settings(object):
         calibration['sdec'] = 2.
         calibration['fulloutput'] = False
         
+        calibration['useYFactor'] = True
+        
         return calibration
 
     def loadCascadeSettings(self, cascade_path):

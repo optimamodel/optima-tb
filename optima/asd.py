@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None, xnames=None,
         sinc=2, sdec=2, pinc=2, pdec=2, pinitial=None, sinitial=None, absinitial=None, MaxRangeIter=1000,
         MaxFunEvals=None, MaxIter=1e3, AbsTolFun=1e-6, RelTolFun=1e-2, TolX=None, StallIterLimit=100,
-        fulloutput=False, maxarraysize=1e6, timelimit=3600, stoppingfunc=None, randseed=None):
+        fulloutput=False, maxarraysize=1e6, timelimit=3600, stoppingfunc=None, randseed=None,useYFactor=False,**kwargs):
     """
     Optimization using the adaptive stochastic descent algorithm.
     
@@ -124,6 +124,8 @@ def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None, xnames=None,
             par = mod(choice,nparams) # Which parameter was chosen
             pm = floor((choice)/nparams) # Plus or minus
             newval = x[par] + ((-1)**pm)*steps[choice] # Calculate the new parameter set
+            # TODO: create min and max from newval to check
+            
             #print "oldval =", x[par] 
             #print "newval =", newval
             
@@ -131,6 +133,7 @@ def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None, xnames=None,
                 newval = x[par]
                 #exitflag = -1
                 inrange = 1
+
             elif (xmax is None) and (xmin is None):
                 inrange = 1
             elif (xmin is None) and (xmax is not None) and (newval <= xmax[par]):
