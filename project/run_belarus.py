@@ -17,10 +17,10 @@ Loads and runs model data
 from project import Project
 import pylab
 
-proj = Project(name = 'Belarus', cascade_path = './cascade-belarus.xlsx', validation_level = 'error')
+proj = Project(name = 'Belarus', cascade_path = './cascade-belarus.xlsx', validation_level = 'avert')
 
 #set the year range we simulate over as starting in 1995:
-#proj.setYear([1995,2030],False)
+proj.setYear([1995,2030],False)
 
 
 proj.loadSpreadsheet(databook_path = './databook-belarus-template.xlsx')
