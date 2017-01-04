@@ -168,10 +168,15 @@ class ResultSet():
                 datapoints[cj][pi] = self.outputs[cj][pi][self.indices_observed_data]
         return datapoints
                 
-    def export(self, pop_label = None, char_label = None):
+    def export(self, filestem=None, bypop=False, sep=',', writetofile=True):
         """
-        Export method for characteristics results obtained from a simulation for each population, 
-        that should correspond to times of the observed data (i.e. annually). This method is intended for
-        use with runSim currently and will be extended to include optimization and scenario results.
+        Export method for characteristics results obtained from a simulation that should correspond 
+        to times of the observed data (i.e. annually). This method is intended for use with runSim 
+        currently and will be extended to include optimization and scenario results.
         """
+        if filestem is None:  # Doesn't include extension, hence filestem
+            if self.name is not None: filestem = self.project.name+'-'+self.name
+            else: filestem = str(self.uid)
+        filename = filestem + '.csv'
+        npts = len(self.t_step)
         
