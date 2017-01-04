@@ -11,6 +11,7 @@ from copy import deepcopy as dcp
 import numpy as np
 from uuid import uuid4 as uuid
 from csv import reader, writer
+import operator
 
 
 
@@ -114,11 +115,11 @@ class ParameterSet(object):
             self.par_ids['characs'][label] = l
             self.pars['characs'].append(Parameter(label = label))
             for pop_id in data['characs'][label]:
-                self.pars['characs'][-1].t[pop_id] = data['characs'][label][pop_id]['t']
-                self.pars['characs'][-1].y[pop_id] = data['characs'][label][pop_id]['y']
-                self.pars['characs'][-1].y_format[pop_id] = data['characs'][label][pop_id]['y_format']
-                self.pars['characs'][-1].y_factor[pop_id] = data['characs'][label][pop_id]['y_factor']
-        
+                self.pars['characs'][l].t[pop_id] = data['characs'][label][pop_id]['t']
+                self.pars['characs'][l].y[pop_id] = data['characs'][label][pop_id]['y']
+                self.pars['characs'][l].y_format[pop_id] = data['characs'][label][pop_id]['y_format']
+                self.pars['characs'][l].y_factor[pop_id] = data['characs'][label][pop_id]['y_factor']
+            
         # Migrations, including aging.
         for trans_type in data['transfers'].keys():
             if trans_type not in self.transfers: self.transfers[trans_type] = odict()
@@ -170,7 +171,8 @@ class ParameterSet(object):
         casc_labels = []
         index= 0
         for pop_id in self.pop_labels:
-            for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+            #for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+            for (casc_id,j) in sorted(self.par_ids['cascade'].items(), key=operator.itemgetter(1)):
                 
                 if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
                     continue
@@ -192,7 +194,6 @@ class ParameterSet(object):
                             yval_max = setting.TOLERANCE
                         tmp_upper = minmax_bounds[1]
                         tmp_upper /= yval_max
-                        print tmp_upper, yval_max
                         minmax_bounds = (minmax_bounds[0], tmp_upper)
                     # if we're grabbing the minmax values for the y-values directly, then use the values
                     minmax.append(minmax_bounds)
@@ -205,6 +206,22 @@ class ParameterSet(object):
         
         return paramvec,None,casc_labels 
     
+    def extractEntryPoints(self,proj_settings,useInitCompartments=False):
+        """
+        Extract initial compartments: 
+        """
+        import settings
+        
+        init_compartments = []
+        charac_labels = []
+        if useInitCompartments:
+            for pop_id in self.pop_labels:
+                for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
+                    if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
+                        init_compartments.append(self.pars['characs'][j].y[pop_id][0])
+                        charac_labels.append(charac_id)                        
+        return init_compartments,charac_labels
+         
     
     def update(self,paramvec,isYFactor=False):
         """
@@ -222,7 +239,8 @@ class ParameterSet(object):
         
         index = 0
         for (i,pop_id) in enumerate(self.pop_labels):
-            for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+            #for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+            for (casc_id,j) in sorted(self.par_ids['cascade'].items(), key=operator.itemgetter(1)):
                 # perform checks
                 if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
                     continue
@@ -237,6 +255,24 @@ class ParameterSet(object):
                 index += 1
                 
         logger.info("Updated ParameterSet %s with new values"%self.name)
+    
+    def updateEntryPoints(self,settings,compartment_t0,charac_labels):
+        """
+        
+        
+        """
+        index = 0 
+        for pop_id in self.pop_labels:
+            for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
+                if 'entry_point' in settings.charac_specs[charac_id].keys():# and self.pars['characs'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
+                    
+                    if charac_labels[index] == charac_id:
+                        self.pars['characs'][j].y[pop_id][0] = compartment_t0[index]
+                        index += 1
+                    else:
+                        pass #logger.debug("Updating entry points: characteristic label for entry point doesn't match updated value [%s,%s]"%(charac_labels[index],charac_id))
+                        
+        
     
     def _updateFromYFactor(self):
         """

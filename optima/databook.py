@@ -414,6 +414,7 @@ def loadSpreadsheetFunc(settings, databook_path):
             elif current_def_name is None:
                 current_def_name = val
                 current_def_label = name_to_label[val]
+                # TODO: remove dependency in this clause: the following line would fail if current_def_label is in both charac_specs and linkpar_specs
                 if current_def_label in settings.charac_specs.keys():
                     data_label = 'characs'
                 elif current_def_label in settings.linkpar_specs.keys():
@@ -446,13 +447,15 @@ def loadSpreadsheetFunc(settings, databook_path):
                 data[data_label][current_def_label][current_pop_label]['y'] = np.array(list_y)
                 # if there is a corresponding data value for y_factor already in cascacade structure in settings, use that; else default to settings value
                 try: 
-                    data[data_label][current_def_label][current_pop_label]['y_factor'] = settings.linkpar_specs[current_def_label]['y_factor']
+                    if data_label == 'linkpars':
+                        data[data_label][current_def_label][current_pop_label]['y_factor'] = settings.linkpar_specs[current_def_label]['y_factor']
+                    elif data_label == 'characs':
+                        data[data_label][current_def_label][current_pop_label]['y_factor'] = settings.charac_specs[current_def_label]['y_factor']
                 except:
                     data[data_label][current_def_label][current_pop_label]['y_factor'] = project_settings.DEFAULT_YFACTOR
             
                 
                 pop_id += 1
-    
                 
     # All parameters must be defined whether they are in the project databook or not.
     for label in settings.linkpar_specs.keys():
@@ -481,7 +484,7 @@ def getEmptyData():
     """
     Create empty data structure, following structure returned in loadSpreadsheetFunc()
     
-    This skeleton structure is used elsewhere within the framework, as 
+    This skeleton structure is used elsewhere within the framework, as a placeholder.
     
     Clarification:
         pops        population definitions, with name, label and ages

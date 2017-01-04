@@ -3,7 +3,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None, xnames=None,
+def asd(function, init_params, init_compartments=[], args=None, stepsize=0.1, xmin=None, xmax=None, xnames=None,
         sinc=2, sdec=2, pinc=2, pdec=2, pinitial=None, sinitial=None, absinitial=None, MaxRangeIter=1000,
         MaxFunEvals=None, MaxIter=1e3, AbsTolFun=1e-6, RelTolFun=1e-2, TolX=None, StallIterLimit=100,
         fulloutput=False, maxarraysize=1e6, timelimit=3600, stoppingfunc=None, randseed=None,useYFactor=False,**kwargs):
@@ -75,8 +75,10 @@ def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None, xnames=None,
     seed(randseed)
     
     # Initialization of required variables
+    x = init_params+init_compartments
+    n_init_params = len(init_params)
     nparams = len(x)
-    #print "nparams for asd = ======", nparams
+    logger.debug("nparams for asd = %g"%nparams)
     p = ones(2*nparams)  # Set initial parameter selection probabilities -- uniform by default
     p = p/sum(p) # Normalize probabilities
     steps = ones(2*nparams)*stepsize
@@ -90,7 +92,7 @@ def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None, xnames=None,
     
         
     # Setup params related to first pass of evaluating parameters
-    fval = sum(function(x))# Calculate initial value of the objective function
+    fval = sum(function(x,init_compartments))# Calculate initial value of the objective function
     fval = fval.sum()
     fvalorig = fval # Store the original value of the objective function, since fval is overwritten on each step
     
@@ -122,18 +124,22 @@ def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None, xnames=None,
             inner_count += 1
             choice = flatnonzero(cumprobs > random())[0] # Choose a parameter and upper/lower at random
             par = mod(choice,nparams) # Which parameter was chosen
-            pm = floor((choice)/nparams) # Plus or minus
-            newval = x[par] + ((-1)**pm)*steps[choice] # Calculate the new parameter set
-            # TODO: create min and max from newval to check
             
-            #print "oldval =", x[par] 
-            #print "newval =", newval
+
+            
+            pm = floor((choice)/nparams) # Plus or minus
+            if par < n_init_params:
+                newval = x[par] + ((-1)**pm)*steps[choice] # Calculate the new parameter set
+            else: # it's a compartment value
+                newval = x[par]
+                if x[par] == 0:
+                    newval = 1.
+                newval *= (1+((-1)**pm)*steps[choice] )
             
             if inner_count > MaxRangeIter: # f stuck due to x range limits, exit after 1000 iterations
                 newval = x[par]
                 #exitflag = -1
                 inrange = 1
-
             elif (xmax is None) and (xmin is None):
                 inrange = 1
             elif (xmin is None) and (xmax is not None) and (newval <= xmax[par]):
@@ -142,17 +148,21 @@ def asd(function, x, args=None, stepsize=0.1, xmin=None, xmax=None, xnames=None,
                 inrange = 1
             elif (xmax is not None) and (xmin is not None) and (newval <= xmax[par]) and (newval >= xmin[par]):
                 inrange = 1
+            elif (xmax is not None) and (xmin is not None) and (xmax[par] is None) and (newval >= xmin[par]):
+                inrange = 1
             else:
                 p[choice] = p[choice]/pdec # decrease probability of picking this parameter again
                 steps[choice] = steps[choice]/sdec # decrease size of step for next time
-                
-        
+
         # Set up copies
         xnew = deepcopy(x) # Initialize the new parameter set
         xnew[par] = newval # Update the new parameter set
+        param_new = xnew[:n_init_params]
+        compartments_new = xnew[n_init_params:]
         
+        # TODO: use updated initcompartments
         # Take the parameter set x and run it on the model:
-        fvalnew = function(xnew) # Calculate the objective function for the new parameter set
+        fvalnew = function(param_new,compartments_new) # Calculate the objective function for the new parameter set
         fvalnew = sum(fvalnew)
         fvalnew = fvalnew.sum()
         

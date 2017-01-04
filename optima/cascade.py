@@ -168,6 +168,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     cid_entry = None
     cid_include_start = None
     cid_include_end = None
+    cid_yfactor = None
     for col_id in xrange(ws_characs.ncols):
         if ws_characs.cell_value(0, col_id) == 'Code Label': cid_label = col_id
         if ws_characs.cell_value(0, col_id) == 'Full Name': cid_name = col_id
@@ -179,6 +180,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_characs.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_characs.cell_value(0, col_id) == 'Entry Point': cid_entry = col_id
         if ws_characs.cell_value(0, col_id) == 'Includes': cid_include_start = col_id
+        if ws_characs.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id
     
     
     
@@ -283,6 +285,18 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     try: numerator_ref_list.remove(val)
                     except: raise OptimaException('ERROR: Entry point "%s" for characteristic "%s" must be a compartment it includes (in its numerator), either directly or via characteristic reference.' % (val, charac_label))
                     entry_dict[val] = dcp(list(numerator_ref_list))
+            # Store whether we should use calibrate the initial value or not (only applicable when there's also an entry point)
+            if not cid_yfactor is None:
+                val = str(ws_characs.cell_value(row_id, cid_yfactor))
+                if val.lower() == 'n' or val == '-1':
+                    settings.charac_specs[charac_label]['y_factor'] = project_settings.DO_NOT_SCALE
+                elif val not in ['']:
+                    settings.charac_specs[charac_label]['y_factor'] = float(val)
+                else:
+                    settings.charac_specs[charac_label]['y_factor'] = project_settings.DEFAULT_YFACTOR
+                    
+
+    
     
     # If all characteristics in this sheet are to be printed to custom databook sheets, no need for a default.
     if standard_sheet_count <= 0:
@@ -382,9 +396,10 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                                     settings.charac_specs[dep]['par_dependency'] = True
                                     settings.charac_deps[dep] = True
                                     
+            # Store whether we should use calibrate the initial value or not         
             if not cid_yfactor is None:
                 val = str(ws_pars.cell_value(row_id, cid_yfactor))
-                if val.lower() == 'n' :
+                if val.lower() == 'n' or val == '-1':
                     settings.linkpar_specs[label]['y_factor'] = project_settings.DO_NOT_SCALE
                 elif val not in ['']:
                     settings.linkpar_specs[label]['y_factor'] = float(val)
