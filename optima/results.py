@@ -168,6 +168,10 @@ class ResultSet():
                 datapoints[cj][pi] = self.outputs[cj][pi][self.indices_observed_data]
         return datapoints
                 
-    
-    
-    
+    def export(self, pop_label = None, char_label = None):
+        """
+        Export method for characteristics results obtained from a simulation for each population, 
+        that should correspond to times of the observed data (i.e. annually). This method is intended for
+        use with runSim currently and will be extended to include optimization and scenario results.
+        """
+        
