@@ -218,4 +218,27 @@ class ResultSet(object):
         npts = len(self.t_observed_data)
         keys = self.char_labels
         
+        output = sep.join(['Indicator','Population'] + ['%i'%t for t in self.t_observed_data]) # Create header and years
+        for key in keys:
+            if bypop: output += '\n' # Add a line break between different indicators
+            if bypop: popkeys = ['tot']+self.pop_labels # include total even for bypop
+            else:     popkeys = ['tot']
+            for pk, popkey in enumerate(popkeys):
+                data = 0.
+                output += '\n'
+                if bypop and popkey!='tot': data = self.outputs[key][popkey][pk-1,:]
+                else:
+                    data += self.outputs[key][popkey][:]
+                output += self.outputs[key].name+sep+popkey+sep
+                for t in range(npts):
+                    if self.main[key].ispercentage: output += ('%s'+sep) % (data[t])
+                    else:                           output += ('%i'+sep) % data[t]
+            
+        if writetofile: 
+            with open(filename, 'w') as f: f.write(output)
+            printv('Results exported to "%s"' % filename, 2, verbose)
+            return None
+        else:
+            return output
+        
         
