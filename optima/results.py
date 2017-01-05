@@ -92,10 +92,6 @@ class ResultSet(object):
     
     def __repr__(self):
         ''' Print out useful information when called'''
-        #output = '============================================================\n'
-        #output += '      Project name: %s\n'    % (self.parset_name if self.parset_name is not None else None)
-        #output += '      Date created: %s\n'    % getdate(self.created)
-        #output += '               UID: %s\n'    % self.uid
         output = '====================================================================================\n'
         output += objrepr(self)
         return output
@@ -122,7 +118,7 @@ class ResultSet(object):
         
         
         
-    def getPopDatapoints(self, pop_labels = None, comp_labels = None):
+    def getPopDatapoints(self, pop_id = None, comp_id = None):
         """
         Returns the data points for the simulation, for each compartment, 
         that should correspond to times of the observed data. This method is intended for
@@ -141,30 +137,7 @@ class ResultSet(object):
         @param comp_id: compartment id, either as single id or as list
                 
         """
-        if pop_labels is not None:
-            if isinstance(pop_labels, list):
-                pops = pop_labels
-            else:
-                pops = [pop_labels]
-        else:
-            pops = self.pop_labels
-            
-        if comp_labels is not None:
-            if isinstance(comp_labels, list):
-                comp = comp_labels
-            else:
-                comp = [comp_labels]
-        else:
-            comp = self.comp_labels
-        
-        # this currently uses odict for the output ... Hmm, not sure whether this is the best
-        datapoints = odict() 
-        for cj in comp:
-            datapoints[cj] = odict() 
-            for pi in pops:
-                datapoints[cj][pi] = self.outputs[cj][pi][self.indices_observed_data]
-        return datapoints
-        
+        pass
     
     
     def getCharacteristicDatapoints(self,pop_label = None, char_label = None):
