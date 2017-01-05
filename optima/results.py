@@ -3,6 +3,7 @@ logger = logging.getLogger(__name__)
 
 from utils import OptimaException, odict, defaultrepr, objrepr
 import numpy as np
+from math import ceil, floor
 
 
 class Result(object):
@@ -205,7 +206,7 @@ class ResultSet(object):
                 datapoints[cj][pi] = self.outputs[cj][pi][self.indices_observed_data]
         return datapoints
                 
-    def export(self, filestem=None, bypop=False, sep=',', writetofile=True):
+    def export(self, filestem=None, bypop=True, sep=',', writetofile=True):
         """
         Export method for characteristics results obtained from a simulation that should correspond 
         to times of the observed data (i.e. annually). This method is intended for use with runSim 
@@ -219,14 +220,11 @@ class ResultSet(object):
         
         output = sep.join(['Indicator','Population'] + ['%i'%t for t in self.t_observed_data]) # Create header and years
         for key in keys:
-            if bypop: output += '\n' # Add a line break between different indicators
-            if bypop: popkeys = ['tot']+self.pop_labels # include total even for bypop
-            else:     popkeys = ['tot']
+            output += '\n' # Add a line break between different indicators
+            popkeys = self.pop_labels # include total even for bypop
             for pk, popkey in enumerate(popkeys):
                 output += '\n'
-                if bypop==False and popkey!='tot': data = self.outputs[key][popkey][:]
-                elif bypop and popkey!='tot': data = self.outputs[key][popkey][:]
-                else: data = self.outputs[key][0][:]
+                data = self.outputs[key][popkey][:]
                 output += key+sep+popkey+sep
                 for t in range(npts):
                     output += ('%i'+sep) % data[t]
