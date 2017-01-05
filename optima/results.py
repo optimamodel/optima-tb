@@ -225,12 +225,11 @@ class ResultSet(object):
             for pk, popkey in enumerate(popkeys):
                 output += '\n'
                 if bypop and popkey!='tot': data = self.outputs[key][popkey][pk-1,:]
-                #else:
-                #    data += self.outputs[key][popkey][:]
-                output += self.outputs[key].name+sep+popkey+sep
+                else:
+                    data = self.outputs[key][0][:]
+                output += key+sep+popkey+sep
                 for t in range(npts):
-                    if self.main[key].ispercentage: output += ('%s'+sep) % (data[t])
-                    else:                           output += ('%i'+sep) % data[t]
+                    output += ('%i'+sep) % data[t]
             
         if writetofile: 
             with open(filename, 'w') as f: f.write(output)
