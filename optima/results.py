@@ -174,7 +174,6 @@ class ResultSet(object):
         filename = filestem + '.csv'
         npts = len(self.t_observed_data)
         keys = self.char_labels
-        index = self.indices_observed_data
         
         output = sep.join(['Indicator','Population'] + ['%i'%t for t in self.t_observed_data]) # Create header and years
         for key in keys:
