@@ -224,9 +224,9 @@ class ResultSet(object):
             else:     popkeys = ['tot']
             for pk, popkey in enumerate(popkeys):
                 output += '\n'
-                if bypop and popkey!='tot': data = self.outputs[key][popkey][pk-1,:]
-                else:
-                    data = self.outputs[key][0][:]
+                if bypop==False and popkey!='tot': data = self.outputs[key][popkey][:]
+                elif bypop and popkey!='tot': data = self.outputs[key][popkey][:]
+                else: data = self.outputs[key][0][:]
                 output += key+sep+popkey+sep
                 for t in range(npts):
                     output += ('%i'+sep) % data[t]
