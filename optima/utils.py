@@ -108,7 +108,7 @@ def flattenDict(input_dict, base_key, sub_keys = None, comp_list = None, key_lis
     return comp_list, key_list
     
 #%% docstring methods
-def createcollist(oldkeys, title, strlen = 18, ncol = 3):
+def createcollist(oldkeys, title, strlen = 30, ncol = 3):
     ''' Creates a string for a nice columnated list (e.g. to use in __repr__ method) '''
     from numpy import ceil
     nrow = int(ceil(float(len(oldkeys))/ncol))
@@ -128,23 +128,23 @@ def createcollist(oldkeys, title, strlen = 18, ncol = 3):
     
 def objectid(obj):
     ''' Return the object ID as per the default Python __repr__ method '''
-    return '<%s.%s at %s>\n' % (obj.__class__.__module__, obj.__class__.__name__, hex(id(obj)))
+    return '%s\n<%s.%s at %s>\n' % (obj.name, obj.__class__.__module__, obj.__class__.__name__, hex(id(obj)))
 
 
-def objatt(obj, strlen = 18, ncol = 3):
+def objatt(obj, strlen = 30, ncol = 3):
     ''' Return a sorted string of object attributes for the Python __repr__ method '''
     oldkeys = sorted(obj.__dict__.keys())
-    return createcollist(oldkeys, 'Attributes', strlen = 18, ncol = 3)
+    return createcollist(oldkeys, 'Attributes', strlen = 30, ncol = 3)
 
 
-def objmeth(obj, strlen = 18, ncol = 3):
+def objmeth(obj, strlen = 30, ncol = 3):
     ''' Return a sorted string of object methods for the Python __repr__ method '''
     oldkeys = sorted([method + '()' for method in dir(obj) if callable(getattr(obj, method)) and not method.startswith('__')])
-    return createcollist(oldkeys, 'Methods', strlen = 18, ncol = 3)
+    return createcollist(oldkeys, 'Methods', strlen = 30, ncol = 3)
         
 def objrepr(obj, showid=True, showmeth=True, showatt=True):
     ''' Return useful printout for the Python __repr__ method '''
-    divider = '============================================================\n'
+    divider = '====================================================================================\n'
     output = ''
     if showid:
         output += objectid(obj)
@@ -158,7 +158,7 @@ def objrepr(obj, showid=True, showmeth=True, showatt=True):
     return output
     
 def defaultrepr(obj, maxlen=55):
-    ''' Prints out the default representation of an object -- all attributes, plust methods and ID '''
+    ''' Prints out the default representation of an object -- all attributes, plus methods and ID '''
     keys = sorted(obj.__dict__.keys())
     maxkeylen = max([len(key) for key in keys])
     if maxkeylen<maxlen: maxlen = maxlen - maxkeylen
@@ -168,7 +168,7 @@ def defaultrepr(obj, maxlen=55):
         thisattr = str(getattr(obj, key))
         if len(thisattr)>maxlen: thisattr = thisattr[:maxlen] + ' [...]'
         output += formatstr%key + ': ' + thisattr + '\n'
-    output += '============================================================\n'
+    output += '====================================================================================\n'
 
     return output
     
