@@ -174,17 +174,18 @@ class ResultSet(object):
         filename = filestem + '.csv'
         npts = len(self.t_observed_data)
         keys = self.char_labels
+        index = self.indices_observed_data
         
         output = sep.join(['Indicator','Population'] + ['%i'%t for t in self.t_observed_data]) # Create header and years
         for key in keys:
             output += '\n' # Add a line break between different indicators
-            popkeys = self.pop_labels # include total even for bypop
+            popkeys = self.pop_labels
             for pk, popkey in enumerate(popkeys):
                 output += '\n'
-                data = self.outputs[key][popkey][:]
+                data = [self.outputs[key][popkey][index] for index in self.indices_observed_data]
                 output += key+sep+popkey+sep
                 for t in range(npts):
-                    output += ('%i'+sep) % data[t]
+                    output += ('%i'+sep) % data[0][t]
             
         if writetofile: 
             with open(filename, 'w') as f: f.write(output)
