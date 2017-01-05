@@ -192,7 +192,7 @@ class ParameterSet(object):
                         yval_max= np.max(self.pars['cascade'][j].y[pop_id])
                         if yval_max == 0:
                             logger.info("ParameterSet: max value of 0 observed for fraction for casc_id=%s"%casc_id)
-                            yval_max = setting.TOLERANCE
+                            yval_max = settings.TOLERANCE
                         tmp_upper = minmax_bounds[1]
                         tmp_upper /= yval_max
                         minmax_bounds = (minmax_bounds[0], tmp_upper)
