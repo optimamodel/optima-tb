@@ -212,8 +212,7 @@ class ResultSet(object):
         currently and will be extended to include optimization and scenario results.
         """
         if filestem is None:  # Doesn't include extension, hence filestem
-            if self.name is not None: filestem = self.project.name+'-'+self.name
-            else: filestem = str(self.uid)
+            filestem = self.name
         filename = filestem + '.csv'
         npts = len(self.t_observed_data)
         keys = self.char_labels
