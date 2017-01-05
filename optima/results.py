@@ -4,23 +4,7 @@ logger = logging.getLogger(__name__)
 from utils import OptimaException, odict, defaultrepr, objrepr
 import numpy as np
 from math import ceil, floor
-
-
-class Result(object):
-    '''
-    Class to contain one set of results
-    '''
-    def __init__(self, name = None, ispercentage = False, pops = None, tot = None):
-        self.name = name                 # Name of this parameter
-        self.ispercentage = ispercentage # Whether or not the result is a percentage
-        self.pops = pops                 # The model result by population, if available
-        self.tot = tot                   # The model result total, if available
-            
-    def __repr__(self):
-        ''' Print out useful information when called '''
-        output = defaultrepr(self)
-        return output
-        
+      
 
 #%% Resultset class that contains one set of results
 class ResultSet(object):
@@ -179,7 +163,7 @@ class ResultSet(object):
                 datapoints[cj][pi] = self.outputs[cj][pi][self.indices_observed_data]
         return datapoints
                 
-    def export(self, filestem=None, bypop=True, sep=',', writetofile=True):
+    def export(self, filestem=None, sep=',', writetofile=True):
         """
         Export method for characteristics results obtained from a simulation that should correspond 
         to times of the observed data (i.e. annually). This method is intended for use with runSim 
