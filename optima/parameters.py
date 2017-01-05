@@ -43,10 +43,10 @@ class Parameter(object):
         if not len(self.t[pop_label]) == len(self.y[pop_label]): raise OptimaException('ERROR: Parameter "%s", population "%s", does not have corresponding values and timepoints.' % (self.label, pop_label))
 
         if len(self.t[pop_label]) == 1:
-            output = np.ones(len(tvec))*self.y[pop_label][0]    # Don't bother running interpolation loops if constant. Good for performance.
+            output = np.ones(len(tvec))*(self.y[pop_label][0]*np.abs(self.y_factor[pop_label]))   # Don't bother running interpolation loops if constant. Good for performance.
         else:
             input_t = dcp(self.t[pop_label])
-            input_y = dcp(self.y[pop_label])
+            input_y = dcp(self.y[pop_label])*np.abs(self.y_factor[pop_label])
             
             # Pad the input vectors for interpolation with minimum and maximum timepoint values, to avoid extrapolated values blowing up.
             ind_min, t_min = min(enumerate(self.t[pop_label]), key = lambda p: p[1])
@@ -146,13 +146,14 @@ class ParameterSet(object):
         Extract parameters values into a list
         
         Note that this method is expecting one y-value per parameter, and does 
-        not allow for time-varying parameters. 
+        not allow for time-varying parameters. If time-varying parameters are expected, then 
+        getYFactor will return the scaling factor (y_factor) that can be used to manipulate
         
-        To avoid this, users should use the assumption value to specify values, or 
+        To avoid values from being extracted, users should use the assumption value to specify values, or 
         mark the 'Calibrate?' column in the cascade spreadsheet with "-1" (== settings.DO_NOT_SCALE value)
         
-        If getMinMax=True, additionally returns the min and max values for each of the parameters returned.
-        This depends on their format.
+        If getMinMax=True, this function additionally returns the min and max values for each of the parameters returned,
+        depending on y_format. Each minmax value is a tuple of form (min,max). Note that min/max values can be either a float, int, or None.
         
         Params:
             getMinMax     boolean. Additionally return min and max values for each of the parameters returned in format: 
@@ -161,7 +162,7 @@ class ParameterSet(object):
                             
         Return:
             paramvec
-            minmax        minmax values. None if getMinMax was False
+            minmax        minmax values. [] if getMinMax was False, else a list of tuples: [(min,max)]
             casc_labels    
         """    
         import settings 
@@ -218,7 +219,7 @@ class ParameterSet(object):
             for pop_id in self.pop_labels:
                 for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
                     if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
-                        init_compartments.append(self.pars['characs'][j].y[pop_id][0])
+                        init_compartments.append(self.pars['characs'][j].y_factor[pop_id])
                         charac_labels.append(charac_id)                        
         return init_compartments,charac_labels
          
@@ -256,32 +257,35 @@ class ParameterSet(object):
                 
         logger.info("Updated ParameterSet %s with new values"%self.name)
     
-    def updateEntryPoints(self,settings,compartment_t0,charac_labels):
+    def updateEntryPoints(self,proj_settings,compartment_t0,charac_labels):
         """
         
         
         """
+        import settings 
+        
         index = 0 
         for pop_id in self.pop_labels:
             for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
-                if 'entry_point' in settings.charac_specs[charac_id].keys():# and self.pars['characs'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
-                    
+                if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
                     if charac_labels[index] == charac_id:
-                        self.pars['characs'][j].y[pop_id][0] = compartment_t0[index]
+                        self.pars['characs'][j].y_factor[pop_id]= compartment_t0[index]
+                        #self.pars['characs'][j].y[pop_id][0] *= compartment_t0[index]
+                        #print "initial for %s is %g"%(charac_id,self.pars['characs'][j].y[pop_id][0] )
                         index += 1
                     else:
-                        pass #logger.debug("Updating entry points: characteristic label for entry point doesn't match updated value [%s,%s]"%(charac_labels[index],charac_id))
+                        logger.debug("Updating entry points: characteristic label for entry point doesn't match updated value [%s,%s]"%(charac_labels[index],charac_id))
                         
         
     
     def _updateFromYFactor(self):
         """
         Goes through each of the cascade parameters and updates the y-values to be
-        y-value*y_factor. This is used for example in autocalibration (which uses y_factor),
+        y-value*y_factor. This is used for example in autocalibration (which can scale y_factor),
         which may have set the y_factor to a non-unary value but then needs to update y values at the end. 
-        The benefit of doing this is that most values will inspect y_value and 
-        not y_value*y_factor; updating it thus avoids any instances where checks don't take both into account.
-    
+        
+        The purpose of doing this is to ensure that y_values are correct, if inspected, to avoid errors if a process
+        only checks y_value rather than y_value*y_factor.
         
         """
         import settings
@@ -292,6 +296,13 @@ class ParameterSet(object):
                     continue
                 self.pars['cascade'][j].y[pop_id] *= self.pars['cascade'][j].y_factor[pop_id] 
                 self.pars['cascade'][j].y_factor[pop_id] = 1.0
+                
+        for pop_id in self.pop_labels:
+            for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
+                if self.pars['characs'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
+                    continue
+                self.pars['characs'][j].y[pop_id] *= self.pars['characs'][j].y_factor[pop_id] 
+                self.pars['characs'][j].y_factor[pop_id] = 1.0
         
         
         

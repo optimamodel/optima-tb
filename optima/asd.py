@@ -128,6 +128,8 @@ def asd(function, init_params, init_compartments=[], args=None, stepsize=0.1, xm
 
             
             pm = floor((choice)/nparams) # Plus or minus
+            newval = x[par] + ((-1)**pm)*steps[choice] # Calculate the new parameter set
+            """    
             if par < n_init_params:
                 newval = x[par] + ((-1)**pm)*steps[choice] # Calculate the new parameter set
             else: # it's a compartment value
@@ -135,7 +137,7 @@ def asd(function, init_params, init_compartments=[], args=None, stepsize=0.1, xm
                 if x[par] == 0:
                     newval = 1.
                 newval *= (1+((-1)**pm)*steps[choice] )
-            
+            """
             if inner_count > MaxRangeIter: # f stuck due to x range limits, exit after 1000 iterations
                 newval = x[par]
                 #exitflag = -1
@@ -146,9 +148,9 @@ def asd(function, init_params, init_compartments=[], args=None, stepsize=0.1, xm
                 inrange = 1
             elif (xmax is None) and (xmin is not None) and (newval >= xmin[par]):
                 inrange = 1
-            elif (xmax is not None) and (xmin is not None) and (newval <= xmax[par]) and (newval >= xmin[par]):
-                inrange = 1
             elif (xmax is not None) and (xmin is not None) and (xmax[par] is None) and (newval >= xmin[par]):
+                inrange = 1
+            elif (xmax is not None) and (xmin is not None) and (newval <= xmax[par]) and (newval >= xmin[par]):
                 inrange = 1
             else:
                 p[choice] = p[choice]/pdec # decrease probability of picking this parameter again

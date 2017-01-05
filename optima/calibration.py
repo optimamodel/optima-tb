@@ -161,7 +161,8 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     # min maxes for compartments are always (0,None):
     charac_minmax = [(0,None) for i in charac_labels]
     minmax += charac_minmax
-    
+
+
     if len(paramvec)+len(compartment_init) == 0:
         raise OptimaException("No available cascade parameters or initial populations to calibrate during autofitting. Please set at least one 'Calibrate?' value to be not equal to %g OR at least one entry point for a population."%settings.DO_NOT_SCALE)
     
@@ -195,10 +196,10 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     
     
     # Compare old and new values 
-    print paramvec
-    print parvecnew[:len(paramvec)]
-    print compartment_init
-    print parvecnew[len(paramvec):]
+#     print paramvec
+#     print parvecnew[:len(paramvec)]
+#     print compartment_init
+#     print parvecnew[len(paramvec):]
     
     sample_param.update(parvecnew,isYFactor=useYFactor)
     sample_param._updateFromYFactor()
