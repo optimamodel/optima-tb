@@ -56,6 +56,7 @@ class ResultSet(object):
     
     def __init__(self, model, parset, settings):
         
+        self.name = 'results - ' + parset.name
         self.parset_name = parset.name
         self.parset_id  = parset.uid
         
@@ -89,12 +90,12 @@ class ResultSet(object):
         # /work-in-progress
     
     def __repr__(self):
-        ''' Print out useful information when called -- WARNING, add summary stats '''
-        output = '============================================================\n'
-        output += '      Project name: %s\n'    % (self.project.name if self.project is not None else None)
+        ''' Print out useful information when called'''
+        #output = '============================================================\n'
+        #output += '      Project name: %s\n'    % (self.parset_name if self.parset_name is not None else None)
         #output += '      Date created: %s\n'    % getdate(self.created)
-        output += '               UID: %s\n'    % self.uid
-        output += '============================================================\n'
+        #output += '               UID: %s\n'    % self.uid
+        output = '====================================================================================\n'
         output += objrepr(self)
         return output
         
@@ -120,7 +121,7 @@ class ResultSet(object):
         
         
         
-    def getPopDatapoints(self,pop_id = None, comp_id = None):
+    def getPopDatapoints(self, pop_labels = None, comp_labels = None):
         """
         Returns the data points for the simulation, for each compartment, 
         that should correspond to times of the observed data. This method is intended for
@@ -139,7 +140,29 @@ class ResultSet(object):
         @param comp_id: compartment id, either as single id or as list
                 
         """
-        pass
+        if pop_labels is not None:
+            if isinstance(pop_labels, list):
+                pops = pop_labels
+            else:
+                pops = [pop_labels]
+        else:
+            pops = self.pop_labels
+            
+        if comp_labels is not None:
+            if isinstance(comp_labels, list):
+                comp = comp_labels
+            else:
+                comp = [comp_labels]
+        else:
+            comp = self.comp_labels
+        
+        # this currently uses odict for the output ... Hmm, not sure whether this is the best
+        datapoints = odict() 
+        for cj in comp:
+            datapoints[cj] = odict() 
+            for pi in pops:
+                datapoints[cj][pi] = self.outputs[cj][pi][self.indices_observed_data]
+        return datapoints
         
     
     
@@ -192,6 +215,7 @@ class ResultSet(object):
             if self.name is not None: filestem = self.project.name+'-'+self.name
             else: filestem = str(self.uid)
         filename = filestem + '.csv'
-        npts = len(self.t_step)
-        keys = self.outputs.keys()
-        print keys
+        npts = len(self.t_observed_data)
+        keys = self.char_labels
+        
+        
