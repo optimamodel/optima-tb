@@ -5,10 +5,11 @@ from project import Project
 class ModelTest(unittest.TestCase):
     """
     
-    
-    
     """
-    def setUp(self,cascade,databook):
+    cascade = None
+    databook = None
+    
+    def setUp(self):
         self.proj= Project(name = 'unittest', cascade_path = cascade)
         self.proj.loadSpreadsheet(databook_path = databook)
         self.proj.makeParset()
@@ -21,29 +22,32 @@ class SimpleModel(ModelTest):
     """
     Minimal model: assumes
         - 2 populations
-        - no aging or transfers between populations
-        - no deaths or births
     """
     def test_simple_model(self):
+        """
+        Assumptions:
+            - no aging or transfers between populations
+            - no deaths or births
+        """
         results = self.proj.runSim()
-
-
-class DeathModel(ModelTest):
-    """
-    Minimal model: assumes
-        - as for SimpleModel but with deaths included
-    """
-    def test_simple_model(self):
+        #self.assertEqual(results.outputs[])
+        return None
+        
+    def test_birth_model(self):
+        """
+        Assumptions:
+            - as for SimpleModel but with births included
+        """
         results = self.proj.runSim()
-
-      
-class BirthModel(ModelTest):
-    """
-    Minimal model: assumes
-        - as for SimpleModel but with births included
-    """
-    def test_simple_model(self):
+        return None
+    
+    def test_death_model(self):
+        """
+        Assumptions:
+            - as for SimpleModel but with deaths included
+        """
         results = self.proj.runSim()
+        return None
         
                 
 class AgingModel(ModelTest):
@@ -89,9 +93,14 @@ class EvilModels(ModelTest):
     """
     pass    
      
-          
-        
+#databook = './tests/databooks/simple-cascade.xlsx'
+#cascade =  './tests/cascade_spreadsheet/model-simple.xlsx'      
+databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\databooks\\databook_simple.xlsx'
+cascade =  'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\cascade_spreadsheet\\cascade_simple.xlsx'      
+
 if __name__ == '__main__':
+    ModelTest.cascade = cascade
+    ModelTest.databook = databook
     unittest.main()
     
     """
