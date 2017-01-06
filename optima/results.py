@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 from utils import OptimaException, odict, defaultrepr, objrepr
 import numpy as np
 from math import ceil, floor
-      
+from uuid import uuid4 as uuid
 
 #%% Resultset class that contains one set of results
 class ResultSet(object):
@@ -41,7 +41,8 @@ class ResultSet(object):
     
     def __init__(self, model, parset, settings):
         
-        self.name = 'results - ' + parset.name
+	self.uuid = uuid()
+        self.name = 'results:' + parset.name
         self.parset_name = parset.name
         self.parset_id  = parset.uid
         
@@ -188,7 +189,7 @@ class ResultSet(object):
             
         if writetofile: 
             with open(filename, 'w') as f: f.write(output)
-            print 'Results exported to "%s"' % (filename)
+            logger.info('Results exported to "%s"' % (filename))
             return None
         else:
             return output
