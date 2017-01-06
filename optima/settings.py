@@ -105,6 +105,10 @@ class Settings(object):
         self.databook['custom_sheet_names'] = odict()
         self.make_sheet_characs = True      # Tag for whether the default characteristics worksheet should be generated during databook creation.
         self.make_sheet_linkpars = True     # Tag for whether the default cascade parameters worksheet should be generated during databook creation.
+        self.databook['suffix'] = odict()        
+        self.databook['suffix']['seed'] =   ' [S]'  # Suffix for characteristics used as model seeds (i.e. for initialisation).
+        self.databook['suffix']['output'] = ' [O]'  # Suffix for characteristics used solely as outputs for diagnostic and/or calibration purposes.
+        self.databook['suffix']['par'] =    ' [P]'  # Suffix for parameters that are used at every step of model calculations.
     
     def resetCalibrationParameters(self):
         """

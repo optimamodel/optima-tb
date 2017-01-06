@@ -7,19 +7,23 @@ try:
 except: pass
 sys.path.append('../optima')
 
-#%% Actual script
+"""
+Run model simulation and plot output:
+
+Loads and runs model data
+
+"""
 
 from project import Project
 import pylab
 
 proj = Project(name = 'Belarus', cascade_path = './cascade-belarus.xlsx', validation_level = 'avert')
-#proj.makeSpreadsheet(databook_path = './databook-belarus-template.xlsx', num_pops = 6, num_migrations = 2)
 
 #set the year range we simulate over as starting in 1995:
-#proj.setYear([1995,2030],False)
+proj.setYear([1995,2030],False)
 
 
-proj.loadSpreadsheet(databook_path = './databook-belarus.xlsx')
+proj.loadSpreadsheet(databook_path = './databook-belarus-template.xlsx')
 proj.makeParset(name = 'default')
 
 # run and plot simulations
