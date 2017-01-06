@@ -19,13 +19,16 @@ Note: this script should be run from the home folder for this project i.e. ~/git
 
 num_pop = 2
 
-databook = './training/databook-simple-cascade.xlsx'
-cascade = './training/simple-cascade.xlsx'
+databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\data\\databook-simple-cascadeBirths.xlsx'
+cascade =  'C:\\Users\\Azfar\\Documents\\tb-ucl\\data\\cascade-simple-births.xlsx'
 
 
-proj= Project(name = 'test-simple-cascade', cascade_path = cascade)
+proj= Project(name = 'test-simple-birth', cascade_path = cascade)
 # Set the year range we wish to enter data points for: from 2000 to 2016 inclusive
 proj.setYear([2000.,2016.])
+proj.loadSpreadsheet(databook_path = databook)
+proj.makeParset()
+r1 = proj.runSim(plot = False)
 
 """
 # ----------------------------------------------------------------
@@ -37,8 +40,6 @@ proj.makeSpreadsheet(databook_path="sample-output.xlsx", num_pops = num_pop)
 #proj.makeSpreadsheet(databook_path=databook num_pops = num_pop)
 
 # ----------------------------------------------------------------
-"""
-"""
 # ----------------------------------------------------------------
 # 2, load spreadsheet with number format and run simulation
 
