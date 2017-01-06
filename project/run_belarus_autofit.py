@@ -30,8 +30,8 @@ proj.makeParset()
 # The default amount of runs is 500 iterations. If you find it needs to run for more iterations, then 
 # uncomment out the next line:
 #proj.settings.autofit_params['MaxIter'] = 1000
-# This line runs the autofit calibration process:
-proj.runAutofitCalibration(new_parset_name='autofit')
+# This line runs the autofit calibration process, and fits to only two characteristics ('num_vac', 'ac'_inf'):
+proj.runAutofitCalibration(new_parset_name='autofit',target_characs=['num_vac','ac_inf']) 
 # End of the autofit calibration process. -------------------------
 
 # Run our simulation using the new process

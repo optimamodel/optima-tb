@@ -183,7 +183,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     
     
     # Work out where the 'include' columns end when defining cascade characteristics.
-    cid_list = np.array(sorted([cid_label, cid_name, cid_sheet, cid_percentage, cid_denom, cid_order, cid_default, cid_entry, ws_characs.ncols]))
+    cid_list = np.array(sorted([cid_label, cid_name, cid_sheet, cid_plot, cid_percentage, cid_denom, cid_order, cid_default, cid_entry, ws_characs.ncols]))
     cid_include_end = cid_list[sum(cid_include_start > cid_list)] - 1
     
     if None in [cid_label, cid_name, cid_include_start, cid_include_end]:
@@ -315,7 +315,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
         if ws_pars.cell_value(0, col_id) == 'Function': cid_function = col_id
-        if ws_pars.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id
+        if ws_pars.cell_value(0, col_id) == 'Calibrate': cid_yfactor = col_id
     if None in [cid_tag, cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
     
