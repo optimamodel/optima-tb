@@ -724,9 +724,6 @@ class Model(object):
             return True
         return False
         
-    
-
-#%% Model function (simulates epidemic dynamics)
 
 def runModel(settings, parset):
     ''' Processes the TB epidemiological model. '''
@@ -734,19 +731,9 @@ def runModel(settings, parset):
     m = Model()
     m.build(settings = settings, parset = parset)
     m.process(settings = settings)
-    
-    # Intention: to replace these 3 lines
-    #outputs = m.calculateOutputs(settings = settings)
-    #m_pops = m.pops
-    #sim_settings = m.sim_settings
-    # with 
+
     results = ResultSet(m,parset,settings)
-    # and
-    #return results
-    
-    # For moment, we'll return all, as further plotting methods require  m_pops, sim_settings, outputs
-    # (which are within results, but we'll do it in a piecewise manner at the moment)
-    #%% Collect and return raw results    
-    return results#, m_pops, sim_settings, outputs
+   
+    return results
 
 

@@ -137,7 +137,7 @@ def _setRateCalibration(parset,value_dictionary,pop_label):
             parset.pars['cascade'][par_index].t[pop_label] = np.array([parset.pars['cascade'][par_index].t[pop_label][0]])
 
 
-def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibration_settings):
+def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFactor=False,useInitCompartments=False,**calibration_settings):
     """
     Run an autofit and save resulting parameterset
     
@@ -146,17 +146,30 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibr
         paramset
         new_parset_name     name of resulting parameterset
         calibration_settings
+        useYFactor            boolean of flag whether we should use yvalues directly, or y_factor
    
     """
     # setup:
+    logger.info("Autofit: useYFactor          == %s"%useYFactor)
+    logger.info("Autofit: useInitCompartments == %s"%useInitCompartments)
+    logger.info("Autofit: calibration settings = %s"%calibration_settings)
     metric = project.settings.fit_metric
-    paramvec,minmax,casc_labels = paramset.extract(getMinMax=True)  # array representation of initial values for p0
-    if len(paramvec) == 0:
-        raise OptimaException("No available cascade parameters to calibrate during autofitting. Please set at least one 'Calibrate?' value to be not equal to %g"%settings.DO_NOT_SCALE)
+    # setup for cascade parameters
+    paramvec,minmax,casc_labels = paramset.extract(getMinMax=True,getYFactor=useYFactor)  # array representation of initial values for p0, with bounds
+    # setup for characteristics
+    compartment_init,charac_labels = paramset.extractEntryPoints(project.settings,useInitCompartments=useInitCompartments)
+    # min maxes for compartments are always (0,None):
+    charac_minmax = [(0,None) for i in charac_labels]
+    minmax += charac_minmax
+
+
+    if len(paramvec)+len(compartment_init) == 0:
+        raise OptimaException("No available cascade parameters or initial populations to calibrate during autofitting. Please set at least one 'Calibrate?' value to be not equal to %g OR at least one entry point for a population."%settings.DO_NOT_SCALE)
     
     mins, maxs = zip(*minmax)
     sample_param = dcp(paramset)   # ParameterSet created just to be overwritten
     sample_param.name = "calibrating"
+    
     
     if target_characs is None: 
         # if no targets characteristics are supplied, then we autofit to all characteristics 
@@ -169,21 +182,42 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,**calibr
         logger.info("Autofit: fitting to the following target characteristics =[%s]"%(",".join(target_characs)))
     
     
-    def objective_calc(p_est):
+    def objective_calc(p_est,compartment_est):
         ''' Function used by ASD algorithm to run and evaluate fit of parameter set'''    
-        sample_param.update(p_est)
+        sample_param.update(p_est,isYFactor=useYFactor)
+        sample_param.updateEntryPoints(project.settings,compartment_est,charac_labels)
         results = project.runSim(parameterset = sample_param)
         datapoints = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,target_data_characs,metric)
         return score
     
     
-    parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, xmin=mins,xmax=maxs,xnames=casc_labels,**calibration_settings)
+    parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, init_compartments=compartment_init, xmin=mins,xmax=maxs,xnames=casc_labels+charac_labels,**calibration_settings)
     
-    sample_param.update(parvecnew)
+    
+    # Compare old and new values 
+#     print paramvec
+#     print parvecnew[:len(paramvec)]
+#     print compartment_init
+#     print parvecnew[len(paramvec):]
+    
+    sample_param.update(parvecnew,isYFactor=useYFactor)
+    sample_param._updateFromYFactor()
     sample_param.name = new_parset_name
     
     return sample_param
     
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         
         
