@@ -11,6 +11,7 @@ from copy import deepcopy as dcp
 import numpy as np
 from uuid import uuid4 as uuid
 from csv import reader, writer
+import operator
 
 
 
@@ -42,10 +43,10 @@ class Parameter(object):
         if not len(self.t[pop_label]) == len(self.y[pop_label]): raise OptimaException('ERROR: Parameter "%s", population "%s", does not have corresponding values and timepoints.' % (self.label, pop_label))
 
         if len(self.t[pop_label]) == 1:
-            output = np.ones(len(tvec))*self.y[pop_label][0]    # Don't bother running interpolation loops if constant. Good for performance.
+            output = np.ones(len(tvec))*(self.y[pop_label][0]*np.abs(self.y_factor[pop_label]))   # Don't bother running interpolation loops if constant. Good for performance.
         else:
             input_t = dcp(self.t[pop_label])
-            input_y = dcp(self.y[pop_label])
+            input_y = dcp(self.y[pop_label])*np.abs(self.y_factor[pop_label])
             
             # Pad the input vectors for interpolation with minimum and maximum timepoint values, to avoid extrapolated values blowing up.
             ind_min, t_min = min(enumerate(self.t[pop_label]), key = lambda p: p[1])
@@ -114,11 +115,11 @@ class ParameterSet(object):
             self.par_ids['characs'][label] = l
             self.pars['characs'].append(Parameter(label = label))
             for pop_id in data['characs'][label]:
-                self.pars['characs'][-1].t[pop_id] = data['characs'][label][pop_id]['t']
-                self.pars['characs'][-1].y[pop_id] = data['characs'][label][pop_id]['y']
-                self.pars['characs'][-1].y_format[pop_id] = data['characs'][label][pop_id]['y_format']
-                self.pars['characs'][-1].y_factor[pop_id] = data['characs'][label][pop_id]['y_factor']
-        
+                self.pars['characs'][l].t[pop_id] = data['characs'][label][pop_id]['t']
+                self.pars['characs'][l].y[pop_id] = data['characs'][label][pop_id]['y']
+                self.pars['characs'][l].y_format[pop_id] = data['characs'][label][pop_id]['y_format']
+                self.pars['characs'][l].y_factor[pop_id] = data['characs'][label][pop_id]['y_factor']
+            
         # Migrations, including aging.
         for trans_type in data['transfers'].keys():
             if trans_type not in self.transfers: self.transfers[trans_type] = odict()
@@ -140,18 +141,29 @@ class ParameterSet(object):
             raise OptimaException("Unknown y_format '%s' encountered while returning min-max bounds"%y_format)
     
     
-    def extract(self,getMinMax=False):
+    def extract(self,getMinMax=False,getYFactor=False):
         """
         Extract parameters values into a list
         
         Note that this method is expecting one y-value per parameter, and does 
-        not allow for time-varying parameters. 
+        not allow for time-varying parameters. If time-varying parameters are expected, then 
+        getYFactor will return the scaling factor (y_factor) that can be used to manipulate
         
-        To avoid this, users should use the assumption value to specify values, or 
+        To avoid values from being extracted, users should use the assumption value to specify values, or 
         mark the 'Calibrate?' column in the cascade spreadsheet with "-1" (== settings.DO_NOT_SCALE value)
         
-        If getMinMax=True, additionally returns the min and max values for each of the parameters returned.
-        This depends on their format.
+        If getMinMax=True, this function additionally returns the min and max values for each of the parameters returned,
+        depending on y_format. Each minmax value is a tuple of form (min,max). Note that min/max values can be either a float, int, or None.
+        
+        Params:
+            getMinMax     boolean. Additionally return min and max values for each of the parameters returned in format: 
+                            @TODO: document format for this and return statements
+            getYFactor    boolean: 
+                            
+        Return:
+            paramvec
+            minmax        minmax values. [] if getMinMax was False, else a list of tuples: [(min,max)]
+            casc_labels    
         """    
         import settings 
         
@@ -160,45 +172,140 @@ class ParameterSet(object):
         casc_labels = []
         index= 0
         for pop_id in self.pop_labels:
-            for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+            #for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+            for (casc_id,j) in sorted(self.par_ids['cascade'].items(), key=operator.itemgetter(1)):
                 
                 if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
                     continue
                 #paramvec[index] = [self.pars['cascade'][j].y[pop_id]]
-                paramvec.append(self.pars['cascade'][j].y[pop_id])
+                if getYFactor:
+                    paramvec.append(self.pars['cascade'][j].y_factor[pop_id])
+                else:
+                    paramvec.append(self.pars['cascade'][j].y[pop_id])
+                    
                 if getMinMax:
-                    minmax.append(self.__getMinMax(self.pars['cascade'][j].y_format[pop_id]))
+                    minmax_bounds = self.__getMinMax(self.pars['cascade'][j].y_format[pop_id])
+                    if getYFactor and minmax_bounds[1] is not None:
+                        # use the bounds to calculate the corresponding minmax values for the bounds: 
+                        # possibilities are (0.,1.) for fraction, and (0,None) for number and proportion.
+                        # - yfactor-min has to remain 0, so leave
+                        yval_max= np.max(self.pars['cascade'][j].y[pop_id])
+                        if yval_max == 0:
+                            logger.info("ParameterSet: max value of 0 observed for fraction for casc_id=%s"%casc_id)
+                            yval_max = settings.TOLERANCE
+                        tmp_upper = minmax_bounds[1]
+                        tmp_upper /= yval_max
+                        minmax_bounds = (minmax_bounds[0], tmp_upper)
+                    # if we're grabbing the minmax values for the y-values directly, then use the values
+                    minmax.append(minmax_bounds)
+                    # also grab the cascade labels for debugging and logging purposes
                     casc_labels.append(casc_id)
                 index+=1
                 
         if getMinMax:
-            # Hmm, not a big fan of different return signatures for the one method ... 
             return paramvec,minmax,casc_labels
-        return paramvec#[:index]
+        
+        return paramvec,None,casc_labels 
     
+    def extractEntryPoints(self,proj_settings,useInitCompartments=False):
+        """
+        Extract initial compartments: 
+        """
+        import settings
+        
+        init_compartments = []
+        charac_labels = []
+        if useInitCompartments:
+            for pop_id in self.pop_labels:
+                for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
+                    if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
+                        init_compartments.append(self.pars['characs'][j].y_factor[pop_id])
+                        charac_labels.append(charac_id)                        
+        return init_compartments,charac_labels
+         
     
-    def update(self,paramvec,yearvec=None,y_format_vec=None,y_factor_vec=None):
+    def update(self,paramvec,isYFactor=False):
         """
         Update parameters from a list of values
         
-        TODO: added yearvec,y_format_vec,y_factor_vec with intention that they can be used to fully update
-        the parameter set cascade parameter
+        Params:
+            paramvec    new values
+            y_factor_vec
+        
+        TODO: improve this function to future proof it and make it more robust i.e. reference only by population and compartment id.
+        TODO: extend function so that can also add years or format values
+        TODO: remove index ...?
         """
         import settings
         
         index = 0
         for (i,pop_id) in enumerate(self.pop_labels):
-            for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+            #for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+            for (casc_id,j) in sorted(self.par_ids['cascade'].items(), key=operator.itemgetter(1)):
+                # perform checks
                 if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
                     continue
-                if len(self.pars['cascade'][j].y[pop_id]) != len(paramvec[index]):
+                if not isYFactor and len(self.pars['cascade'][j].y[pop_id]) != len(paramvec[index]):
                     raise OptimaException("Could not update parameter set '%s' for pop=%s,cascade=%s as updated parameter has different length."%(self.name,pop_id,casc_id))
-                self.pars['cascade'][j].y[pop_id] = paramvec[index]
+                # update y or y_factor, based on parameters
+                if isYFactor:
+                    self.pars['cascade'][j].y_factor[pop_id] = paramvec[index]
+                else:
+                    self.pars['cascade'][j].y[pop_id] = paramvec[index]
+                # finally, update index count
                 index += 1
                 
         logger.info("Updated ParameterSet %s with new values"%self.name)
     
+    def updateEntryPoints(self,proj_settings,compartment_t0,charac_labels):
+        """
+        
+        
+        """
+        import settings 
+        
+        index = 0 
+        for pop_id in self.pop_labels:
+            for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
+                if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
+                    if charac_labels[index] == charac_id:
+                        self.pars['characs'][j].y_factor[pop_id]= compartment_t0[index]
+                        #self.pars['characs'][j].y[pop_id][0] *= compartment_t0[index]
+                        #print "initial for %s is %g"%(charac_id,self.pars['characs'][j].y[pop_id][0] )
+                        index += 1
+                    else:
+                        logger.debug("Updating entry points: characteristic label for entry point doesn't match updated value [%s,%s]"%(charac_labels[index],charac_id))
+                        
+        
     
+    def _updateFromYFactor(self):
+        """
+        Goes through each of the cascade parameters and updates the y-values to be
+        y-value*y_factor. This is used for example in autocalibration (which can scale y_factor),
+        which may have set the y_factor to a non-unary value but then needs to update y values at the end. 
+        
+        The purpose of doing this is to ensure that y_values are correct, if inspected, to avoid errors if a process
+        only checks y_value rather than y_value*y_factor.
+        
+        """
+        import settings
+        
+        for (i,pop_id) in enumerate(self.pop_labels):
+            for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+                if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
+                    continue
+                self.pars['cascade'][j].y[pop_id] *= self.pars['cascade'][j].y_factor[pop_id] 
+                self.pars['cascade'][j].y_factor[pop_id] = 1.0
+                
+        for pop_id in self.pop_labels:
+            for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
+                if self.pars['characs'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
+                    continue
+                self.pars['characs'][j].y[pop_id] *= self.pars['characs'][j].y_factor[pop_id] 
+                self.pars['characs'][j].y_factor[pop_id] = 1.0
+        
+        
+        
     
     def __repr__(self, *args, **kwargs):
         return "ParameterSet: %s \npars: \n%s"%(self.name, self.pars) 
