@@ -1,53 +1,48 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from utils import OptimaException, odict
-
+from utils import OptimaException, odict, defaultrepr, objrepr
 import numpy as np
+from math import ceil, floor
+from uuid import uuid4 as uuid
 
-"""
-
-
-
-
-"""
-
-class ResultSet():
+#%% Resultset class that contains one set of results
+class ResultSet(object):
     """
-    
-    A ResultSet contains information:
-    
-    
-    resultset fields: 
+    Class to hold one set of Results
+    Fields: 
+            name               name of result
             parset_name        name (not index) of parset used to create this result set
-            population_labels  minimal data required for populations
-            compartment_label  minimal data required for compartments        
-            popdata_sim          simulated compartment data points (format: ?)
-            outputs              simulated characteristic data points (format: ?)
-                            
-            indices_observed_data    indices for t that correspond to times at which observed data collected 
-                                     so that the observed data points can be compared against simulated data
-                                     using data_observed - data_sim[indices_observed_data]
+            parset_id          uuid of relevant parset (in case of duplication or missing parset_name)
+            sim_settings       settings for simulation
+            pop_labels         population tags for which siumulation was run (e.g. [])
+            char_label         characteristics tags for which simulation was run
+            ind_observed_data  indices for t that correspond to times at which observed data was collected
+                               so that the observed data points can be compared against simulated data
+                               using data_observed - data_sim[indices_observed_data]
             t_observed_data    t values for indices_observed_data points
+                               popdata_sim        simulated compartment data points (format: ?)
             t_step             t_steps in real time 
             dt                 dt used to create this resultset
+            outputs            simulated characteristic data points (format: ?)
+            m_pops             totals per pop per compartment
+            
         Optional: ------------------------------------------------------
             data_observed      datapoints supplied (format: dataset)
             calibration_fit    calibration fit score
             calibration_metric calibration metric used
     
-    Example
-        if dt = 0.25, and observed data was taken annually
-        then 
-            indices_observed_data = [0,4,8,..]. This can be determined directly from dt
-            t_observed_data       = [2000.,2001.,2002., ...]
-        
-    
-    
+        Example
+            if dt = 0.25, and observed data was taken annually
+            then 
+                indices_observed_data = [0,4,8,..]. This can be determined directly from dt
+                t_observed_data       = [2000.,2001.,2002., ...]
     """
     
-    def __init__(self,model,parset,settings):
+    def __init__(self, model, parset, settings):
         
+	self.uuid = uuid()
+        self.name = 'results:' + parset.name
         self.parset_name = parset.name
         self.parset_id  = parset.uid
         
@@ -64,12 +59,9 @@ class ResultSet():
         
         """
         # remaining fields to be set:
-        self.population_label
-        self.compartment_labels
         self.popdata_sim
         self.chardata_sim
         self.data_observed
-        
         """
         
         # work-in-progress: in time, these sections should be removed and only the data
@@ -82,7 +74,12 @@ class ResultSet():
         self.comp_label_names = self.__generateLabelNames(self.comp_specs.keys(),self.comp_labels)
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
         # /work-in-progress
-        
+    
+    def __repr__(self):
+        ''' Print out useful information when called'''
+        output = '====================================================================================\n'
+        output += objrepr(self)
+        return output
         
         
     def extractSimulationData(self):
@@ -106,7 +103,7 @@ class ResultSet():
         
         
         
-    def getPopDatapoints(self,pop_id = None, comp_id = None):
+    def getPopDatapoints(self, pop_id = None, comp_id = None):
         """
         Returns the data points for the simulation, for each compartment, 
         that should correspond to times of the observed data. This method is intended for
@@ -126,7 +123,6 @@ class ResultSet():
                 
         """
         pass
-        
     
     
     def getCharacteristicDatapoints(self,pop_label = None, char_label = None):
@@ -168,6 +164,34 @@ class ResultSet():
                 datapoints[cj][pi] = self.outputs[cj][pi][self.indices_observed_data]
         return datapoints
                 
-    
-    
-    
+    def export(self, filestem=None, sep=',', writetofile=True):
+        """
+        Export method for characteristics results obtained from a simulation that should correspond 
+        to times of the observed data (i.e. annually). This method is intended for use with runSim 
+        currently and will be extended to include optimization and scenario results.
+        """
+        if filestem is None:  # Doesn't include extension, hence filestem
+            filestem = self.name
+        filename = filestem + '.csv'
+        npts = len(self.t_observed_data)
+        keys = self.char_labels
+        
+        output = sep.join(['Indicator','Population'] + ['%i'%t for t in self.t_observed_data]) # Create header and years
+        for key in keys:
+            output += '\n' # Add a line break between different indicators
+            popkeys = self.pop_labels
+            for pk, popkey in enumerate(popkeys):
+                output += '\n'
+                data = self.outputs[key][popkey][self.indices_observed_data]
+                output += key+sep+popkey+sep
+                for t in range(npts):
+                    output += ('%i'+sep) % data[t]
+            
+        if writetofile: 
+            with open(filename, 'w') as f: f.write(output)
+            logger.info('Results exported to "%s"' % (filename))
+            return None
+        else:
+            return output
+        
+        
