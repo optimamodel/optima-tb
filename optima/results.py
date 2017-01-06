@@ -181,10 +181,11 @@ class ResultSet(object):
             popkeys = self.pop_labels
             for pk, popkey in enumerate(popkeys):
                 output += '\n'
-                data = [self.outputs[key][popkey][index] for index in self.indices_observed_data]
+                #data = [self.outputs[key][popkey][index] for index in self.indices_observed_data]
+                data = self.outputs[key][popkey][self.indices_observed_data]
                 output += key+sep+popkey+sep
                 for t in range(npts):
-                    output += ('%i'+sep) % data[0][t]
+                    output += ('%i'+sep) % data[t]
             
         if writetofile: 
             with open(filename, 'w') as f: f.write(output)
