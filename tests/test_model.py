@@ -30,7 +30,12 @@ class SimpleModel(ModelTest):
             - no deaths or births
         """
         results = self.proj.runSim()
-        #self.assertEqual(results.outputs[])
+        #import information from proj.data['alive']
+            #ISSUE: shortname might not be consistent, will need to use full name
+        #import information from results.outputs['alive']
+            #ISSUE: results are not stored as full names here, need to use shortname equivalent from above issue
+        #compare both arrays using assertEqual()
+        #self.assertEqual()
         return None
         
     def test_birth_model(self):
@@ -93,10 +98,10 @@ class EvilModels(ModelTest):
     """
     pass    
      
-#databook = './tests/databooks/simple-cascade.xlsx'
-#cascade =  './tests/cascade_spreadsheet/model-simple.xlsx'      
-databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\databooks\\databook_simple.xlsx'
-cascade =  'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\cascade_spreadsheet\\cascade_simple.xlsx'      
+#databook = './tests/databooks/databook_model_simple.xlsx'
+#cascade =  './tests/cascade_spreadsheet/cascade_model_simple.xlsx'      
+databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\databooks\\databook_model_simple.xlsx'
+cascade =  'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\cascade_spreadsheet\\cascade_model_simple.xlsx'      
 
 if __name__ == '__main__':
     ModelTest.cascade = cascade
