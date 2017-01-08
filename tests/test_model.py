@@ -30,50 +30,43 @@ class SimpleModel(ModelTest):
             - no deaths or births
         """
         results = self.proj.runSim()
-        #import information from proj.data['alive']
-            #ISSUE: shortname might not be consistent, will need to use full name
-        #import information from results.outputs['alive']
-            #ISSUE: results are not stored as full names here, need to use shortname equivalent from above issue
-        #compare both arrays using assertEqual()
-        #self.assertEqual()
+        self.assertEqual(200000, results.outputs['alive']['SAC'][0], 'The Initialised Children Population is not 200000')
+        self.assertEqual(200000, results.outputs['alive']['GEN'][0], 'The Initialised Adult Population is not 200000')
+        self.assertEqual(200000, results.outputs['alive']['SAC'][-1], 'The Children Population is different from initial population of 200000')
+        self.assertEqual(200000, results.outputs['alive']['GEN'][-1], 'The Adult Population is different from initial population of 200000')
         return None
         
-    def test_birth_model(self):
-        """
-        Assumptions:
-            - as for SimpleModel but with births included
-        """
-        results = self.proj.runSim()
-        return None
-    
-    def test_death_model(self):
-        """
-        Assumptions:
-            - as for SimpleModel but with deaths included
-        """
-        results = self.proj.runSim()
-        return None
-        
-                
-class AgingModel(ModelTest):
-    """
-    Minimal model: assumes
-        - as for SimpleModel but with aging between the two populations
-    """
-    
-    def test_simple_model(self):
-        pass
-
-
-class TransfersModel(ModelTest):
-    """
-    Minimal model: assumes
-        - as for SimpleModel but with transfers between the two populations
-    """
-    
-    def test_simple_model(self):
-        pass
-    
+#    def test_birth_model(self):
+#        """
+#        Assumptions:
+#            - as for SimpleModel but with births included
+#        """
+#        results = self.proj.runSim()
+#        return None
+#    
+#    def test_death_model(self):
+#        """
+#        Assumptions:
+#            - as for SimpleModel but with deaths included
+#        """
+#        results = self.proj.runSim()
+#        return None
+#    
+#    def test_aging_model(self):
+#        """
+#        Assumptions:
+#            - as for SimpleModel but with aging between the two populations
+#        """
+#        pass
+#    
+#    def test_simple_model(self):
+#        """
+#        Assumptions:
+#            - as for SimpleModel but with transfers between the two populations
+#            - One transfer will be as numbers
+#            - The reverse transfer will be as fractions
+#        """
+#        pass    
     
 class FullModel(ModelTest):
     """
