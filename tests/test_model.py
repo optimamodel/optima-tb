@@ -94,16 +94,35 @@ class SimpleModel(ModelTest):
         results = self.proj.runSim(parset_name='test_aging')
         self.assertAlmostEqual(25242, int(results.outputs['alive']['SAC'][-1]), 5, 'Children(0-14) population size at end of simulation period should be approximately 25,242 without deaths')
         self.assertAlmostEqual(374757, int(results.outputs['alive']['GEN'][-1]), 6, 'Adult population size at end of simulation period should be approximately 374,757 without deaths')
+        self.proj.data['transfers']['aging'] = odict()
         return None
     
-#    def test_simple_model(self):
-#        """
-#        Assumptions:
-#            - as for SimpleModel but with transfers between the two populations
-#            - One transfer will be as numbers
-#            - The reverse transfer will be as fractions
-#        """
-#        pass    
+    def test_transfer_model(self):
+        """
+        Assumptions:
+            - as for SimpleModel but with transfers between the two populations
+            - One transfer will be as numbers
+            - The reverse transfer will be as fractions
+        """
+        #Transfer from GEN -> SAC (i.e. migration type 2) at a fraction of 10% per annum
+        self.proj.data['transfers']['migration_type_2']['GEN'] = odict()
+        self.proj.data['transfers']['migration_type_2']['GEN']['SAC'] = odict()
+        self.proj.data['transfers']['migration_type_2']['GEN']['SAC']['t'] = np.array([2000.])
+        self.proj.data['transfers']['migration_type_2']['GEN']['SAC']['y'] = np.array([0.1])
+        self.proj.data['transfers']['migration_type_2']['GEN']['SAC']['y_format'] = 'fraction'
+        self.proj.data['transfers']['migration_type_2']['GEN']['SAC']['y_factor'] = 1.0
+        self.proj.makeParset(name='test_transferfraction')
+        results = self.proj.runSim(parset_name='test_transferfraction')
+        self.assertAlmostEqual(391521, int(results.outputs['alive']['SAC'][-1]), 6, 'Children(0-14) population size at end of simulation period should be approximately 391,521 without deaths, births or aging')
+        self.assertAlmostEqual(8478, int(results.outputs['alive']['GEN'][-1]), 4, 'Adult population size at end of simulation period should be approximately 8,478 without deaths or aging')
+        self.proj.data['transfers']['migration_type_2'] = odict()
+        
+        #Transfer from GEN -> SAC (i.e. migration type 1) at an annual figure of 10
+        
+        
+        
+        
+        return None
     
 class FullModel(ModelTest):
     """
