@@ -19,8 +19,8 @@ Note: this script should be run from the home folder for this project i.e. ~/git
 
 num_pop = 2
 
-databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\data\\databook-simple-cascadeBirths.xlsx'
-cascade =  'C:\\Users\\Azfar\\Documents\\tb-ucl\\data\\cascade-simple-births.xlsx'
+databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\databooks\\databook_model_simple(counterfactual).xlsx'
+cascade =  'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\cascade_spreadsheet\\cascade_model_simple.xlsx'
 
 
 proj= Project(name = 'test-simple-birth', cascade_path = cascade)
