@@ -128,7 +128,7 @@ class SimpleModel(ModelTest):
         results = self.proj.runSim(parset_name='test_transfernumber')
         self.assertEqual(199700, int(results.outputs['alive']['SAC'][-1]), 'Children(0-14) population size at end of simulation period should be 199,700 without deaths, births or aging')
         self.assertEqual(200300, int(results.outputs['alive']['GEN'][-1]), 'Adult population size at end of simulation period should be 200,300 without deaths or aging')
-        self.proj.data['transfers']['migration_type_2'] = odict()
+        self.proj.data['transfers']['migration_type_1'] = odict()
         
         
         
