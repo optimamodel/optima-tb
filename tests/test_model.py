@@ -1,5 +1,6 @@
 import unittest
 from project import Project
+from copy import deepcopy as dcp
 
 
 class ModelTest(unittest.TestCase):
@@ -30,28 +31,38 @@ class SimpleModel(ModelTest):
             - no deaths or births
         """
         results = self.proj.runSim()
-        self.assertEqual(200000, results.outputs['alive']['SAC'][0], 'The Initialised Children Population is not 200000')
-        self.assertEqual(200000, results.outputs['alive']['GEN'][0], 'The Initialised Adult Population is not 200000')
-        self.assertEqual(200000, results.outputs['alive']['SAC'][-1], 'The Children Population is different from initial population of 200000')
-        self.assertEqual(200000, results.outputs['alive']['GEN'][-1], 'The Adult Population is different from initial population of 200000')
+        self.assertEqual(200000, int(results.outputs['alive']['SAC'][-1]), 'Final Children Population is different from initial population of 200000')
+        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'Final Adult Population is different from initial population of 200000')
         return None
         
-#    def test_birth_model(self):
-#        """
-#        Assumptions:
-#            - as for SimpleModel but with births included
-#        """
+    def test_birth_model(self):
+        """
+        Assumptions:
+            - as for SimpleModel but with births included
+        """
+        self.proj.data['linkpars']['birth_transit']['SAC']['y'][-1] = 100.
+        results = self.proj.runSim()
+        self.assertEqual(200000, int(results.outputs['alive']['SAC'][0]), 'The Initialised Children Population is not 200000 in databook ')
+        self.assertEqual(200000, int(results.outputs['alive']['GEN'][0]), 'The Initialised Adult Population is not 200000')
+        self.assertEqual(203000, int(results.outputs['alive']['SAC'][-1]), 'The Children Population number of births is not increasing by 100 per year')
+        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'The Adult Population is including transitions or births')
+        self.proj.data['linkpars']['birth_transit']['SAC']['y'][-1] = 0.
+        return None
+    
+    def test_death_model(self):
+        """
+        Assumptions:
+            - as for SimpleModel but with deaths included
+        """
+#        self.proj.data['linkpars']['mort_u']['SAC']['y'][-1] = 0.1
 #        results = self.proj.runSim()
+#        self.assertEqual(200000, int(results.outputs['alive']['SAC'][0]), 'The Initialised Children Population is not 200000 in databook ')
+#        self.assertEqual(200000, int(results.outputs['alive']['GEN'][0]), 'The Initialised Adult Population is not 200000')
+#        self.assertEqual(203000, int(results.outputs['alive']['SAC'][-1]), 'The Children Population number of births is not increasing by 100 per year')
+#        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'The Adult Population is including transitions or births')
+#        self.proj.data['linkpars']['mort_u']['SAC']['y'][-1] = 0.
 #        return None
-#    
-#    def test_death_model(self):
-#        """
-#        Assumptions:
-#            - as for SimpleModel but with deaths included
-#        """
-#        results = self.proj.runSim()
-#        return None
-#    
+    
 #    def test_aging_model(self):
 #        """
 #        Assumptions:
@@ -93,7 +104,8 @@ class EvilModels(ModelTest):
      
 #databook = './tests/databooks/databook_model_simple.xlsx'
 #cascade =  './tests/cascade_spreadsheet/cascade_model_simple.xlsx'      
-databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\databooks\\databook_model_simple.xlsx'
+#databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\databooks\\databook_model_simple.xlsx'
+databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\databooks\\databook_model_simple(counterfactual).xlsx'
 cascade =  'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\cascade_spreadsheet\\cascade_model_simple.xlsx'      
 
 if __name__ == '__main__':
