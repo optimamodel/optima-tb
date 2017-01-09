@@ -60,15 +60,11 @@ class SimpleModel(ModelTest):
         self.proj.data['linkpars']['mort_u']['SAC']['y'][-1] = 0.
         
         #Test to see whether 10 people not on treatment die annually
-#        self.proj.data['linkpars']['mort_t']['GEN']['y'][-1] = 10.
-#        results = self.proj.runSim()
-#        self.assertEqual(, results.outputs['alive']['SAC'][-1], 5, results.outputs['alive'])
-#        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'Adult Population is dying even though death rate for adults is 0%')
-#        self.proj.data['linkpars']['mort_t']['GEN']['y'][-1] = 0.
-        
-        
+        self.proj.data['linkpars']['mort_t']['GEN']['y'][-1] = 10.
         results = self.proj.runSim()
-        
+        self.assertEqual(200000, int(results.outputs['alive']['SAC'][-1]), 'Children Population is dying even though death rate for adults is 0%')
+        self.assertEqual(199700, int(results.outputs['alive']['GEN'][-1]), 'Adult Population is dying even though death rate for adults is 0%')
+        self.proj.data['linkpars']['mort_t']['GEN']['y'][-1] = 0.
         return None
     
 #    def test_aging_model(self):
