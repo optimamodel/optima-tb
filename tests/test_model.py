@@ -164,11 +164,3 @@ if __name__ == '__main__':
     ModelTest.cascade = cascade
     ModelTest.databook = databook
     unittest.main()
-    
-    """
-    suite = unittest.TestSuite()
-    suite.addTest(SimpleModel(),)
-    result = unittest.TestResult()
-    suite.run(result)
-    
-    """
