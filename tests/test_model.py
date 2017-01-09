@@ -13,6 +13,10 @@ class ModelTest(unittest.TestCase):
     def setUp(self):
         self.proj= Project(name = 'unittest', cascade_path = cascade)
         self.proj.loadSpreadsheet(databook_path = databook)
+        self.proj.settings.tvec_start = 2000.0
+        self.proj.settings.tvec_end = 2030.0
+        self.proj.settings.tvec_observed_end = 2015.0
+        self.proj.settings.tvec_dt = 1.0/4
         self.proj.makeParset()
 
     def tearDown(self):
@@ -59,7 +63,7 @@ class SimpleModel(ModelTest):
         self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'Adult Population is dying even though death rate for adults is 0%')
         self.proj.data['linkpars']['mort_u']['SAC']['y'][-1] = 0.
         
-        #Test to see whether 10 people not on treatment die annually
+        #Test to see whether 10 people on treatment die annually
         self.proj.data['linkpars']['mort_t']['GEN']['y'][-1] = 10.
         results = self.proj.runSim()
         self.assertEqual(200000, int(results.outputs['alive']['SAC'][-1]), 'Children Population is dying even though death rate for adults is 0%')
