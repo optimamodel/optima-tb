@@ -117,8 +117,18 @@ class SimpleModel(ModelTest):
         self.assertAlmostEqual(8478, int(results.outputs['alive']['GEN'][-1]), 4, 'Adult population size at end of simulation period should be approximately 8,478 without deaths or aging')
         self.proj.data['transfers']['migration_type_2'] = odict()
         
-        #Transfer from GEN -> SAC (i.e. migration type 1) at an annual figure of 10
-        
+        #Transfer from SAC -> GEN (i.e. migration type 1) at an annual figure of 10
+        self.proj.data['transfers']['migration_type_1']['SAC'] = odict()
+        self.proj.data['transfers']['migration_type_1']['SAC']['GEN'] = odict()
+        self.proj.data['transfers']['migration_type_1']['SAC']['GEN']['t'] = np.array([2000.])
+        self.proj.data['transfers']['migration_type_1']['SAC']['GEN']['y'] = np.array([10.])
+        self.proj.data['transfers']['migration_type_1']['SAC']['GEN']['y_format'] = 'number'
+        self.proj.data['transfers']['migration_type_1']['SAC']['GEN']['y_factor'] = 1.0
+        self.proj.makeParset(name='test_transfernumber')
+        results = self.proj.runSim(parset_name='test_transfernumber')
+        self.assertEqual(199700, int(results.outputs['alive']['SAC'][-1]), 'Children(0-14) population size at end of simulation period should be 199,700 without deaths, births or aging')
+        self.assertEqual(200300, int(results.outputs['alive']['GEN'][-1]), 'Adult population size at end of simulation period should be 200,300 without deaths or aging')
+        self.proj.data['transfers']['migration_type_2'] = odict()
         
         
         
