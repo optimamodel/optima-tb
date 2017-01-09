@@ -164,3 +164,12 @@ if __name__ == '__main__':
     ModelTest.cascade = cascade
     ModelTest.databook = databook
     unittest.main()
+"""
+databook = './tests/databooks/databook_model_simple.xlsx'
+cascade =  './tests/cascade_spreadsheet/cascade_model_simple.xlsx'
+
+suite = unittest.TestSuite()
+suite.addTest(ModelTest())
+result = unittest.TestResult()
+suite.run(result)
+"""
