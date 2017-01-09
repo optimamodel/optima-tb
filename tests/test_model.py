@@ -157,11 +157,8 @@ class EvilModels(ModelTest):
     """
     pass    
      
-#databook = './tests/databooks/databook_model_simple.xlsx'
-#cascade =  './tests/cascade_spreadsheet/cascade_model_simple.xlsx'      
-#databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\databooks\\databook_model_simple.xlsx'
-databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\databooks\\databook_model_simple(counterfactual).xlsx'
-cascade =  'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\cascade_spreadsheet\\cascade_model_simple.xlsx'      
+databook = './tests/databooks/databook_model_simple.xlsx'
+cascade =  './tests/cascade_spreadsheet/cascade_model_simple.xlsx'
 
 if __name__ == '__main__':
     ModelTest.cascade = cascade
