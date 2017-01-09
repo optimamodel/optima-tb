@@ -1,6 +1,8 @@
 import unittest
 from project import Project
 from copy import deepcopy as dcp
+import numpy as np
+from utils import odict
 
 
 class ModelTest(unittest.TestCase):
@@ -77,13 +79,25 @@ class SimpleModel(ModelTest):
         self.proj.data['linkpars']['mort_t']['GEN']['y'][-1] = 0.
         return None
     
-#    def test_aging_model(self):
-#        """
-#        Assumptions:
-#            - as for SimpleModel but with aging between the two populations
-#        """
-#        pass
-#    
+    def test_aging_model(self):
+        """
+        Assumptions:
+            - as for SimpleModel but with aging between the two populations
+        """
+        self.proj.data['transfers']['aging']['SAC'] = odict()
+        self.proj.data['transfers']['aging']['SAC']['GEN'] = odict()
+        self.proj.data['transfers']['aging']['SAC']['GEN']['t'] = np.array([2000.])
+        self.proj.data['transfers']['aging']['SAC']['GEN']['y'] = np.array([1./15.])
+        self.proj.data['transfers']['aging']['SAC']['GEN']['y_format'] = 'fraction'
+        self.proj.data['transfers']['aging']['SAC']['GEN']['y_factor'] = 1.0
+        results = self.proj.runSim()
+        #self.assertEqual(-3000, int(results.outputs['birth_label']['SAC'][-1]), 'Cummulative number of child births for children at end of simulation period is incorrect')
+#        self.assertEqual(0, int(results.outputs['birth_label']['GEN'][-1]), 'Cummulative number of adult births at end of simulation period is non-zero')
+#        self.assertEqual(203000, int(results.outputs['alive']['SAC'][-1]), 'The Children Population number of births is not increasing by 100 per year')
+#        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'The Adult Population is including births')
+#        self.proj.data['linkpars']['birth_transit']['SAC']['y'][-1] = 0.
+        return None
+    
 #    def test_simple_model(self):
 #        """
 #        Assumptions:
