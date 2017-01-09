@@ -42,10 +42,8 @@ class SimpleModel(ModelTest):
         """
         self.proj.data['linkpars']['birth_transit']['SAC']['y'][-1] = 100.
         results = self.proj.runSim()
-        self.assertEqual(200000, int(results.outputs['alive']['SAC'][0]), 'The Initialised Children Population is not 200000 in databook ')
-        self.assertEqual(200000, int(results.outputs['alive']['GEN'][0]), 'The Initialised Adult Population is not 200000')
         self.assertEqual(203000, int(results.outputs['alive']['SAC'][-1]), 'The Children Population number of births is not increasing by 100 per year')
-        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'The Adult Population is including transitions or births')
+        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'The Adult Population is including births')
         self.proj.data['linkpars']['birth_transit']['SAC']['y'][-1] = 0.
         return None
     
@@ -54,14 +52,24 @@ class SimpleModel(ModelTest):
         Assumptions:
             - as for SimpleModel but with deaths included
         """
-#        self.proj.data['linkpars']['mort_u']['SAC']['y'][-1] = 0.1
+        #Test to see whether 10% of untreated population die annually in children
+        self.proj.data['linkpars']['mort_u']['SAC']['y'][-1] = 0.1
+        results = self.proj.runSim()
+        self.assertAlmostEqual(190423, int(results.outputs['alive']['SAC'][-1]), 6, 'Children should be dying at an annual rate of 10% using initial value of 10,000(i.e approximately 9,576 deaths)')
+        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'Adult Population is dying even though death rate for adults is 0%')
+        self.proj.data['linkpars']['mort_u']['SAC']['y'][-1] = 0.
+        
+        #Test to see whether 10 people not on treatment die annually
+#        self.proj.data['linkpars']['mort_t']['GEN']['y'][-1] = 10.
 #        results = self.proj.runSim()
-#        self.assertEqual(200000, int(results.outputs['alive']['SAC'][0]), 'The Initialised Children Population is not 200000 in databook ')
-#        self.assertEqual(200000, int(results.outputs['alive']['GEN'][0]), 'The Initialised Adult Population is not 200000')
-#        self.assertEqual(203000, int(results.outputs['alive']['SAC'][-1]), 'The Children Population number of births is not increasing by 100 per year')
-#        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'The Adult Population is including transitions or births')
-#        self.proj.data['linkpars']['mort_u']['SAC']['y'][-1] = 0.
-#        return None
+#        self.assertEqual(, results.outputs['alive']['SAC'][-1], 5, results.outputs['alive'])
+#        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'Adult Population is dying even though death rate for adults is 0%')
+#        self.proj.data['linkpars']['mort_t']['GEN']['y'][-1] = 0.
+        
+        
+        results = self.proj.runSim()
+        
+        return None
     
 #    def test_aging_model(self):
 #        """
