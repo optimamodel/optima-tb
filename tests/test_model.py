@@ -37,8 +37,8 @@ class SimpleModel(ModelTest):
             - no deaths or births
         """
         results = self.proj.runSim()
-        self.assertEqual(200000, int(results.outputs['alive']['SAC'][-1]), 'Final Children Population is different from initial population of 200000')
-        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'Final Adult Population is different from initial population of 200000')
+        self.assertEqual(200000, int(results.outputs['alive']['SAC'][-1]), 'Final Children Population is different from initial population of 200,000')
+        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'Final Adult Population is different from initial population of 200,000')
         return None
         
     def test_birth_model(self):
@@ -63,16 +63,16 @@ class SimpleModel(ModelTest):
         #Test to see whether 10% of untreated population die annually in children
         self.proj.data['linkpars']['mort_u']['SAC']['y'][-1] = 0.1
         results = self.proj.runSim()
-        self.assertAlmostEqual(9576, int(results.outputs['death_label']['SAC'][-1]), 6, 'Total number of children deaths should be approximately 9,576 deaths at a rate of 10% per annum')
-        self.assertEqual(0, int(results.outputs['death_label']['GEN'][-1]), 'Total number of adult deaths should be 0 deaths at a rate of 0% per annum')
-        self.assertAlmostEqual(190423, int(results.outputs['alive']['SAC'][-1]), 6, 'Children should be dying at an annual rate of 10% using initial value of 10,000(i.e approximately 9,576 deaths)')
-        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'Adult Population is dying even though death rate for adults is 0%')
+        self.assertAlmostEqual(9576, int(results.outputs['death_label']['SAC'][-1]), 6, 'Total number of children deaths should be approximately 9,576 deaths at a rate of 10% per annum without births')
+        self.assertEqual(0, int(results.outputs['death_label']['GEN'][-1]), 'Total number of adult deaths should be 0 deaths at a rate of 0% per annum without aging')
+        self.assertAlmostEqual(190423, int(results.outputs['alive']['SAC'][-1]), 6, 'Children should be dying at an annual rate of 10% using initial value of 10,000(i.e approximately 9,576 deaths) without births')
+        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'Adult Population is dying even though death rate for adults is 0% without aging')
         self.proj.data['linkpars']['mort_u']['SAC']['y'][-1] = 0.
         
         #Test to see whether 10 people on treatment die annually
         self.proj.data['linkpars']['mort_t']['GEN']['y'][-1] = 10.
         results = self.proj.runSim()
-        self.assertEqual(0, int(results.outputs['death_label']['SAC'][-1]), 'Total number of children deaths should be approximately 0 deaths since number of deaths per year is equal to number 0')
+        self.assertEqual(0, int(results.outputs['death_label']['SAC'][-1]), 'Total number of children deaths should be 0 deaths since number of deaths per year is equal to number 0')
         self.assertEqual(300, int(results.outputs['death_label']['GEN'][-1]), 'Total number of adult deaths should be 300 deaths since number o deaths per year is equal to number 10')
         self.assertEqual(200000, int(results.outputs['alive']['SAC'][-1]), 'Children Population is dying even though death rate for adults is 0%')
         self.assertEqual(199700, int(results.outputs['alive']['GEN'][-1]), 'Adult Population is dying even though death rate for adults is 0%')
@@ -90,12 +90,10 @@ class SimpleModel(ModelTest):
         self.proj.data['transfers']['aging']['SAC']['GEN']['y'] = np.array([1./15.])
         self.proj.data['transfers']['aging']['SAC']['GEN']['y_format'] = 'fraction'
         self.proj.data['transfers']['aging']['SAC']['GEN']['y_factor'] = 1.0
-        results = self.proj.runSim()
-        #self.assertEqual(-3000, int(results.outputs['birth_label']['SAC'][-1]), 'Cummulative number of child births for children at end of simulation period is incorrect')
-#        self.assertEqual(0, int(results.outputs['birth_label']['GEN'][-1]), 'Cummulative number of adult births at end of simulation period is non-zero')
-#        self.assertEqual(203000, int(results.outputs['alive']['SAC'][-1]), 'The Children Population number of births is not increasing by 100 per year')
-#        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'The Adult Population is including births')
-#        self.proj.data['linkpars']['birth_transit']['SAC']['y'][-1] = 0.
+        self.proj.makeParset(name='test_aging')
+        results = self.proj.runSim(parset_name='test_aging')
+        self.assertAlmostEqual(25242, int(results.outputs['alive']['SAC'][-1]), 5, 'Children(0-14) population size at end of simulation period should be approximately 25,242 without deaths')
+        self.assertAlmostEqual(374757, int(results.outputs['alive']['GEN'][-1]), 6, 'Adult population size at end of simulation period should be approximately 374,757 without deaths')
         return None
     
 #    def test_simple_model(self):
