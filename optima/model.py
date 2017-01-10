@@ -373,9 +373,10 @@ class Model(object):
                                 
                                 num_links = len(self.getPop(pop_source).links)
                                 link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=num_links,link_label=trans_tag)
-                                link.vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_target)
+                                link.vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_target) 
                                 link.val_format = par.y_format[pop_target]
                                 link.scale_factor = par.y_factor[pop_target]
+                                if link.val_format == 'number': link.vals /= settings.num_transfer_nodes
                                 
                                 self.getPop(pop_source).links.append(link)
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]

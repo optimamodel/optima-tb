@@ -79,6 +79,7 @@ class Settings(object):
                                                 # Key is a node label. Value is a dict including a 'dead' tag and networkx-related information.
         self.node_names = []                    # A corresponding list of full names for compartments.
         self.junction_labels = []               # A list of labels for compartments for which inflows must immediately propagated as outflows.
+        self.num_transfer_nodes = 0.0           # The number of compartments that can be involved in inter-pop transfers (i.e. non-birth, non-death, non-junction).
         
         self.charac_specs = odict()             # Relates code-labels for defined characteristics (e.g. prevalence) with labels of compartments used in their definition.
                                                 # Key is a characteristic label. Value is a dict containing characteristic name, a list of 'inclusions' and a normalising characteristic or compartment.
