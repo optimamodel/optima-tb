@@ -85,7 +85,7 @@ class Settings(object):
                                                 # Key is a characteristic label. Value is a dict containing characteristic name, a list of 'inclusions' and a normalising characteristic or compartment.
                                                 # Be aware that inclusions/normalisations may refer to characteristics in the same odict.
         self.charac_name_labels = odict()       # Key is a characteristic name. Value is a characteristic label. (A partial reversed charac_specs.)
-        self.charac_std_norm = 'std_norm'       # The label for a characteristic that includes all 'transfer-enabled' compartments. Is overwritten if one is user-defined.
+        self.charac_std_norm = 'auto_pop_count' # The label for a characteristic that includes all 'transfer-enabled' compartments. Is overwritten if one is user-defined.
         
         self.links = odict()                    # Key is a tag. Value is a list of compartment-label tuple.
         self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.

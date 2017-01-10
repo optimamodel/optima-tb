@@ -247,6 +247,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
             # If a user-defined characteristic includes all transfer-enabled compartments, overwrite the settings reference to it.
             if set(flat_list) == set(std_norm_nodes):
                 settings.charac_std_norm = charac_label
+                settings.charac_deps[charac_label] = True
                 settings.charac_specs[charac_label]['par_dependency'] = True    # Must be true and calculated at each timestep for explicit references during transfers.
                                                                                 # NOTE: Switching this off later has potential for performance improvement if there are no inter-pop transfers or dependencies. Investigate later...
                 custom_std_norm_charac = True
