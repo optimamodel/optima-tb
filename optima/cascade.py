@@ -79,7 +79,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
             node_label = str(ws_nodes.cell_value(row_id, cid_label))
             settings.node_specs[node_label] = odict()
             settings.node_names.append(str(ws_nodes.cell_value(row_id, cid_name)))
-            good_for_transfer = True    # A flag for whether a compartment is a valid node to 'migrate' from/into.
+#            good_for_transfer = True    # A flag for whether a compartment is a valid node to 'migrate' from/into.
             
             # Store optional graph coordinates for this node in the cascade network. Used when plotting schematic.
             if not cid_coords is None:
@@ -100,14 +100,14 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 val = str(ws_nodes.cell_value(row_id, cid_birth))
                 if val not in ['']:
                     settings.node_specs[node_label]['tag_birth'] = val
-                    good_for_transfer = False
+#                    good_for_transfer = False
 
             # Store optional information about whether this node is a compartment for the dead.
             if not cid_dead is None:
                 val = str(ws_nodes.cell_value(row_id, cid_dead))
                 if val not in ['']:
                     settings.node_specs[node_label]['tag_dead'] = val
-                    good_for_transfer = False
+#                    good_for_transfer = False
 
             # Optionally note down whether the compartment is just a junction.
             # Junctions empty themselves via outflows at the end of each model timestep.
@@ -116,9 +116,9 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 if val not in ['']:
                     settings.node_specs[node_label]['junction'] = val
                     settings.junction_labels.append(node_label)
-                    good_for_transfer = False
+#                    good_for_transfer = False
                     
-            if good_for_transfer: settings.num_transfer_nodes += 1.0
+#            if good_for_transfer: settings.num_transfer_nodes += 1.0
                     
     
 
