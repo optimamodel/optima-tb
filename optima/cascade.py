@@ -73,13 +73,15 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     if None in [cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade compartment worksheet does not have correct column headers.')
     
+    std_norm_nodes = []    # A list for compartments that can be involved in inter-population transfers.
+    
     # Append node labels and full names to relevant odicts and lists. Labels are crucial.
     for row_id in xrange(ws_nodes.nrows):
         if row_id > 0 and ws_nodes.cell_value(row_id, cid_label) not in ['']:
             node_label = str(ws_nodes.cell_value(row_id, cid_label))
             settings.node_specs[node_label] = odict()
             settings.node_names.append(str(ws_nodes.cell_value(row_id, cid_name)))
-#            good_for_transfer = True    # A flag for whether a compartment is a valid node to 'migrate' from/into.
+            good_for_transfer = True    # A flag for whether a compartment is a valid node to 'migrate' from/into.
             
             # Store optional graph coordinates for this node in the cascade network. Used when plotting schematic.
             if not cid_coords is None:
@@ -100,14 +102,14 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 val = str(ws_nodes.cell_value(row_id, cid_birth))
                 if val not in ['']:
                     settings.node_specs[node_label]['tag_birth'] = val
-#                    good_for_transfer = False
+                    good_for_transfer = False
 
             # Store optional information about whether this node is a compartment for the dead.
             if not cid_dead is None:
                 val = str(ws_nodes.cell_value(row_id, cid_dead))
                 if val not in ['']:
                     settings.node_specs[node_label]['tag_dead'] = val
-#                    good_for_transfer = False
+                    good_for_transfer = False
 
             # Optionally note down whether the compartment is just a junction.
             # Junctions empty themselves via outflows at the end of each model timestep.
@@ -116,9 +118,11 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 if val not in ['']:
                     settings.node_specs[node_label]['junction'] = val
                     settings.junction_labels.append(node_label)
-#                    good_for_transfer = False
                     
-#            if good_for_transfer: settings.num_transfer_nodes += 1.0
+            if good_for_transfer:
+                std_norm_nodes.append(node_label)
+            
+#    print std_norm_nodes
                     
     
 
@@ -200,12 +204,15 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     if None in [cid_label, cid_name, cid_include_start, cid_include_end]:
         raise OptimaException('ERROR: Cascade characteristics worksheet does not have correct column headers.')
     
+    custom_std_norm_charac = False    
+    
     # Actually append characteristic labels and full names to relevant odicts and lists. Labels are crucial.
     entry_dict = {}
     standard_sheet_count = ws_characs.nrows - 1      # All characteristics are printed to the standard databook sheet to begin with.
     for row_id in xrange(ws_characs.nrows):
         if row_id > 0 and ws_characs.cell_value(row_id, cid_label) not in ['']:
             charac_label = str(ws_characs.cell_value(row_id, cid_label))
+            if charac_label == settings.charac_std_norm: raise OptimaException('ERROR: Characteristic cannot be named %s as that is a reserved special label.' % settings.charac_std_norm)
             charac_name = str(ws_characs.cell_value(row_id, cid_name))
             
             settings.charac_name_labels[charac_name] = charac_label
@@ -236,6 +243,13 @@ def loadCascadeSettingsFunc(cascade_path, settings):
             if len(flat_list) != len(set(flat_list)):
                 raise OptimaException('ERROR: Cascade characteristic "%s" contains duplicate references to a compartment (in its numerator) when all the recursion is flattened out.' % (charac_label))
             numerator_ref_list = dcp(flat_list)   # Useful for checking what compartments the numerator characteristic references.
+            
+            # If a user-defined characteristic includes all transfer-enabled compartments, overwrite the settings reference to it.
+            if set(flat_list) == set(std_norm_nodes):
+                settings.charac_std_norm = charac_label
+                settings.charac_specs[charac_label]['par_dependency'] = True    # Must be true and calculated at each timestep for explicit references during transfers.
+                                                                                # NOTE: Switching this off later has potential for performance improvement if there are no inter-pop transfers or dependencies. Investigate later...
+                custom_std_norm_charac = True
             
             # Work out which compartment/characteristic this characteristic is normalised by.
             if not cid_denom is None:
@@ -294,6 +308,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     try: numerator_ref_list.remove(val)
                     except: raise OptimaException('ERROR: Entry point "%s" for characteristic "%s" must be a compartment it includes (in its numerator), either directly or via characteristic reference.' % (val, charac_label))
                     entry_dict[val] = dcp(list(numerator_ref_list))
+                    
             # Store whether we should use calibrate the initial value or not (only applicable when there's also an entry point)
             if not cid_yfactor is None:
                 val = str(ws_characs.cell_value(row_id, cid_yfactor))
@@ -303,6 +318,19 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     settings.charac_specs[charac_label]['y_factor'] = float(val)
                 else:
                     settings.charac_specs[charac_label]['y_factor'] = project_settings.DEFAULT_YFACTOR
+        
+        # Make sure empty space rows do not get counted when deciding if there are characteristics left to populate a default databook sheet.
+        elif row_id > 0:
+            standard_sheet_count -= 1
+                    
+    # If a characteristic that includes all transfer-enabled compartments is not defined, create one.
+    if not custom_std_norm_charac:
+        settings.charac_deps[settings.charac_std_norm] = True
+        settings.charac_specs[settings.charac_std_norm] = odict()
+        settings.charac_specs[settings.charac_std_norm]['name'] = 'Standard Compartment Sum'
+        settings.charac_specs[settings.charac_std_norm]['includes'] = std_norm_nodes
+        settings.charac_specs[settings.charac_std_norm]['par_dependency'] = True    # Must be calculated at each step for transfers and other explicit references.
+        settings.charac_specs[settings.charac_std_norm]['databook_order'] = -1      # This special 'standard' characteristic is not initialisable or used for calibration unless user-defined.
                     
 
     
@@ -414,6 +442,10 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     settings.linkpar_specs[label]['y_factor'] = float(val)
                 else:
                     settings.linkpar_specs[label]['y_factor'] = project_settings.DEFAULT_YFACTOR
+                    
+        # Make sure empty space rows do not get counted when deciding if there are parameters left to populate a default databook sheet.
+        elif row_id > 0:
+            standard_sheet_count -= 1
                     
 
     

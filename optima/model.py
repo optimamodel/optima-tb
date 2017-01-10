@@ -330,8 +330,8 @@ class Model(object):
 
 #        print include_dict
 #        print calc_done
-        print [(key,seed_dict[key][0]) for key in calc_done.keys()]
-        print sum([seed_dict[key][0] for key in calc_done.keys()])
+#        print [(key,seed_dict[key][0]) for key in calc_done.keys()]
+#        print sum([seed_dict[key][0] for key in calc_done.keys()])
         
         # Now initialise all model compartments with these calculated values.
         for seed_label in seed_dict.keys():
@@ -475,7 +475,7 @@ class Model(object):
                         elif link.val_format == 'number':
                             converted_amt = transition * dt
                             if link.is_transfer:
-                                transfer_rescale = comp_source.popsize[ti] / pop.getDep('alive').vals[ti]
+                                transfer_rescale = comp_source.popsize[ti] / pop.getDep(settings.charac_std_norm).vals[ti]
                                 converted_amt *= transfer_rescale
                                 
                         else:
