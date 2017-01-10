@@ -488,6 +488,24 @@ def loadSpreadsheetFunc(settings, databook_path):
             
     return data
 
+def __addCharacteristicData(data,charac_label,pop_label,ts,ys,y_format,y_factor=1.):
+    """
+    
+    
+    """
+    if charac_label not in data['characs'].keys():
+        data['characs'][charac_label] = odict()
+    
+    if pop_label not in data['characs'][charac_label].keys():
+        data['characs'][charac_label][pop_label] = odict()
+        
+    
+    data['characs'][charac_label][pop_label]['t'] = ts
+    data['characs'][charac_label][pop_label]['y'] = ys
+    data['characs'][charac_label][pop_label]['y_format'] = y_format
+    data['characs'][charac_label][pop_label]['y_factor'] = y_factor
+    
+    return data
 
 def getEmptyData():
     """

@@ -426,6 +426,25 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         raise OptimaException('ERROR: Cascade workbook appears to have duplicate characteristic/parameter full names.')
     
 
+def __addCharacteristic(settings,charac_label,full_name,plot_value=True,plot_percentage=False,denominator=None,databook_order=-1,default_val=0,entry_point=None,includes=None,calibrate=None):
+    """
+    
+    """
+    settings.charac_specs[charac_label] = odict()
+    settings.charac_specs[charac_label]['name'] = full_name
+    settings.charac_specs[charac_label]['databook_order'] = databook_order   
+    settings.charac_specs[charac_label]['plot_value'] = plot_value
+    settings.charac_specs[charac_label]['plot_percentage'] = plot_percentage
+    if entry_point is not None:
+        settings.charac_specs[charac_label]['entry_point'] = entry_point
+    if includes is not None:
+        if type(includes) is not list:
+            includes = [includes]
+        settings.charac_specs[charac_label]['includes'] = includes
+    # @TODO : complete rest of characteristics
+    
+    logger.info("Added new characteristic: %s (%s)"%(charac_label,full_name))
+    
 
 #%% Function to plot a cascade framework loaded into settings
     

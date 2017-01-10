@@ -230,25 +230,24 @@ class Plotter():
         
         
     
-    def plotProjectResults(self,results,charac_specs,title='',colormappings=None,debug=False):
+    def plotProjectResults(self,results,charac_specs,title='',colormappings=None,debug=False,plotObservedData=True,savePlot=False,figName=None):
         """
         Placeholder plotting function, originally located in project.py
         """
         pl.close("all") 
         
-        
-        self.plotPopulation(results, title, colormappings=colormappings)
+        self.plotPopulation(results, title, colormappings=colormappings,plotObservedData=plotObservedData,save_fig=savePlot,fig_name=figName)
         
         # List charac labels for those that were present in databook (i.e. could have cascade-provided defaults overwritten).
         label_list = [x for x in charac_specs.keys() if charac_specs[x]['databook_order'] >= 0]
-        self.plotCompartment(results, charac_specs, title, outputIDs = label_list)
+        self.plotCompartment(results, charac_specs, title, outputIDs = label_list,plotObservedData=plotObservedData,save_fig=savePlot,fig_name=figName)
         
         if debug:
             self.plotOutflows(m_pops, sim_settings)
         
         
         
-    def plotPopulation(self,results,title='',colormappings=None,plotObservedData=True,save_fig=False,use_full_labels=True,**kwargs):
+    def plotPopulation(self,results,title='',colormappings=None,plotObservedData=True,save_fig=False,fig_name='',use_full_labels=True,**kwargs):
         """ 
         
         Plot all compartments for all populations
@@ -269,6 +268,7 @@ class Plotter():
         sim_settings = results.sim_settings
         pop_labels = results.pop_labels
         save_figname=None
+        dataobs = None
         
         if use_full_labels:
             comp_labels = results.comp_label_names
@@ -305,7 +305,7 @@ class Plotter():
             
             pl_title = 'Compartments for Population: %s' % (pop_labels[i])
             if save_fig:
-                save_figname = 'Full_compartment_%s'%pop_labels[i]
+                save_figname = '%s_population_%s'%(fig_name,pop_labels[i])
             kwargs = {'xlim': (tvec[0],tvec[-1]),
                       'ymin': 0,
                       'xlabel': 'Year',
@@ -381,12 +381,12 @@ class Plotter():
         pl.suptitle('')
         
         if save_fig:
-            fig.savefig('%s_stacked.png' % (save_figname))
+            fig.savefig('%s_stacked.png' % (save_figname),format='png')
             logger.info("Saved figure: '%s_stacked.png'"%save_figname)
             
         
     
-    def plotCompartment(self,results,charac_specs,title='',outputIDs=None,plotObservedData=True,save_fig=False,colors=None):
+    def plotCompartment(self,results,charac_specs,title='',outputIDs=None,plotObservedData=True,save_fig=False,fig_name='',colors=None):
         """
         Plot a compartment across all populations
         
@@ -488,7 +488,8 @@ class Plotter():
         for k,yval in enumerate(ys):
             
             ax.plot(ts[k], yval, c=colors[k])
-            ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
+            if len(y_hat) > 0: # i.e. we've seen observable data
+                ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
   
 
         box = ax.get_position()
@@ -509,7 +510,7 @@ class Plotter():
             
         self.turnOffBorder()
         if save_fig:
-            fig.savefig('%s.png' % (save_figname))                    
+            fig.savefig('%s.png' % (save_figname),format='png')                   
             logger.info("Saved figure: '%s.png'"%save_figname)
         
         
