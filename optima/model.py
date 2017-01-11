@@ -609,6 +609,10 @@ class Model(object):
                         elif inc_label in pop.dep_ids.keys():    # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
                             val = pop.getDep(inc_label).vals[ti]
                         else:
+#                            print inc_label
+#                            print settings.charac_specs[dep.label]['includes']
+#                            print pop.comp_ids.keys()
+#                            print pop.dep_ids.keys()
                             raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
                         
                         dep.vals[ti] += val

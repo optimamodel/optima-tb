@@ -247,9 +247,6 @@ def loadCascadeSettingsFunc(cascade_path, settings):
             # If a user-defined characteristic includes all transfer-enabled compartments, overwrite the settings reference to it.
             if set(flat_list) == set(std_norm_nodes):
                 settings.charac_std_norm = charac_label
-                settings.charac_deps[charac_label] = True
-                settings.charac_specs[charac_label]['par_dependency'] = True    # Must be true and calculated at each timestep for explicit references during transfers.
-                                                                                # NOTE: Switching this off later has potential for performance improvement if there are no inter-pop transfers or dependencies. Investigate later...
                 custom_std_norm_charac = True
             
             # Work out which compartment/characteristic this characteristic is normalised by.
@@ -326,11 +323,10 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     
     # If a characteristic that includes all transfer-enabled compartments is not defined, create one.
     if not custom_std_norm_charac:
-        settings.charac_deps[settings.charac_std_norm] = True
+        settings.charac_name_labels[settings.charac_std_norm_name] = settings.charac_std_norm
         settings.charac_specs[settings.charac_std_norm] = odict()
-        settings.charac_specs[settings.charac_std_norm]['name'] = 'Standard Compartment Sum'
+        settings.charac_specs[settings.charac_std_norm]['name'] = settings.charac_std_norm_name
         settings.charac_specs[settings.charac_std_norm]['includes'] = std_norm_nodes
-        settings.charac_specs[settings.charac_std_norm]['par_dependency'] = True    # Must be calculated at each step for transfers and other explicit references.
         settings.charac_specs[settings.charac_std_norm]['databook_order'] = -1      # This special 'standard' characteristic is not initialisable or used for calibration unless user-defined.
                     
 
@@ -430,7 +426,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                         else:
                             if not var in settings.charac_deps.keys():
                                 flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = var, sub_keys = ['includes','denom'], limit = settings.recursion_limit)
-                                for dep in dep_list:
+                                for dep in dep_list:    # NOTE: Dependencies are presumably provided in proper order by flattenDict due to recursion. Could a counterexample be engineered that breaks the assumption...? 
                                     settings.charac_specs[dep]['par_dependency'] = True
                                     settings.charac_deps[dep] = True
                                     
@@ -447,8 +443,17 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         # Make sure empty space rows do not get counted when deciding if there are parameters left to populate a default databook sheet.
         elif row_id > 0:
             standard_sheet_count -= 1
-                    
-
+    
+    # If the default/overwritten population-count characteristic is not a dependency by now, along with its own dependencies, make it one at the end of the charac_deps odict.
+    if settings.charac_std_norm not in settings.charac_deps.keys():
+        flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = settings.charac_std_norm, sub_keys = ['includes','denom'], limit = settings.recursion_limit)
+        for dep in dep_list:    # NOTE: Dependencies are presumably provided in proper order by flattenDict due to recursion. Could a counterexample be engineered that breaks the assumption...? 
+            settings.charac_specs[dep]['par_dependency'] = True
+            settings.charac_deps[dep] = True
+        settings.charac_specs[settings.charac_std_norm]['par_dependency'] = True
+        settings.charac_deps[settings.charac_std_norm] = True
+        
+#    print settings.charac_deps
     
     # If all parameters in this sheet are to be printed to custom databook sheets, no need for a default.
     if standard_sheet_count <= 0:

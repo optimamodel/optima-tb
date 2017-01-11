@@ -1,3 +1,14 @@
+#%% DJK System Hack
+
+import sys
+try:
+    sys.path.remove('d:\\work projects\\optima\\optima 2.0')
+    sys.path.remove('d:\\work projects\\optima\\optima 2.0\\optima')
+except: pass
+sys.path.append('../optima')
+
+#%%
+
 import unittest
 from project import Project
 from copy import deepcopy as dcp
@@ -157,8 +168,8 @@ class EvilModels(ModelTest):
     """
     pass    
      
-databook = './tests/databooks/databook_model_simple.xlsx'
-cascade =  './tests/cascade_spreadsheet/cascade_model_simple.xlsx'
+databook = '../tests/databooks/databook_model_simple.xlsx'
+cascade =  '../tests/cascade_spreadsheet/cascade_model_simple.xlsx'
 
 if __name__ == '__main__':
     ModelTest.cascade = cascade
