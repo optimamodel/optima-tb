@@ -1,7 +1,6 @@
 #%% Imports
 
 from utils import odict, OptimaException, flattenDict
-import settings as project_settings
 
 import logging
 logger = logging.getLogger(__name__)
@@ -22,6 +21,8 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     updates the relevants fields and then returns settings. This isn't the most elegant way, but was better than returning 11 parameters.
     It can - and should - be improved. 
     '''    
+    
+    from settings import DO_NOT_SCALE, DEFAULT_YFACTOR
     
     try: workbook = xlrd.open_workbook(cascade_path)
     except: raise OptimaException('ERROR: Cannot find cascade workbook from which to load model structure.')
@@ -289,11 +290,11 @@ def loadCascadeSettingsFunc(cascade_path, settings):
             if not cid_yfactor is None:
                 val = str(ws_characs.cell_value(row_id, cid_yfactor))
                 if val.lower() == 'n' or val == '-1':
-                    settings.charac_specs[charac_label]['y_factor'] = project_settings.DO_NOT_SCALE
+                    settings.charac_specs[charac_label]['y_factor'] = DO_NOT_SCALE
                 elif val not in ['']:
                     settings.charac_specs[charac_label]['y_factor'] = float(val)
                 else:
-                    settings.charac_specs[charac_label]['y_factor'] = project_settings.DEFAULT_YFACTOR
+                    settings.charac_specs[charac_label]['y_factor'] = DEFAULT_YFACTOR
                     
 
     
@@ -400,11 +401,11 @@ def loadCascadeSettingsFunc(cascade_path, settings):
             if not cid_yfactor is None:
                 val = str(ws_pars.cell_value(row_id, cid_yfactor))
                 if val.lower() == 'n' or val == '-1':
-                    settings.linkpar_specs[label]['y_factor'] = project_settings.DO_NOT_SCALE
+                    settings.linkpar_specs[label]['y_factor'] = DO_NOT_SCALE
                 elif val not in ['']:
                     settings.linkpar_specs[label]['y_factor'] = float(val)
                 else:
-                    settings.linkpar_specs[label]['y_factor'] = project_settings.DEFAULT_YFACTOR
+                    settings.linkpar_specs[label]['y_factor'] = DEFAULT_YFACTOR
                     
 
     

@@ -7,14 +7,12 @@ sys.path.append('../optima')
 
 from utils import odict
 from project import Project
-from plotting import Plotter
 import numpy as np
 import pylab
 
 from cascade import __addCharacteristic
 from databook import __addCharacteristicData
 
-num_pop = 2
 start_year = 2000.
 starting_pop = 1e6
 dt = 1./4
@@ -73,10 +71,10 @@ def saveResults(filehandle,results,pop,progression_from,progression_to,start_yea
     indices = np.in1d(results.t_step-start_year, year_track)
     
     for prog in progression_to:
-        output_file_handle.write("%s --> %s,"%(progression_from,prog))
+        filehandle.write("%s --> %s,"%(progression_from,prog))
     
-        output_file_handle.write(",".join(map(str,results.outputs["entry_%s"%prog][pop][indices]/starting_pop)))
-        output_file_handle.write("\n")
+        filehandle.write(",".join(map(str,results.outputs["entry_%s"%prog][pop][indices]/starting_pop)))
+        filehandle.write("\n")
         
         
         
