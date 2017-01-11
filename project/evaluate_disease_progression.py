@@ -1,9 +1,4 @@
 
-from analysis import evaluateDiseaseProgression
-
-
-
-
 import sys
 try:
     sys.path.remove('d:\\work projects\\optima\\optima 2.0')
@@ -11,10 +6,28 @@ try:
 except: pass
 sys.path.append('../optima')
 
-"""
-Run model simulation and plot output:
+from analysis import evaluateDiseaseProgression
 
-Loads and runs model data
+
+"""
+Determines disease progression from certain compartments to other compartments, 
+by (artifically) setting the population of a compartment to a predefined size
+(default size=1e6) and then letting the disease run. Note that birth rate is set
+to zero, so the total population size (including deaths) should be constant.
+
+This process outputs: 
+ 1) population plots showing the progress of the disease, for all compartments
+ 2) a csv file, which for each population outputs certain transitions from one
+     compartment to another compartment, expressed as a percentage. The times that
+     are returned can be defined as required (as year_track), and can include partial 
+     years (i.e. 0.5, provided that they are a multiple of dt)
+     
+
+This is done for all populations, and for a list of specific mappings between compartments
+i.e. from sus to lteu. Multiple mappings can also be included too i.e. sus to lteu and ltlu.
+
+@author: sjjarvis
+@date: 11/01/2017
 
 """
 

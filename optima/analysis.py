@@ -24,14 +24,44 @@ def __saveProgressionResults(filehandle,results,pop,progression_from,progression
         
         
 def evaluateDiseaseProgression(proj, specified_progressions, specified_populations=None,starting_pop = 1e6,
-                               year_track=[1.,2.,3.,4.,5.], birth_transit='birth_transit',output_file="ProgressionData.csv"):
+                               year_track=[1.,2.,3.,4.,5.], birth_transit=None,output_file="ProgressionData.csv"):
     """
+    Determines disease progression from certain compartments to other compartments, 
+    by (artifically) setting the population of a compartment to a predefined size
+    (default size=1e6) and then letting the disease run. Note that birth rate is set
+    to zero, so the total population size (including deaths) should be constant.
+    
+    Inputs:
+        proj                          Project object
+        specified_populations         list of population labels
+        specified_progressions        dictionary with keys = starting compartment 
+                                                      values = list of compartments we want percentage values for
+        starting_pop                  int representing population size to initialise starting population to
+        year_track                    list of floats, describing timepoints (in years) at which to return percentage 
+                                      values for i.e. [1.] = value after 1 yr. Note that partial years can be included
+                                      but that they must be multiples of dt
+        birth_transit                 string representing parameter transition for birth rate parameter.
+                                      Default value: None, indicating no such parameter exists
+        output_file                   name of output file (string)
     
     
+    Example usage:
+
+    proj = Project(name="MyDisease", cascade_path="mycascade.xlsx")
+    specified_populations = ['0-4', '5-14', '15-64', '65+', 'HIV 15+', 'Pris']
     specified_progressions = {'sus': ['ltu','acu'],
                               'ltu': ['ltt','acu','ltu'],
                               'acu': ['act','rec']}
+    year_track = [0.5,1.,2.] # times that we report on. Note that these can only be multiple of dt
+    outputfile = "MyDiseaseProgression.csv"
+    birth_rate_parameter = "b_rate"
     
+    evaluateDiseaseProgression(proj,
+                           specified_progressions=specified_progressions,
+                           specified_populations=specified_populations,
+                           year_track=year_track,
+                           birth_transit='b_rate',
+                           output_file=outputfile)
     
     """   
     if specified_populations is None:
@@ -52,11 +82,12 @@ def evaluateDiseaseProgression(proj, specified_progressions, specified_populatio
         val['databook_order'] = -1
     
     # set births to 0: here, we set the rate to 0
-    for (prog, reporters) in specified_progressions.iteritems():
-        for pop in specified_populations:
-            data['linkpars'][birth_transit][pop]['t'] = [start_year]
-            data['linkpars'][birth_transit][pop]['y'] = [0.]
-        
+    if birth_transit is not None:
+        for (prog, reporters) in specified_progressions.iteritems():
+            for pop in specified_populations:
+                data['linkpars'][birth_transit][pop]['t'] = [start_year]
+                data['linkpars'][birth_transit][pop]['y'] = [0.]
+            
     # remove all references to entry points in project.data characteristics so that we can add our own ...
     for charac,spec in proj.settings.charac_specs.iteritems():
         if 'entry_point' in spec.keys():
