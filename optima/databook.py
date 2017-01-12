@@ -530,7 +530,35 @@ def databookValidation(data=None):
                               validation[key][attribute][pop][label] = odict()
                               for subpop in data[key][attribute][pop][label]:
                                   validation[key][attribute][pop][label][subpop] = True
-                          else: validation[key][attribute][pop][label] = True
-    print validation
+                          else: 
+                              if key == 'pops':
+                                  if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0: 
+                                      logging.critical('Population age ranges are defined incorrectly for %s' % (pop))
+                                      result = False
+                                  else: 
+                                      result = True
+                              else:
+                                  if len(data[key][attribute][pop]['t']) != len(data[key][attribute][pop]['y']):
+                                      logging.critical('Length of t-vector does not match length of y vector for parameter %s, attribute %s and population group %s' % (key, attribute, pop))
+                                      result = False
+                                  else:
+                                      if isinstance(data[key][attribute][pop][label], float):
+                                          result = True
+                                      else:
+                                          for loop in range (len(data[key][attribute][pop][label])):
+                                              if label == 'y_format' or label == 'format_type':
+                                                  pass
+                                              else:
+                                                  if data[key][attribute][pop]['y_format'] == 'fraction' and (data[key][attribute][pop]['y'][loop] > 1. or data[key][attribute][pop]['y'][loop] < 0.):
+                                                      logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a number greater than 1 or negative number was entered for definition type fraction' % (key, attribute, pop))
+                                                      result = False
+                                                  elif data[key][attribute][pop]['y_format'] == 'number' and data[key][attribute][pop]['y'][loop] < 1.:
+                                                      if data[key][attribute][pop]['y'][loop] > 0. or data[key][attribute][pop]['y'][loop] < 0.:
+                                                          logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a fraction or a negative number was entered for definition type number %i' % (key, attribute, pop, data[key][attribute][pop]['t'][loop] ))
+                                                          result = False
+                                                      else: return True
+                                                  else: result = True
+                              validation[key][attribute][pop][label] = result
+    validation = True
     return validation
     
