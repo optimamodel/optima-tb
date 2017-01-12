@@ -2,7 +2,7 @@
 import logging
 import logging.config
 
-logging.config.fileConfig('./logging.ini', disable_existing_loggers=False)
+logging.config.fileConfig('..\\logging.ini', disable_existing_loggers=False)
 logger = logging.getLogger()
 
 from utils import tic, toc, odict, OptimaException

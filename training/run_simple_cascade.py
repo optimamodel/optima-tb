@@ -19,11 +19,11 @@ Note: this script should be run from the home folder for this project i.e. ~/git
 
 num_pop = 2
 
-databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\databooks\\databook_model_simple(counterfactual).xlsx'
-cascade =  'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\cascade_spreadsheet\\cascade_model_simple.xlsx'
+databook = '..\\tests\\databooks\\databook_model_simple.xlsx'
+cascade =  '..\\tests\\cascade_spreadsheet\\cascade_model_simple.xlsx'
 
 
-proj= Project(name = 'test-simple-birth', cascade_path = cascade)
+proj= Project(name = 'test-simple', cascade_path = cascade)
 # Set the year range we wish to enter data points for: from 2000 to 2016 inclusive
 proj.setYear([2000.,2016.])
 proj.loadSpreadsheet(databook_path = databook)

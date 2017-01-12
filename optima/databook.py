@@ -485,8 +485,9 @@ def loadSpreadsheetFunc(settings, databook_path):
                 data['linkpars'][label][pop]['y'] = np.array([float(def_val)]) 
                 data['linkpars'][label][pop]['y_factor'] = project_settings.DEFAULT_YFACTOR
                 
-            
-    return data
+    validation = databookValidation(data=data)
+    if validation: return data
+    else: raise OptimaException('ERROR: Databook entries incomplete or mismatched')
 
 
 def getEmptyData():
@@ -510,5 +511,26 @@ def getEmptyData():
     data['transfers'] = odict()
     data['linkpars'] = odict()
     return data
-    
+
+def databookValidation(data=None):
+    '''
+    Intended to validate data fields in the databook
+    '''
+    validation = odict()
+    for key in data:
+        validation[key] = odict()
+        for attribute in data[key]:
+            if attribute == 'name_labels' or attribute == 'label_names': pass
+            else:
+                validation[key][attribute] = odict()
+                for pop in data[key][attribute]:
+                      validation[key][attribute][pop] = odict()
+                      for label in data[key][attribute][pop]:
+                          if key == 'transfers':
+                              validation[key][attribute][pop][label] = odict()
+                              for subpop in data[key][attribute][pop][label]:
+                                  validation[key][attribute][pop][label][subpop] = True
+                          else: validation[key][attribute][pop][label] = True
+    print validation
+    return validation
     
