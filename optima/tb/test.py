@@ -1,7 +1,7 @@
 #%% Imports
 
-from utils import tic, toc
-from project import Project
+from optima.tb.utils import tic, toc
+from optima.tb.project import Project
 
 
 

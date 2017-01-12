@@ -1,5 +1,5 @@
 
-from project import Project
+from optima.tb.project import Project
 import numpy as np
 import pylab 
 

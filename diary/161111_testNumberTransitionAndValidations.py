@@ -1,6 +1,6 @@
 
-from project import Project
-from spreadsheet import load_old_spreadsheet
+from optima.tb.project import Project
+from optima.tb.spreadsheet import load_old_spreadsheet
 
 import pylab 
 

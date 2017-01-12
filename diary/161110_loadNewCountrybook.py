@@ -1,5 +1,5 @@
-import settings
-from spreadsheet import load_spreadsheet
+import optima.tb.settings as settings
+from optima.tb.spreadsheet import load_spreadsheet
 
 settings = settings.Settings('./diary/cascade-161025.xlsx')
 

@@ -2,7 +2,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from utils import odict
+from optima.tb.utils import odict
 
 import numpy as np
 

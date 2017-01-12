@@ -12,7 +12,7 @@ try:
 except: pass
 sys.path.append('../optima')
 
-from project import Project
+from optima.tb.project import Project
 import pylab
 
 proj= Project(name = 'Belarus', cascade_path = './cascade-belarus.xlsx')

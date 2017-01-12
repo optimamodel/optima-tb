@@ -5,7 +5,7 @@ try:
 except: pass
 sys.path.append('../optima')
 
-from project import Project
+from optima.tb.project import Project
 import pylab 
 import pprint # just during debugging
 pp = pprint.PrettyPrinter(indent=4)

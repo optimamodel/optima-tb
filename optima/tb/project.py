@@ -5,13 +5,13 @@ import logging.config
 logging.config.fileConfig('./logging.ini', disable_existing_loggers=False)
 logger = logging.getLogger()
 
-from utils import tic, toc, odict, OptimaException
-from model import runModel
-from settings import Settings
-from parameters import ParameterSet, export_paramset, load_paramset
-from plotting import Plotter
-from databook import makeSpreadsheetFunc, loadSpreadsheetFunc
-from calibration import makeManualCalibration, calculateFitFunc, performAutofit
+from optima.tb.utils import tic, toc, odict, OptimaException
+from optima.tb.model import runModel
+from optima.tb.settings import settings 
+from optima.tb.parameters import ParameterSet, export_paramset, load_paramset
+from optima.tb.plotting import Plotter
+from optima.tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
+from optima.tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
 
 from uuid import uuid4 as uuid
 from numpy import max

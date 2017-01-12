@@ -5,9 +5,10 @@ try:
 except: pass
 sys.path.append('../optima')
 
-from utils import odict
-from project import Project
-from plotting import Plotter
+from optima.tb.utils import odict
+from optima.tb.project import Project
+from optima.tb.plotting import Plotter
+
 import numpy as np
 import pylab
 

@@ -14,7 +14,7 @@ This file generates the databook spreadsheet from the cascade-belarus.xlsx, so t
 filled with values from the country datasheet. 
 
 """
-from project import Project
+from optima.tb.project import Project
 import pylab
 
 proj = Project(name = 'Belarus', cascade_path = './cascade-belarus.xlsx', validation_level = 'error')

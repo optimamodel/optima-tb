@@ -9,11 +9,12 @@ sys.path.append('../optima')
 
 #%%
 
-import unittest
-from project import Project
+from optima.tb.project import Project
+from optima.tb.utils import odict
+
 from copy import deepcopy as dcp
+import unittest
 import numpy as np
-from utils import odict
 
 
 class ModelTest(unittest.TestCase):

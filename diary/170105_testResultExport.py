@@ -1,4 +1,4 @@
-from project import Project
+from optima.tb.project import Project
 
 """
 Example to illustrate how to export a set of results for a simple model run

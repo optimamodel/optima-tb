@@ -1,5 +1,5 @@
-import settings
-from spreadsheet import export_spreadsheet
+import optima.tb.settings as settings
+from optima.tb.spreadsheet import export_spreadsheet
 
 """
 
