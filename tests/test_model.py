@@ -1,19 +1,9 @@
-#%% DJK System Hack
+from optima_tb.project import Project
+from optima_tb.utils import odict
 
-import sys
-try:
-    sys.path.remove('d:\\work projects\\optima\\optima 2.0')
-    sys.path.remove('d:\\work projects\\optima\\optima 2.0\\optima')
-except: pass
-sys.path.append('../optima')
-
-#%%
-
-import unittest
-from project import Project
 from copy import deepcopy as dcp
+import unittest
 import numpy as np
-from utils import odict
 
 
 class ModelTest(unittest.TestCase):

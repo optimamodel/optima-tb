@@ -1,7 +1,8 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from utils import OptimaException, odict, defaultrepr, objrepr
+from optima_tb.utils import OptimaException, odict, defaultrepr, objrepr
+
 import numpy as np
 from math import ceil, floor
 from uuid import uuid4 as uuid

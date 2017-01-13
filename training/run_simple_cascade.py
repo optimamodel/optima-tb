@@ -1,6 +1,9 @@
+from optima_tb.project import Project
+
 import os
-from project import Project
-import pylab
+
+import pylab 
+
 
 """
 Example to illustrate how to run and modify for simple cascade structure.

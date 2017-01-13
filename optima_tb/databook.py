@@ -1,7 +1,7 @@
 #%% Imports
 
-from utils import odict, OptimaException
-import settings as project_settings
+from optima_tb.utils import odict, OptimaException
+import optima_tb.settings as project_settings
 
 import logging
 logger = logging.getLogger(__name__)

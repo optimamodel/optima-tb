@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Nov 29 13:12:24 2016
-
-@author: Lara
-"""
-
 import sys
 try:
     sys.path.remove('d:\\work projects\\optima\\optima 2.0')
@@ -12,7 +5,7 @@ try:
 except: pass
 sys.path.append('../optima')
 
-from project import Project
+from optima_tb.project import Project
 import pylab
 
 proj= Project(name = 'Belarus', cascade_path = './cascade-belarus.xlsx')

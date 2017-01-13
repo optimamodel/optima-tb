@@ -1,10 +1,10 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from utils import OptimaException, tic, toc, odict
-import settings
-import asd
-from parameters import ParameterSet
+from optima_tb.utils import OptimaException, tic, toc, odict
+import optima_tb.settings as settings
+import optima_tb.asd as asd
+from optima_tb.parameters import ParameterSet
 
 import numpy as np
 from copy import deepcopy as dcp

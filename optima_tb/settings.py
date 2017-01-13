@@ -1,7 +1,7 @@
 #%% Imports
-from utils import odict
-from parsing import FunctionParser
-from cascade import loadCascadeSettingsFunc, plotCascadeFunc
+from optima_tb.utils import odict
+from optima_tb.parsing import FunctionParser
+from optima_tb.cascade import loadCascadeSettingsFunc, plotCascadeFunc
 
 
 import logging
