@@ -537,19 +537,19 @@ def databookValidation(data=None):
     return validation
 
 def validateFormatType(data_to_validate, label, loop, key, attribute, pop, validation):
-    if key == 'transfers': key == 'Transfer Details: '
-    elif key == 'characs': key == 'Characteristic: '
-    elif key == 'linkpars': key == 'Parameter: '
+    if key == 'transfers': key = 'Transfer Details: '
+    elif key == 'characs': key = 'Characteristic: '
+    elif key == 'linkpars': key = 'Parameter: '
     
     if data_to_validate['y_format'] == 'fraction':
       if data_to_validate[label][loop] > 1. or data_to_validate[label][loop] < 0.:
-          logging.warning('Please verify databook under %s, attribute %s and population %s as a number greater than 1 or negative number was entered for definition type "fraction" for Year: %i' % (key, attribute, pop, data_to_validate['t'][loop]))
+          logging.warning('Please verify databook under %s%s and population %s as a number greater than 1 or negative number was entered for definition type "fraction" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
           validation = False
     elif data_to_validate['y_format'] == 'number':
       if data_to_validate[label][loop] < 0.:
-          logging.warning('Please verify databook under %s, attribute %s and population %s as a fraction or a negative number was entered for definition type "number" for Year: %i' % (key, attribute, pop, data_to_validate['t'][loop]))
+          logging.warning('Please verify databook under %s%s and population %s as a fraction or a negative number was entered for definition type "number" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
           validation = False
       elif data_to_validate[label][loop] > 0. and data_to_validate[label][loop] < 1.:
-          logging.warning('Please verify databook under %s, attribute %s and population %s as a fraction or a negative number was entered for definition type "number" for Year: %i' % (key, attribute, pop, data_to_validate['t'][loop]))
+          logging.warning('Please verify databook under %s%s and population %s as a fraction or a negative number was entered for definition type "number" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
           validation = False
     return validation
