@@ -1,5 +1,8 @@
-from project import Project
+import os
+
 import pylab 
+
+from project import Project
 
 """
 Example to illustrate how to run and modify for simple cascade structure.
@@ -19,8 +22,8 @@ Note: this script should be run from the home folder for this project i.e. ~/git
 
 num_pop = 2
 
-databook = 'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\databooks\\databook_model_simple(counterfactual).xlsx'
-cascade =  'C:\\Users\\Azfar\\Documents\\tb-ucl\\tests\\cascade_spreadsheet\\cascade_model_simple.xlsx'
+databook = os.path.abspath('tests/databooks/databook_model_simple(counterfactual).xlsx')
+cascade = os.path.abspath('tests/cascade_spreadsheet/cascade_model_simple.xlsx')
 
 
 proj= Project(name = 'test-simple-birth', cascade_path = cascade)
