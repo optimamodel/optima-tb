@@ -524,28 +524,28 @@ def databookValidation(data=None):
             else:
                 for pop in data[key][attribute]:
                   if key == 'transfers':
-                      pass #for subpop in data[key][attribute][pop]:
+                      for subpop in data[key][attribute][pop]:
+                          for loop in range (len(data[key][attribute][pop][subpop][label])):
+                              validateFormatType(data[key][attribute][pop][subpop], label, loop, key, attribute, pop, validation)
                   elif key == 'pops':
                       if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0:
                           logging.warning('Population age ranges are defined incorrectly for %s' % (pop))
                           validation = False
-                      else: pass
-                  elif len(data[key][attribute][pop]['t']) != len(data[key][attribute][pop][label]):
-                      logging.warning('Length of t-vector does not match length of y vector for parameter %s, attribute %s and population group %s' % (key, attribute, pop))
-                      validation = False
                   else:
                       for loop in range (len(data[key][attribute][pop][label])):
-                          if data[key][attribute][pop]['y_format'] == 'fraction':
-                              if data[key][attribute][pop][label][loop] > 1. or data[key][attribute][pop][label][loop] < 0.:
-                                  logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a number greater than 1 or negative number was entered for definition type fraction' % (key, attribute, pop))
-                                  validation = False
-                          elif data[key][attribute][pop]['y_format'] == 'number':
-                              if data[key][attribute][pop][label][loop] < 0.:
-                                  logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a fraction or a negative number was entered for definition type number %i' % (key, attribute, pop, data[key][attribute][pop]['t'][loop] ))
-                                  validation = False
-                              elif data[key][attribute][pop][label][loop] > 0. and data[key][attribute][pop][label][loop] < 1.:
-                                  logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a fraction or a negative number was entered for definition type number %i' % (key, attribute, pop, data[key][attribute][pop]['t'][loop] ))
-                                  validation = False
-                          else: pass
+                          validateFormatType(data[key][attribute][pop], label, loop, key, attribute, pop, validation)
     return validation
-    
+
+def validateFormatType(data_to_validate, label, loop, key, attribute, pop, validation):
+    if data_to_validate['y_format'] == 'fraction':
+      if data_to_validate[label][loop] > 1. or data_to_validate[label][loop] < 0.:
+          logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a number greater than 1 or negative number was entered for definition type fraction' % (key, attribute, pop))
+          validation = False
+    elif data_to_validate['y_format'] == 'number':
+      if data_to_validate[label][loop] < 0.:
+          logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a fraction or a negative number was entered for definition type number %i' % (key, attribute, pop, data_to_validate['t'][loop]))
+          validation = False
+      elif data_to_validate[label][loop] > 0. and data_to_validate[label][loop] < 1.:
+          logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a fraction or a negative number was entered for definition type number %i' % (key, attribute, pop, data_to_validate['t'][loop]))
+          validation = False
+    return validation
