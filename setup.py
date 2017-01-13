@@ -32,12 +32,12 @@ CLASSIFIERS = [
 ]
 
 setup(
-    name='optima',
+    name='optima.tb',
     version=version,
     author='David Kedziora, Sarah Jarvis, Azfar Hussain',
     author_email='info@optimamodel.com',
     description='Software package for modeling H2H infectious disease epidemics',
-    long_description=convert('README.md', 'md'),
+    #long_description=convert('README.md', 'md'),
     url='http://github.com/optimamodel/tb-ucl',
     keywords=['optima','disease'],
     platforms=['OS Independent'],

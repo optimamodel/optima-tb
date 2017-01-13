@@ -29,7 +29,7 @@ Version: 2016nov03 by cliffk
 """
 
 optimalicense = '''
-Optima TB -- TB: optimization and analysis tool
+Optima: optimization and analysis tool
 Copyright (C) 2016 by the Optima Consortium
 '''
 print(optimalicense)
@@ -39,4 +39,4 @@ from uuid import uuid4 as uuid
 from datetime import datetime; today = datetime.today
 from copy import deepcopy as dcp
 
-from .tb import *
+#from .tb import *

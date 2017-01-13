@@ -7,7 +7,7 @@ logger = logging.getLogger()
 
 from optima.tb.utils import tic, toc, odict, OptimaException
 from optima.tb.model import runModel
-from optima.tb.settings import settings 
+from optima.tb.settings import Settings 
 from optima.tb.parameters import ParameterSet, export_paramset, load_paramset
 from optima.tb.plotting import Plotter
 from optima.tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
