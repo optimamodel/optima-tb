@@ -487,7 +487,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                 
     validation = databookValidation(data=data)
     if validation: return data
-    else: raise OptimaException('ERROR: Databook entries incomplete or mismatched')
+    else: raise OptimaException('ERROR: Databook entries incomplete or mismatched, please look at log for details')
 
 
 def getEmptyData():
@@ -516,49 +516,36 @@ def databookValidation(data=None):
     '''
     Intended to validate data fields in the databook
     '''
-    validation = odict()
+    validation = True
+    label = 'y'
     for key in data:
-        validation[key] = odict()
         for attribute in data[key]:
             if attribute == 'name_labels' or attribute == 'label_names': pass
             else:
-                validation[key][attribute] = odict()
                 for pop in data[key][attribute]:
-                      validation[key][attribute][pop] = odict()
-                      for label in data[key][attribute][pop]:
-                          if key == 'transfers':
-                              validation[key][attribute][pop][label] = odict()
-                              for subpop in data[key][attribute][pop][label]:
-                                  validation[key][attribute][pop][label][subpop] = True
-                          else: 
-                              if key == 'pops':
-                                  if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0: 
-                                      logging.critical('Population age ranges are defined incorrectly for %s' % (pop))
-                                      result = False
-                                  else: 
-                                      result = True
-                              else:
-                                  if len(data[key][attribute][pop]['t']) != len(data[key][attribute][pop]['y']):
-                                      logging.critical('Length of t-vector does not match length of y vector for parameter %s, attribute %s and population group %s' % (key, attribute, pop))
-                                      result = False
-                                  else:
-                                      if isinstance(data[key][attribute][pop][label], float):
-                                          result = True
-                                      else:
-                                          for loop in range (len(data[key][attribute][pop][label])):
-                                              if label == 'y_format' or label == 'format_type':
-                                                  pass
-                                              else:
-                                                  if data[key][attribute][pop]['y_format'] == 'fraction' and (data[key][attribute][pop]['y'][loop] > 1. or data[key][attribute][pop]['y'][loop] < 0.):
-                                                      logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a number greater than 1 or negative number was entered for definition type fraction' % (key, attribute, pop))
-                                                      result = False
-                                                  elif data[key][attribute][pop]['y_format'] == 'number' and data[key][attribute][pop]['y'][loop] < 1.:
-                                                      if data[key][attribute][pop]['y'][loop] > 0. or data[key][attribute][pop]['y'][loop] < 0.:
-                                                          logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a fraction or a negative number was entered for definition type number %i' % (key, attribute, pop, data[key][attribute][pop]['t'][loop] ))
-                                                          result = False
-                                                      else: return True
-                                                  else: result = True
-                              validation[key][attribute][pop][label] = result
-    validation = True
+                  if key == 'transfers':
+                      pass #for subpop in data[key][attribute][pop]:
+                  elif key == 'pops':
+                      if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0:
+                          logging.warning('Population age ranges are defined incorrectly for %s' % (pop))
+                          validation = False
+                      else: pass
+                  elif len(data[key][attribute][pop]['t']) != len(data[key][attribute][pop][label]):
+                      logging.warning('Length of t-vector does not match length of y vector for parameter %s, attribute %s and population group %s' % (key, attribute, pop))
+                      validation = False
+                  else:
+                      for loop in range (len(data[key][attribute][pop][label])):
+                          if data[key][attribute][pop]['y_format'] == 'fraction':
+                              if data[key][attribute][pop][label][loop] > 1. or data[key][attribute][pop][label][loop] < 0.:
+                                  logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a number greater than 1 or negative number was entered for definition type fraction' % (key, attribute, pop))
+                                  validation = False
+                          elif data[key][attribute][pop]['y_format'] == 'number':
+                              if data[key][attribute][pop][label][loop] < 0.:
+                                  logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a fraction or a negative number was entered for definition type number %i' % (key, attribute, pop, data[key][attribute][pop]['t'][loop] ))
+                                  validation = False
+                              elif data[key][attribute][pop][label][loop] > 0. and data[key][attribute][pop][label][loop] < 1.:
+                                  logging.warning('Please re-check input data for parameter %s, attribute %s and population %s as a fraction or a negative number was entered for definition type number %i' % (key, attribute, pop, data[key][attribute][pop]['t'][loop] ))
+                                  validation = False
+                          else: pass
     return validation
     
