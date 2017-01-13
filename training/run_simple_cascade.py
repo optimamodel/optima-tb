@@ -1,4 +1,5 @@
 from project import Project
+import os
 import pylab 
 
 """
@@ -19,8 +20,8 @@ Note: this script should be run from the home folder for this project i.e. ~/git
 
 num_pop = 2
 
-databook = '..\\tests\\databooks\\databook_model_simple.xlsx'
-cascade =  '..\\tests\\cascade_spreadsheet\\cascade_model_simple.xlsx'
+databook = os.path.abspath('../tests/databooks/databook_model_simple.xlsx')
+cascade =  os.path.abspath('../tests/cascade_spreadsheet/cascade_model_simple.xlsx')
 
 
 proj= Project(name = 'test-simple', cascade_path = cascade)
