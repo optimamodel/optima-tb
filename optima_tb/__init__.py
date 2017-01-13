@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-This file performs all necessary imports, so Optima can be used either as
+Optima TB can be imported in the following manner:
 
-from optima import Project, Parameters [etc.]
+from optima_tb.project import Project
 or
-import optima as op
+import optima_tb as optb
 or
-from optima import *
+from optima_tb import *
 
-
-Now, the legal part:
-
-This program is free software: you can redistribute it and/or modify
+his program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
@@ -25,12 +22,14 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-Version: 2016nov03 by cliffk
+@author  : sjarvis
+@date    : 13jan2017
 """
 
+
 optimalicense = '''
-Optima: optimization and analysis tool
-Copyright (C) 2016 by the Optima Consortium
+Optima TB: a TB optimization and analysis tool
+Copyright (C) 2017 by the Optima Consortium
 '''
 print(optimalicense)
 
