@@ -1,7 +1,7 @@
 #%% Imports
 from utils import flattenDict, odict, OptimaException
 from parsing import FunctionParser
-import optima.tb.settings as settings
+import optima_tb.settings as settings
 
 import logging
 logger = logging.getLogger(__name__)

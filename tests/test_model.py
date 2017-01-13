@@ -9,8 +9,8 @@ sys.path.append('../optima')
 
 #%%
 
-from optima.tb.project import Project
-from optima.tb.utils import odict
+from optima_tb.project import Project
+from optima_tb.utils import odict
 
 from copy import deepcopy as dcp
 import unittest

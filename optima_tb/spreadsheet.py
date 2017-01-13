@@ -1,7 +1,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from optima.tb.utils import odict, printv, OptimaException
+from optima_tb.utils import odict, printv, OptimaException
 
 import xlrd
 from xlrd import open_workbook, XLRDError 

@@ -34,6 +34,10 @@ Copyright (C) 2016 by the Optima Consortium
 '''
 print(optimalicense)
 
+
+from ._version import __version__
+
+
 ## General modules
 from uuid import uuid4 as uuid
 from datetime import datetime; today = datetime.today

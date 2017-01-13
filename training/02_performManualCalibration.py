@@ -1,4 +1,4 @@
-from optima.tb.project import Project
+from optima_tb.project import Project
 import pylab 
 """
 This script runs a simulation for two parameter settings. 

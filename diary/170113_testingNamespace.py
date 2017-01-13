@@ -6,33 +6,33 @@ except:
     print("couldn't import optima")
     
 try:
-    import optima.tb
-    print("Could import optima.tb")
+    import optima_tb
+    print("Could import optima_tb")
 except:
-    print("couldn't import optima.tb")
+    print("couldn't import optima_tb")
     
    
 try:
-    import optima.tb.utils
-    print("Could import optima.tb.utils")
+    import optima_tb.utils
+    print("Could import optima_tb.utils")
 except:
-    print("couldn't import optima.tb.utils")
+    print("couldn't import optima_tb.utils")
 
 try:
-    from optima.tb import utils
-    print("Could 'from optima.tb import utils'")
+    from optima_tb import utils
+    print("Could 'from optima_tb import utils'")
 except:
-    print("couldn't 'from optima.tb import utils'")
+    print("couldn't 'from optima_tb import utils'")
         
    
 try:
-    import optima.tb.utils as utils
-    print("Could import optima.tb.utils as utils")
+    import optima_tb.utils as utils
+    print("Could import optima_tb.utils as utils")
 except:
-    print("couldn't import optima.tb.utils as utils")
+    print("couldn't import optima_tb.utils as utils")
     
     
-from optima.tb import settings    
-import optima.tb.settings
-from optima.tb.project import Project
-import optima.tb.settings as settings
+from optima_tb import settings    
+import optima_tb.settings
+from optima_tb.project import Project
+import optima_tb.settings as settings

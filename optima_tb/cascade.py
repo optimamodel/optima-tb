@@ -1,6 +1,6 @@
 #%% Imports
 
-from optima.tb.utils import odict, OptimaException, flattenDict
+from optima_tb.utils import odict, OptimaException, flattenDict
 
 import logging
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ from copy import deepcopy as dcp
 #%% Function to convert a cascade workbook into a framework to store in project settings
 
 def loadCascadeSettingsFunc(cascade_path, settings):
-    import optima.tb.settings as project_settings
+    import optima_tb.settings as project_settings
 
     
     ''' Generates node and link settings based on cascade spreadsheet. 

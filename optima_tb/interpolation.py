@@ -1,6 +1,6 @@
 #%% Imports
 
-from optima.tb.utils import OptimaException
+from optima_tb.utils import OptimaException
 
 import logging
 logger = logging.getLogger(__name__)

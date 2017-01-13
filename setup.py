@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 # NOTE: disease is intended to be replaced here at some point in the future with a build script that will 
 # dynamically create and move code into a subfolder within optima/ for a specific disease area. 
 disease = 'tb'
-with open("optima/%s/_version.py"%disease, "r") as f:
+with open("optima_%s/_version.py"%disease, "r") as f:
     version_file = {}
     exec(f.read(), version_file)
     version = version_file["__version__"]
@@ -32,7 +32,7 @@ CLASSIFIERS = [
 ]
 
 setup(
-    name='optima.tb',
+    name='optima_tb',
     version=version,
     author='David Kedziora, Sarah Jarvis, Azfar Hussain',
     author_email='info@optimamodel.com',

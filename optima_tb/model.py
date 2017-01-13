@@ -1,9 +1,9 @@
 #%% Imports
 
-from optima.tb.utils import flattenDict, odict, OptimaException
-from optima.tb.validation import checkNegativePopulation
-import optima.tb.settings as project_settings
-from optima.tb.results import ResultSet
+from optima_tb.utils import flattenDict, odict, OptimaException
+from optima_tb.validation import checkNegativePopulation
+import optima_tb.settings as project_settings
+from optima_tb.results import ResultSet
 
 import logging
 logger = logging.getLogger(__name__)

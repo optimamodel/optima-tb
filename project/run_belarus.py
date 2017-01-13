@@ -14,7 +14,7 @@ Loads and runs model data
 
 """
 
-from optima.tb.project import Project
+from optima_tb.project import Project
 import pylab
 
 proj = Project(name = 'Belarus', cascade_path = './cascade-belarus.xlsx', validation_level = 'avert')
