@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Nov 29 13:12:24 2016
-
-@author: Lara
-"""
-
 import sys
 try:
     sys.path.remove('d:\\work projects\\optima\\optima 2.0')

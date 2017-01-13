@@ -1,14 +1,3 @@
-#%% DJK System Hack
-
-import sys
-try:
-    sys.path.remove('d:\\work projects\\optima\\optima 2.0')
-    sys.path.remove('d:\\work projects\\optima\\optima 2.0\\optima')
-except: pass
-sys.path.append('../optima')
-
-#%%
-
 from optima_tb.project import Project
 from optima_tb.utils import odict
 
