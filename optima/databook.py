@@ -514,7 +514,16 @@ def getEmptyData():
 
 def databookValidation(data=None):
     '''
-    Intended to validate data fields in the databook
+    Validate data fields within the databook:
+
+    Current Operation:
+        Checks to ensure data entered is in line with the format type:
+            a) Format type: Fraction - Ensure data entered for parameters is not negative or greater than one
+            b) Format type: Number - Ensure data entered for parameters is not negative or in range (0-1)
+    
+    Output:
+        Output is simply a complete log of errors found in relavant databook
+        
     '''
     validation = True
     label = 'y'
@@ -537,6 +546,10 @@ def databookValidation(data=None):
     return validation
 
 def validateFormatType(data_to_validate, label, loop, key, attribute, pop, validation):
+    '''
+    Helper function which loops through the databook entries and makes sure they
+    conform to the format_type specified (fraction or number)
+    '''
     if key == 'transfers': key = 'Transfer Details: '
     elif key == 'characs': key = 'Characteristic: '
     elif key == 'linkpars': key = 'Parameter: '
