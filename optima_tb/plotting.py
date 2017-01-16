@@ -2,7 +2,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from utils import odict
+from optima_tb.utils import odict
 
 import numpy as np
 
@@ -503,8 +503,8 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
-        if np.min(y_hat) < ymin_val:
-            ymin_val = np.min(y_hat)
+        if np.min(y_hat[k]) < ymin_val:
+            ymin_val = np.min(y_hat[k])
 
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
