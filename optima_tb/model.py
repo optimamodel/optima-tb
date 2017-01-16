@@ -1,9 +1,9 @@
 #%% Imports
 
-from utils import flattenDict, odict, OptimaException
-from validation import checkNegativePopulation
-import settings as project_settings
-from results import ResultSet
+from optima_tb.utils import flattenDict, odict, OptimaException
+from optima_tb.validation import checkNegativePopulation
+import optima_tb.settings as project_settings
+from optima_tb.results import ResultSet
 
 import logging
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class Node(object):
         self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
         self.outlink_ids = []       # List of indices corresponding to each outgoing link.
         
-    def makeLinkTo(self, other_node, link_index, link_label):
+    def makeLinkTo(self, other_node, link_index, link_label, is_transfer = False):
         '''
         Link this node to another (i.e. create a transition link).
         Must provide an index that, by intention, uniquely represents where this link is positioned in its storage container.
@@ -36,7 +36,7 @@ class Node(object):
             raise OptimaException('ERROR: Attempting to link compartment to something that is not a compartment.')
         self.num_outlinks += 1
         self.outlink_ids.append(link_index)
-        return Link(object_from = self, object_to = other_node, label = link_label)
+        return Link(object_from = self, object_to = other_node, label = link_label, is_transfer = is_transfer)
 
 class Variable(object):
     '''
@@ -60,13 +60,14 @@ class Link(Variable):
     If used in Model, the Link refers to two distinct population groups.
     In the latter case, intended logic should transfer agents between all (non-dead) corresponding compartments.
     '''
-    def __init__(self, object_from, object_to, label = 'default', val = 0.0, scale_factor = 1.):
+    def __init__(self, object_from, object_to, label = 'default', val = 0.0, scale_factor = 1.0, is_transfer = False):
         Variable.__init__(self, label = label, val = val)
         self.index_from = object_from.index
         self.index_to = object_to.index
         self.label_from = object_from.label
         self.label_to = object_to.label
         self.scale_factor = scale_factor
+        self.is_transfer = is_transfer
 
     def __repr__(self, *args, **kwargs):
         print "self.scale_factor = ", self.scale_factor, type(self.scale_factor)
@@ -329,8 +330,8 @@ class Model(object):
 
 #        print include_dict
 #        print calc_done
-        print [(key,seed_dict[key][0]) for key in calc_done.keys()]
-        print sum([seed_dict[key][0] for key in calc_done.keys()])
+#        print [(key,seed_dict[key][0]) for key in calc_done.keys()]
+#        print sum([seed_dict[key][0] for key in calc_done.keys()])
         
         # Now initialise all model compartments with these calculated values.
         for seed_label in seed_dict.keys():
@@ -372,16 +373,17 @@ class Model(object):
                             if not comp.tag_birth and not comp.tag_dead and not comp.junction:
                                 
                                 num_links = len(self.getPop(pop_source).links)
-                                link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=num_links,link_label=trans_tag)
-                                link.vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_target)
+                                link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=num_links,link_label=trans_tag,is_transfer=True)
+                                link.vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_target) 
                                 link.val_format = par.y_format[pop_target]
                                 link.scale_factor = par.y_factor[pop_target]
+#                                if link.val_format == 'number': link.vals /= settings.num_transfer_nodes
                                 
                                 self.getPop(pop_source).links.append(link)
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
         
         # Make sure initially-filled junctions are processed and initial dependencies are calculated.
-        self.updateDependencies(settings = settings)
+        self.updateDependencies(settings = settings)    # Done first just in case junctions are dependent on characteristics.
         self.processJunctions(settings = settings)
         self.updateDependencies(settings = settings)
 
@@ -459,16 +461,6 @@ class Model(object):
                         did_to = link.index_to[0] * num_comps + link.index_to[1]
                         comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
                         
-#                        # Evaluate custom function for variable if it exists and overwrite any value that is currently stored for transition.
-#                        if link.label in settings.linkpar_specs:
-#                            if 'f_stack' in settings.linkpar_specs[link.label]:
-#                                f_stack = dcp(settings.linkpar_specs[link.label]['f_stack'])
-#                                deps = dcp(settings.linkpar_specs[link.label]['deps'])
-#                                for dep_label in deps.keys():
-#                                    deps[dep_label] = pop.getDep(dep_label).vals[ti]
-#                                link.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = deps)
-                        
-                        
                         converted_amt = 0 
                         
                         transition = link.vals[ti]
@@ -482,6 +474,10 @@ class Model(object):
                             converted_amt = comp_source.popsize[ti] * converted_frac
                         elif link.val_format == 'number':
                             converted_amt = transition * dt
+                            if link.is_transfer:
+                                transfer_rescale = comp_source.popsize[ti] / pop.getDep(settings.charac_std_norm).vals[ti]
+                                converted_amt *= transfer_rescale
+                                
                         else:
                             raise OptimaException("Unknown link type: %s in model\nObserved for population %s, compartment %s"%(link.val_format,pop.label,comp.label))
                         
@@ -600,6 +596,8 @@ class Model(object):
         ti = self.t_index
         
         for pop in self.pops:
+            
+            # Characteristics that are dependencies first...
             for dep in pop.deps:
                 if dep.label in settings.charac_deps.keys():
                     dep.vals[ti] = 0                                    
@@ -611,6 +609,10 @@ class Model(object):
                         elif inc_label in pop.dep_ids.keys():    # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
                             val = pop.getDep(inc_label).vals[ti]
                         else:
+#                            print inc_label
+#                            print settings.charac_specs[dep.label]['includes']
+#                            print pop.comp_ids.keys()
+#                            print pop.dep_ids.keys()
                             raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
                         
                         dep.vals[ti] += val
@@ -626,20 +628,8 @@ class Model(object):
                             raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))                      
                         
                         dep.vals[ti] /= val
-                
-#                # If the dependency is a parameter, evaluate its stack.
-#                elif dep.label in settings.linkpar_specs.keys():
-#                    if 'deps' in settings.linkpar_specs[dep.label]:
-#                        if len(settings.linkpar_specs[dep.label]['deps'].keys()) >= 0:
-#                            f_stack = dcp(settings.linkpar_specs[dep.label]['f_stack'])
-#                            dep_deps = dcp(settings.linkpar_specs[dep.label]['deps'])
-#                            for dep_dep_label in dep_deps.keys():
-#                                dep_deps[dep_dep_label] = pop.getDep(dep_dep_label).vals[ti]
-#                            dep.vals[ti] = settings.parser.evaluateStack(stack = f_stack, deps = dep_deps)
-
-#                else:
-#                    raise OptimaException('ERROR: Dependency "%s" does not appear to be either a characteristic or parameter.' % (dep.label))
-                    
+            
+            # Parameters that are functions of dependencies next...
             for par_label in settings.par_funcs.keys():
                 pars = []
                 if par_label in settings.par_deps:

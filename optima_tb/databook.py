@@ -1,7 +1,7 @@
 #%% Imports
 
-from utils import odict, OptimaException
-import settings as project_settings
+from optima_tb.utils import odict, OptimaException
+import optima_tb.settings as project_settings
 
 import logging
 logger = logging.getLogger(__name__)
@@ -485,8 +485,9 @@ def loadSpreadsheetFunc(settings, databook_path):
                 data['linkpars'][label][pop]['y'] = np.array([float(def_val)]) 
                 data['linkpars'][label][pop]['y_factor'] = project_settings.DEFAULT_YFACTOR
                 
-            
-    return data
+    validation = databookValidation(data=data)
+    if validation: return data
+    else: raise OptimaException('ERROR: Databook entries incomplete or mismatched, please look at log for details')
 
 
 def getEmptyData():
@@ -510,5 +511,58 @@ def getEmptyData():
     data['transfers'] = odict()
     data['linkpars'] = odict()
     return data
+
+def databookValidation(data=None):
+    '''
+    Validate data fields within the databook:
+
+    Current Operation:
+        Checks to ensure data entered is in line with the format type:
+            a) Format type: Fraction - Ensure data entered for parameters is not negative or greater than one
+            b) Format type: Number - Ensure data entered for parameters is not negative or in range (0-1)
     
+    Output:
+        Output is simply a complete log of errors found in relavant databook
+        
+    '''
+    validation = True
+    label = 'y'
+    for key in data:
+        for attribute in data[key]:
+            if attribute == 'name_labels' or attribute == 'label_names': pass
+            else:
+                for pop in data[key][attribute]:
+                  if key == 'transfers':
+                      for subpop in data[key][attribute][pop]:
+                          for loop in range (len(data[key][attribute][pop][subpop][label])):
+                              validation = validateFormatType(data[key][attribute][pop][subpop], label, loop, key, attribute, pop, validation)
+                  elif key == 'pops':
+                      if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0:
+                          logging.warning('Minimum and maximum age is defined incorrectly for Population: %s' % (pop))
+                          validation = False
+                  else:
+                      for loop in range (len(data[key][attribute][pop][label])):
+                          validation = validateFormatType(data[key][attribute][pop], label, loop, key, attribute, pop, validation)
+    return validation
+
+def validateFormatType(data_to_validate, label, loop, key, attribute, pop, validation):
+    '''
+    Helper function which loops through the databook entries and makes sure they
+    conform to the format_type specified (fraction or number)
+    '''
+    if key == 'transfers': key = 'Transfer Details: '
+    elif key == 'characs': key = 'Characteristic: '
+    elif key == 'linkpars': key = 'Parameter: '
     
+    if data_to_validate['y_format'] == 'fraction':
+      if data_to_validate[label][loop] > 1. or data_to_validate[label][loop] < 0.:
+          logging.warning('Please verify databook under %s%s and population %s as a number greater than 1 or negative number was entered for definition type "fraction" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
+          validation = False
+    elif data_to_validate['y_format'] == 'number':
+      if data_to_validate[label][loop] < 0.:
+          logging.warning('Please verify databook under %s%s and population %s as a fraction or a negative number was entered for definition type "number" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
+          validation = False
+      elif data_to_validate[label][loop] > 0. and data_to_validate[label][loop] < 1.:
+          logging.warning('Please verify databook under %s%s and population %s as a fraction or a negative number was entered for definition type "number" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
+          validation = False
+    return validation

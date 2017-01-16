@@ -5,8 +5,8 @@ try:
 except: pass
 sys.path.append('../optima')
 
-import settings
-from spreadsheet import export_spreadsheet
+import optima_tb.settings as settings
+from optima_tb.spreadsheet import export_spreadsheet
 
 settings = settings.Settings('./cascade-161025.xlsx')
 
