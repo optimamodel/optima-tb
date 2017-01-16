@@ -14,7 +14,7 @@ proj = Project(name = 'Belarus', cascade_path = './cascade-belarus.xlsx', valida
 proj.setYear([1995,2030],False)
 
 
-proj.loadSpreadsheet(databook_path = './databook-belarus-template.xlsx')
+proj.loadSpreadsheet(databook_path = './databook-belarus.xlsx')
 proj.makeParset(name = 'default')
 
 # run and plot simulations
