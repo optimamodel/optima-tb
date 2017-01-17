@@ -5,22 +5,22 @@ try:
 except: pass
 sys.path.append('../optima')
 
-from utils import odict
-from project import Project
+from optima_tb.utils import odict
+from optima_tb.project import Project
 import numpy as np
 import pylab
 
-from cascade import __addCharacteristic
-from databook import __addCharacteristicData
+from optima_tb.cascade import __addCharacteristic
+from optima_tb.databook import __addCharacteristicData
 
 start_year = 2000.
 starting_pop = 1e6
 dt = 1./4
 
 output_file = "ProgressData.csv"
-databook = '../data/databook-simple-cascade-autocalibration.xlsx'
+databook = 'data/databook-simple-cascade-autocalibration.xlsx'
   
-proj= Project(name = 'test-Belarus-simple', cascade_path = '../data/cascade-simple-calibration.xlsx')
+proj= Project(name = 'test-Belarus-simple', cascade_path = 'data/cascade-simple-calibration.xlsx')
 proj.setYear([start_year,2030.],False) 
 proj.settings.tvec_dt = dt
 
