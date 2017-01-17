@@ -474,6 +474,9 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     if len(test_names) != len(set(test_names)):
         raise OptimaException('ERROR: Cascade workbook appears to have duplicate characteristic/parameter full names.')
     
+    validation = cascadeValidation(settings=settings)
+    if not validation: raise OptimaException('ERROR: Cascade workbook appears to have issues with births and deaths definition, please check log.')
+    
 
 
 #%% Function to plot a cascade framework loaded into settings
@@ -518,26 +521,39 @@ def plotCascadeFunc(settings):
     ax.set_title('Cascade Schematic')
     pl.show()
 
-def cascadeValidation(data=None):
+def cascadeValidation(settings=None, validation = True):
     '''
     Cascade check to pick up invalid transfers between compartments or transfers within the cascade spreadsheet"
 
     Current Operation:
         Checks to ensure the following flows do not exist:
             a) Births -> Deaths
-            b) Any flow into the borths compartment
+            b) Any flow into the births compartment
             c) Any flow out of the deaths compartment
     
     Output:
         Output is simply a complete log of errors found in relavant databook        
     '''
-    validation = True
-    validateType(validation)
+    birth_nodes = [nid for nid in settings.node_specs.keys() if 'tag_birth' in settings.node_specs[nid]]
+    death_nodes = [nid for nid in settings.node_specs.keys() if 'tag_dead' in settings.node_specs[nid]]
+    
+    validation = validateBirthNode(birth_nodes, settings, validation)
+    validation = validateDeathNode(death_nodes, settings, validation)
     return validation
 
-def validateType(validation):
+def validateBirthNode(nodes, settings, validation):
     '''
-    Helper function
+    Helper function to validate that no inflow into births exists
     '''
+    for key in settings.links:
+        for link in settings.links[key]:
+            for node in nodes:
+                if node in link[1]: 
+                    logging.info('An inflow into the births compartment "%s" was found from compartment "%s" at a rate(characteristic): %s' % (link[1], link[0], key))
+    return validation
 
+def validateDeathNode(nodes, settings, validation):
+    '''
+    Helper function to validate that no outflow from deaths exists
+    '''
     return validation
