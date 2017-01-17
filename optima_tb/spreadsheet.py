@@ -165,8 +165,8 @@ def load_old_spreadsheet(filename="simple.xlsx",verbose=2):
     """
     import os 
     
-    logging.info('Loading data from %s...' % filename)
     filename = os.path.abspath(filename)
+    logging.info('Loading data from %s...' % filename)
     
     # Initial check: workbook can be loaded
     try: 
