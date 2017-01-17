@@ -433,6 +433,7 @@ def load_paramset(parset_filename):
     """
     import os
     import itertools
+    parset_filename = os.path.abspath(parset_filename)
     
     # Setup data structure
     data = getEmptyData()

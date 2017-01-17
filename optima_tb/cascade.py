@@ -12,11 +12,12 @@ from copy import deepcopy as dcp
 
 
 
+
 #%% Function to convert a cascade workbook into a framework to store in project settings
 
 def loadCascadeSettingsFunc(cascade_path, settings):
     import optima_tb.settings as project_settings
-
+    import os
     
     ''' Generates node and link settings based on cascade spreadsheet. 
     
@@ -25,7 +26,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     It can - and should - be improved.
     Also, do not call this function directly as the cascade reset is not part of this function. Unexpected behaviour is guaranteed.
     '''    
-    
+    cascade_path = os.path.abspath(cascade_path)
     try: workbook = xlrd.open_workbook(cascade_path)
     except: raise OptimaException('ERROR: Cannot find cascade workbook from which to load model structure.')
     ws_nodes =      workbook.sheet_by_name('Compartments')

@@ -271,7 +271,9 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
 # NOTE: This needs so much quality-assurance testing. Need to ensure that input data sheet aligns with cascade settings.
 def loadSpreadsheetFunc(settings, databook_path):
     ''' Load data spreadsheet into Project data dictionary. '''
+    import os
     
+    databook_path = os.path.abspath(databook_path)
     try: workbook = xlrd.open_workbook(databook_path)
     except: raise OptimaException('ERROR: Project data workbook was unable to be loaded from... %s' % databook_path)
     ws_pops = workbook.sheet_by_name(settings.databook['sheet_names']['pops'])

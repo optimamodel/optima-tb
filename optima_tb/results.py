@@ -171,9 +171,13 @@ class ResultSet(object):
         to times of the observed data (i.e. annually). This method is intended for use with runSim 
         currently and will be extended to include optimization and scenario results.
         """
+        import os 
+        
         if filestem is None:  # Doesn't include extension, hence filestem
             filestem = self.name
+        filestem = os.path.abspath(filestem)
         filename = filestem + '.csv'
+        
         npts = len(self.t_observed_data)
         keys = self.char_labels
         
