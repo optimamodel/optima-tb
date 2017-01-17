@@ -1,8 +1,8 @@
 #%% Imports
 
-from utils import odict, OptimaException
-from interpolation import interpolateFunc
-from databook import getEmptyData
+from optima_tb.utils import odict, OptimaException
+from optima_tb.interpolation import interpolateFunc
+from optima_tb.databook import getEmptyData
 
 import logging
 logger = logging.getLogger(__name__)
@@ -165,7 +165,7 @@ class ParameterSet(object):
             minmax        minmax values. [] if getMinMax was False, else a list of tuples: [(min,max)]
             casc_labels    
         """    
-        import settings 
+        import optima_tb.settings as settings 
         
         paramvec = [] # Not efficient - would prefer: np.zeros(len(self.pop_labels)*len(self.pars['cascade']))
         minmax = []
@@ -211,7 +211,7 @@ class ParameterSet(object):
         """
         Extract initial compartments: 
         """
-        import settings
+        import optima_tb.settings as settings
         
         init_compartments = []
         charac_labels = []
@@ -236,7 +236,7 @@ class ParameterSet(object):
         TODO: extend function so that can also add years or format values
         TODO: remove index ...?
         """
-        import settings
+        import optima_tb.settings as settings
         
         index = 0
         for (i,pop_id) in enumerate(self.pop_labels):
@@ -262,7 +262,7 @@ class ParameterSet(object):
         
         
         """
-        import settings 
+        import optima_tb.settings as settings 
         
         index = 0 
         for pop_id in self.pop_labels:
@@ -288,7 +288,7 @@ class ParameterSet(object):
         only checks y_value rather than y_value*y_factor.
         
         """
-        import settings
+        import optima_tb.settings as settings
         
         for (i,pop_id) in enumerate(self.pop_labels):
             for (j,casc_id) in enumerate(self.par_ids['cascade']): 
@@ -433,6 +433,7 @@ def load_paramset(parset_filename):
     """
     import os
     import itertools
+    parset_filename = os.path.abspath(parset_filename)
     
     # Setup data structure
     data = getEmptyData()

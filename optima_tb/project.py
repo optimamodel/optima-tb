@@ -2,16 +2,17 @@
 import logging
 import logging.config
 
-logging.config.fileConfig('./logging.ini', disable_existing_loggers=False)
+logging.config.fileConfig('logging.ini', disable_existing_loggers=False)
 logger = logging.getLogger()
 
-from utils import tic, toc, odict, OptimaException
-from model import runModel
-from settings import Settings
-from parameters import ParameterSet, export_paramset, load_paramset
-from plotting import Plotter
-from databook import makeSpreadsheetFunc, loadSpreadsheetFunc
-from calibration import makeManualCalibration, calculateFitFunc, performAutofit
+
+from optima_tb.utils import tic, toc, odict, OptimaException
+from optima_tb.model import runModel
+from optima_tb.settings import Settings 
+from optima_tb.parameters import ParameterSet, export_paramset, load_paramset
+from optima_tb.plotting import plotProjectResults
+from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
+from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
 
 from uuid import uuid4 as uuid
 from numpy import max
@@ -34,7 +35,6 @@ class Project(object):
         self.parsets = odict()
         self.results = odict()
         
-        self.plotter = Plotter({})
         
         logger.info("Created project: %s"%self.name)
         
@@ -74,11 +74,11 @@ class Project(object):
         
         return results
         
+
     def plotResults(self, results, colormappings=None, debug=False, plotObservedData=True,savePlot=False,figName=None):
         ''' Plot all available results '''
 
-        self.plotter.updateData(self.data)
-        self.plotter.plotProjectResults(results,self.settings.charac_specs, title = self.name.title(), colormappings=colormappings, debug = debug, plotObservedData=plotObservedData, savePlot=savePlot, figName=figName)
+        plotProjectResults(results,settings=self.settings, data=self.data,title = self.name.title(), colormappings=colormappings, debug = debug, plotObservedData=plotObservedData, savePlot=savePlot, figName=figName)
             
     
     

@@ -3,9 +3,9 @@ logger = logging.getLogger(__name__)
 
 import numpy as np
 
-from utils import OptimaException, odict
-from cascade import __addCharacteristic
-from databook import __addCharacteristicData
+from optima_tb.utils import OptimaException, odict
+from optima_tb.cascade import __addCharacteristic
+from optima_tb.databook import __addCharacteristicData
 
 
 

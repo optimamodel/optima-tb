@@ -1,7 +1,7 @@
 #%% Imports
-from utils import odict
-from parsing import FunctionParser
-from cascade import loadCascadeSettingsFunc, plotCascadeFunc
+from optima_tb.utils import odict
+from optima_tb.parsing import FunctionParser
+from optima_tb.cascade import loadCascadeSettingsFunc, plotCascadeFunc
 
 
 import logging
@@ -79,11 +79,15 @@ class Settings(object):
                                                 # Key is a node label. Value is a dict including a 'dead' tag and networkx-related information.
         self.node_names = []                    # A corresponding list of full names for compartments.
         self.junction_labels = []               # A list of labels for compartments for which inflows must immediately propagated as outflows.
+#        self.num_transfer_nodes = 0.0           # The number of compartments that can be involved in inter-pop transfers (i.e. non-birth, non-death, non-junction).
         
         self.charac_specs = odict()             # Relates code-labels for defined characteristics (e.g. prevalence) with labels of compartments used in their definition.
                                                 # Key is a characteristic label. Value is a dict containing characteristic name, a list of 'inclusions' and a normalising characteristic or compartment.
                                                 # Be aware that inclusions/normalisations may refer to characteristics in the same odict.
         self.charac_name_labels = odict()       # Key is a characteristic name. Value is a characteristic label. (A partial reversed charac_specs.)
+        
+        self.charac_std_norm = 'auto_pop_count'                 # The label for a characteristic that includes all 'transfer-enabled' compartments. Is overwritten if one is user-defined.
+        self.charac_std_norm_name = 'Standard Compartment Sum'  # The name for this 'transfer-enabled' population-count characteristic.
         
         self.links = odict()                    # Key is a tag. Value is a list of compartment-label tuple.
         self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.
@@ -103,8 +107,10 @@ class Settings(object):
         self.databook['sheet_names']['charac'] =    'Epidemic Characteristics'
         self.databook['sheet_names']['linkpars'] =  'Cascade Parameters'
         self.databook['custom_sheet_names'] = odict()
+        
         self.make_sheet_characs = True      # Tag for whether the default characteristics worksheet should be generated during databook creation.
         self.make_sheet_linkpars = True     # Tag for whether the default cascade parameters worksheet should be generated during databook creation.
+        
         self.databook['suffix'] = odict()        
         self.databook['suffix']['seed'] =   ' [S]'  # Suffix for characteristics used as model seeds (i.e. for initialisation).
         self.databook['suffix']['output'] = ' [O]'  # Suffix for characteristics used solely as outputs for diagnostic and/or calibration purposes.
@@ -290,6 +296,8 @@ class PlottingSettings():
         pl.rcParams['font.family'] = 'sans-serif'
         
         pl.rcParams['savefig.dpi'] = 300
+        pl.rcParams['savefig.format'] = 'png'
+        pl.rcParams['savefig.transparent'] =  'True'
         
         pl.rcParams['figure.max_open_warning'] = 40
         
@@ -313,15 +321,24 @@ class PlottingSettings():
         pl.rcParams['axes.titlesize'] = 1.5*pl.rcParams['font.size']
     
         pl.rcParams['lines.linewidth'] = 3
-        pl.rcParams['lines.markersize'] = 40
-        pl.rcParams['lines.markeredgewidth'] = 3
+        pl.rcParams['lines.marker'] = 'None'
+        
+        # Non-standard list of parameters used in plotting
+        self.plotdict = {# scatter plotting values
+                         'marker' : 'o',
+                         'facecolors' : 'none',
+                         's' : 40,
+                         # axes format
+                         'year_inc':5}
     
 
 
     def devSettings(self):
         pl.rcParams['figure.figsize'] = (10, 8)
-        pl.rcParams['savefig.dpi'] = 300
+        pl.rcParams['savefig.dpi'] = 100
         
     def printSettings(self):
         
         pl.rcParams['figure.figsize'] = (15, 10)
+        pl.rcParams['savefig.dpi'] = 300
+        

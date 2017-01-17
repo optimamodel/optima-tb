@@ -1,6 +1,7 @@
 #%% Imports
 
-from utils import odict, OptimaException, flattenDict
+
+from optima_tb.utils import odict, OptimaException, flattenDict
 
 import logging
 logger = logging.getLogger(__name__)
@@ -12,18 +13,26 @@ from copy import deepcopy as dcp
 
 
 
+
 #%% Function to convert a cascade workbook into a framework to store in project settings
 
 def loadCascadeSettingsFunc(cascade_path, settings):
+    import optima_tb.settings as project_settings
+    import os
+    
     ''' Generates node and link settings based on cascade spreadsheet. 
     
     Note: at the moment, this function is intended to be called from settings.py, and takes in settings as a parameter, 
     updates the relevants fields and then returns settings. This isn't the most elegant way, but was better than returning 11 parameters.
-    It can - and should - be improved. 
+    It can - and should - be improved.
+    Also, do not call this function directly as the cascade reset is not part of this function. Unexpected behaviour is guaranteed.
     '''    
     
-    from settings import DO_NOT_SCALE, DEFAULT_YFACTOR
+    from optima_tb.settings import DO_NOT_SCALE, DEFAULT_YFACTOR
+    import os
     
+    cascade_path = os.path.abspath(cascade_path)
+
     try: workbook = xlrd.open_workbook(cascade_path)
     except: raise OptimaException('ERROR: Cannot find cascade workbook from which to load model structure.')
     ws_nodes =      workbook.sheet_by_name('Compartments')
@@ -73,12 +82,15 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     if None in [cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade compartment worksheet does not have correct column headers.')
     
+    std_norm_nodes = []    # A list for compartments that can be involved in inter-population transfers.
+    
     # Append node labels and full names to relevant odicts and lists. Labels are crucial.
     for row_id in xrange(ws_nodes.nrows):
         if row_id > 0 and ws_nodes.cell_value(row_id, cid_label) not in ['']:
             node_label = str(ws_nodes.cell_value(row_id, cid_label))
             settings.node_specs[node_label] = odict()
             settings.node_names.append(str(ws_nodes.cell_value(row_id, cid_name)))
+            good_for_transfer = True    # A flag for whether a compartment is a valid node to 'migrate' from/into.
             
             # Store optional graph coordinates for this node in the cascade network. Used when plotting schematic.
             if not cid_coords is None:
@@ -99,12 +111,14 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 val = str(ws_nodes.cell_value(row_id, cid_birth))
                 if val not in ['']:
                     settings.node_specs[node_label]['tag_birth'] = val
+                    good_for_transfer = False
 
             # Store optional information about whether this node is a compartment for the dead.
             if not cid_dead is None:
                 val = str(ws_nodes.cell_value(row_id, cid_dead))
                 if val not in ['']:
                     settings.node_specs[node_label]['tag_dead'] = val
+                    good_for_transfer = False
 
             # Optionally note down whether the compartment is just a junction.
             # Junctions empty themselves via outflows at the end of each model timestep.
@@ -113,6 +127,13 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 if val not in ['']:
                     settings.node_specs[node_label]['junction'] = val
                     settings.junction_labels.append(node_label)
+                    
+            if good_for_transfer:
+                std_norm_nodes.append(node_label)
+            
+#    print std_norm_nodes
+                    
+    
 
 
     #%% Second core sheet: Transitions
@@ -192,12 +213,15 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     if None in [cid_label, cid_name, cid_include_start, cid_include_end]:
         raise OptimaException('ERROR: Cascade characteristics worksheet does not have correct column headers.')
     
+    custom_std_norm_charac = False    
+    
     # Actually append characteristic labels and full names to relevant odicts and lists. Labels are crucial.
     entry_dict = {}
     standard_sheet_count = ws_characs.nrows - 1      # All characteristics are printed to the standard databook sheet to begin with.
     for row_id in xrange(ws_characs.nrows):
         if row_id > 0 and ws_characs.cell_value(row_id, cid_label) not in ['']:
             charac_label = str(ws_characs.cell_value(row_id, cid_label))
+            if charac_label == settings.charac_std_norm: raise OptimaException('ERROR: Characteristic cannot be named %s as that is a reserved special label.' % settings.charac_std_norm)
             charac_name = str(ws_characs.cell_value(row_id, cid_name))
             
             settings.charac_name_labels[charac_name] = charac_label
@@ -228,6 +252,11 @@ def loadCascadeSettingsFunc(cascade_path, settings):
             if len(flat_list) != len(set(flat_list)):
                 raise OptimaException('ERROR: Cascade characteristic "%s" contains duplicate references to a compartment (in its numerator) when all the recursion is flattened out.' % (charac_label))
             numerator_ref_list = dcp(flat_list)   # Useful for checking what compartments the numerator characteristic references.
+            
+            # If a user-defined characteristic includes all transfer-enabled compartments, overwrite the settings reference to it.
+            if set(flat_list) == set(std_norm_nodes):
+                settings.charac_std_norm = charac_label
+                custom_std_norm_charac = True
             
             # Work out which compartment/characteristic this characteristic is normalised by.
             if not cid_denom is None:
@@ -286,6 +315,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     try: numerator_ref_list.remove(val)
                     except: raise OptimaException('ERROR: Entry point "%s" for characteristic "%s" must be a compartment it includes (in its numerator), either directly or via characteristic reference.' % (val, charac_label))
                     entry_dict[val] = dcp(list(numerator_ref_list))
+                    
             # Store whether we should use calibrate the initial value or not (only applicable when there's also an entry point)
             if not cid_yfactor is None:
                 val = str(ws_characs.cell_value(row_id, cid_yfactor))
@@ -294,7 +324,23 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 elif val not in ['']:
                     settings.charac_specs[charac_label]['y_factor'] = float(val)
                 else:
+<<<<<<< HEAD:optima/cascade.py
                     settings.charac_specs[charac_label]['y_factor'] = DEFAULT_YFACTOR
+=======
+                    settings.charac_specs[charac_label]['y_factor'] = project_settings.DEFAULT_YFACTOR
+        
+        # Make sure empty space rows do not get counted when deciding if there are characteristics left to populate a default databook sheet.
+        elif row_id > 0:
+            standard_sheet_count -= 1
+                    
+    # If a characteristic that includes all transfer-enabled compartments is not defined, create one.
+    if not custom_std_norm_charac:
+        settings.charac_name_labels[settings.charac_std_norm_name] = settings.charac_std_norm
+        settings.charac_specs[settings.charac_std_norm] = odict()
+        settings.charac_specs[settings.charac_std_norm]['name'] = settings.charac_std_norm_name
+        settings.charac_specs[settings.charac_std_norm]['includes'] = std_norm_nodes
+        settings.charac_specs[settings.charac_std_norm]['databook_order'] = -1      # This special 'standard' characteristic is not initialisable or used for calibration unless user-defined.
+>>>>>>> b2e0052da72e3db3937461a03395d1e2adb05ed6:optima_tb/cascade.py
                     
 
     
@@ -393,7 +439,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                         else:
                             if not var in settings.charac_deps.keys():
                                 flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = var, sub_keys = ['includes','denom'], limit = settings.recursion_limit)
-                                for dep in dep_list:
+                                for dep in dep_list:    # NOTE: Dependencies are presumably provided in proper order by flattenDict due to recursion. Could a counterexample be engineered that breaks the assumption...? 
                                     settings.charac_specs[dep]['par_dependency'] = True
                                     settings.charac_deps[dep] = True
                                     
@@ -407,7 +453,20 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 else:
                     settings.linkpar_specs[label]['y_factor'] = DEFAULT_YFACTOR
                     
-
+        # Make sure empty space rows do not get counted when deciding if there are parameters left to populate a default databook sheet.
+        elif row_id > 0:
+            standard_sheet_count -= 1
+    
+    # If the default/overwritten population-count characteristic is not a dependency by now, along with its own dependencies, make it one at the end of the charac_deps odict.
+    if settings.charac_std_norm not in settings.charac_deps.keys():
+        flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = settings.charac_std_norm, sub_keys = ['includes','denom'], limit = settings.recursion_limit)
+        for dep in dep_list:    # NOTE: Dependencies are presumably provided in proper order by flattenDict due to recursion. Could a counterexample be engineered that breaks the assumption...? 
+            settings.charac_specs[dep]['par_dependency'] = True
+            settings.charac_deps[dep] = True
+        settings.charac_specs[settings.charac_std_norm]['par_dependency'] = True
+        settings.charac_deps[settings.charac_std_norm] = True
+        
+#    print settings.charac_deps
     
     # If all parameters in this sheet are to be printed to custom databook sheets, no need for a default.
     if standard_sheet_count <= 0:
