@@ -13,7 +13,7 @@ Generates: sample-output.xlsx, which will be the same format as databook-simple-
 @author: hussainazfar
 
 """
-from project import Project
+rom optima_tb.project import Project
 import os
 
 num_pop = 2

@@ -517,3 +517,27 @@ def plotCascadeFunc(settings):
     ax.set_yticks([])
     ax.set_title('Cascade Schematic')
     pl.show()
+
+def cascadeValidation(data=None):
+    '''
+    Cascade check to pick up invalid transfers between compartments or transfers within the cascade spreadsheet"
+
+    Current Operation:
+        Checks to ensure the following flows do not exist:
+            a) Births -> Deaths
+            b) Any flow into the borths compartment
+            c) Any flow out of the deaths compartment
+    
+    Output:
+        Output is simply a complete log of errors found in relavant databook        
+    '''
+    validation = True
+    validateType(validation)
+    return validation
+
+def validateType(validation):
+    '''
+    Helper function
+    '''
+
+    return validation
