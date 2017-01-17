@@ -17,4 +17,4 @@ cascade =  os.path.abspath('../diary/validate_cascade.xlsx')
 #cascade validation is automatically run  when a project is created
 proj= Project(name = 'validate-cascade', cascade_path = cascade)
 #verify cascade through plot
-proj.settings.plotCascade()
+#proj.settings.plotCascade()

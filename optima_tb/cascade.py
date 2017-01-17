@@ -549,11 +549,16 @@ def validateBirthNode(nodes, settings, validation):
         for link in settings.links[key]:
             for node in nodes:
                 if node in link[1]: 
-                    logging.info('An inflow into the births compartment "%s" was found from compartment "%s" at a rate(characteristic): %s' % (link[1], link[0], key))
+                    logging.warning('An inflow into the births compartment "%s" was found from compartment "%s" at rate(characteristic): %s' % (link[1], link[0], key))
     return validation
 
 def validateDeathNode(nodes, settings, validation):
     '''
     Helper function to validate that no outflow from deaths exists
     '''
+    for key in settings.links:
+        for link in settings.links[key]:
+            for node in nodes:
+                if node in link[0]: 
+                    logging.warning('An inflow into compartment "%s" was found from a death compartment "%s" at rate(characteristic): %s' % (link[1], link[0], key))
     return validation
