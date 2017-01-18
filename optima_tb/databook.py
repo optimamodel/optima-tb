@@ -463,11 +463,11 @@ def loadSpreadsheetFunc(settings, databook_path):
                     elif data_label == 'characs':
                         data[data_label][current_def_label][current_pop_label]['y_factor'] = settings.charac_specs[current_def_label]['y_factor']
                 except:
+                    logger.info("Couldn't read y_factor for parameter '%s'"%current_def_label)
                     data[data_label][current_def_label][current_pop_label]['y_factor'] = project_settings.DEFAULT_YFACTOR
-            
                 
                 pop_id += 1
-                
+    
     # All parameters must be defined whether they are in the project databook or not.
     for label in settings.linkpar_specs.keys():
         if label not in data['linkpars'].keys():
@@ -485,8 +485,10 @@ def loadSpreadsheetFunc(settings, databook_path):
                 data['linkpars'][label][pop]['y_format'] = def_format
                 data['linkpars'][label][pop]['t'] = np.array([settings.tvec_start])
                 data['linkpars'][label][pop]['y'] = np.array([float(def_val)]) 
-                data['linkpars'][label][pop]['y_factor'] = project_settings.DEFAULT_YFACTOR
-                
+                ### data['linkpars'][label][pop]['y_factor'] = project_settings.DEFAULT_YFACTOR
+                data['linkpars'][label][pop]['y_factor'] = settings.linkpar_specs[label]['y_factor']
+
+
     validation = databookValidation(data=data)
     if validation: return data
     else: raise OptimaException('ERROR: Databook entries incomplete or mismatched, please look at log for details')

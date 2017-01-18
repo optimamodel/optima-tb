@@ -174,7 +174,6 @@ class ParameterSet(object):
         for pop_id in self.pop_labels:
             #for (j,casc_id) in enumerate(self.par_ids['cascade']): 
             for (casc_id,j) in sorted(self.par_ids['cascade'].items(), key=operator.itemgetter(1)):
-                
                 if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
                     continue
                 #paramvec[index] = [self.pars['cascade'][j].y[pop_id]]
@@ -218,7 +217,8 @@ class ParameterSet(object):
         if useInitCompartments:
             for pop_id in self.pop_labels:
                 for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
-                    if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
+                    #if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
+                    if self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
                         init_compartments.append(self.pars['characs'][j].y_factor[pop_id])
                         charac_labels.append(charac_id)                        
         return init_compartments,charac_labels

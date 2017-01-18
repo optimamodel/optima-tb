@@ -366,7 +366,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
         if ws_pars.cell_value(0, col_id) == 'Function': cid_function = col_id
-        if ws_pars.cell_value(0, col_id) == 'Calibrate': cid_yfactor = col_id
+        if ws_pars.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id
     if None in [cid_tag, cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
     
