@@ -17,21 +17,24 @@ from copy import deepcopy as dcp
 
 #%% Utility functions to generate sub-blocks of the project databook
 
-def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, data_formats = None, print_conditions = None):
+def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, assumption_overrides = None, data_formats = None, print_conditions = None):
     '''
     Create a block where users choose data-entry format and enter values either as an assumption or time-dependent array.
     
     Args:
-        worksheet           -   The worksheet in which to produce the block.
-        at_row              -   The row at which the top-left corner of the block will be fixed.
-        at_col              -   The column at which the top-left corner of the block will be fixed.
-        num_arrays          -   The number of input arrays to generate.
-        tvec                -   The year range for which values are (optionally) to be entered.
-        assumption          -   The default value to enter in the assumption column.
-        data_formats        -   A list of formats that data can be entered as.
-                                This is not data validation, but will determine the form of calculations during model processing.
-        print_conditions    -   A list of Excel-string conditions that are used to test whether data-entry arrays should be shown.
-                                List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
+        worksheet               -   The worksheet in which to produce the block.
+        at_row                  -   The row at which the top-left corner of the block will be fixed.
+        at_col                  -   The column at which the top-left corner of the block will be fixed.
+        num_arrays              -   The number of input arrays to generate.
+        tvec                    -   The year range for which values are (optionally) to be entered.
+        assumption              -   The default value to read from the assumption column in case the file is not first opened in Excel before loading.
+                                    Without opening file in Excel, custom equations are not calculated.
+        assumption_overrides    -   A list of default values to use (or equations to calculate) in the assumption column, assuming the file is opened in Excel.
+                                    List must be of num_arrays length.
+        data_formats            -   A list of formats that data can be entered as.
+                                    This is not data validation, but will determine the form of calculations during model processing.
+        print_conditions        -   A list of Excel-string conditions that are used to test whether data-entry arrays should be shown.
+                                    List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
                                 
     Note that if no data format is specified, data formats for 'Fraction' or 'Number' are available. The default choice of the 
     data format is assumed that if the assumption value is larger than 1., then it is likely to be a Number, otherwise it is assumed to be a Fraction.
@@ -52,6 +55,10 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
     for k in xrange(len(tvec)):
         worksheet.write(at_row, offset + k, tvec[k])  
     
+    # If no overrides are provided or they are of incorrect length, just revert to the original assumption.    
+    if assumption_overrides is None or len(assumption_overrides) != num_arrays:
+        assumption_overrides = [assumption]*num_arrays
+    
     for aid in xrange(num_arrays):
         row_id = at_row + aid + 1
         offset = at_col + 3
@@ -60,11 +67,11 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
         worksheet.data_validation('%s' % rc(row_id,at_col), {'validate': 'list', 'source': data_formats, 'ignore_blank': False}) 
         if not print_conditions is None and not print_conditions[aid] is None:
             worksheet.write(row_id, at_col, '=IF(%s,"%s","")' % (print_conditions[aid], data_format_assumption), None, '')      # Default choice for data format.
-            worksheet.write(row_id, at_col + 1, '=IF(%s,IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A."),"")' % (print_conditions[aid], rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption), None, '')
+            worksheet.write(row_id, at_col + 1, '=IF(%s,IF(SUMPRODUCT(--(%s:%s<>""))=0,%s,"N.A."),"")' % (print_conditions[aid], rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption_overrides[aid]), None, '')
             worksheet.write(row_id, at_col + 2, '=IF(%s,"OR","")' % print_conditions[aid], None, '')
         else:
             worksheet.write(row_id, at_col, data_format_assumption)      # Default choice for data format.
-            worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption), None, assumption)
+            worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%s,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption_overrides[aid]), None, assumption)
             worksheet.write(row_id, at_col + 2, 'OR')
         
 #        # Make changes to the first row be mirrored in the other rows.
@@ -142,6 +149,8 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     assumption_width = 10
     
     #%% Population names sheet.
+    age_min_col = 2
+    age_max_col = 3
     ws_pops.write(0, 0, 'Name')
     ws_pops.write(0, 1, 'Abbreviation')
     ws_pops.write(0, 2, 'Minimum Age')
@@ -167,18 +176,19 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
         pop_labels_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1,True,True)))
     
     #%% Inter-population transfers matrix sheet (from node to corresponding node).
-    # Produce aging matrix.
-    ws_transmat.write(0, 0, 'Aging')
-    makeConnectionMatrix(worksheet = ws_transmat, at_row = 0, at_col = 0, labels = pop_labels_default, formula_labels = pop_labels_formula)
     
-    # Produce an extra matrix for each 'migration type' (e.g. prisoner-transfers, migration mixing, HIV infection, etc.).
+    # Produce a matrix for each 'migration type' (e.g. prisoner-transfers, migration mixing, HIV infection, etc.).
+    # Aging is the default first migration type and is always present.
     # Store type names and formulae strings that reference them. Also store the rows at which migration matrices start.
-    row_offset = num_pops + 2
+    row_offset = 0
     mig_types_default = []
     mig_types_formula = []
     mig_matrix_rows = []
-    for mid in xrange(num_migrations):
-        mig_type = 'Migration Type '+str(mid+1)
+    for mid in xrange(num_migrations+1):
+        if mid == 0:
+            mig_type = 'Aging'
+        else:
+            mig_type = 'Migration Type '+str(mid)
         mig_types_default.append(mig_type)
         mig_matrix_rows.append(row_offset)
         mig_types_formula.append("='%s'!%s" % (settings.databook['sheet_names']['transmat'], rc(row_offset,0)))
@@ -189,13 +199,16 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     ws_transmat.set_column(0, 0, ws_transmat_width)
     
     #%% Inter-population transfer details sheet.
+    sh_pops = settings.databook['sheet_names']['pops']      # Convenient abbreviation.
+    
     row_id = 0
-    for mid in xrange(num_migrations):
+    for mid in xrange(num_migrations+1):
         ws_transval.write(row_id, 0, mig_types_formula[mid], None, mig_types_default[mid])
         print_conditions = []
-        for k in xrange(num_pops*(num_pops-1)):
-            print_conditions.append('%s<>"..."' % rc(row_id+k+1,0))
-        makeValueEntryArrayBlock(worksheet = ws_transval, at_row = row_id, at_col = 3, num_arrays = num_pops*(num_pops-1), tvec = data_tvec, print_conditions = print_conditions)
+        assumption_overrides = []
+        
+        k = 0   # A counter for number of arrays, used to id print conditions.
+        print_row = row_id
         for source_id in xrange(num_pops):
             for target_id in xrange(num_pops):
                 if source_id != target_id:
@@ -205,6 +218,13 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
                     ws_transval.write(row_id, 0, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[source_id][1:],'"..."'), None, '...')
                     ws_transval.write(row_id, 1, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"','"--->"','""'), None, '')
                     ws_transval.write(row_id, 2, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[target_id][1:],'""'), None, '')
+                    
+                    print_conditions.append('%s<>"..."' % rc(print_row+k+1,0))
+                    if mid == 0:    # Aging assumptions are equations that try to work out aging fraction based on Minimum and Maximum pop age.
+                        assumption_equation = "IF(AND('%s'!%s<>%s,'%s'!%s<>%s),1/('%s'!%s-'%s'!%s+1),0)" % (sh_pops, rc(source_id+1,age_max_col), '""', sh_pops, rc(source_id+1,age_min_col), '""', sh_pops, rc(source_id+1,age_max_col), sh_pops, rc(source_id+1,age_min_col))
+                        assumption_overrides.append(assumption_equation)
+                    k += 1
+        makeValueEntryArrayBlock(worksheet = ws_transval, at_row = print_row, at_col = 3, num_arrays = num_pops*(num_pops-1), tvec = data_tvec, assumption_overrides = assumption_overrides, print_conditions = print_conditions)
         
         row_id += 2
         
