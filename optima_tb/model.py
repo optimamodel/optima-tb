@@ -316,6 +316,9 @@ class Model(object):
                     # Subtract the values of any included already-calculated nodes from the value of an entry-point.
                     if include in calc_done.keys():
                         for pop_label in parset.pop_labels:
+                            val = seed_dict[entry_point][pop_label] - seed_dict[include][pop_label]
+                            if val < 0 and abs(val) > project_settings.TOLERANCE:
+                                logger.error('Negative value encountered for Entry point: %s, Pop_label: %s, Compartment: %s    Entry point size: %f, compartment size: %f' % (entry_point, pop_label, include, seed_dict[entry_point][pop_label], seed_dict[include][pop_label]))
                             seed_dict[entry_point][pop_label] -= seed_dict[include][pop_label]
                         include_dict[entry_point].remove(include)
                         
