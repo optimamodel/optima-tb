@@ -337,7 +337,7 @@ class Model(object):
         for seed_label in seed_dict.keys():
             for pop_label in parset.pop_labels:
                 val = seed_dict[seed_label][pop_label]
-                if math.abs(val) < project_settings.TOLERANCE: 
+                if abs(val) < project_settings.TOLERANCE: 
                     val = 0
                 elif val < 0.:
                     raise OptimaException('ERROR: Initial value calculated for compartment "%s" in population "%s" is %f. Review and make sure each characteristic has at least as many people as the sum of all included compartments.' % (seed_label, pop_label, val))
@@ -579,7 +579,7 @@ class Model(object):
                         comp.popsize[ti] = 0
                         popsize = 0
                         
-                    elif math.abs(popsize) <= project_settings.TOLERANCE:
+                    elif abs(popsize) <= project_settings.TOLERANCE:
                         comp.popsize[ti] = 0
                         popsize = 0
                     
