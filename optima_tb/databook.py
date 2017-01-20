@@ -80,10 +80,11 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
 #                worksheet.write(row_id, offset + k, '=IF(%s="","",%s)' % (rc(row_id-aid,offset+k),rc(row_id-aid,offset+k)), None, '')
                
                
-def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = None, allowed_vals = None):
+def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = None, allowed_vals = None, no_validation = False, symmetric = False, self_connections = ''):
     '''
     Create a matrix where users tag connections from a (left-column positioned) list to the same (top-row positioned) list.
-    Diagonals (self-connections) cannot be filled with values.
+    The tags are forced to be from a finite-discrete allowed_vals set unless no_validation is turned on.
+    Diagonals (self-connections) cannot be filled with values without giving self_connections a value.
     
     Args:
         worksheet       -   The worksheet in which to produce the matrix.
@@ -94,6 +95,8 @@ def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = Non
                             The labels list is still required for default values.
                             In the case that the databook is not opened in Excel prior to loading, the defaults are read in.
         allowed_vals    -   A list of allowed values that matrix elements can be tagged by.
+        no_validation   -   If true, does not enforce Excel validation for the allowed values.
+        symmetric       -   If true, seeds half the matrix with Excel equations that equal the other half.
     '''
     
     if allowed_vals is None: allowed_vals = ['n', 'y']
@@ -110,11 +113,16 @@ def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = Non
             col_id = at_col + col_pre + 1
             
             if row_pre != col_pre:
-                worksheet.write(row_id, col_id, allowed_vals[0])      # Default choice for data format.  
-                worksheet.data_validation('%s' % rc(row_id,col_id), {'validate': 'list', 'source': allowed_vals, 'ignore_blank': False})
+                worksheet.write(row_id, col_id, allowed_vals[0])      # Default choice for data format.
+                if symmetric and row_pre > col_pre:
+                    sym_rc = rc(at_row+col_pre+1,at_col+row_pre+1)
+                    worksheet.write(row_id, col_id, '=IF(%s<>"",%s,"")' % (sym_rc,sym_rc), None, allowed_vals[0])
+                if not no_validation:
+                    worksheet.data_validation('%s' % rc(row_id,col_id), {'validate': 'list', 'source': allowed_vals, 'ignore_blank': False})
             else:
-                worksheet.write(row_id, col_id, '')
-                worksheet.data_validation('%s' % rc(row_id,col_id), {'validate': 'list', 'source': [''], 'ignore_blank': False})
+                worksheet.write(row_id, col_id, self_connections)
+                if not no_validation:
+                    worksheet.data_validation('%s' % rc(row_id,col_id), {'validate': 'list', 'source': [self_connections], 'ignore_blank': False})
     
     
 
@@ -127,6 +135,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     
     workbook = xw.Workbook(databook_path)
     ws_pops = workbook.add_worksheet(settings.databook['sheet_names']['pops'])
+    ws_contact = workbook.add_worksheet(settings.databook['sheet_names']['contact'])
     ws_transmat = workbook.add_worksheet(settings.databook['sheet_names']['transmat'])
     ws_transval = workbook.add_worksheet(settings.databook['sheet_names']['transval'])
     
@@ -143,6 +152,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     
     data_tvec = np.arange(settings.tvec_start, settings.tvec_observed_end + 1.0/2)
     ws_pops_width = 15
+    ws_contact_width = 25
     ws_transmat_width = 15
     ws_transval_width = 15
     name_width = 60
@@ -174,6 +184,12 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     for pid in xrange(num_pops):
         pop_names_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0,True,True)))
         pop_labels_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1,True,True)))
+
+    #%% Inter-population contact sheet to weight interactions between population groups
+
+    ws_contact.write(0, 0, 'Interaction Impact Weights')
+    makeConnectionMatrix(worksheet = ws_contact, at_row = 0, at_col = 0, labels = pop_labels_default, formula_labels = pop_labels_formula, allowed_vals = [''], no_validation = True, symmetric = True, self_connections = 1)
+    ws_contact.set_column(0, 0, ws_contact_width)
     
     #%% Inter-population transfers matrix sheet (from node to corresponding node).
     

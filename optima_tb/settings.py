@@ -102,6 +102,7 @@ class Settings(object):
         self.databook = odict()
         self.databook['sheet_names'] = odict()
         self.databook['sheet_names']['pops'] =      'Population Definitions'
+        self.databook['sheet_names']['contact'] =   'Population Contacts'
         self.databook['sheet_names']['transmat'] =  'Transfer Definitions'
         self.databook['sheet_names']['transval'] =  'Transfer Details'
         self.databook['sheet_names']['charac'] =    'Epidemic Characteristics'
