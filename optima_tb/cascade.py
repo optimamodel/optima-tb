@@ -324,11 +324,8 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 elif val not in ['']:
                     settings.charac_specs[charac_label]['y_factor'] = float(val)
                 else:
-<<<<<<< HEAD:optima/cascade.py
                     settings.charac_specs[charac_label]['y_factor'] = DEFAULT_YFACTOR
-=======
-                    settings.charac_specs[charac_label]['y_factor'] = project_settings.DEFAULT_YFACTOR
-        
+
         # Make sure empty space rows do not get counted when deciding if there are characteristics left to populate a default databook sheet.
         elif row_id > 0:
             standard_sheet_count -= 1
@@ -340,8 +337,6 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         settings.charac_specs[settings.charac_std_norm]['name'] = settings.charac_std_norm_name
         settings.charac_specs[settings.charac_std_norm]['includes'] = std_norm_nodes
         settings.charac_specs[settings.charac_std_norm]['databook_order'] = -1      # This special 'standard' characteristic is not initialisable or used for calibration unless user-defined.
->>>>>>> b2e0052da72e3db3937461a03395d1e2adb05ed6:optima_tb/cascade.py
-                    
 
     
     

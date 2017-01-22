@@ -75,10 +75,10 @@ class Project(object):
         return results
         
 
-    def plotResults(self, results, colormappings=None, debug=False, plotObservedData=True,savePlot=False,figName=None):
+    def plotResults(self, results, colormappings=None, debug=False, plot_observed_data=True,savePlot=False,figName=None):
         ''' Plot all available results '''
 
-        plotProjectResults(results,settings=self.settings, data=self.data,title = self.name.title(), colormappings=colormappings, debug = debug, plotObservedData=plotObservedData, savePlot=savePlot, figName=figName)
+        plotProjectResults(results,settings=self.settings, data=self.data,title = self.name.title(), colormappings=colormappings, debug = debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
             
     
     

@@ -204,7 +204,7 @@ def _turnOffBorder():
 def isPlottable(comp_label,sim_settings):
     """ 
     Returns bool indicating whether a population label should be included in metrics
-    for population reporting 
+    for population reporting when plotting cascade
     """
     if comp_label in sim_settings['tag_no_plot']:
         return False
@@ -223,7 +223,9 @@ def isPlottableCharac(output_id,charac_specs):
     
     
 
-def plotProjectResults(results,settings,data,title='',colormappings=None,debug=False,save_fig=False):
+def plotProjectResults(results,settings, data, title='', colormappings=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
+            
+    
     """
     Plot all results associated with a project. By default, this is a disease cascade for 
     each population, as well as characteristics of interest. 
@@ -243,16 +245,16 @@ def plotProjectResults(results,settings,data,title='',colormappings=None,debug=F
     charac_specs = settings.charac_specs
     plotdict = settings.plot_settings.plotdict
     # plot each disease cascade for every population
-    plotPopulation(results=results, data=data, title=title, colormappings=colormappings,save_fig=save_fig,plotdict=plotdict)
+    plotPopulation(results=results, data=data, title=title, colormappings=colormappings, plot_observed_data=True, save_fig=False, fig_name=None, plotdict=plotdict)
     # plot characteristics
-    plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title,save_fig=save_fig,plotdict=plotdict)
+    plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title, plot_observed_data=True, save_fig=False, fig_name=None, plotdict=plotdict)
     # internal plotting
     if debug:
         plotOutflows(results)
     
     
     
-def plotPopulation(results,data,title='',colormappings=None,plotObservedData=True,save_fig=False,use_full_labels=True,plotdict={}):
+def plotPopulation(results,data,title='',colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, use_full_labels=True, plotdict={}):
     """ 
     
     Plot all compartments for all populations
@@ -273,6 +275,7 @@ def plotPopulation(results,data,title='',colormappings=None,plotObservedData=Tru
     sim_settings = results.sim_settings
     pop_labels = results.pop_labels
     save_figname=None
+    dataobs = None # placeholder for observed data
     
     if use_full_labels:
         comp_labels = results.comp_label_names
@@ -301,15 +304,15 @@ def plotPopulation(results,data,title='',colormappings=None,plotObservedData=Tru
                 else:
                     c_label = comp.label
                 labels.append(c_label)
-        if plotObservedData:
+        if plot_observed_data:
             ys = data['characs']['alive'][pop.label]['y']
             ts = data['characs']['alive'][pop.label]['t']
             dataobs = (ts,ys)
         xlim = ()
         
-        pl_title = 'Compartments for Population: %s' % (pop_labels[i])
+        pl_title = 'Population: %s' % (pop_labels[i])
         if save_fig:
-            save_figname = 'Full_compartment_%s'%pop_labels[i]
+            save_figname = fig_name + "_compartment_%s"%pop_labels[i]
         dict = {  'xlim': (tvec[0],tvec[-1]),
                   'ymin': 0,
                   'xlabel': 'Year',
@@ -391,12 +394,12 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
     pl.suptitle('')
     
     if save_fig:
-        fig.savefig('%s_stacked.png' % (save_figname))
-        logger.info("Saved figure: '%s_stacked.png'"%save_figname)
+        fig.savefig('%s.png' % (save_figname))
+        logger.info("Saved figure: '%s.png'"%save_figname)
         
     
 
-def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None,plotObservedData=True,save_fig=False,colors=None,plotdict={}):
+def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None, plot_observed_data=True, save_fig=False, fig_name=None ,colors=None, plotdict={}):
     """
     Plot a characteristic across all populations
     
@@ -425,6 +428,8 @@ def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None,plotObs
     """
     # setup
     tvec = results.sim_settings['tvec']
+    year_inc = 5.  # TODO: move this to setting
+    yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)
     mpops = results.m_pops
     sim_settings = results.sim_settings
     pop_labels = results.pop_labels
@@ -453,12 +458,12 @@ def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None,plotObs
             y_values.append(vals)
             t_values.append(sim_settings['tvec'])
             
-            if plotObservedData:
+            if plot_observed_data:
                 ys = data['characs'][output_id][pop.label]['y']
                 ts = data['characs'][output_id][pop.label]['t']
                 if 'plot_percentage' in charac_specs[output_id].keys():
                     ys *= 100
-                if len(ys)==0 and ys[0]==0:
+                if len(ys)==0:
                     # add an empty list to preserve label colours
                     ys,ts = [],[]
                 yhat.append(ys)
@@ -467,17 +472,14 @@ def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None,plotObs
                 
         dict = {'y_hat': yhat,
                 't_hat': that,
-                'year_inc' :  5.,
                 'unit_tag': unit_tag,
                 'xlabel':'Year',
                 'ylabel': charac_specs[output_id]['name'] + unit_tag,
-                'title': '%s Outputs - %s' % (title, charac_specs[output_id]['name']),
-                'save_figname': 'PlotCompartment_%s_%s'%(title, charac_specs[output_id]['name'])}
+                'x_ticks' : (yr_range,yr_range),
+                'title': '%s Outputs: %s' % (title, charac_specs[output_id]['name']),
+                'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
         dict.update(plotdict)
-        if 'yr_range' not in dict.keys():
-            dict['yr_range'] = np.arange(tvec[0],tvec[-1]+0.1,dict['year_inc'],dtype=int)
-            dict['x_ticks']  = (dict['yr_range'],dict['yr_range'])
-    
+        
         legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}         
          
         _plotLine(y_values, t_values, pop_labels, legendsettings=legendsettings,save_fig=save_fig,**dict)
@@ -500,7 +502,9 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     for k,yval in enumerate(ys):
         
         ax.plot(ts[k], yval, c=colors[k])
-        ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
+        if len(y_hat) > 0: # i.e. we've seen observable data
+            print len(t_hat[k]), y_hat[k], labels[k], title
+            ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
         if np.min(y_hat[k]) < ymin_val:

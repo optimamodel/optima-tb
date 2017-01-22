@@ -86,6 +86,7 @@ for transfer_type in data['transfers']:
 
 # turn off all plotting except for population
 for (charac,val) in proj.settings.charac_specs.iteritems():
+    val['plot_characteristic'] = 'n'
     val['databook_order'] = -1
 
 # set births to 0: here, we set the rate to 0
@@ -107,7 +108,7 @@ for prog in full_compartment_list: #specified_progressions.iteritems():
     charac_label='entry_%s'%prog
     __addCharacteristic(proj.settings,charac_label=charac_label,full_name=charac_label,entry_point=prog,includes=[prog])
     for pop in specified_populations:
-        data = __addCharacteristicData(data,charac_label,pop,[start_year],[0.],'number')
+        data = __addCharacteristicData(data,charac_label,pop,ts=[start_year],ys=[0.],y_format='number')
         
 
 
@@ -130,6 +131,7 @@ for pop in specified_populations:
 
         # set up populations and init values
         par = parset.pars['characs'][parset.par_ids['characs'][charac_label]]
+        print par
         par.y[pop][0] = starting_pop
         
         # run simulations
@@ -139,7 +141,7 @@ for pop in specified_populations:
         saveResults(output_file_handle,results,pop,prog,reporters,start_year,year_track)
         
         # save plots 
-        proj.plotResults(results,plotObservedData=False,savePlot=True,figName=parset_name)
+        proj.plotResults(results,plot_observed_data=False,savePlot=True,figName=parset_name)
         
         # reset for the next loop
         par.y[pop][0] = 0.
