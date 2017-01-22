@@ -245,9 +245,9 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, deb
     charac_specs = settings.charac_specs
     plotdict = settings.plot_settings.plotdict
     # plot each disease cascade for every population
-    plotPopulation(results=results, data=data, title=title, colormappings=colormappings, plot_observed_data=True, save_fig=False, fig_name=None, plotdict=plotdict)
+    plotPopulation(results=results, data=data, title=title, colormappings=colormappings, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # plot characteristics
-    plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title, plot_observed_data=True, save_fig=False, fig_name=None, plotdict=plotdict)
+    plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # internal plotting
     if debug:
         plotOutflows(results)
@@ -271,6 +271,8 @@ def plotPopulation(results,data,title='',colormappings=None, plot_observed_data=
     """
     # setup
     tvec = results.sim_settings['tvec']
+    year_inc = 5.  # TODO: move this to setting
+    yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)
     mpops = results.m_pops
     sim_settings = results.sim_settings
     pop_labels = results.pop_labels
@@ -319,12 +321,10 @@ def plotPopulation(results,data,title='',colormappings=None, plot_observed_data=
                   'year_inc' :  5.,
                   'ylabel': 'People',
                   'mec' : 'k',
+                  'x_ticks' : (yr_range,yr_range),
                   'colors': colors
                   }
         dict.update(plotdict)
-        if 'yr_range' not in dict.keys():
-            dict['yr_range'] = np.arange(tvec[0],tvec[-1]+0.1,dict['year_inc'],dtype=int)
-            dict['x_ticks']  = (dict['yr_range'],dict['yr_range'])
     
         legendsettings =  {'loc':'center left', 
                            'bbox_to_anchor':(1.05, 0.5), 
@@ -502,14 +502,15 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     for k,yval in enumerate(ys):
         
         ax.plot(ts[k], yval, c=colors[k])
+        if np.min(yval) < ymin_val:
+            ymin_val = np.min(yval)
+            
         if len(y_hat) > 0: # i.e. we've seen observable data
             print len(t_hat[k]), y_hat[k], labels[k], title
             ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
-        if np.min(yval) < ymin_val:
-            ymin_val = np.min(yval)
-        if np.min(y_hat[k]) < ymin_val:
-            ymin_val = np.min(y_hat[k])
-
+            if np.min(y_hat[k]) < ymin_val:
+                ymin_val = np.min(y_hat[k])
+        
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
     

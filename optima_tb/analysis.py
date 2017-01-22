@@ -79,6 +79,7 @@ def evaluateDiseaseProgression(proj, specified_progressions, specified_populatio
     
     # turn off all plotting except for population
     for (charac,val) in proj.settings.charac_specs.iteritems():
+        val['plot_characteristic'] = 'n'
         val['databook_order'] = -1
     
     # set births to 0: here, we set the rate to 0

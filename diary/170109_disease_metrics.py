@@ -107,6 +107,7 @@ full_compartment_list = list(set([x for v in specified_progressions.itervalues()
 for prog in full_compartment_list: #specified_progressions.iteritems():
     charac_label='entry_%s'%prog
     __addCharacteristic(proj.settings,charac_label=charac_label,full_name=charac_label,entry_point=prog,includes=[prog])
+    proj.settings.charac_specs[charac_label]['plot_characteristic'] = 'n'
     for pop in specified_populations:
         data = __addCharacteristicData(data,charac_label,pop,ts=[start_year],ys=[0.],y_format='number')
         
@@ -131,12 +132,11 @@ for pop in specified_populations:
 
         # set up populations and init values
         par = parset.pars['characs'][parset.par_ids['characs'][charac_label]]
-        print par
         par.y[pop][0] = starting_pop
         
         # run simulations
         results = proj.runSim(parset_name=parset_name)
-        
+
         # get outputs
         saveResults(output_file_handle,results,pop,prog,reporters,start_year,year_track)
         
