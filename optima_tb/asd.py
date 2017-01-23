@@ -1,6 +1,8 @@
 import logging
 logger = logging.getLogger(__name__)
 
+from optima_tb.utils import OptimaException
+
 
 
 def asd(function, init_params, init_compartments=[], args=None, stepsize=0.1, xmin=None, xmax=None, xnames=None,
@@ -95,6 +97,7 @@ def asd(function, init_params, init_compartments=[], args=None, stepsize=0.1, xm
     fval = sum(function(x,init_compartments))# Calculate initial value of the objective function
     fval = fval.sum()
     fvalorig = fval # Store the original value of the objective function, since fval is overwritten on each step
+    logger.info("Initial score for fit : %g"%fvalorig)
     
     count = 0 # Keep track of how many iterations have occurred
     
@@ -164,9 +167,13 @@ def asd(function, init_params, init_compartments=[], args=None, stepsize=0.1, xm
         
         # TODO: use updated initcompartments
         # Take the parameter set x and run it on the model:
-        fvalnew = function(param_new,compartments_new) # Calculate the objective function for the new parameter set
-        fvalnew = sum(fvalnew)
-        fvalnew = fvalnew.sum()
+        try:
+            fvalnew = function(param_new,compartments_new) # Calculate the objective function for the new parameter set
+            fvalnew = sum(fvalnew)
+            fvalnew = fvalnew.sum()
+        except OptimaException as optima_error:
+            logger.debug("Encountered an OptimaException when running autofit:\n%s\n"%(str(optima_error)))
+            continue
         
         abserrorhistory[mod(count,StallIterLimit)] = max(0, fval-fvalnew) # Keep track of improvements in the error
         relerrorhistory[mod(count,StallIterLimit)] = max(0, fval/float(fvalnew)-1.0) # Keep track of improvements in the error  

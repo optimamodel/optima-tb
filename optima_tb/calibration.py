@@ -1,10 +1,10 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from utils import OptimaException, tic, toc, odict
-import settings
-import asd
-from parameters import ParameterSet
+from optima_tb.utils import OptimaException, tic, toc, odict
+import optima_tb.settings as settings
+import optima_tb.asd as asd
+from optima_tb.parameters import ParameterSet
 
 import numpy as np
 from copy import deepcopy as dcp
@@ -161,8 +161,8 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     # min maxes for compartments are always (0,None):
     charac_minmax = [(0,None) for i in charac_labels]
     minmax += charac_minmax
-
-
+    
+    
     if len(paramvec)+len(compartment_init) == 0:
         raise OptimaException("No available cascade parameters or initial populations to calibrate during autofitting. Please set at least one 'Calibrate?' value to be not equal to %g OR at least one entry point for a population."%settings.DO_NOT_SCALE)
     

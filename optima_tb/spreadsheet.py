@@ -1,7 +1,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from utils import odict, printv, OptimaException
+from optima_tb.utils import odict, printv, OptimaException
 
 import xlrd
 from xlrd import open_workbook, XLRDError 
@@ -163,8 +163,10 @@ def load_old_spreadsheet(filename="simple.xlsx",verbose=2):
     Note: data object structure is expected to change in near-future.
     
     """
-    logging.info('Loading data from %s...' % filename)
+    import os 
     
+    filename = os.path.abspath(filename)
+    logging.info('Loading data from %s...' % filename)
     
     # Initial check: workbook can be loaded
     try: 
@@ -750,7 +752,9 @@ def _load_univalue_sheet(ws,ws_name,cb_settings,num_cols,col_index):
     return {'tmp':'tmp'}
     
 def load_spreadsheet(settings,filename=DEFAULT_PATH):
-            
+    import os 
+    
+    filename = os.path.abspath(filename)
     try: 
         ws = open_workbook(filename) # Open workbook
     except: 

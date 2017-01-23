@@ -1,7 +1,7 @@
 #%% Imports
 
-from utils import odict, OptimaException
-import settings as project_settings
+from optima_tb.utils import odict, OptimaException
+import optima_tb.settings as project_settings
 
 import logging
 logger = logging.getLogger(__name__)
@@ -17,21 +17,24 @@ from copy import deepcopy as dcp
 
 #%% Utility functions to generate sub-blocks of the project databook
 
-def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, data_formats = None, print_conditions = None):
+def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, assumption_overrides = None, data_formats = None, print_conditions = None):
     '''
     Create a block where users choose data-entry format and enter values either as an assumption or time-dependent array.
     
     Args:
-        worksheet           -   The worksheet in which to produce the block.
-        at_row              -   The row at which the top-left corner of the block will be fixed.
-        at_col              -   The column at which the top-left corner of the block will be fixed.
-        num_arrays          -   The number of input arrays to generate.
-        tvec                -   The year range for which values are (optionally) to be entered.
-        assumption          -   The default value to enter in the assumption column.
-        data_formats        -   A list of formats that data can be entered as.
-                                This is not data validation, but will determine the form of calculations during model processing.
-        print_conditions    -   A list of Excel-string conditions that are used to test whether data-entry arrays should be shown.
-                                List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
+        worksheet               -   The worksheet in which to produce the block.
+        at_row                  -   The row at which the top-left corner of the block will be fixed.
+        at_col                  -   The column at which the top-left corner of the block will be fixed.
+        num_arrays              -   The number of input arrays to generate.
+        tvec                    -   The year range for which values are (optionally) to be entered.
+        assumption              -   The default value to read from the assumption column in case the file is not first opened in Excel before loading.
+                                    Without opening file in Excel, custom equations are not calculated.
+        assumption_overrides    -   A list of default values to use (or equations to calculate) in the assumption column, assuming the file is opened in Excel.
+                                    List must be of num_arrays length.
+        data_formats            -   A list of formats that data can be entered as.
+                                    This is not data validation, but will determine the form of calculations during model processing.
+        print_conditions        -   A list of Excel-string conditions that are used to test whether data-entry arrays should be shown.
+                                    List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
                                 
     Note that if no data format is specified, data formats for 'Fraction' or 'Number' are available. The default choice of the 
     data format is assumed that if the assumption value is larger than 1., then it is likely to be a Number, otherwise it is assumed to be a Fraction.
@@ -52,6 +55,10 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
     for k in xrange(len(tvec)):
         worksheet.write(at_row, offset + k, tvec[k])  
     
+    # If no overrides are provided or they are of incorrect length, just revert to the original assumption.    
+    if assumption_overrides is None or len(assumption_overrides) != num_arrays:
+        assumption_overrides = [assumption]*num_arrays
+    
     for aid in xrange(num_arrays):
         row_id = at_row + aid + 1
         offset = at_col + 3
@@ -60,11 +67,11 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
         worksheet.data_validation('%s' % rc(row_id,at_col), {'validate': 'list', 'source': data_formats, 'ignore_blank': False}) 
         if not print_conditions is None and not print_conditions[aid] is None:
             worksheet.write(row_id, at_col, '=IF(%s,"%s","")' % (print_conditions[aid], data_format_assumption), None, '')      # Default choice for data format.
-            worksheet.write(row_id, at_col + 1, '=IF(%s,IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A."),"")' % (print_conditions[aid], rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption), None, '')
+            worksheet.write(row_id, at_col + 1, '=IF(%s,IF(SUMPRODUCT(--(%s:%s<>""))=0,%s,"N.A."),"")' % (print_conditions[aid], rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption_overrides[aid]), None, '')
             worksheet.write(row_id, at_col + 2, '=IF(%s,"OR","")' % print_conditions[aid], None, '')
         else:
             worksheet.write(row_id, at_col, data_format_assumption)      # Default choice for data format.
-            worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%f,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption), None, assumption)
+            worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%s,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption_overrides[aid]), None, assumption)
             worksheet.write(row_id, at_col + 2, 'OR')
         
 #        # Make changes to the first row be mirrored in the other rows.
@@ -142,6 +149,8 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     assumption_width = 10
     
     #%% Population names sheet.
+    age_min_col = 2
+    age_max_col = 3
     ws_pops.write(0, 0, 'Name')
     ws_pops.write(0, 1, 'Abbreviation')
     ws_pops.write(0, 2, 'Minimum Age')
@@ -167,18 +176,19 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
         pop_labels_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1,True,True)))
     
     #%% Inter-population transfers matrix sheet (from node to corresponding node).
-    # Produce aging matrix.
-    ws_transmat.write(0, 0, 'Aging')
-    makeConnectionMatrix(worksheet = ws_transmat, at_row = 0, at_col = 0, labels = pop_labels_default, formula_labels = pop_labels_formula)
     
-    # Produce an extra matrix for each 'migration type' (e.g. prisoner-transfers, migration mixing, HIV infection, etc.).
+    # Produce a matrix for each 'migration type' (e.g. prisoner-transfers, migration mixing, HIV infection, etc.).
+    # Aging is the default first migration type and is always present.
     # Store type names and formulae strings that reference them. Also store the rows at which migration matrices start.
-    row_offset = num_pops + 2
+    row_offset = 0
     mig_types_default = []
     mig_types_formula = []
     mig_matrix_rows = []
-    for mid in xrange(num_migrations):
-        mig_type = 'Migration Type '+str(mid+1)
+    for mid in xrange(num_migrations+1):
+        if mid == 0:
+            mig_type = 'Aging'
+        else:
+            mig_type = 'Migration Type '+str(mid)
         mig_types_default.append(mig_type)
         mig_matrix_rows.append(row_offset)
         mig_types_formula.append("='%s'!%s" % (settings.databook['sheet_names']['transmat'], rc(row_offset,0)))
@@ -189,13 +199,16 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     ws_transmat.set_column(0, 0, ws_transmat_width)
     
     #%% Inter-population transfer details sheet.
+    sh_pops = settings.databook['sheet_names']['pops']      # Convenient abbreviation.
+    
     row_id = 0
-    for mid in xrange(num_migrations):
+    for mid in xrange(num_migrations+1):
         ws_transval.write(row_id, 0, mig_types_formula[mid], None, mig_types_default[mid])
         print_conditions = []
-        for k in xrange(num_pops*(num_pops-1)):
-            print_conditions.append('%s<>"..."' % rc(row_id+k+1,0))
-        makeValueEntryArrayBlock(worksheet = ws_transval, at_row = row_id, at_col = 3, num_arrays = num_pops*(num_pops-1), tvec = data_tvec, print_conditions = print_conditions)
+        assumption_overrides = []
+        
+        k = 0   # A counter for number of arrays, used to id print conditions.
+        print_row = row_id
         for source_id in xrange(num_pops):
             for target_id in xrange(num_pops):
                 if source_id != target_id:
@@ -205,6 +218,13 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
                     ws_transval.write(row_id, 0, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[source_id][1:],'"..."'), None, '...')
                     ws_transval.write(row_id, 1, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"','"--->"','""'), None, '')
                     ws_transval.write(row_id, 2, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[target_id][1:],'""'), None, '')
+                    
+                    print_conditions.append('%s<>"..."' % rc(print_row+k+1,0))
+                    if mid == 0:    # Aging assumptions are equations that try to work out aging fraction based on Minimum and Maximum pop age.
+                        assumption_equation = "IF(AND('%s'!%s<>%s,'%s'!%s<>%s),1/('%s'!%s-'%s'!%s+1),0)" % (sh_pops, rc(source_id+1,age_max_col), '""', sh_pops, rc(source_id+1,age_min_col), '""', sh_pops, rc(source_id+1,age_max_col), sh_pops, rc(source_id+1,age_min_col))
+                        assumption_overrides.append(assumption_equation)
+                    k += 1
+        makeValueEntryArrayBlock(worksheet = ws_transval, at_row = print_row, at_col = 3, num_arrays = num_pops*(num_pops-1), tvec = data_tvec, assumption_overrides = assumption_overrides, print_conditions = print_conditions)
         
         row_id += 2
         
@@ -271,7 +291,9 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
 # NOTE: This needs so much quality-assurance testing. Need to ensure that input data sheet aligns with cascade settings.
 def loadSpreadsheetFunc(settings, databook_path):
     ''' Load data spreadsheet into Project data dictionary. '''
+    import os
     
+    databook_path = os.path.abspath(databook_path)
     try: workbook = xlrd.open_workbook(databook_path)
     except: raise OptimaException('ERROR: Project data workbook was unable to be loaded from... %s' % databook_path)
     ws_pops = workbook.sheet_by_name(settings.databook['sheet_names']['pops'])
@@ -335,13 +357,6 @@ def loadSpreadsheetFunc(settings, databook_path):
                             data['transfers'][mig_type][pop_source] = odict()
                         data['transfers'][mig_type][pop_source][pop_target] = odict()
                         if mig_type == 'aging':
-                            if 'range' not in data['pops']['ages'][pop_source].keys():
-                                raise OptimaException('ERROR: An age transition has been flagged for a source population group with no age range.')
-                            else:
-                                data['transfers'][mig_type][pop_source][pop_target]['t'] = np.array([settings.tvec_start])
-                                data['transfers'][mig_type][pop_source][pop_target]['y'] = np.array([float(1/data['pops']['ages'][pop_source]['range'])])
-                                data['transfers'][mig_type][pop_source][pop_target]['y_format'] = 'Fraction'.lower()
-                                data['transfers'][mig_type][pop_source][pop_target]['y_factor'] = project_settings.DEFAULT_YFACTOR    # NOTE: Quick hack to make aging work with calibration branch.
                             if len(data['transfers'][mig_type][pop_source].keys()) > 1:
                                 raise OptimaException('ERROR: There are too many outgoing "%s" transitions listed for population "%s".' % (mig_type,pop_source))
         
@@ -461,11 +476,11 @@ def loadSpreadsheetFunc(settings, databook_path):
                     elif data_label == 'characs':
                         data[data_label][current_def_label][current_pop_label]['y_factor'] = settings.charac_specs[current_def_label]['y_factor']
                 except:
+                    logger.info("Couldn't read y_factor for parameter '%s'"%current_def_label)
                     data[data_label][current_def_label][current_pop_label]['y_factor'] = project_settings.DEFAULT_YFACTOR
-            
                 
                 pop_id += 1
-                
+    
     # All parameters must be defined whether they are in the project databook or not.
     for label in settings.linkpar_specs.keys():
         if label not in data['linkpars'].keys():
@@ -483,10 +498,13 @@ def loadSpreadsheetFunc(settings, databook_path):
                 data['linkpars'][label][pop]['y_format'] = def_format
                 data['linkpars'][label][pop]['t'] = np.array([settings.tvec_start])
                 data['linkpars'][label][pop]['y'] = np.array([float(def_val)]) 
-                data['linkpars'][label][pop]['y_factor'] = project_settings.DEFAULT_YFACTOR
-                
-            
-    return data
+                ### data['linkpars'][label][pop]['y_factor'] = project_settings.DEFAULT_YFACTOR
+                data['linkpars'][label][pop]['y_factor'] = settings.linkpar_specs[label]['y_factor']
+
+
+    validation = databookValidation(data=data)
+    if validation: return data
+    else: raise OptimaException('ERROR: Databook entries incomplete or mismatched, please look at log for details')
 
 
 def getEmptyData():
@@ -510,5 +528,62 @@ def getEmptyData():
     data['transfers'] = odict()
     data['linkpars'] = odict()
     return data
+
+def databookValidation(data=None):
+    '''
+    Validate data fields within the databook:
+
+    Current Operation:
+        1. Checks to ensure data entered is in line:
+             a) Format type: Fraction - Ensure data entered for parameters is not negative or greater than one
+             b) Format type: Number - Ensure data entered for parameters is not negative or in range (0-1)
+        2. Checks to ensure that age in in the correct range:
+             a) Ensures Minimum age is lower than Maximum age
+             b) Ensure that age is a non-negative number
     
+    Output:
+        Output is simply a complete log of errors found in relavant databook
+        
+    '''
+    validation = True
+    label = 'y'
+    for key in data:
+        for attribute in data[key]:
+            if attribute == 'name_labels' or attribute == 'label_names': pass
+            else:
+                for pop in data[key][attribute]:
+                  if key == 'transfers':
+                      for subpop in data[key][attribute][pop]:
+                          for loop in range (len(data[key][attribute][pop][subpop][label])):
+                              validation = validateFormatType(data[key][attribute][pop][subpop], label, loop, key, attribute, pop, validation)
+                  elif key == 'pops':
+                      if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0:
+                          logging.warning('Minimum and maximum age is defined incorrectly for Population: %s' % (pop))
+                          validation = False
+                  else:
+                      for loop in range (len(data[key][attribute][pop][label])):
+                          validation = validateFormatType(data[key][attribute][pop], label, loop, key, attribute, pop, validation)
+    return validation
+
+def validateFormatType(data_to_validate, label, loop, key, attribute, pop, validation):
+    '''
+    Helper function which is called from databookValidation function. 
+    It loops through the databook entries and makes sure they conform to the 
+    format_type specified (fraction or number)
+    '''
+    if key == 'transfers': key = 'Transfer Details: '
+    elif key == 'characs': key = 'Characteristic: '
+    elif key == 'linkpars': key = 'Parameter: '
     
+    if data_to_validate['y_format'] == 'fraction':
+      if data_to_validate[label][loop] > 1. or data_to_validate[label][loop] < 0.:
+          logging.warning('Please verify databook under %s%s and population %s as a number greater than 1 or negative number was entered for definition type "fraction" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
+          validation = False
+    elif data_to_validate['y_format'] == 'number':
+      if data_to_validate[label][loop] < 0.:
+          logging.warning('Please verify databook under %s%s and population %s as a fraction or a negative number was entered for definition type "number" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
+          validation = False
+      elif data_to_validate[label][loop] > 0. and data_to_validate[label][loop] < 1.:
+          logging.warning('Please verify databook under %s%s and population %s as a fraction or a negative number was entered for definition type "number" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
+          validation = False
+    return validation

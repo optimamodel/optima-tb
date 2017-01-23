@@ -1,9 +1,9 @@
 #%% Imports
 
-from utils import flattenDict, odict, OptimaException
-from validation import checkNegativePopulation
-import settings as project_settings
-from results import ResultSet
+from optima_tb.utils import flattenDict, odict, OptimaException
+from optima_tb.validation import checkNegativePopulation
+import optima_tb.settings as project_settings
+from optima_tb.results import ResultSet
 
 import logging
 logger = logging.getLogger(__name__)
@@ -316,6 +316,9 @@ class Model(object):
                     # Subtract the values of any included already-calculated nodes from the value of an entry-point.
                     if include in calc_done.keys():
                         for pop_label in parset.pop_labels:
+                            val = seed_dict[entry_point][pop_label] - seed_dict[include][pop_label]
+                            if val < 0 and abs(val) > project_settings.TOLERANCE:
+                                logger.error('Negative value encountered for Entry point: %s, Pop_label: %s, Compartment: %s    Entry point size: %f, compartment size: %f' % (entry_point, pop_label, include, seed_dict[entry_point][pop_label], seed_dict[include][pop_label]))
                             seed_dict[entry_point][pop_label] -= seed_dict[include][pop_label]
                         include_dict[entry_point].remove(include)
                         
@@ -337,7 +340,9 @@ class Model(object):
         for seed_label in seed_dict.keys():
             for pop_label in parset.pop_labels:
                 val = seed_dict[seed_label][pop_label]
-                if val < 0.:
+                if abs(val) < project_settings.TOLERANCE: 
+                    val = 0
+                elif val < 0.:
                     raise OptimaException('ERROR: Initial value calculated for compartment "%s" in population "%s" is %f. Review and make sure each characteristic has at least as many people as the sum of all included compartments.' % (seed_label, pop_label, val))
                 self.getPop(pop_label).getComp(seed_label).popsize[0] = val
 
@@ -570,10 +575,18 @@ class Model(object):
                 for junction_label in settings.junction_labels:
                     comp = pop.getComp(junction_label)
                     popsize = comp.popsize[ti]
+                    
+                    
+                    
                     if popsize < 0:     # NOTE: Hacky fix for negative values. Needs work in case of super-negatives.
                         comp.popsize[ti] = 0
                         popsize = 0
-                    if popsize > project_settings.TOLERANCE:
+                        
+                    elif abs(popsize) <= project_settings.TOLERANCE:
+                        comp.popsize[ti] = 0
+                        popsize = 0
+                    
+                    elif popsize > project_settings.TOLERANCE:
                         final_review = False    # Outflows could propagate into other junctions requiring another review.
                         denom_val = sum(pop.links[lid].vals[ti_link] for lid in comp.outlink_ids)
                         if denom_val == 0: raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
@@ -582,6 +595,9 @@ class Model(object):
                             
                             comp.popsize[ti] -= popsize * link.vals[ti_link] / denom_val
                             pop.getComp(link.label_to).popsize[ti] += popsize * link.vals[ti_link] / denom_val
+                            
+                    
+                        
             review_count += 1
 
 
