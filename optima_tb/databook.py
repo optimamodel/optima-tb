@@ -313,6 +313,7 @@ def loadSpreadsheetFunc(settings, databook_path):
     try: workbook = xlrd.open_workbook(databook_path)
     except: raise OptimaException('ERROR: Project data workbook was unable to be loaded from... %s' % databook_path)
     ws_pops = workbook.sheet_by_name(settings.databook['sheet_names']['pops'])
+    ws_contact = workbook.sheet_by_name(settings.databook['sheet_names']['contact'])
     ws_transmat = workbook.sheet_by_name(settings.databook['sheet_names']['transmat'])
     ws_transval = workbook.sheet_by_name(settings.databook['sheet_names']['transval'])
     
@@ -348,6 +349,26 @@ def loadSpreadsheetFunc(settings, databook_path):
                 age_max = ws_pops.cell_value(row_id, 3)
                 if isinstance(age_min, Number) and isinstance(age_max, Number):
                     data['pops']['ages'][pop_label] = {'min':float(age_min), 'max':float(age_max), 'range':1+float(age_max)-float(age_min)}
+    
+    #%% Population contacts sheet.
+    data['contacts'] = odict()
+    data['contacts']['into'] = odict()
+    data['contacts']['from'] = odict()
+    for row_id in xrange(ws_contact.nrows):
+        for col_id in xrange(ws_contact.ncols):
+            if row_id > 0 and col_id > 0:
+                source = ws_contact.cell_value(row_id, 0)
+                target = ws_contact.cell_value(0, col_id)
+                val = ws_contact.cell_value(row_id, col_id)
+                if val != '' and float(val) != 0:
+                    if target not in data['contacts']['into'].keys():
+                        data['contacts']['into'][target] = odict()
+                    if source not in data['contacts']['from'].keys():
+                        data['contacts']['from'][source] = odict()
+                    data['contacts']['into'][target][source] = float(val)
+                    data['contacts']['from'][source][target] = float(val)
+                    
+    
 
     #%% Inter-population transitions sheet.
     # Migration matrices must be divided from each other by an empty row.
@@ -568,17 +589,20 @@ def databookValidation(data=None):
             if attribute == 'name_labels' or attribute == 'label_names': pass
             else:
                 for pop in data[key][attribute]:
-                  if key == 'transfers':
-                      for subpop in data[key][attribute][pop]:
-                          for loop in range (len(data[key][attribute][pop][subpop][label])):
-                              validation = validateFormatType(data[key][attribute][pop][subpop], label, loop, key, attribute, pop, validation)
-                  elif key == 'pops':
-                      if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0:
-                          logging.warning('Minimum and maximum age is defined incorrectly for Population: %s' % (pop))
-                          validation = False
-                  else:
-                      for loop in range (len(data[key][attribute][pop][label])):
-                          validation = validateFormatType(data[key][attribute][pop], label, loop, key, attribute, pop, validation)
+                    if key == 'transfers':
+                        for subpop in data[key][attribute][pop]:
+                            for loop in range (len(data[key][attribute][pop][subpop][label])):
+                                validation = validateFormatType(data[key][attribute][pop][subpop], label, loop, key, attribute, pop, validation)
+                    elif key == 'pops':
+                        if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0:
+                            logging.warning('Minimum and maximum age is defined incorrectly for Population: %s' % (pop))
+                            validation = False
+                    elif key == 'contacts':
+                        # NOTE: Validation to be filled in for contacts at some point.
+                        pass
+                    else:
+                        for loop in range (len(data[key][attribute][pop][label])):
+                            validation = validateFormatType(data[key][attribute][pop], label, loop, key, attribute, pop, validation)
     return validation
 
 def validateFormatType(data_to_validate, label, loop, key, attribute, pop, validation):
