@@ -25,9 +25,8 @@ class Program:
         self.label = label
         self.uid = uuid()
         
-        self.duration = duration
         self.category = category
-        
+    
         self.cost_cov = CostCovOut()
     
     def getCoverage():
@@ -44,56 +43,110 @@ class Program:
         
 class TreatmentProgram(Program):
     
-    def __init__(self,efficacy,adherence,*args):
+    def __init__(self,efficacy,adherence,duration,*args):
         
         super(TreatmentProgram,self).init(*args)
         self.efficacy = efficacy
         self.adherence = adherence
         
+        self.duration = duration
+        
 class TestingProgram(Program):
     
-    def __init__(self,specificity,sensitivity,*args):
+    def __init__(self,specificity,sensitivity,frequency,*args):
         
         super(TreatmentProgram,self).init(*args)
         self.specificity = specificity
         self.sensitivity = sensitivity
+        self.frequency = frequency
 
-class CostCovOut(object):
+class CostCovOut:
     '''
     Cost-coverage, coverage-outcome and cost-outcome objects
     '''
     def __init__(self):
         self.cost_data = {'t': [], 'spending': [], 'coverage': []}
-        self.ccopar = {'t': [], 'saturation': [], 'unitcost': []}
+        self.cost_cov_param = {'t': [], 'saturation': [], 'unitcost': []}
+        self.curve = CostCoverageCurve()
     
-    def addcostdata(self, cost_data, overwrite=False):
+    def addCostData(self, cost_data, overwrite=False):
         '''add or replace spending-coverage data'''
         pass
     
-    def rmcostdata(self, t):
+    def removeCostData(self, t):
         '''remove spending-coverage data against a given year'''
         pass
     
-    def getcostdata(self, t):
+    def getCostData(self, t):
         '''retrieve/return odict of cost-coverage data'''
         pass
     
-    def addccopar(self, ccopars, overwrite=False):
+    def addCostCoverageParam(self, ccopars, overwrite=False):
         '''add or replace cost-coverage parameters'''
         pass
     
-    def rmccopar(self, t):
+    def removeCostCoverageParam(self, t):
         '''remove cost-coverage parameters'''
         pass
     
-    def getccopar(self, t):
+    def getCostCoverageParam(self, t):
         '''retrieve/return odict of cost-coverage parameters'''
         pass
     
-    def costcov(budget, costCovInfo, popsize, eps=None):
+    def calcCostCoverage(budget, costCovInfo, popsize, eps=None):
         '''Function that calculates and returns coverage in a given year for a given spending amount.'''
         pass
         
-    def inversecostcov(current_coverage, costCovInfo, popsize, eps=None):
+    def calcInverseCostCoverage(current_coverage, costCovInfo, popsize, eps=None):
         '''Function that calculates and returns budget in a given year for a given coverage amount.'''
+        pass
+    
+    
+    
+    
+class CostCoverageCurve:
+    """
+    
+    Curves currently supported: 
+    1) exponentially saturating, from (0,0)
+    2) exponentially saturating with offset, i.e. curve only defined for >= (offset, 0); 0, otherwise
+    3) sigmoidal
+    
+    """
+    
+    def __init__(self,curve_shape="exponential",**params):
+        
+        try:
+            self.curve_shape = curve_shape
+            self.curve = getattr(self, '_curve_%s'%curve_shape)(params)
+        except:
+            raise NotImplementedError("No curve associated with _curve_%s (programs.py)"%curve_shape)
+            
+    def getValue(self,budget):
+        return self.curve(budget)
+            
+    def getInverseValue(self,current_coverage,**params):
+        try:
+            inverse_function = getattr(self, '_inverse_curve_%s'%self.curve_shape)(params)
+            return inverse_function(current_coverage)
+        except:
+            raise NotImplementedError("No curve associated with _curve_%s (programs.py)"%curve_shape)
+       
+    """ Internal representations of curves """
+    def _curve_exponential(self, exponent, saturation):
+        pass
+    
+    def _inverse_curve_exponential(self,exponent,saturation):
+        pass
+    
+    def _curve_exponential_offset(self, exponent, saturation, offset):
+        pass
+    
+    def _inverse_exponential_offset(self,exponent,saturation, offset):
+        pass
+    
+    def _curve_sigmoidal(self,sigma, saturation):
+        pass
+
+    def _inverse_curve_sigmoidal(self,sigma,saturation):
         pass
