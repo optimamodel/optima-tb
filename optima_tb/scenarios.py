@@ -15,6 +15,9 @@ class Scenario:
     def makeScenario(self):
         raise NotImplementedError
     
+    def runScenario(self, project):
+        pass
+    
     
 class ParameterScenario(Scenario):
     
