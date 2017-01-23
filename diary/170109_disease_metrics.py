@@ -137,7 +137,7 @@ for pop in specified_populations:
         saveResults(output_file_handle,results,pop,prog,reporters,start_year,year_track)
         
         # save plots 
-        proj.plotResults(results,plot_observed_data=False,savePlot=True,figName=parset_name)
+        proj.plotResults(results,plot_observed_data=False,savePlot=True,figName='DiseaseProgression_compartment_%s'%parset_name,pop_labels=[pop])
         
         # reset for the next loop
         par.y[pop][0] = 0.

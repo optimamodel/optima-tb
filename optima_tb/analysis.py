@@ -135,7 +135,7 @@ def evaluateDiseaseProgression(proj, specified_progressions, specified_populatio
             __saveProgressionResults(output_file_handle,results,pop,prog,reporters,start_year,year_track,starting_pop)
             
             # save plots 
-            proj.plotResults(results,plot_observed_data=False,savePlot=True,figName=parset_name)
+            proj.plotResults(results,plot_observed_data=False,savePlot=True,figName='DiseaseProgression_compartment_%s'%parset_name,pop_labels=[pop])
             
             # reset for the next loop
             par.y[pop][0] = 0.

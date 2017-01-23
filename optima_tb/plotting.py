@@ -223,7 +223,7 @@ def isPlottableCharac(output_id,charac_specs):
     
     
 
-def plotProjectResults(results,settings, data, title='', colormappings=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
+def plotProjectResults(results,settings, data, title='', colormappings=None, pop_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
             
     
     """
@@ -237,15 +237,18 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, deb
         charac_specs    ...
         title           project title, displayed in title 
         colormapping
+        pop_labels      list of population labels. Default: None, which selects all populations
         debug           boolean flag, indicating whether to plot internal variables if True
     """
     # close all remaining windows
     pl.close("all") 
-    # setup
+    # setup    
+    if pop_labels is None:
+        pop_labels = results.pop_labels
     charac_specs = settings.charac_specs
     plotdict = settings.plot_settings.plotdict
     # plot each disease cascade for every population
-    plotPopulation(results=results, data=data, title=title, colormappings=colormappings, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
+    plotPopulation(results=results, data=data, title=title, colormappings=colormappings, pop_labels=pop_labels, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # plot characteristics
     plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # internal plotting
@@ -254,7 +257,7 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, deb
     
     
     
-def plotPopulation(results,data,title='',colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, use_full_labels=True, plotdict={}):
+def plotPopulation(results, data, pop_labels, title='',colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, use_full_labels=True, plotdict={}):
     """ 
     
     Plot all compartments for all populations
@@ -275,7 +278,6 @@ def plotPopulation(results,data,title='',colormappings=None, plot_observed_data=
     yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)
     mpops = results.m_pops
     sim_settings = results.sim_settings
-    pop_labels = results.pop_labels
     save_figname=None
     dataobs = None # placeholder for observed data
     
@@ -296,6 +298,8 @@ def plotPopulation(results,data,title='',colormappings=None, plot_observed_data=
         
     # iterate for each key population group
     for (i,pop) in enumerate(mpops):
+        if pop.label not in pop_labels:
+            continue
         comps = []
         labels = []
         for (j,comp) in enumerate(pop.comps):
@@ -312,9 +316,9 @@ def plotPopulation(results,data,title='',colormappings=None, plot_observed_data=
             dataobs = (ts,ys)
         xlim = ()
         
-        pl_title = 'Population: %s' % (pop_labels[i])
+        pl_title = 'Population: %s' % (pop.label)
         if save_fig:
-            save_figname = fig_name + "_compartment_%s"%pop_labels[i]
+            save_figname = fig_name + "_compartment_%s"%pop.label
         dict = {  'xlim': (tvec[0],tvec[-1]),
                   'ymin': 0,
                   'xlabel': 'Year',
