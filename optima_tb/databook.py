@@ -485,7 +485,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                 data['linkpars'][label][pop]['y_format'] = def_format
                 data['linkpars'][label][pop]['t'] = np.array([settings.tvec_start])
                 data['linkpars'][label][pop]['y'] = np.array([float(def_val)]) 
-                data['linkpars'][label][pop]['y_factor'] = project_settings.DEFAULT_YFACTOR
+                data['linkpars'][label][pop]['y_factor'] = settings.linkpar_specs[label]['y_factor']
     
     validation_level = settings.validation['databook_validation']        
     validation = databookValidation(data=data)
