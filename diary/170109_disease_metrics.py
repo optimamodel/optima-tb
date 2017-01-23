@@ -1,10 +1,3 @@
-import sys
-try:
-    sys.path.remove('d:\\work projects\\optima\\optima 2.0')
-    sys.path.remove('d:\\work projects\\optima\\optima 2.0\\optima')
-except: pass
-sys.path.append('../optima')
-
 from optima_tb.utils import odict
 from optima_tb.project import Project
 import numpy as np
@@ -18,9 +11,9 @@ starting_pop = 1e6
 dt = 1./4
 
 output_file = "ProgressData.csv"
-databook = 'data/databook-simple-cascade-autocalibration.xlsx'
+databook = '../data/databook-simple-cascade-autocalibration.xlsx'
   
-proj= Project(name = 'test-Belarus-simple', cascade_path = 'data/cascade-simple-calibration.xlsx')
+proj= Project(name = 'test-Belarus-simple', cascade_path = '../data/cascade-simple-calibration.xlsx')
 proj.setYear([start_year,2030.],False) 
 proj.settings.tvec_dt = dt
 

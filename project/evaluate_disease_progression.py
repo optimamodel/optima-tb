@@ -1,13 +1,3 @@
-
-import sys
-try:
-    sys.path.remove('d:\\work projects\\optima\\optima 2.0')
-    sys.path.remove('d:\\work projects\\optima\\optima 2.0\\optima')
-except: pass
-sys.path.append('../optima')
-
-
-
 """
 Determines disease progression from certain compartments to other compartments, 
 by (artifically) setting the population of a compartment to a predefined size
