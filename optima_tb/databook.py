@@ -487,10 +487,18 @@ def loadSpreadsheetFunc(settings, databook_path):
                 data['linkpars'][label][pop]['y'] = np.array([float(def_val)]) 
                 data['linkpars'][label][pop]['y_factor'] = project_settings.DEFAULT_YFACTOR
     
-                
+    validation_level = settings.validation['databook_validation']        
     validation = databookValidation(data=data)
-    if validation: return data
-    else: raise OptimaException('ERROR: Databook entries incomplete or mismatched, please look at log for details')
+    if validation: 
+        pass # no inconsistencies detected
+    elif validation_level == project_settings.VALIDATION_ERROR: 
+        raise OptimaException('ERROR: Databook entries incomplete or mismatched, please look at log for details')
+    elif validation_level == project_settings.VALIDATION_WARN or validation_level == project_settings.VALIDATION_AVERT:
+        logger.warn("Validating databook: possible inconsistencies observed (see log for details)")
+    else: # we ignore
+        pass
+    return data
+        
 
 def __addCharacteristicData(data,charac_label,pop_label,ts,ys,y_format,y_factor=1.):
     """
