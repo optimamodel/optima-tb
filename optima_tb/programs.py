@@ -6,7 +6,7 @@ Created on Thu Jan 12 11:32:07 2017
 """
 
 from uuid import uuid4 as uuid
-from utils import odict
+from optima_tb.utils import odict
 
 class ProgramSet:
     
