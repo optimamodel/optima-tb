@@ -107,7 +107,7 @@ full_compartment_list = list(set([x for v in specified_progressions.itervalues()
 for prog in full_compartment_list: #specified_progressions.iteritems():
     charac_label='entry_%s'%prog
     __addCharacteristic(proj.settings,charac_label=charac_label,full_name=charac_label,entry_point=prog,includes=[prog])
-    proj.settings.charac_specs[charac_label]['plot_characteristic'] = 'n'
+    proj.settings.charac_specs[charac_label]['plot_characteristic'] = 'n' # so that we don't plot these new characteristics
     for pop in specified_populations:
         data = __addCharacteristicData(data,charac_label,pop,ts=[start_year],ys=[0.],y_format='number')
         
