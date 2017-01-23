@@ -371,7 +371,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
         if ws_pars.cell_value(0, col_id) == 'Function': cid_function = col_id
-        if ws_pars.cell_value(0, col_id) == 'Calibrate': cid_yfactor = col_id
+        if ws_pars.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id
     if None in [cid_tag, cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
     
@@ -480,6 +480,10 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     if len(test_names) != len(set(test_names)):
         raise OptimaException('ERROR: Cascade workbook appears to have duplicate characteristic/parameter full names.')
     
+    validation = cascadeValidation(settings=settings)
+    if not validation: raise OptimaException('ERROR: Cascade workbook appears to have issues with births and deaths definition, please check log.')
+    else: logging.info('The cascade was validated successfully!')
+    
 
 def __addCharacteristic(settings,charac_label,full_name,plot_value=True,plot_percentage=False,denominator=None,databook_order=-1,default_val=0,entry_point=None,includes=None,calibrate=None):
     """
@@ -542,3 +546,62 @@ def plotCascadeFunc(settings):
     ax.set_yticks([])
     ax.set_title('Cascade Schematic')
     pl.show()
+
+def cascadeValidation(settings=None, validation = True):
+    '''
+    Cascade check to pick up invalid transfers between compartments or transfers within the cascade spreadsheet"
+
+    Current Operation:
+        Checks to ensure the following flows do not exist:
+            a) Births -> Deaths
+            b) Any flow into the births compartment
+            c) Any flow out of the deaths compartment
+    
+    Output:
+        Output is simply a complete log of errors found in relavant databook        
+    '''
+    flow = {'outflow': 0, 'inflow': 1}
+    birth_nodes = [nid for nid in settings.node_specs.keys() if 'tag_birth' in settings.node_specs[nid]]
+    death_nodes = [nid for nid in settings.node_specs.keys() if 'tag_dead' in settings.node_specs[nid]]
+    
+    validation = validateBirthNode(birth_nodes, settings, validation, flow)
+    validation = validateDeathNode(death_nodes, settings, validation, flow)
+    for node in birth_nodes:
+        validation = validateBirthToDeath(node, death_nodes, settings, validation, flow)
+    return validation
+
+def validateBirthNode(nodes, settings, validation, flow):
+    '''
+    Helper function to validate that no inflow into births exists
+    '''
+    for key in settings.links:
+        for link in settings.links[key]:
+            for node in nodes:
+                if node in link[flow['inflow']]: 
+                    logging.warning('An inflow into the births compartment "%s" was found from compartment "%s" at rate(characteristic): %s' % (link[flow['inflow']], link[flow['outflow']], key))
+                    validation = False
+    return validation
+
+def validateDeathNode(nodes, settings, validation, flow):
+    '''
+    Helper function to validate that no outflow from deaths exists
+    '''
+    for key in settings.links:
+        for link in settings.links[key]:
+            for node in nodes:
+                if node in link[flow['outflow']]: 
+                    logging.warning('An outflow from the deaths compartment "%s" was found into compartment "%s" at rate(characteristic): %s' % (link[flow['outflow']], link[flow['inflow']], key))
+                    validation = False
+    return validation
+
+def validateBirthToDeath(birth_nodes, death_nodes, settings, validation, flow):
+    '''
+    Helper function to validate that no flow from births into deaths exists
+    '''
+    for key in settings.links:
+        for link in settings.links[key]:
+            for node in death_nodes:
+                if (node in link[flow['inflow']]) and (birth_nodes in link[flow['outflow']]): 
+                    logging.warning('An outflow from the birth compartment "%s" into death compartment "%s" was detected at rate(characteristic): %s' % (link[flow['outflow']], link[flow['inflow']], key))
+                    validation = False
+    return validation
