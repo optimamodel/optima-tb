@@ -42,8 +42,6 @@ year_track = [1.,2.,5.] # times that we report on. Note that these can only be m
 # ================================================
 
 
-
-
 """
 
 Purpose: create automatic reporting methods for disease progression and metrics.
@@ -58,8 +56,6 @@ can have different user-specified rates.
     and 54% moved into active after two years"
 - plots should also be generated and saved. 
 
-Bonus:
-- plots have lines and intercepts indicating yearly progression 
 
 """
 

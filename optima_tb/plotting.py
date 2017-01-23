@@ -360,7 +360,7 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
     
     for (k,comp) in enumerate(comps):
         top = bottom + comp.popsize
-        ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=0.1) # for some reason, lw=0 leads to no plot
+        ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=0.1) # for some reason, lw=0 leads to no plot if we then use fig.savefig()
         reg, = ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
         bottom = dcp(top)
         
@@ -417,9 +417,9 @@ def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None, plot_o
     Example dict:
         dict = {'y_hat': yhat,
                 't_hat': that,
-                'unit_tag': unit_tag,
+                'unit_tag': '(%)', # default = ''
                 'xlabel':'Year',
-                'ylabel': charac_specs[output_id]['name'] + unit_tag,
+                'ylabel': charac_specs[output_id]['name'] + '(%)',
                 'title': '%s Outputs - %s' % (title, charac_specs[output_id]['name']),
                 'marker': 'o',
                 'x_ticks' : ([2000,2030],[2000,2030]),

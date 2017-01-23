@@ -6,7 +6,6 @@ try:
 except: pass
 sys.path.append('../optima')
 
-from analysis import evaluateDiseaseProgression
 
 
 """
@@ -31,16 +30,17 @@ i.e. from sus to lteu. Multiple mappings can also be included too i.e. sus to lt
 
 """
 
-from project import Project
+from optima_tb.analysis import evaluateDiseaseProgression
+from optima_tb.project import Project
 import pylab
 
-proj = Project(name = 'Belarus', cascade_path = './cascade-belarus.xlsx', validation_level = 'avert')
+proj = Project(name = 'Belarus', cascade_path = '../../tb-ucl-analyses/belarus/cascade-belarus.xlsx', validation_level = 'avert')
 
 #set the year range we simulate over as starting in 1995:
 proj.setYear([2000,2030],False)
 
 
-proj.loadSpreadsheet(databook_path = './databook-belarus-template.xlsx')
+proj.loadSpreadsheet(databook_path = '../../tb-ucl-analyses/belarus/databook-belarus-template.xlsx')
 proj.makeParset(name = 'default')
 
 # ================================================

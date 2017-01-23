@@ -101,6 +101,7 @@ def evaluateDiseaseProgression(proj, specified_progressions, specified_populatio
     for prog in full_compartment_list: #specified_progressions.iteritems():
         charac_label='entry_%s'%prog
         __addCharacteristic(proj.settings,charac_label=charac_label,full_name=charac_label,entry_point=prog,includes=[prog])
+        proj.settings.charac_specs[charac_label]['plot_characteristic'] = 'n' # so that we don't plot these new characteristics
         for pop in specified_populations:
             data = __addCharacteristicData(data,charac_label,pop,[start_year],[0.],'number')
             
@@ -134,7 +135,7 @@ def evaluateDiseaseProgression(proj, specified_progressions, specified_populatio
             __saveProgressionResults(output_file_handle,results,pop,prog,reporters,start_year,year_track,starting_pop)
             
             # save plots 
-            proj.plotResults(results,plotObservedData=False,savePlot=True,figName=parset_name)
+            proj.plotResults(results,plot_observed_data=False,savePlot=True,figName=parset_name)
             
             # reset for the next loop
             par.y[pop][0] = 0.
