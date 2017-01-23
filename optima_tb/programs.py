@@ -2,9 +2,9 @@
 """
 Created on Thu Jan 12 11:32:07 2017
 
-@author: Azfar
+@author: Azfar, sjjarvis
 """
-
+import math
 from uuid import uuid4 as uuid
 from optima_tb.utils import odict
 
@@ -45,7 +45,7 @@ class Program:
     
     def plotCostCov(self):
         ''' Plot the cost-coverage curve for a single program'''
-        # should pass data to plotting.py
+        # should prepare and pass data to plotting.py
         pass
         
 class TreatmentProgram(Program):
@@ -113,42 +113,39 @@ class CostCovOut:
     
 class CostCoverageCurve:
     
-    import math
     """
     
     Curves currently supported: 
     1) exponentially saturating, from (0,0)
     2) exponentially saturating with offset, i.e. curve only defined for >= (offset, 0); 0, otherwise
-    3) sigmoidal
-    4) fixed cost
+    3) sigmoidal (TBC)
+    4) fixed cost (TBC)
+    5) step curve (TBC)
     
     """
     
-    def __init__(self,curve_shape="exponential",params={'exponent':1.,'saturation':1e6}):
+    def __init__(self,curve_shape="exponential",params={'exponent':0.01,'saturation':1e6}):
         
         try:
             self.curve_shape = curve_shape
             self.curve_params = params
-            self.curve = getattr(self, '_curve_%s'%curve_shape)(params)
+            self.curve = getattr(self, '_curve_%s'%curve_shape)(**params)
+            self.inverse = getattr(self, '_inverse_curve_%s'%curve_shape)(**params)
         except:
             raise NotImplementedError("No curve associated with _curve_%s (programs.py)"%curve_shape)
             
     def getValue(self,budget):
         return self.curve(budget)
             
-    def getInverseValue(self,current_coverage,**params):
-        try:
-            inverse_function = getattr(self, '_inverse_curve_%s'%self.curve_shape)(params)
-            return inverse_function(current_coverage)
-        except:
-            raise NotImplementedError("No curve associated with _curve_%s (programs.py)"%curve_shape)
+    def getInverseValue(self,current_coverage):
+        return self.inverse(current_coverage)
        
     """ Internal representations of curves """
-    def _curve_exponential( exponent, saturation):
-        return saturation*(1-math.exp(-exponent))
+    def _curve_exponential(self, exponent, saturation, **params):
+        return lambda x: saturation*(1-math.exp(-exponent*x))
     
-    def _inverse_curve_exponential(self,exponent,saturation):
-        pass
+    def _inverse_curve_exponential(self,exponent,saturation,**params):
+        return lambda x: (-1./exponent)*math.log(1-x/saturation)
     
     def _curve_exponential_offset(self, exponent, saturation, offset):
         pass
@@ -168,5 +165,5 @@ class CostCoverageCurve:
     def _inverse_curve_fixed(self,fixed):
         pass
     
- 
+
     
