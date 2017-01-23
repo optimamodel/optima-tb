@@ -360,7 +360,10 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
     
     for (k,comp) in enumerate(comps):
         top = bottom + comp.popsize
-        ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=0.1) # for some reason, lw=0 leads to no plot if we then use fig.savefig()
+        lw = 0
+        if save_fig:
+            lw = 0.1
+        ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=lw) # for some reason, lw=0 leads to no plot if we then use fig.savefig()
         reg, = ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
         bottom = dcp(top)
         
