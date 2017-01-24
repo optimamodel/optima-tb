@@ -4,7 +4,7 @@ Created on Thu Jan 12 11:32:07 2017
 
 @author: Azfar, sjjarvis
 """
-import math
+import numpy as np
 from uuid import uuid4 as uuid
 from optima_tb.utils import odict
 
@@ -142,10 +142,10 @@ class CostCoverageCurve:
        
     """ Internal representations of curves """
     def _curve_exponential(self, exponent, saturation, **params):
-        return lambda x: saturation*(1-math.exp(-exponent*x))
+        return lambda x: saturation*(1-np.exp(-exponent*x))
     
     def _inverse_curve_exponential(self,exponent,saturation,**params):
-        return lambda x: (-1./exponent)*math.log(1-x/saturation)
+        return lambda x: (-1./exponent)*np.log(1-x/saturation)
     
     def _curve_exponential_offset(self, exponent, saturation, offset):
         pass
