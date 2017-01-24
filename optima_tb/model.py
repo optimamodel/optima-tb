@@ -45,7 +45,8 @@ class Variable(object):
     '''
     def __init__(self, label = 'default', val = 0.0):
         self.label = label
-        self.vals = np.array([float(val)])   # An abstract array of values.
+        self.vals = np.array([float(val)])  # An abstract array of values.
+        self.vals_old = None                # An optional array that stores old values in the case of overwriting.
         if val > 1:
             self.val_format = 'number'
         else:
@@ -227,6 +228,8 @@ class Model(object):
         self.pops = list()              # List of population groups that this model subdivides into.
         self.pop_ids = dict()           # Maps label of a population to its position index within populations list.
         
+        self.contacts = dict()         # Maps interactions 'from' (i.e. a->b for [a][b]) and 'into' (i.e. a<-b for [a][b]) ModelPopulations, marking them with a weight.
+        
         self.sim_settings = odict()
         
         self.t_index = 0                # Keeps track of array index for current timepoint data within all compartments.
@@ -249,6 +252,8 @@ class Model(object):
             self.pops.append(ModelPopulation(settings = settings, label = pop_label, index = k))
             self.pops[-1].preAllocate(self.sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
             self.pop_ids[pop_label] = k
+            
+        self.contacts = dcp(parset.contacts)    # Simple propagation of interaction details from parset to model.
                     
         # Propagating initial characteristic parset values into ModelPops.
         # NOTE: Extremely involved process, so might be worth extracting the next few paragraphs as a separate method.
@@ -607,6 +612,7 @@ class Model(object):
         Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
         These dependencies must be calculated in the same order as defined in settings, characteristics before parameters, otherwise references may break.
         Also, parameters in the dependency list do not need to be calculated unless explicitly depending on another parameter.
+        Parameters that have special rules are usually dependent on other population values, so are included here.
         '''
         
         ti = self.t_index
@@ -645,8 +651,10 @@ class Model(object):
                         
                         dep.vals[ti] /= val
             
-            # Parameters that are functions of dependencies next...
-            for par_label in settings.par_funcs.keys():
+        # Parameters that are functions of dependencies next...
+        # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
+        for par_label in settings.par_funcs.keys():
+            for pop in self.pops:
                 pars = []
                 if par_label in settings.par_deps:
                     pars.append(pop.getDep(par_label))
@@ -664,6 +672,27 @@ class Model(object):
                 new_val = settings.parser.evaluateStack(stack = f_stack, deps = deps)
                 for par in pars:
                     par.vals[ti] = new_val
+                    
+                    # Backup the values of parameters with special rules pre-adjustment.
+                    if 'rules' in settings.linkpar_specs[par_label].keys():
+                        if par.vals_old is None: par.vals_old = dcp(par.vals)
+                        par.vals_old[ti] = new_val
+            
+            # Handle parameters tagged with special rules.            
+            if 'rules' in settings.linkpar_specs[par_label].keys():
+                rule = settings.linkpar_specs[par_label]['rules']
+                for pop in self.pops:
+                    pars = []
+                    if par_label in settings.par_deps:
+                        pars.append(pop.getDep(par_label))
+                    else:
+                        pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
+                    for par in pars:
+                        print 'heyyy'
+                        print par.vals_old
+#                        par.vals[ti] = new_val
+#                if rule == 'avg_contacts_in':
+#                    print 'heyyy'
                 
 
     

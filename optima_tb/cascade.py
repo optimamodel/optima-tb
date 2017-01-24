@@ -452,6 +452,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 val = str(ws_pars.cell_value(row_id, cid_rules))
                 if val not in ['']:
                     settings.linkpar_specs[label]['rules'] = val
+                    settings.par_funcs[label] = True    # Mark parameter as a custom function just in case the rule refers to calculations involving other populations.
                     
         # Make sure empty space rows do not get counted when deciding if there are parameters left to populate a default databook sheet.
         elif row_id > 0:
