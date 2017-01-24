@@ -480,7 +480,7 @@ class Model(object):
                         elif link.val_format == 'number':
                             converted_amt = transition * dt
                             if link.is_transfer:
-                                transfer_rescale = comp_source.popsize[ti] / pop.getDep(settings.charac_std_norm).vals[ti]
+                                transfer_rescale = comp_source.popsize[ti] / pop.getDep(settings.charac_pop_count).vals[ti]
                                 converted_amt *= transfer_rescale
                                 
                         else:
