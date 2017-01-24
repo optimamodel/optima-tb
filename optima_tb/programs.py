@@ -4,7 +4,11 @@ Created on Thu Jan 12 11:32:07 2017
 
 @author: Azfar, sjjarvis
 """
+<<<<<<< HEAD
 import numpy as np
+=======
+import math
+>>>>>>> 9686100106718504481eee4eda89ccb8c4ef4f58
 from uuid import uuid4 as uuid
 from optima_tb.utils import odict
 
@@ -146,6 +150,7 @@ class CostCoverageCurve:
     
     def _inverse_curve_exponential(self,exponent,saturation,**params):
         return lambda x: (-1./exponent)*np.log(1-x/saturation)
+
     
     def _curve_exponential_offset(self, exponent, saturation, offset):
         pass
