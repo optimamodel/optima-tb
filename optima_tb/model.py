@@ -393,7 +393,9 @@ class Model(object):
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
         
         # Make sure initially-filled junctions are processed and initial dependencies are calculated.
-        self.updateDependencies(settings = settings)    # Done first just in case junctions are dependent on characteristics.
+        self.updateDependencies(settings = settings, do_special = False)    # Done first just in case junctions are dependent on characteristics.
+                                                                            # No special rules are applied at this stage, otherwise calculations would be iterated twice before the first step forward.
+                                                                            # NOTE: If junction outflows were to be tagged by special rules, initial calculations may be off. Return to this later and consider logic rigorously.
         self.processJunctions(settings = settings)
         self.updateDependencies(settings = settings)
 
@@ -607,7 +609,7 @@ class Model(object):
 
 
 
-    def updateDependencies(self, settings):
+    def updateDependencies(self, settings, do_special = True):
         '''
         Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
         These dependencies must be calculated in the same order as defined in settings, characteristics before parameters, otherwise references may break.
@@ -685,9 +687,8 @@ class Model(object):
                         par.vals_old[ti] = new_val
             
             # Handle parameters tagged with special rules. Overwrite vals if necessary.            
-            if 'rules' in settings.linkpar_specs[par_label].keys():
+            if do_special and 'rules' in settings.linkpar_specs[par_label].keys():
                 rule = settings.linkpar_specs[par_label]['rules']
-                print par_label
                 for pop in self.pops:
                     if rule == 'avg_contacts_in':
                         from_list = self.contacts['into'][pop.label].keys()
@@ -715,17 +716,19 @@ class Model(object):
                                 wpc_sum = sum(wpc)                              # Normalisation factor for weighted population counts.
                                 new_val = np.dot(old_vals, wpc/wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
                             
-                            print
-                            print('Weighted population-contact averaging will affect "%s" for "%s".' % (par_label, pop.label))
-                            print('Populations initiating contact with "%s"...' % pop.label)
-                            print from_list
-                            print('These populations have "%s" values of...' % par_label)
-                            print old_vals
-                            print('Their pop counts are...')
-                            print pop_counts
-                            print('These are further weighted by...')
-                            print weights
-                            print('Weighted population-contact average is: %f' % new_val)
+                            if ti == 0:
+                                print
+                                print('Timestep: %s' % ti)
+                                print('Weighted population-contact averaging will affect "%s" for "%s".' % (par_label, pop.label))
+                                print('Populations initiating contact with "%s"...' % pop.label)
+                                print from_list
+                                print('These populations have "%s" values of...' % par_label)
+                                print old_vals
+                                print('Their pop counts are...')
+                                print pop_counts
+                                print('These are further weighted by...')
+                                print weights
+                                print('The new weighted population-contact average value of "%s" for "%s" is: %f' % (par_label, pop.label, new_val))
                         
                             # Need to update all untagged/tagged links with the new value, hence the list of links.
                             pars = []
