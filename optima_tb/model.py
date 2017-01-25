@@ -661,38 +661,80 @@ class Model(object):
                 else:
                     pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
                 specs = settings.linkpar_specs[par_label]
-                f_stack = dcp(specs['f_stack'])
-                deps = dcp(specs['deps'])
-                for dep_label in deps.keys():
-                    if dep_label in settings.par_deps.keys() or dep_label in settings.charac_deps.keys():
-                        val = pop.getDep(dep_label).vals[ti]
-                    else:
-                        val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti]    # As links are duplicated for the same tag, can pull values from the zeroth one.
-                    deps[dep_label] = val
-                new_val = settings.parser.evaluateStack(stack = f_stack, deps = deps)
+                
+                # Calculate the value of a parameter from its function if it exists, otherwise maintain the current value.
+                if 'f_stack' in specs.keys():
+                    f_stack = dcp(specs['f_stack'])
+                    deps = dcp(specs['deps'])
+                    for dep_label in deps.keys():
+                        if dep_label in settings.par_deps.keys() or dep_label in settings.charac_deps.keys():
+                            val = pop.getDep(dep_label).vals[ti]
+                        else:
+                            val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti]    # As links are duplicated for the same tag, can pull values from the zeroth one.
+                        deps[dep_label] = val
+                    new_val = settings.parser.evaluateStack(stack = f_stack, deps = deps)
+                else:
+                    new_val = pars[0].vals[ti]      # As links are duplicated for the same tag, can pull values from the zeroth one.
+                
                 for par in pars:
                     par.vals[ti] = new_val
                     
-                    # Backup the values of parameters with special rules pre-adjustment.
+                    # Backup the values of parameters that are tagged with special rules.
                     if 'rules' in settings.linkpar_specs[par_label].keys():
                         if par.vals_old is None: par.vals_old = dcp(par.vals)
                         par.vals_old[ti] = new_val
             
-            # Handle parameters tagged with special rules.            
+            # Handle parameters tagged with special rules. Overwrite vals if necessary.            
             if 'rules' in settings.linkpar_specs[par_label].keys():
                 rule = settings.linkpar_specs[par_label]['rules']
+                print par_label
                 for pop in self.pops:
-                    pars = []
-                    if par_label in settings.par_deps:
-                        pars.append(pop.getDep(par_label))
-                    else:
-                        pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
-                    for par in pars:
-                        print 'heyyy'
-                        print par.vals_old
-#                        par.vals[ti] = new_val
-#                if rule == 'avg_contacts_in':
-#                    print 'heyyy'
+                    if rule == 'avg_contacts_in':
+                        from_list = self.contacts['into'][pop.label].keys()
+                        
+                        # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
+                        if not ((len(from_list) == 1 and from_list[0] == pop.label)):
+                            old_vals = np.ones(len(from_list))*np.nan
+                            weights = np.ones(len(from_list))*np.nan
+                            pop_counts = np.ones(len(from_list))*np.nan
+                            if len(from_list) == 0:
+                                new_val = 0.0
+                            else:
+                                k = 0
+                                for from_pop in from_list:
+                                    # All transition links with the same par_label are identically valued. For calculations, only one is needed for reference.
+                                    if par_label in settings.par_deps:
+                                        par = self.getPop(from_pop).getDep(par_label)
+                                    else:
+                                        par = self.getPop(from_pop).getLinks(settings.linkpar_specs[par_label]['tag'])[0]
+                                    old_vals[k] = par.vals_old[ti]
+                                    weights[k] = self.contacts['into'][pop.label][from_pop]
+                                    pop_counts[k] = self.getPop(from_pop).getDep(settings.charac_pop_count).vals[ti]
+                                    k += 1
+                                wpc = np.multiply(weights, pop_counts)          # Population counts weighted by contact rate.
+                                wpc_sum = sum(wpc)                              # Normalisation factor for weighted population counts.
+                                new_val = np.dot(old_vals, wpc/wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
+                            
+                            print
+                            print('Weighted population-contact averaging will affect "%s" for "%s".' % (par_label, pop.label))
+                            print('Populations initiating contact with "%s"...' % pop.label)
+                            print from_list
+                            print('These populations have "%s" values of...' % par_label)
+                            print old_vals
+                            print('Their pop counts are...')
+                            print pop_counts
+                            print('These are further weighted by...')
+                            print weights
+                            print('Weighted population-contact average is: %f' % new_val)
+                        
+                            # Need to update all untagged/tagged links with the new value, hence the list of links.
+                            pars = []
+                            if par_label in settings.par_deps:
+                                pars.append(pop.getDep(par_label))
+                            else:
+                                pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
+                            for par in pars:
+                                par.vals[ti] = new_val
                 
 
     

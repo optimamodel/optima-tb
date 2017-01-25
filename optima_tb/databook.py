@@ -364,19 +364,21 @@ def loadSpreadsheetFunc(settings, databook_path):
     for pop in data['pops']['label_names'].keys():
         data['contacts']['into'][pop] = dict()
         data['contacts']['from'][pop] = dict()
-        data['contacts']['into'][pop][pop] = 1.0
-        data['contacts']['from'][pop][pop] = 1.0
     if ws_contact_exists:
         for row_id in xrange(ws_contact.nrows):
             for col_id in xrange(ws_contact.ncols):
                 if row_id > 0 and col_id > 0:
-                    source = ws_contact.cell_value(row_id, 0)
-                    target = ws_contact.cell_value(0, col_id)
+                    source = str(ws_contact.cell_value(row_id, 0))
+                    target = str(ws_contact.cell_value(0, col_id))
                     val = ws_contact.cell_value(row_id, col_id)
                     if val != '' and float(val) != 0:
                         data['contacts']['into'][target][source] = float(val)
                         data['contacts']['from'][source][target] = float(val)
     else:
+        # Self-connections are the default if there is no contact worksheet. These can be turned off in an actual contacts sheet.
+        for pop in data['pops']['label_names'].keys():
+            data['contacts']['into'][pop][pop] = 1.0 
+            data['contacts']['from'][pop][pop] = 1.0
         logging.warning('No "%s" sheet means population groups only interact with themselves by default.' % settings.databook['sheet_names']['contact'])
                     
     
