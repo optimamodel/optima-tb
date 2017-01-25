@@ -14,27 +14,23 @@ class Scenario(object):
         self.uid  = uuid()
         self.run_scenario = run_scenario
         self.overwrite = overwrite
-        self.scenario= None # Placeholder for scenario values
+        self.scenario_parset= None # Placeholder for scenario values
     
     
-    def makeScenario(self):
+    def makeScenarioParset(self):
         raise NotImplementedError
     
-    def runScenario(self, project):
-        """
-        
-        """
-        pass
-    
+    def getScenarioParset(self):
+        raise NotImplementedError
     
 class ParameterScenario(Scenario):
     
-    def __init__(self,name,run_scenario=False,overwrite=True,scenario_values=None,pop_labels=None):
+    def __init__(self,name,run_scenario=False,overwrite=True,scenario_values=None,pop_labels=None,**kwargs):
         super(ParameterScenario,self).__init__(name,run_scenario,overwrite)
-        self.makeScenario(scenario_values,pop_labels=pop_labels)
+        self.makeScenarioParset(scenario_values,pop_labels=pop_labels)
         
         
-    def makeScenario(self,scenario_values,pop_labels):
+    def makeScenarioParset(self,scenario_values,pop_labels):
         """
         
         
@@ -74,7 +70,19 @@ class ParameterScenario(Scenario):
         
         ps = ParameterSet(self.name)
         ps.makePars(data)
-        self.scenario = ps
+        self.scenario_parset = ps
+    
+    def getScenarioParset(self, parset):
+        """
+        
+        """
+        if self.overwrite: # update values in parset with those in scenario_parset
+            return parset << self.scenario_parset
+        else: # add the two together
+            return parset + self.scenario_parset
+    
+    
+    
     
     
 class BudgetScenario(Scenario):
@@ -83,7 +91,7 @@ class BudgetScenario(Scenario):
         super(BudgetScenario,self).__init__()
         
         
-    def makeScenario(self):
+    def makeScenarioParset(self):
         """
         
         @TODO: implement make scenario for BudgetScenario
@@ -96,7 +104,7 @@ class CoverageScenario(Scenario):
         super(CoverageScenario,self).__init__()
         
         
-    def makeScenario(self):
+    def makeScenarioParset(self):
         """
         
         @TODO: implement make scenario for CoverageScenario

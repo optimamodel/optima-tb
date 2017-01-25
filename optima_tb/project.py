@@ -13,6 +13,7 @@ from optima_tb.parameters import ParameterSet, export_paramset, load_paramset
 from optima_tb.plotting import plotProjectResults
 from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
+from optima_tb.scenarios import ParameterScenario, BudgetScenario, CoverageScenario
 
 from uuid import uuid4 as uuid
 from numpy import max
@@ -35,6 +36,7 @@ class Project(object):
         self.parsets = odict()
         self.results = odict()
         
+        self.scenarios = odict()
         
         logger.info("Created project: %s"%self.name)
         
@@ -185,4 +187,56 @@ class Project(object):
         logger.info("Created new parameter set '%s' using autofit"%new_parset_name)
         self.parsets[new_parset_name] = new_parset
         
-         
+    def createScenarios(self,scenario_dict):
+        """
+        
+        Params:
+             scenario_dict =  { name: {
+                                     type : "Parameter",
+                                     run_scenario : True,
+                                     overwrite : True,
+                                     scenario_values = {}} , 
+                                name: {
+                                     type : "Parameter",
+                                     run_scenario : True,
+                                     overwrite : True,
+                                     scenario_values = {}} , 
+                                     
+                                 }
+        
+            
+        
+                 
+        """
+        logger.info("About to create scenarios")
+        
+        
+        # TODO: move this out as it's a quick hack
+        pop_labels = {'Pop1':'Pop1','Pop2':'Pop2'}
+        
+        
+        for (scenario_name,vals) in scenario_dict.iteritems():
+            
+            if vals['type'].lower() == 'parameter':
+                self.scenarios[scenario_name] = ParameterScenario(name=scenario_name,pop_labels=pop_labels,**vals)
+            else:
+                print "Hold on ... "
+        
+        logger.info("Successfully created scenarios")
+
+    def runScenarios(self,original_parset_name,scenario_names=[],include_bau=False,plot=False):
+        """
+        
+        include_bau : bool indicating whether to include BAU (business as usual)
+        """
+        ops = self.parsets[original_parset_name]
+        results = {}
+        
+        if include_bau:
+            results['BAU'] = self.runSim(parset_name = original_parset_name,plot=plot)
+        
+        for scen in self.scenarios.keys():
+            if self.scenarios[scen].run_scenario == True:
+                scen_name = 'scenario_%s'%self.scenarios[scen].name
+                results[scen_name] = self.runSim(parset_name = scen_name, parameterset = self.scenarios[scen].getScenarioParset(ops),plot=plot)
+        
