@@ -32,31 +32,33 @@ class ParameterScenario(Scenario):
         
     def makeScenarioParset(self,scenario_values,pop_labels):
         """
-        
+        Given some data that describes a parameter scenario, creates the corresponding parameterSet 
+        which can then be combined with a ParameterSet when running a model.
         
         Params:
             scenario_values:     list of values, organized such to reflect the structure of a linkpars structure in data
                                  data['linkpars'] = {parameter_label : {pop_label : odict o }  where
                                      o = odict with keys:
-                                         t
-                                         y
-                                         y_format
-                                         y_factor
+                                         t : np.array or list with year values
+                                         y : np.array or list with corresponding parameter values
+                                         y_format : string, describing format of y value. Possible values = 'number', 'fraction' or 'proportion'
+                                         y_factor : float, preferably chosen as settings.DO_NOT_SCALE or settings.DEFAULT_YFACTOR
+                                         
+                                         
+        Example:
+            from optima_tb.settings import DO_NOT_SCALE
+            scvalues = odict()
+            param = 'birth_transit'
+            scvalues[param] = odict()
+            scvalues[param]['Pop1'] = odict()
+            scvalues[param]['Pop1']['y'] = [3e6, 1e4, 1e4, 2e6]
+            scvalues[param]['Pop1']['t'] = [2003.,2004.,2014.,2015.]
+            scvalues[param]['Pop1']['y_format'] = 'number'
+            scvalues[param]['Pop1']['y_factor'] = DO_NOT_SCALE
+            pops = {'Pop1':'Pop1','Pop2':'Pop2'}
                                      
-            
-            
-            
-            
-            
-            parameter set:
-                                 [ p ] where
-                                     p = Parameter with the fields
-                                         .label
-                                         .y
-                                         .t
-                                         .y_format    
-                                         .y_factor    Assumed to be settings.DO_NOT_SCALE
-                                
+            pscenario = ParameterScenario(name="examplePS",scenario_values=scvalues,pop_labels=pops)
+    
         """
         data = odict()
         if scenario_values is None:
@@ -74,7 +76,11 @@ class ParameterScenario(Scenario):
     
     def getScenarioParset(self, parset):
         """
+        Get the corresponding parameterSet for this scenario, given an input parameterSet for the default baseline 
+        activity. 
         
+        The output depends on whether to overwrite (replace) or add values that appear in both the 
+        parameterScenario's parameterSet to the baseline parameterSet. 
         """
         if self.overwrite: # update values in parset with those in scenario_parset
             return parset << self.scenario_parset
@@ -87,26 +93,34 @@ class ParameterScenario(Scenario):
     
 class BudgetScenario(Scenario):
     
-    def __init__(self):
-        super(BudgetScenario,self).__init__()
+    def __init__(self,name,run_scenario=False,overwrite=True,scenario_values=None,pop_labels=None,**kwargs):
+        super(BudgetScenario,self).__init__(name,run_scenario,overwrite)
+        self.makeScenarioParset(scenario_values,pop_labels=pop_labels)
         
         
-    def makeScenarioParset(self):
+    def makeScenarioParset(self, parset):
         """
-        
-        @TODO: implement make scenario for BudgetScenario
+        Budget Scenarios do not make any changes to the ParameterScenario to be used
         """
-        pass
-    
+        return parset
+
+
+
 class CoverageScenario(Scenario):
     
     def __init__(self):
         super(CoverageScenario,self).__init__()
         
         
-    def makeScenarioParset(self):
+    def makeScenarioParset(self, parset):
         """
         
-        @TODO: implement make scenario for CoverageScenario
+        Coverage Scenarios do not make any changes to the ParameterScenario to be used
         """
-        pass
+        return parset
+    
+    
+    
+    
+    
+    

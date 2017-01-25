@@ -189,54 +189,111 @@ class Project(object):
         
     def createScenarios(self,scenario_dict):
         """
+        Creates the scenarios to be run, and adds them to this project's store
+        of available scenarios to run. Each scenario is described as a (key, value)
+        pair in scenario_dict, with key = scenario name. 
+        
+        Each dictionary value describing a Scenario contains required fields in 
+        addition to optional fields.
+            Required fields: 
+                "type"             "Parameter", "Budget" or "Coverage"
+                "scenario_values"   odict of values for scenario, used in initialising the corresponding Scenario object
+            Optional fields:
+                "run_scenario"     bool : indicating whether this scenario should be run. Default value if unspecified: False
+                "overwrite"        bool indicating whether this scenario's values should replace (overwrite = True) or
+                                    be added to (overwrite = False) the 'business-as-usual' simulation.
         
         Params:
-             scenario_dict =  { name: {
-                                     type : "Parameter",
-                                     run_scenario : True,
-                                     overwrite : True,
-                                     scenario_values = {}} , 
+            scenario_dict =  { name: {
+                                     "type" : "Parameter",
+                                     "run_scenario" : False,
+                                     "overwrite" : True,
+                                     "scenario_values" : {...}} , 
                                 name: {
-                                     type : "Parameter",
-                                     run_scenario : True,
-                                     overwrite : True,
-                                     scenario_values = {}} , 
+                                     "type" : "Budget",
+                                     "run_scenario" : True,
+                                     "overwrite" : False,
+                                     "scenario_values" : {...}} , 
                                      
                                  }
         
+        Returns:
+            none
             
+        
+        Example: 
+            scvalues = odict()
+            param = 'birth_transit'
+            scvalues[param] = odict()
+            scvalues[param]['Pop1'] = odict()
+            scvalues[param]['Pop1']['y'] = [3e6, 1e4, 1e4, 2e6]
+            scvalues[param]['Pop1']['t'] = [2003.,2004.,2014.,2015.]
+            scvalues[param]['Pop1']['y_format'] = 'number'
+            scvalues[param]['Pop1']['y_factor'] = DO_NOT_SCALE
+            scen_values = { 'test_scenario': {'type': 'Parameter',
+                                  'run_scenario' : True,
+                                  'scenario_values': scvalues}
+               }
+            proj= Project(name = 'sampleProject', cascade_path = 'data/cascade-simple.xlsx')
+            proj.createScenarios(scen_values)
+
         
                  
         """
         logger.info("About to create scenarios")
         
-        
-        # TODO: move this out as it's a quick hack
-        pop_labels = {'Pop1':'Pop1','Pop2':'Pop2'}
-        
+        pop_labels = self.data['pops']['label_names']
         
         for (scenario_name,vals) in scenario_dict.iteritems():
+            
+            if scenario_name in self.scenarios.keys():
+                logger.warn("Attempting to add scenario '%s' to project %s, that already contains scenario of the same name. Will ignore."%(scenario_name,self.name))
+                # TODO decide what to do if scenario with same name already exists. Update or ignore? SJ: prefer to ignore.
             
             if vals['type'].lower() == 'parameter':
                 self.scenarios[scenario_name] = ParameterScenario(name=scenario_name,pop_labels=pop_labels,**vals)
             else:
-                print "Hold on ... "
+                raise NotImplementedError("ERROR: no corresponding Scenario type for scenario=%s"%scenario_name)
         
         logger.info("Successfully created scenarios")
-
-    def runScenarios(self,original_parset_name,scenario_names=[],include_bau=False,plot=False):
-        """
         
-        include_bau : bool indicating whether to include BAU (business as usual)
+        
+
+    def runScenarios(self,original_parset_name,include_bau=False,plot=False):
+        """
+        Runs scenarios that are contained in this project's collection of scenarios (i.e. self.scenarios). 
+        For each scenario run, using original_parset_name, the results generated are saved and 
+        returns as a dictionary of results. 
+        
+        Optional flag include_bau indicates whether to additionally run a "business-as-usual" scenario
+        i.e. no external changes. 
+        
+        
+        # TODO implement ability to specify list of scenario names that will run if valid and regardless of scenario.run_scenario
+        
+        
+        Params:
+            original_parset_name    name of parameterSet to be used
+            include_bau             bool indicating whether to include BAU (business as usual)
+            plot                    bool flag indicating whether to plot results as we go
+            
+        Returns:
+            results    dictionary of results obtained for each scenario, with key = scenario_name
         """
         ops = self.parsets[original_parset_name]
-        results = {}
+        results = odict()
         
         if include_bau:
             results['BAU'] = self.runSim(parset_name = original_parset_name,plot=plot)
         
         for scen in self.scenarios.keys():
-            if self.scenarios[scen].run_scenario == True:
+            if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
                 results[scen_name] = self.runSim(parset_name = scen_name, parameterset = self.scenarios[scen].getScenarioParset(ops),plot=plot)
         
+        return results
+    
+    
+    
+    
+    
