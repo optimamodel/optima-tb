@@ -716,19 +716,19 @@ class Model(object):
                                 wpc_sum = sum(wpc)                              # Normalisation factor for weighted population counts.
                                 new_val = np.dot(old_vals, wpc/wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
                             
-                            if ti == 0:
-                                print
-                                print('Timestep: %s' % ti)
-                                print('Weighted population-contact averaging will affect "%s" for "%s".' % (par_label, pop.label))
-                                print('Populations initiating contact with "%s"...' % pop.label)
-                                print from_list
-                                print('These populations have "%s" values of...' % par_label)
-                                print old_vals
-                                print('Their pop counts are...')
-                                print pop_counts
-                                print('These are further weighted by...')
-                                print weights
-                                print('The new weighted population-contact average value of "%s" for "%s" is: %f' % (par_label, pop.label, new_val))
+#                            if ti == 0:
+#                                print
+#                                print('Timestep: %s' % ti)
+#                                print('Weighted population-contact averaging will affect "%s" for "%s".' % (par_label, pop.label))
+#                                print('Populations initiating contact with "%s"...' % pop.label)
+#                                print from_list
+#                                print('These populations have "%s" values of...' % par_label)
+#                                print old_vals
+#                                print('Their pop counts are...')
+#                                print pop_counts
+#                                print('These are further weighted by...')
+#                                print weights
+#                                print('The new weighted population-contact average value of "%s" for "%s" is: %f' % (par_label, pop.label, new_val))
                         
                             # Need to update all untagged/tagged links with the new value, hence the list of links.
                             pars = []
