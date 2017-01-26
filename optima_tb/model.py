@@ -1,7 +1,7 @@
 #%% Imports
 
 from optima_tb.utils import flattenDict, odict, OptimaException
-from optima_tb.validation import checkNegativePopulation
+from optima_tb.validation import checkNegativePopulation, checkTransitionFraction
 import optima_tb.settings as project_settings
 from optima_tb.results import ResultSet
 
@@ -475,9 +475,9 @@ class Model(object):
                     
                         
                         if link.val_format == 'fraction': 
-                            
-                            if transition > 1. and settings.validation['transition_fraction'] > project_settings.VALIDATION_IGNORE:
-                                transition = 1.
+                            # check if there are any violations, and if so, deal with them 
+                            if transition > 1.:
+                                transition = checkTransitionFraction(transition, settings.validation)
                             
                             converted_frac = 1 - (1 - transition) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
                             converted_amt = comp_source.popsize[ti] * converted_frac
@@ -546,8 +546,7 @@ class Model(object):
                 break
             dpopsize,dpop_out,reset_ids = checkNegativePopulation(self,settings,dpopsize,dpop_out,ti,validation)
         """
-        validation = settings.validation['negative_population']
-        dpopsize,dpop_out,reset_ids = checkNegativePopulation(self,settings,dpopsize,dpop_out,ti,dt,validation)
+        dpopsize,dpop_out,reset_ids = checkNegativePopulation(self,settings,dpopsize,dpop_out,ti,dt,settings.validation)
 
         # Second loop through all pops and comps to apply value changes at next timestep index.
         for pid in xrange(num_pops):

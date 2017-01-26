@@ -238,7 +238,29 @@ class Settings(object):
                                          'col_index_start':1} # 
 
 class ValidationSettings():
+    """
+    For each of the validation checks returned in getValidationTypes(),
+    there is a validation setting of either
+        IGNORE : do nothing
+        AVERT  : try to modify values based on a reasonable assumption
+        WARN   : continue performing the action, but notify occurrence of incorrect usage via a warn statement
+        ERROR  : stop the action
+        
+    The exact process will vary on where and what the validation check is acting on, and should be noted
+    in the method's usage. 
     
+    Note that all validation checks are set to a level (default="warn"), but 
+    that it is possible to set specific levels for different validation checks.
+    
+    Examples:
+    
+        from optima_tb.settings import ValidationSettings, VALIDATION_AVERT
+        validation_settings = ValidationSettings(level="warn")
+        print validation_settings.getValidationTypes()
+        > ['negative_population', 'transition_fraction']
+        validation_settings['transition_fraction'] = VALIDATION_AVERT
+        
+    """
     
     
     def __init__(self,level='warn'):
@@ -260,7 +282,7 @@ class ValidationSettings():
     def defaultSettings(self):
         
         self.settings = odict()
-        self.errorSettings()
+        self.warnSettings()
      
     def setValidationLevel(self,validation_level):   
         for v in self.getValidationTypes():
