@@ -254,7 +254,8 @@ class ValidationSettings():
         
         
     def getValidationTypes(self):
-        return ['negative_population']        
+        return ['negative_population',
+                'transition_fraction']        
             
     def defaultSettings(self):
         

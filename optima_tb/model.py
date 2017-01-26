@@ -472,9 +472,13 @@ class Model(object):
                         
                         if link.scale_factor is not None and link.scale_factor != project_settings.DO_NOT_SCALE : # scale factor should be available to be used 
                             transition *= link.scale_factor
-                        
+                    
                         
                         if link.val_format == 'fraction': 
+                            
+                            if transition > 1. and settings.validation['transition_fraction'] > project_settings.VALIDATION_IGNORE:
+                                transition = 1.
+                            
                             converted_frac = 1 - (1 - transition) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
                             converted_amt = comp_source.popsize[ti] * converted_frac
                         elif link.val_format == 'number':
