@@ -63,9 +63,10 @@ def checkNegativePopulation(model,msettings,dpopsizes,dpop_out,ti,dt,validationS
     num_pops = len(pops)
     num_comps = len(pops[0].comps) 
     
+    validation_level = validationSetting['negative_population']
     #logging.info("(t=%g) Checking validation of negative populations "%ti)
     
-    if validationSetting == settings.VALIDATION_ERROR or validationSetting == settings.VALIDATION_WARN:
+    if validation_level == settings.VALIDATION_ERROR or validation_level == settings.VALIDATION_WARN:
         # go through each compartment and check that the value of the corresponding dpop is less than the current compartment's value
         for pid in xrange(num_pops):
             for cid in xrange(num_comps):
@@ -81,13 +82,13 @@ def checkNegativePopulation(model,msettings,dpopsizes,dpop_out,ti,dt,validationS
                     
                     warning = "Negative value encountered for: population=%g, cid=%g, t=%g : value = %g, dpop = %g"%(pid,cid,ti,pops[pid].comps[cid].popsize[ti+1],dpopsizes[did])
                     
-                    if validationSetting == settings.VALIDATION_ERROR:
+                    if validation_level == settings.VALIDATION_ERROR:
                         raise OptimaException("ERROR: "+warning)
                     else:
                         logging.warn(warning)
                     
     
-    elif validationSetting == settings.VALIDATION_AVERT:
+    elif validation_level == settings.VALIDATION_AVERT:
         
         
         empty_compartment = []
@@ -147,17 +148,33 @@ def checkNegativePopulation(model,msettings,dpopsizes,dpop_out,ti,dt,validationS
             
         return dp, dp_out, reset_compartment
         
-    elif validationSetting == settings.VALIDATION_IGNORE:
+    elif validation_level == settings.VALIDATION_IGNORE:
         # do nothing
         pass
     
     else:
-        logging.warn("Unknown validation setting for validation.checkNegativePopulation: %g\nIgnoring validation check"%validationSetting)
+        logging.warn("Unknown validation setting for validation.checkNegativePopulation: %g\nIgnoring validation check"%validation_level)
 
     return dpopsizes, [], []
 
-
-
+def checkTransitionFraction(transition,validationSetting):
+    """
+    
+    Params:
+        transition            float
+        validationSetting     optima_tb.settings.ValidationSettings object
+    
+    """
+    validation_level = validationSettings['transition_fraction']
+    if transition > 1.: 
+        warning = "Transition value observed larger than 1.: %g"%transition
+        if validation_level == settings.VALIDATION_ERROR:
+            raise OptimaException(warning)
+        elif validation_level == settings.VALIDATION_WARN:
+            logger.warn(warning)
+        elif validation_level == settings.VALIDATION_AVERT: 
+            return 1. 
+    return transition
 
 
 def checkSummedOutflowRate():
