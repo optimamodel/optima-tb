@@ -1,5 +1,6 @@
 #%% Imports
 
+
 from optima_tb.utils import odict, OptimaException, flattenDict
 
 import logging
@@ -26,7 +27,12 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     It can - and should - be improved.
     Also, do not call this function directly as the cascade reset is not part of this function. Unexpected behaviour is guaranteed.
     '''    
+    
+    from optima_tb.settings import DO_NOT_SCALE, DEFAULT_YFACTOR
+    import os
+    
     cascade_path = os.path.abspath(cascade_path)
+
     try: workbook = xlrd.open_workbook(cascade_path)
     except: raise OptimaException('ERROR: Cannot find cascade workbook from which to load model structure.')
     ws_nodes =      workbook.sheet_by_name('Compartments')
@@ -314,12 +320,12 @@ def loadCascadeSettingsFunc(cascade_path, settings):
             if not cid_yfactor is None:
                 val = str(ws_characs.cell_value(row_id, cid_yfactor))
                 if val.lower() == 'n' or val == '-1':
-                    settings.charac_specs[charac_label]['y_factor'] = project_settings.DO_NOT_SCALE
+                    settings.charac_specs[charac_label]['y_factor'] = DO_NOT_SCALE
                 elif val not in ['']:
                     settings.charac_specs[charac_label]['y_factor'] = float(val)
                 else:
-                    settings.charac_specs[charac_label]['y_factor'] = project_settings.DEFAULT_YFACTOR
-        
+                    settings.charac_specs[charac_label]['y_factor'] = DEFAULT_YFACTOR
+
         # Make sure empty space rows do not get counted when deciding if there are characteristics left to populate a default databook sheet.
         elif row_id > 0:
             standard_sheet_count -= 1
@@ -331,7 +337,6 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         settings.charac_specs[settings.charac_std_norm]['name'] = settings.charac_std_norm_name
         settings.charac_specs[settings.charac_std_norm]['includes'] = std_norm_nodes
         settings.charac_specs[settings.charac_std_norm]['databook_order'] = -1      # This special 'standard' characteristic is not initialisable or used for calibration unless user-defined.
-                    
 
     
     
@@ -437,11 +442,11 @@ def loadCascadeSettingsFunc(cascade_path, settings):
             if not cid_yfactor is None:
                 val = str(ws_pars.cell_value(row_id, cid_yfactor))
                 if val.lower() == 'n' or val == '-1':
-                    settings.linkpar_specs[label]['y_factor'] = project_settings.DO_NOT_SCALE
+                    settings.linkpar_specs[label]['y_factor'] = DO_NOT_SCALE
                 elif val not in ['']:
                     settings.linkpar_specs[label]['y_factor'] = float(val)
                 else:
-                    settings.linkpar_specs[label]['y_factor'] = project_settings.DEFAULT_YFACTOR
+                    settings.linkpar_specs[label]['y_factor'] = DEFAULT_YFACTOR
                     
         # Make sure empty space rows do not get counted when deciding if there are parameters left to populate a default databook sheet.
         elif row_id > 0:
@@ -480,6 +485,25 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     else: logging.info('The cascade was validated successfully!')
     
 
+def __addCharacteristic(settings,charac_label,full_name,plot_value=True,plot_percentage=False,denominator=None,databook_order=-1,default_val=0,entry_point=None,includes=None,calibrate=None):
+    """
+    
+    """
+    settings.charac_specs[charac_label] = odict()
+    settings.charac_specs[charac_label]['name'] = full_name
+    settings.charac_specs[charac_label]['databook_order'] = databook_order   
+    settings.charac_specs[charac_label]['plot_value'] = plot_value
+    settings.charac_specs[charac_label]['plot_percentage'] = plot_percentage
+    if entry_point is not None:
+        settings.charac_specs[charac_label]['entry_point'] = entry_point
+    if includes is not None:
+        if type(includes) is not list:
+            includes = [includes]
+        settings.charac_specs[charac_label]['includes'] = includes
+    # @TODO : complete rest of characteristics
+    
+    logger.info("Added new characteristic: %s (%s)"%(charac_label,full_name))
+    
 
 #%% Function to plot a cascade framework loaded into settings
     
