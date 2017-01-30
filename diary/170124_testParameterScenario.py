@@ -100,7 +100,7 @@ def testProject():
                                       'scenario_values': scvalues}
                    }
     proj.createScenarios(scen_values)
-    resultset = proj.runScenarios(parset.name,include_bau=True,plot=True) # only plots the last scenario, as plotting.py closes all the previous fig handles
+    resultset = proj.runScenarios(parset.name,include_bau=True)
     for resultName in resultset.keys():
         proj.plotResults(resultset[resultName],savePlot=True,figName=resultName)
         pylab.show()
