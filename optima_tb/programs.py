@@ -134,6 +134,9 @@ class CostCoverageCurve:
         except:
             raise NotImplementedError("No curve associated with _curve_%s (programs.py)"%curve_shape)
             
+    def __repr__(self):
+        return "CostCoverageCurve: shape=%s with parameters="%self.curve_shape + str(self.curve_params)
+    
     def getValue(self,budget):
         return self.curve(budget)
             
