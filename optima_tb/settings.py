@@ -86,8 +86,8 @@ class Settings(object):
                                                 # Be aware that inclusions/normalisations may refer to characteristics in the same odict.
         self.charac_name_labels = odict()       # Key is a characteristic name. Value is a characteristic label. (A partial reversed charac_specs.)
         
-        self.charac_std_norm = 'auto_pop_count'                 # The label for a characteristic that includes all 'transfer-enabled' compartments. Is overwritten if one is user-defined.
-        self.charac_std_norm_name = 'Standard Compartment Sum'  # The name for this 'transfer-enabled' population-count characteristic.
+        self.charac_pop_count = 'auto_pop_count'                 # The label for a characteristic that includes all 'transfer-enabled' compartments. Is overwritten if one is user-defined.
+        self.charac_pop_count_name = 'Standard Compartment Sum'  # The name for this 'transfer-enabled' population-count characteristic.
         
         self.links = odict()                    # Key is a tag. Value is a list of compartment-label tuple.
         self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.
@@ -102,6 +102,7 @@ class Settings(object):
         self.databook = odict()
         self.databook['sheet_names'] = odict()
         self.databook['sheet_names']['pops'] =      'Population Definitions'
+        self.databook['sheet_names']['contact'] =   'Population Contacts'
         self.databook['sheet_names']['transmat'] =  'Transfer Definitions'
         self.databook['sheet_names']['transval'] =  'Transfer Details'
         self.databook['sheet_names']['charac'] =    'Epidemic Characteristics'
@@ -276,8 +277,10 @@ class ValidationSettings():
         
         
     def getValidationTypes(self):
-        return ['negative_population',
-                'transition_fraction']        
+        return ['negative_population', # runs @ validation/checkNegativePopulation
+                'transition_fraction', # runs @ validation/checkTransitionFraction
+                'databook_validation', # runs @ databook/loadSpreadsheetFunc
+                ]        
             
     def defaultSettings(self):
         
