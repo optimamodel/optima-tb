@@ -255,7 +255,9 @@ class ValidationSettings():
         
         
     def getValidationTypes(self):
-        return ['negative_population']        
+        return ['negative_population', # runs validation/checkNegativePopulation
+                'databook_validation',      # runs databook/dat
+                ]        
             
     def defaultSettings(self):
         
