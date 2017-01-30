@@ -513,7 +513,6 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
             ymin_val = np.min(yval)
             
         if len(y_hat) > 0: # i.e. we've seen observable data
-            print len(t_hat[k]), y_hat[k], labels[k], title
             ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
             if np.min(y_hat[k]) < ymin_val:
                 ymin_val = np.min(y_hat[k])
