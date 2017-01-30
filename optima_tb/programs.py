@@ -4,11 +4,7 @@ Created on Thu Jan 12 11:32:07 2017
 
 @author: Azfar, sjjarvis
 """
-<<<<<<< HEAD
 import numpy as np
-=======
-import math
->>>>>>> 9686100106718504481eee4eda89ccb8c4ef4f58
 from uuid import uuid4 as uuid
 from optima_tb.utils import odict
 
