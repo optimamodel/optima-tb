@@ -1,7 +1,7 @@
 #%% Imports
 
 from optima_tb.utils import flattenDict, odict, OptimaException
-from optima_tb.validation import checkNegativePopulation
+from optima_tb.validation import checkNegativePopulation, checkTransitionFraction
 import optima_tb.settings as project_settings
 from optima_tb.results import ResultSet
 
@@ -45,7 +45,8 @@ class Variable(object):
     '''
     def __init__(self, label = 'default', val = 0.0):
         self.label = label
-        self.vals = np.array([float(val)])   # An abstract array of values.
+        self.vals = np.array([float(val)])  # An abstract array of values.
+        self.vals_old = None                # An optional array that stores old values in the case of overwriting.
         if val > 1:
             self.val_format = 'number'
         else:
@@ -227,6 +228,8 @@ class Model(object):
         self.pops = list()              # List of population groups that this model subdivides into.
         self.pop_ids = dict()           # Maps label of a population to its position index within populations list.
         
+        self.contacts = dict()         # Maps interactions 'from' (i.e. a->b for [a][b]) and 'into' (i.e. a<-b for [a][b]) ModelPopulations, marking them with a weight.
+        
         self.sim_settings = odict()
         
         self.t_index = 0                # Keeps track of array index for current timepoint data within all compartments.
@@ -249,6 +252,8 @@ class Model(object):
             self.pops.append(ModelPopulation(settings = settings, label = pop_label, index = k))
             self.pops[-1].preAllocate(self.sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
             self.pop_ids[pop_label] = k
+            
+        self.contacts = dcp(parset.contacts)    # Simple propagation of interaction details from parset to model.
                     
         # Propagating initial characteristic parset values into ModelPops.
         # NOTE: Extremely involved process, so might be worth extracting the next few paragraphs as a separate method.
@@ -388,7 +393,9 @@ class Model(object):
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
         
         # Make sure initially-filled junctions are processed and initial dependencies are calculated.
-        self.updateDependencies(settings = settings)    # Done first just in case junctions are dependent on characteristics.
+        self.updateDependencies(settings = settings, do_special = False)    # Done first just in case junctions are dependent on characteristics.
+                                                                            # No special rules are applied at this stage, otherwise calculations would be iterated twice before the first step forward.
+                                                                            # NOTE: If junction outflows were to be tagged by special rules, initial calculations may be off. Return to this later and consider logic rigorously.
         self.processJunctions(settings = settings)
         self.updateDependencies(settings = settings)
 
@@ -472,15 +479,19 @@ class Model(object):
                         
                         if link.scale_factor is not None and link.scale_factor != project_settings.DO_NOT_SCALE : # scale factor should be available to be used 
                             transition *= link.scale_factor
-                        
+                    
                         
                         if link.val_format == 'fraction': 
+                            # check if there are any violations, and if so, deal with them 
+                            if transition > 1.:
+                                transition = checkTransitionFraction(transition, settings.validation)
+                            
                             converted_frac = 1 - (1 - transition) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
                             converted_amt = comp_source.popsize[ti] * converted_frac
                         elif link.val_format == 'number':
                             converted_amt = transition * dt
                             if link.is_transfer:
-                                transfer_rescale = comp_source.popsize[ti] / pop.getDep(settings.charac_std_norm).vals[ti]
+                                transfer_rescale = comp_source.popsize[ti] / pop.getDep(settings.charac_pop_count).vals[ti]
                                 converted_amt *= transfer_rescale
                                 
                         else:
@@ -542,8 +553,7 @@ class Model(object):
                 break
             dpopsize,dpop_out,reset_ids = checkNegativePopulation(self,settings,dpopsize,dpop_out,ti,validation)
         """
-        validation = settings.validation['negative_population']
-        dpopsize,dpop_out,reset_ids = checkNegativePopulation(self,settings,dpopsize,dpop_out,ti,dt,validation)
+        dpopsize,dpop_out,reset_ids = checkNegativePopulation(self,settings,dpopsize,dpop_out,ti,dt,settings.validation)
 
         # Second loop through all pops and comps to apply value changes at next timestep index.
         for pid in xrange(num_pops):
@@ -602,11 +612,12 @@ class Model(object):
 
 
 
-    def updateDependencies(self, settings):
+    def updateDependencies(self, settings, do_special = True):
         '''
         Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
         These dependencies must be calculated in the same order as defined in settings, characteristics before parameters, otherwise references may break.
         Also, parameters in the dependency list do not need to be calculated unless explicitly depending on another parameter.
+        Parameters that have special rules are usually dependent on other population values, so are included here.
         '''
         
         ti = self.t_index
@@ -645,25 +656,91 @@ class Model(object):
                         
                         dep.vals[ti] /= val
             
-            # Parameters that are functions of dependencies next...
-            for par_label in settings.par_funcs.keys():
+        # Parameters that are functions of dependencies next...
+        # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
+        for par_label in settings.par_funcs.keys():
+            for pop in self.pops:
                 pars = []
                 if par_label in settings.par_deps:
                     pars.append(pop.getDep(par_label))
                 else:
                     pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
                 specs = settings.linkpar_specs[par_label]
-                f_stack = dcp(specs['f_stack'])
-                deps = dcp(specs['deps'])
-                for dep_label in deps.keys():
-                    if dep_label in settings.par_deps.keys() or dep_label in settings.charac_deps.keys():
-                        val = pop.getDep(dep_label).vals[ti]
-                    else:
-                        val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti]    # As links are duplicated for the same tag, can pull values from the zeroth one.
-                    deps[dep_label] = val
-                new_val = settings.parser.evaluateStack(stack = f_stack, deps = deps)
+                
+                # Calculate the value of a parameter from its function if it exists, otherwise maintain the current value.
+                if 'f_stack' in specs.keys():
+                    f_stack = dcp(specs['f_stack'])
+                    deps = dcp(specs['deps'])
+                    for dep_label in deps.keys():
+                        if dep_label in settings.par_deps.keys() or dep_label in settings.charac_deps.keys():
+                            val = pop.getDep(dep_label).vals[ti]
+                        else:
+                            val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti]    # As links are duplicated for the same tag, can pull values from the zeroth one.
+                        deps[dep_label] = val
+                    new_val = settings.parser.evaluateStack(stack = f_stack, deps = deps)
+                else:
+                    new_val = pars[0].vals[ti]      # As links are duplicated for the same tag, can pull values from the zeroth one.
+                
                 for par in pars:
                     par.vals[ti] = new_val
+                    
+                    # Backup the values of parameters that are tagged with special rules.
+                    if 'rules' in settings.linkpar_specs[par_label].keys():
+                        if par.vals_old is None: par.vals_old = dcp(par.vals)
+                        par.vals_old[ti] = new_val
+            
+            # Handle parameters tagged with special rules. Overwrite vals if necessary.            
+            if do_special and 'rules' in settings.linkpar_specs[par_label].keys():
+                rule = settings.linkpar_specs[par_label]['rules']
+                for pop in self.pops:
+                    if rule == 'avg_contacts_in':
+                        from_list = self.contacts['into'][pop.label].keys()
+                        
+                        # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
+                        if not ((len(from_list) == 1 and from_list[0] == pop.label)):
+                            old_vals = np.ones(len(from_list))*np.nan
+                            weights = np.ones(len(from_list))*np.nan
+                            pop_counts = np.ones(len(from_list))*np.nan
+                            if len(from_list) == 0:
+                                new_val = 0.0
+                            else:
+                                k = 0
+                                for from_pop in from_list:
+                                    # All transition links with the same par_label are identically valued. For calculations, only one is needed for reference.
+                                    if par_label in settings.par_deps:
+                                        par = self.getPop(from_pop).getDep(par_label)
+                                    else:
+                                        par = self.getPop(from_pop).getLinks(settings.linkpar_specs[par_label]['tag'])[0]
+                                    old_vals[k] = par.vals_old[ti]
+                                    weights[k] = self.contacts['into'][pop.label][from_pop]
+                                    pop_counts[k] = self.getPop(from_pop).getDep(settings.charac_pop_count).vals[ti]
+                                    k += 1
+                                wpc = np.multiply(weights, pop_counts)          # Population counts weighted by contact rate.
+                                wpc_sum = sum(wpc)                              # Normalisation factor for weighted population counts.
+                                new_val = np.dot(old_vals, wpc/wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
+                            
+#                            if ti == 0:
+#                                print
+#                                print('Timestep: %s' % ti)
+#                                print('Weighted population-contact averaging will affect "%s" for "%s".' % (par_label, pop.label))
+#                                print('Populations initiating contact with "%s"...' % pop.label)
+#                                print from_list
+#                                print('These populations have "%s" values of...' % par_label)
+#                                print old_vals
+#                                print('Their pop counts are...')
+#                                print pop_counts
+#                                print('These are further weighted by...')
+#                                print weights
+#                                print('The new weighted population-contact average value of "%s" for "%s" is: %f' % (par_label, pop.label, new_val))
+                        
+                            # Need to update all untagged/tagged links with the new value, hence the list of links.
+                            pars = []
+                            if par_label in settings.par_deps:
+                                pars.append(pop.getDep(par_label))
+                            else:
+                                pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
+                            for par in pars:
+                                par.vals[ti] = new_val
                 
 
     

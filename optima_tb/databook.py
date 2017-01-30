@@ -80,10 +80,11 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
 #                worksheet.write(row_id, offset + k, '=IF(%s="","",%s)' % (rc(row_id-aid,offset+k),rc(row_id-aid,offset+k)), None, '')
                
                
-def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = None, allowed_vals = None):
+def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = None, allowed_vals = None, no_validation = False, symmetric = False, self_connections = ''):
     '''
     Create a matrix where users tag connections from a (left-column positioned) list to the same (top-row positioned) list.
-    Diagonals (self-connections) cannot be filled with values.
+    The tags are forced to be from a finite-discrete allowed_vals set unless no_validation is turned on.
+    Diagonals (self-connections) cannot be filled with values without giving self_connections a value.
     
     Args:
         worksheet       -   The worksheet in which to produce the matrix.
@@ -94,6 +95,8 @@ def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = Non
                             The labels list is still required for default values.
                             In the case that the databook is not opened in Excel prior to loading, the defaults are read in.
         allowed_vals    -   A list of allowed values that matrix elements can be tagged by.
+        no_validation   -   If true, does not enforce Excel validation for the allowed values.
+        symmetric       -   If true, seeds half the matrix with Excel equations that equal the other half.
     '''
     
     if allowed_vals is None: allowed_vals = ['n', 'y']
@@ -110,11 +113,16 @@ def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = Non
             col_id = at_col + col_pre + 1
             
             if row_pre != col_pre:
-                worksheet.write(row_id, col_id, allowed_vals[0])      # Default choice for data format.  
-                worksheet.data_validation('%s' % rc(row_id,col_id), {'validate': 'list', 'source': allowed_vals, 'ignore_blank': False})
+                worksheet.write(row_id, col_id, allowed_vals[0])      # Default choice for data format.
+                if symmetric and row_pre > col_pre:
+                    sym_rc = rc(at_row+col_pre+1,at_col+row_pre+1)
+                    worksheet.write(row_id, col_id, '=IF(%s<>"",%s,"")' % (sym_rc,sym_rc), None, allowed_vals[0])
+                if not no_validation:
+                    worksheet.data_validation('%s' % rc(row_id,col_id), {'validate': 'list', 'source': allowed_vals, 'ignore_blank': False})
             else:
-                worksheet.write(row_id, col_id, '')
-                worksheet.data_validation('%s' % rc(row_id,col_id), {'validate': 'list', 'source': [''], 'ignore_blank': False})
+                worksheet.write(row_id, col_id, self_connections)
+                if not no_validation:
+                    worksheet.data_validation('%s' % rc(row_id,col_id), {'validate': 'list', 'source': [self_connections], 'ignore_blank': False})
     
     
 
@@ -127,6 +135,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     
     workbook = xw.Workbook(databook_path)
     ws_pops = workbook.add_worksheet(settings.databook['sheet_names']['pops'])
+    ws_contact = workbook.add_worksheet(settings.databook['sheet_names']['contact'])
     ws_transmat = workbook.add_worksheet(settings.databook['sheet_names']['transmat'])
     ws_transval = workbook.add_worksheet(settings.databook['sheet_names']['transval'])
     
@@ -143,6 +152,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     
     data_tvec = np.arange(settings.tvec_start, settings.tvec_observed_end + 1.0/2)
     ws_pops_width = 15
+    ws_contact_width = 25
     ws_transmat_width = 15
     ws_transval_width = 15
     name_width = 60
@@ -174,6 +184,12 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     for pid in xrange(num_pops):
         pop_names_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,0,True,True)))
         pop_labels_formula.append("='%s'!%s" % (settings.databook['sheet_names']['pops'], rc(pid+1,1,True,True)))
+
+    #%% Inter-population contact sheet to weight interactions between population groups
+
+    ws_contact.write(0, 0, 'Interaction Impact Weights')
+    makeConnectionMatrix(worksheet = ws_contact, at_row = 0, at_col = 0, labels = pop_labels_default, formula_labels = pop_labels_formula, allowed_vals = [''], no_validation = True, symmetric = True, self_connections = 1)
+    ws_contact.set_column(0, 0, ws_contact_width)
     
     #%% Inter-population transfers matrix sheet (from node to corresponding node).
     
@@ -300,6 +316,14 @@ def loadSpreadsheetFunc(settings, databook_path):
     ws_transmat = workbook.sheet_by_name(settings.databook['sheet_names']['transmat'])
     ws_transval = workbook.sheet_by_name(settings.databook['sheet_names']['transval'])
     
+    # Contact sheet can be optional.
+    ws_contact_exists = True
+    try: ws_contact = workbook.sheet_by_name(settings.databook['sheet_names']['contact'])
+    except:
+        ws_contact_exists = False
+        logging.warning('There is no "%s" sheet in project data workbook.' % settings.databook['sheet_names']['contact'])
+        
+    
     # Regarding cascade parameters and characteristics, store sheets and corresponding row ids for further writing.
     ws_params = odict()
     for custom_label in settings.databook['custom_sheet_names'].keys():
@@ -332,6 +356,32 @@ def loadSpreadsheetFunc(settings, databook_path):
                 age_max = ws_pops.cell_value(row_id, 3)
                 if isinstance(age_min, Number) and isinstance(age_max, Number):
                     data['pops']['ages'][pop_label] = {'min':float(age_min), 'max':float(age_max), 'range':1+float(age_max)-float(age_min)}
+    
+    #%% Population contacts sheet.
+    data['contacts'] = dict()
+    data['contacts']['into'] = dict()
+    data['contacts']['from'] = dict()
+    for pop in data['pops']['label_names'].keys():
+        data['contacts']['into'][pop] = dict()
+        data['contacts']['from'][pop] = dict()
+    if ws_contact_exists:
+        for row_id in xrange(ws_contact.nrows):
+            for col_id in xrange(ws_contact.ncols):
+                if row_id > 0 and col_id > 0:
+                    source = str(ws_contact.cell_value(row_id, 0))
+                    target = str(ws_contact.cell_value(0, col_id))
+                    val = ws_contact.cell_value(row_id, col_id)
+                    if val != '' and float(val) != 0:
+                        data['contacts']['into'][target][source] = float(val)
+                        data['contacts']['from'][source][target] = float(val)
+    else:
+        # Self-connections are the default if there is no contact worksheet. These can be turned off in an actual contacts sheet.
+        for pop in data['pops']['label_names'].keys():
+            data['contacts']['into'][pop][pop] = 1.0 
+            data['contacts']['from'][pop][pop] = 1.0
+        logging.warning('No "%s" sheet means population groups only interact with themselves by default.' % settings.databook['sheet_names']['contact'])
+                    
+    
 
     #%% Inter-population transitions sheet.
     # Migration matrices must be divided from each other by an empty row.
@@ -498,14 +548,39 @@ def loadSpreadsheetFunc(settings, databook_path):
                 data['linkpars'][label][pop]['y_format'] = def_format
                 data['linkpars'][label][pop]['t'] = np.array([settings.tvec_start])
                 data['linkpars'][label][pop]['y'] = np.array([float(def_val)]) 
-                ### data['linkpars'][label][pop]['y_factor'] = project_settings.DEFAULT_YFACTOR
-                data['linkpars'][label][pop]['y_factor'] = settings.linkpar_specs[label]['y_factor']
-
-
+                data['linkpars'][label][pop]['y_factor'] = settings.linkpar_specs[label]['y_factor'] # This shouldn't be overwritten as the DEFAULT_YFACTOR if it's already defined
+    
+    validation_level = settings.validation['databook_validation']        
     validation = databookValidation(data=data)
-    if validation: return data
-    else: raise OptimaException('ERROR: Databook entries incomplete or mismatched, please look at log for details')
+    if validation: 
+        pass # no inconsistencies detected
+    elif validation_level == project_settings.VALIDATION_ERROR: 
+        raise OptimaException('ERROR: Databook entries incomplete or mismatched, please look at log for details')
+    elif validation_level == project_settings.VALIDATION_WARN or validation_level == project_settings.VALIDATION_AVERT:
+        logger.warn("Validating databook: possible inconsistencies observed (see log for details)")
+    else: # we ignore
+        pass
+    return data
+        
 
+def __addCharacteristicData(data,charac_label,pop_label,ts,ys,y_format,y_factor=1.):
+    """
+    
+    
+    """
+    if charac_label not in data['characs'].keys():
+        data['characs'][charac_label] = odict()
+    
+    if pop_label not in data['characs'][charac_label].keys():
+        data['characs'][charac_label][pop_label] = odict()
+        
+    
+    data['characs'][charac_label][pop_label]['t'] = ts
+    data['characs'][charac_label][pop_label]['y'] = ys
+    data['characs'][charac_label][pop_label]['y_format'] = y_format
+    data['characs'][charac_label][pop_label]['y_factor'] = y_factor
+    
+    return data
 
 def getEmptyData():
     """
@@ -552,17 +627,20 @@ def databookValidation(data=None):
             if attribute == 'name_labels' or attribute == 'label_names': pass
             else:
                 for pop in data[key][attribute]:
-                  if key == 'transfers':
-                      for subpop in data[key][attribute][pop]:
-                          for loop in range (len(data[key][attribute][pop][subpop][label])):
-                              validation = validateFormatType(data[key][attribute][pop][subpop], label, loop, key, attribute, pop, validation)
-                  elif key == 'pops':
-                      if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0:
-                          logging.warning('Minimum and maximum age is defined incorrectly for Population: %s' % (pop))
-                          validation = False
-                  else:
-                      for loop in range (len(data[key][attribute][pop][label])):
-                          validation = validateFormatType(data[key][attribute][pop], label, loop, key, attribute, pop, validation)
+                    if key == 'transfers':
+                        for subpop in data[key][attribute][pop]:
+                            for loop in range (len(data[key][attribute][pop][subpop][label])):
+                                validation = validateFormatType(data[key][attribute][pop][subpop], label, loop, key, attribute, pop, validation)
+                    elif key == 'pops':
+                        if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0:
+                            logging.warning('Minimum and maximum age is defined incorrectly for Population: %s' % (pop))
+                            validation = False
+                    elif key == 'contacts':
+                        # NOTE: Validation to be filled in for contacts at some point.
+                        pass
+                    else:
+                        for loop in range (len(data[key][attribute][pop][label])):
+                            validation = validateFormatType(data[key][attribute][pop], label, loop, key, attribute, pop, validation)
     return validation
 
 def validateFormatType(data_to_validate, label, loop, key, attribute, pop, validation):
