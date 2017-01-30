@@ -4,6 +4,7 @@ from uuid import uuid4 as uuid
 
 from optima_tb.utils import odict
 from optima_tb.parameters import ParameterSet
+from optima_tb.databook import getEmptyData
 
 
 class Scenario(object):
@@ -60,14 +61,12 @@ class ParameterScenario(Scenario):
             pscenario = ParameterScenario(name="examplePS",scenario_values=scvalues,pop_labels=pops)
     
         """
-        data = odict()
+        data = getEmptyData()
+        
         if scenario_values is None:
             scenario_values = odict()
         data['linkpars'] = scenario_values
         # values required when creating a parameter set
-        data['characs'] = odict()
-        data['transfers'] = odict()
-        data['pops'] = odict()
         data['pops']['name_labels'] = pop_labels
         
         ps = ParameterSet(self.name)

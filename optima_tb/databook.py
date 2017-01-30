@@ -599,6 +599,7 @@ def getEmptyData():
     data['pops']['name_labels'] = odict()
     data['pops']['label_names'] = odict()
     
+    data['contacts'] = dict()
     data['characs'] = odict()
     data['transfers'] = odict()
     data['linkpars'] = odict()
@@ -665,3 +666,6 @@ def validateFormatType(data_to_validate, label, loop, key, attribute, pop, valid
           logging.warning('Please verify databook under %s%s and population %s as a fraction or a negative number was entered for definition type "number" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
           validation = False
     return validation
+
+
+
