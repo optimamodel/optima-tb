@@ -79,17 +79,18 @@ class ParameterSet(object):
     def __init__(self, name='default'):
         self.name = name 
         self.uid   = uuid()
-    
-        # TODO: for DK, define what difference is between pop_names and pop_labels, and when 
-        # each should be used
+
         self.pop_names = []         # List of population names.
+                                    # Names are used only for user interface and can be more elaborate than simple labels.
         self.pop_labels = []        # List of population labels.
+                                    # Labels are used throughout the codebase as variable names (technically dict keys).
         self.pars = odict()
         self.pars['cascade'] = []
         self.pars['characs'] = []
         self.par_ids = {'cascade':{}, 'characs':{}}
         
         self.transfers = odict()    # Dictionary of inter-population transitions.
+        self.contacts = odict()     # Dictionary of inter-population interaction weights.
         
         logging.info("Created ParameterSet: %s"%self.name)
     
@@ -131,6 +132,8 @@ class ParameterSet(object):
                     self.transfers[trans_type][source].y[target] = data['transfers'][trans_type][source][target]['y']
                     self.transfers[trans_type][source].y_format[target] = data['transfers'][trans_type][source][target]['y_format']
                     self.transfers[trans_type][source].y_factor[target] = data['transfers'][trans_type][source][target]['y_factor']
+                    
+        self.contacts = dcp(data['contacts'])   # Simple copying of the contacts structure into data. No need to be an object.
     
     def __getMinMax(self,y_format):
         if y_format.lower() == 'fraction':

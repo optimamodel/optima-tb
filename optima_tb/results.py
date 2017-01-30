@@ -42,7 +42,7 @@ class ResultSet(object):
     
     def __init__(self, model, parset, settings):
         
-	self.uuid = uuid()
+        self.uuid = uuid()
         self.name = 'results:' + parset.name
         self.parset_name = parset.name
         self.parset_id  = parset.uid

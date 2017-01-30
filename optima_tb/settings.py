@@ -86,8 +86,8 @@ class Settings(object):
                                                 # Be aware that inclusions/normalisations may refer to characteristics in the same odict.
         self.charac_name_labels = odict()       # Key is a characteristic name. Value is a characteristic label. (A partial reversed charac_specs.)
         
-        self.charac_std_norm = 'auto_pop_count'                 # The label for a characteristic that includes all 'transfer-enabled' compartments. Is overwritten if one is user-defined.
-        self.charac_std_norm_name = 'Standard Compartment Sum'  # The name for this 'transfer-enabled' population-count characteristic.
+        self.charac_pop_count = 'auto_pop_count'                 # The label for a characteristic that includes all 'transfer-enabled' compartments. Is overwritten if one is user-defined.
+        self.charac_pop_count_name = 'Standard Compartment Sum'  # The name for this 'transfer-enabled' population-count characteristic.
         
         self.links = odict()                    # Key is a tag. Value is a list of compartment-label tuple.
         self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.
@@ -102,6 +102,7 @@ class Settings(object):
         self.databook = odict()
         self.databook['sheet_names'] = odict()
         self.databook['sheet_names']['pops'] =      'Population Definitions'
+        self.databook['sheet_names']['contact'] =   'Population Contacts'
         self.databook['sheet_names']['transmat'] =  'Transfer Definitions'
         self.databook['sheet_names']['transval'] =  'Transfer Details'
         self.databook['sheet_names']['charac'] =    'Epidemic Characteristics'
@@ -238,7 +239,29 @@ class Settings(object):
                                          'col_index_start':1} # 
 
 class ValidationSettings():
+    """
+    For each of the validation checks returned in getValidationTypes(),
+    there is a validation setting of either
+        IGNORE : do nothing
+        AVERT  : try to modify values based on a reasonable assumption
+        WARN   : continue performing the action, but notify occurrence of incorrect usage via a warn statement
+        ERROR  : stop the action
+        
+    The exact process will vary on where and what the validation check is acting on, and should be noted
+    in the method's usage. 
     
+    Note that all validation checks are set to a level (default="warn"), but 
+    that it is possible to set specific levels for different validation checks.
+    
+    Examples:
+    
+        from optima_tb.settings import ValidationSettings, VALIDATION_AVERT
+        validation_settings = ValidationSettings(level="warn")
+        print validation_settings.getValidationTypes()
+        > ['negative_population', 'transition_fraction']
+        validation_settings['transition_fraction'] = VALIDATION_AVERT
+        
+    """
     
     
     def __init__(self,level='warn'):
@@ -254,12 +277,15 @@ class ValidationSettings():
         
         
     def getValidationTypes(self):
-        return ['negative_population']        
+        return ['negative_population', # runs @ validation/checkNegativePopulation
+                'transition_fraction', # runs @ validation/checkTransitionFraction
+                'databook_validation', # runs @ databook/loadSpreadsheetFunc
+                ]        
             
     def defaultSettings(self):
         
         self.settings = odict()
-        self.errorSettings()
+        self.warnSettings()
      
     def setValidationLevel(self,validation_level):   
         for v in self.getValidationTypes():

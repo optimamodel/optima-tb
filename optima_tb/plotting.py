@@ -204,7 +204,7 @@ def _turnOffBorder():
 def isPlottable(comp_label,sim_settings):
     """ 
     Returns bool indicating whether a population label should be included in metrics
-    for population reporting 
+    for population reporting when plotting cascade
     """
     if comp_label in sim_settings['tag_no_plot']:
         return False
@@ -223,7 +223,9 @@ def isPlottableCharac(output_id,charac_specs):
     
     
 
-def plotProjectResults(results,settings,data,title='',colormappings=None,debug=False,save_fig=False):
+def plotProjectResults(results,settings, data, title='', colormappings=None, pop_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
+            
+    
     """
     Plot all results associated with a project. By default, this is a disease cascade for 
     each population, as well as characteristics of interest. 
@@ -235,24 +237,27 @@ def plotProjectResults(results,settings,data,title='',colormappings=None,debug=F
         charac_specs    ...
         title           project title, displayed in title 
         colormapping
+        pop_labels      list of population labels. Default: None, which selects all populations
         debug           boolean flag, indicating whether to plot internal variables if True
     """
     # close all remaining windows
     pl.close("all") 
-    # setup
+    # setup    
+    if pop_labels is None:
+        pop_labels = results.pop_labels
     charac_specs = settings.charac_specs
     plotdict = settings.plot_settings.plotdict
     # plot each disease cascade for every population
-    plotPopulation(results=results, data=data, title=title, colormappings=colormappings,save_fig=save_fig,plotdict=plotdict)
+    plotPopulation(results=results, data=data, title=title, colormappings=colormappings, pop_labels=pop_labels, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # plot characteristics
-    plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title,save_fig=save_fig,plotdict=plotdict)
+    plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # internal plotting
     if debug:
         plotOutflows(results)
     
     
     
-def plotPopulation(results,data,title='',colormappings=None,plotObservedData=True,save_fig=False,use_full_labels=True,plotdict={}):
+def plotPopulation(results, data, pop_labels, title='',colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, use_full_labels=True, plotdict={}):
     """ 
     
     Plot all compartments for all populations
@@ -269,10 +274,12 @@ def plotPopulation(results,data,title='',colormappings=None,plotObservedData=Tru
     """
     # setup
     tvec = results.sim_settings['tvec']
+    year_inc = 5.  # TODO: move this to setting
+    yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)
     mpops = results.m_pops
     sim_settings = results.sim_settings
-    pop_labels = results.pop_labels
     save_figname=None
+    dataobs = None # placeholder for observed data
     
     if use_full_labels:
         comp_labels = results.comp_label_names
@@ -291,6 +298,8 @@ def plotPopulation(results,data,title='',colormappings=None,plotObservedData=Tru
         
     # iterate for each key population group
     for (i,pop) in enumerate(mpops):
+        if pop.label not in pop_labels:
+            continue
         comps = []
         labels = []
         for (j,comp) in enumerate(pop.comps):
@@ -301,27 +310,25 @@ def plotPopulation(results,data,title='',colormappings=None,plotObservedData=Tru
                 else:
                     c_label = comp.label
                 labels.append(c_label)
-        if plotObservedData:
+        if plot_observed_data:
             ys = data['characs']['alive'][pop.label]['y']
             ts = data['characs']['alive'][pop.label]['t']
             dataobs = (ts,ys)
         xlim = ()
         
-        pl_title = 'Compartments for Population: %s' % (pop_labels[i])
+        pl_title = 'Population: %s' % (pop.label)
         if save_fig:
-            save_figname = 'Full_compartment_%s'%pop_labels[i]
+            save_figname = fig_name + "_compartment_%s"%pop.label
         dict = {  'xlim': (tvec[0],tvec[-1]),
                   'ymin': 0,
                   'xlabel': 'Year',
                   'year_inc' :  5.,
                   'ylabel': 'People',
                   'mec' : 'k',
+                  'x_ticks' : (yr_range,yr_range),
                   'colors': colors
                   }
         dict.update(plotdict)
-        if 'yr_range' not in dict.keys():
-            dict['yr_range'] = np.arange(tvec[0],tvec[-1]+0.1,dict['year_inc'],dtype=int)
-            dict['x_ticks']  = (dict['yr_range'],dict['yr_range'])
     
         legendsettings =  {'loc':'center left', 
                            'bbox_to_anchor':(1.05, 0.5), 
@@ -357,7 +364,10 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
     
     for (k,comp) in enumerate(comps):
         top = bottom + comp.popsize
-        ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=0) # for some reason, lw=0 leads to no plot
+        lw = 0
+        if save_fig:
+            lw = 0.1
+        ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=lw) # for some reason, lw=0 leads to no plot if we then use fig.savefig()
         reg, = ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
         bottom = dcp(top)
         
@@ -391,12 +401,12 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
     pl.suptitle('')
     
     if save_fig:
-        fig.savefig('%s_stacked.png' % (save_figname))
-        logger.info("Saved figure: '%s_stacked.png'"%save_figname)
+        fig.savefig('%s.png' % (save_figname))
+        logger.info("Saved figure: '%s.png'"%save_figname)
         
     
 
-def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None,plotObservedData=True,save_fig=False,colors=None,plotdict={}):
+def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None, plot_observed_data=True, save_fig=False, fig_name=None ,colors=None, plotdict={}):
     """
     Plot a characteristic across all populations
     
@@ -414,9 +424,9 @@ def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None,plotObs
     Example dict:
         dict = {'y_hat': yhat,
                 't_hat': that,
-                'unit_tag': unit_tag,
+                'unit_tag': '(%)', # default = ''
                 'xlabel':'Year',
-                'ylabel': charac_specs[output_id]['name'] + unit_tag,
+                'ylabel': charac_specs[output_id]['name'] + '(%)',
                 'title': '%s Outputs - %s' % (title, charac_specs[output_id]['name']),
                 'marker': 'o',
                 'x_ticks' : ([2000,2030],[2000,2030]),
@@ -425,6 +435,8 @@ def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None,plotObs
     """
     # setup
     tvec = results.sim_settings['tvec']
+    year_inc = 5.  # TODO: move this to setting
+    yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)
     mpops = results.m_pops
     sim_settings = results.sim_settings
     pop_labels = results.pop_labels
@@ -453,12 +465,12 @@ def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None,plotObs
             y_values.append(vals)
             t_values.append(sim_settings['tvec'])
             
-            if plotObservedData:
+            if plot_observed_data:
                 ys = data['characs'][output_id][pop.label]['y']
                 ts = data['characs'][output_id][pop.label]['t']
                 if 'plot_percentage' in charac_specs[output_id].keys():
                     ys *= 100
-                if len(ys)==0 and ys[0]==0:
+                if len(ys)==0:
                     # add an empty list to preserve label colours
                     ys,ts = [],[]
                 yhat.append(ys)
@@ -467,17 +479,14 @@ def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None,plotObs
                 
         dict = {'y_hat': yhat,
                 't_hat': that,
-                'year_inc' :  5.,
                 'unit_tag': unit_tag,
                 'xlabel':'Year',
                 'ylabel': charac_specs[output_id]['name'] + unit_tag,
-                'title': '%s Outputs - %s' % (title, charac_specs[output_id]['name']),
-                'save_figname': 'PlotCompartment_%s_%s'%(title, charac_specs[output_id]['name'])}
+                'x_ticks' : (yr_range,yr_range),
+                'title': '%s Outputs: %s' % (title, charac_specs[output_id]['name']),
+                'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
         dict.update(plotdict)
-        if 'yr_range' not in dict.keys():
-            dict['yr_range'] = np.arange(tvec[0],tvec[-1]+0.1,dict['year_inc'],dtype=int)
-            dict['x_ticks']  = (dict['yr_range'],dict['yr_range'])
-    
+        
         legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}         
          
         _plotLine(y_values, t_values, pop_labels, legendsettings=legendsettings,save_fig=save_fig,**dict)
@@ -500,12 +509,14 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     for k,yval in enumerate(ys):
         
         ax.plot(ts[k], yval, c=colors[k])
-        ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
-        if np.min(y_hat[k]) < ymin_val:
-            ymin_val = np.min(y_hat[k])
-
+            
+        if len(y_hat) > 0: # i.e. we've seen observable data
+            ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
+            if np.min(y_hat[k]) < ymin_val:
+                ymin_val = np.min(y_hat[k])
+        
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
     

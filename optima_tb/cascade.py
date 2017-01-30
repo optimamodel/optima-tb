@@ -1,5 +1,6 @@
 #%% Imports
 
+
 from optima_tb.utils import odict, OptimaException, flattenDict
 
 import logging
@@ -15,10 +16,7 @@ from copy import deepcopy as dcp
 
 #%% Function to convert a cascade workbook into a framework to store in project settings
 
-def loadCascadeSettingsFunc(cascade_path, settings):
-    import optima_tb.settings as project_settings
-    import os
-    
+def loadCascadeSettingsFunc(cascade_path, settings):    
     ''' Generates node and link settings based on cascade spreadsheet. 
     
     Note: at the moment, this function is intended to be called from settings.py, and takes in settings as a parameter, 
@@ -26,7 +24,12 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     It can - and should - be improved.
     Also, do not call this function directly as the cascade reset is not part of this function. Unexpected behaviour is guaranteed.
     '''    
+    
+    from optima_tb.settings import DO_NOT_SCALE, DEFAULT_YFACTOR
+    import os
+    
     cascade_path = os.path.abspath(cascade_path)
+
     try: workbook = xlrd.open_workbook(cascade_path)
     except: raise OptimaException('ERROR: Cannot find cascade workbook from which to load model structure.')
     ws_nodes =      workbook.sheet_by_name('Compartments')
@@ -76,7 +79,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     if None in [cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade compartment worksheet does not have correct column headers.')
     
-    std_norm_nodes = []    # A list for compartments that can be involved in inter-population transfers.
+    pop_count_nodes = []    # A list for compartments that can be involved in inter-population transfers.
     
     # Append node labels and full names to relevant odicts and lists. Labels are crucial.
     for row_id in xrange(ws_nodes.nrows):
@@ -123,9 +126,9 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     settings.junction_labels.append(node_label)
                     
             if good_for_transfer:
-                std_norm_nodes.append(node_label)
+                pop_count_nodes.append(node_label)
             
-#    print std_norm_nodes
+#    print pop_count_nodes
                     
     
 
@@ -196,18 +199,19 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_characs.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_characs.cell_value(0, col_id) == 'Entry Point': cid_entry = col_id
         if ws_characs.cell_value(0, col_id) == 'Includes': cid_include_start = col_id
-        if ws_characs.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id
+        if ws_characs.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id       # NOTE: Consider whether calibrate column is necessary. At least get rid of the punctuation.
     
     
     
     # Work out where the 'include' columns end when defining cascade characteristics.
-    cid_list = np.array(sorted([cid_label, cid_name, cid_sheet, cid_plot, cid_percentage, cid_denom, cid_order, cid_default, cid_entry, ws_characs.ncols]))
+    # Any new column must have its column id inserted in cid_list below, or there will be problems identifying bounds for the 'includes' list.
+    cid_list = np.array(sorted([cid_label, cid_name, cid_sheet, cid_plot, cid_percentage, cid_denom, cid_order, cid_default, cid_entry, cid_yfactor, ws_characs.ncols]))
     cid_include_end = cid_list[sum(cid_include_start > cid_list)] - 1
     
     if None in [cid_label, cid_name, cid_include_start, cid_include_end]:
         raise OptimaException('ERROR: Cascade characteristics worksheet does not have correct column headers.')
     
-    custom_std_norm_charac = False    
+    custom_pop_count_charac = False    
     
     # Actually append characteristic labels and full names to relevant odicts and lists. Labels are crucial.
     entry_dict = {}
@@ -215,7 +219,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     for row_id in xrange(ws_characs.nrows):
         if row_id > 0 and ws_characs.cell_value(row_id, cid_label) not in ['']:
             charac_label = str(ws_characs.cell_value(row_id, cid_label))
-            if charac_label == settings.charac_std_norm: raise OptimaException('ERROR: Characteristic cannot be named %s as that is a reserved special label.' % settings.charac_std_norm)
+            if charac_label == settings.charac_pop_count: raise OptimaException('ERROR: Characteristic cannot be named %s as that is a reserved special label.' % settings.charac_pop_count)
             charac_name = str(ws_characs.cell_value(row_id, cid_name))
             
             settings.charac_name_labels[charac_name] = charac_label
@@ -248,9 +252,9 @@ def loadCascadeSettingsFunc(cascade_path, settings):
             numerator_ref_list = dcp(flat_list)   # Useful for checking what compartments the numerator characteristic references.
             
             # If a user-defined characteristic includes all transfer-enabled compartments, overwrite the settings reference to it.
-            if set(flat_list) == set(std_norm_nodes):
-                settings.charac_std_norm = charac_label
-                custom_std_norm_charac = True
+            if set(flat_list) == set(pop_count_nodes):
+                settings.charac_pop_count = charac_label
+                custom_pop_count_charac = True
             
             # Work out which compartment/characteristic this characteristic is normalised by.
             if not cid_denom is None:
@@ -310,30 +314,28 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     except: raise OptimaException('ERROR: Entry point "%s" for characteristic "%s" must be a compartment it includes (in its numerator), either directly or via characteristic reference.' % (val, charac_label))
                     entry_dict[val] = dcp(list(numerator_ref_list))
                     
-            # Store whether we should use calibrate the initial value or not (only applicable when there's also an entry point)
+            # Store whether we should use calibrate the initial value or not (only applicable when there's also an entry point).
             if not cid_yfactor is None:
                 val = str(ws_characs.cell_value(row_id, cid_yfactor))
                 if val.lower() == 'n' or val == '-1':
-                    settings.charac_specs[charac_label]['y_factor'] = project_settings.DO_NOT_SCALE
+                    settings.charac_specs[charac_label]['y_factor'] = DO_NOT_SCALE
                 elif val not in ['']:
                     settings.charac_specs[charac_label]['y_factor'] = float(val)
                 else:
-                    settings.charac_specs[charac_label]['y_factor'] = project_settings.DEFAULT_YFACTOR
-        
+                    settings.charac_specs[charac_label]['y_factor'] = DEFAULT_YFACTOR
+
         # Make sure empty space rows do not get counted when deciding if there are characteristics left to populate a default databook sheet.
         elif row_id > 0:
             standard_sheet_count -= 1
                     
     # If a characteristic that includes all transfer-enabled compartments is not defined, create one.
-    if not custom_std_norm_charac:
-        settings.charac_name_labels[settings.charac_std_norm_name] = settings.charac_std_norm
-        settings.charac_specs[settings.charac_std_norm] = odict()
-        settings.charac_specs[settings.charac_std_norm]['name'] = settings.charac_std_norm_name
-        settings.charac_specs[settings.charac_std_norm]['includes'] = std_norm_nodes
-        settings.charac_specs[settings.charac_std_norm]['databook_order'] = -1      # This special 'standard' characteristic is not initialisable or used for calibration unless user-defined.
+    if not custom_pop_count_charac:
+        settings.charac_name_labels[settings.charac_pop_count_name] = settings.charac_pop_count
+        settings.charac_specs[settings.charac_pop_count] = odict()
+        settings.charac_specs[settings.charac_pop_count]['name'] = settings.charac_pop_count_name
+        settings.charac_specs[settings.charac_pop_count]['includes'] = pop_count_nodes
+        settings.charac_specs[settings.charac_pop_count]['databook_order'] = -1      # This special 'standard' characteristic is not initialisable or used for calibration unless user-defined.
                     
-
-    
     
     # If all characteristics in this sheet are to be printed to custom databook sheets, no need for a default.
     if standard_sheet_count <= 0:
@@ -358,6 +360,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     cid_order = None
     cid_function = None
     cid_yfactor = None
+    cid_rules = None
     for col_id in xrange(ws_pars.ncols):
         if ws_pars.cell_value(0, col_id) == 'Transition Tag': cid_tag = col_id
         if ws_pars.cell_value(0, col_id) == 'Code Label': cid_label = col_id
@@ -367,6 +370,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
         if ws_pars.cell_value(0, col_id) == 'Function': cid_function = col_id
         if ws_pars.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id
+        if ws_pars.cell_value(0, col_id) == 'Special Rules': cid_rules = col_id     # NOTE: Consider whether calibrate column is necessary. At least get rid of the punctuation.
     if None in [cid_tag, cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
     
@@ -433,28 +437,35 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                                     settings.charac_specs[dep]['par_dependency'] = True
                                     settings.charac_deps[dep] = True
                                     
-            # Store whether we should use calibrate the initial value or not         
+            # Store whether we should use calibrate the initial value or not.
             if not cid_yfactor is None:
                 val = str(ws_pars.cell_value(row_id, cid_yfactor))
                 if val.lower() == 'n' or val == '-1':
-                    settings.linkpar_specs[label]['y_factor'] = project_settings.DO_NOT_SCALE
+                    settings.linkpar_specs[label]['y_factor'] = DO_NOT_SCALE
                 elif val not in ['']:
                     settings.linkpar_specs[label]['y_factor'] = float(val)
                 else:
-                    settings.linkpar_specs[label]['y_factor'] = project_settings.DEFAULT_YFACTOR
+                    settings.linkpar_specs[label]['y_factor'] = DEFAULT_YFACTOR
+                    
+            # Store any special rules for this parameter, such as averaging across contact groups.
+            if not cid_rules is None:
+                val = str(ws_pars.cell_value(row_id, cid_rules))
+                if val not in ['']:
+                    settings.linkpar_specs[label]['rules'] = val
+                    settings.par_funcs[label] = True    # Mark parameter as a custom function just in case the rule refers to calculations involving other populations.
                     
         # Make sure empty space rows do not get counted when deciding if there are parameters left to populate a default databook sheet.
         elif row_id > 0:
             standard_sheet_count -= 1
     
     # If the default/overwritten population-count characteristic is not a dependency by now, along with its own dependencies, make it one at the end of the charac_deps odict.
-    if settings.charac_std_norm not in settings.charac_deps.keys():
-        flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = settings.charac_std_norm, sub_keys = ['includes','denom'], limit = settings.recursion_limit)
+    if settings.charac_pop_count not in settings.charac_deps.keys():
+        flat_list, dep_list = flattenDict(input_dict = settings.charac_specs, base_key = settings.charac_pop_count, sub_keys = ['includes','denom'], limit = settings.recursion_limit)
         for dep in dep_list:    # NOTE: Dependencies are presumably provided in proper order by flattenDict due to recursion. Could a counterexample be engineered that breaks the assumption...? 
             settings.charac_specs[dep]['par_dependency'] = True
             settings.charac_deps[dep] = True
-        settings.charac_specs[settings.charac_std_norm]['par_dependency'] = True
-        settings.charac_deps[settings.charac_std_norm] = True
+        settings.charac_specs[settings.charac_pop_count]['par_dependency'] = True
+        settings.charac_deps[settings.charac_pop_count] = True
         
 #    print settings.charac_deps
     
@@ -480,6 +491,25 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     else: logging.info('The cascade was validated successfully!')
     
 
+def __addCharacteristic(settings,charac_label,full_name,plot_value=True,plot_percentage=False,denominator=None,databook_order=-1,default_val=0,entry_point=None,includes=None,calibrate=None):
+    """
+    
+    """
+    settings.charac_specs[charac_label] = odict()
+    settings.charac_specs[charac_label]['name'] = full_name
+    settings.charac_specs[charac_label]['databook_order'] = databook_order   
+    settings.charac_specs[charac_label]['plot_value'] = plot_value
+    settings.charac_specs[charac_label]['plot_percentage'] = plot_percentage
+    if entry_point is not None:
+        settings.charac_specs[charac_label]['entry_point'] = entry_point
+    if includes is not None:
+        if type(includes) is not list:
+            includes = [includes]
+        settings.charac_specs[charac_label]['includes'] = includes
+    # @TODO : complete rest of characteristics
+    
+    logger.info("Added new characteristic: %s (%s)"%(charac_label,full_name))
+    
 
 #%% Function to plot a cascade framework loaded into settings
     
