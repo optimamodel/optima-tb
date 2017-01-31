@@ -16,13 +16,60 @@ Calibration and sensitivity analysis
 """
 
 
-def performSensitivityAnalysis(project,transmission,epsilon=0.05):
+def performSensitivityAnalysis(proj=None, parsetname=None, targetpars = None, targetchars=None, targetpops=None, steps=10, sigma=0.05, overwrite=False):
     """
+    Randomly perturbs parameter set to get different outcomes and compare
     
-    TODO: implement performSensitivityAnalysis
+    Args:
+        proj                    -   The project which is to be considered
+        parsetname              -   Parset to run sensitivity analysis
+        targetpars              -   Target parameters to run sensitivity analysis
+        targetchars             -   Target characteristics to run sensitivity analysis
+        targetpops              -   Target population groups for parameters and characteristics
+        steps                   -   Number of sample points
+        sigma                   -   Percent perturbation
     """
-    pass
+    logger.info('Initializing Sensitivity Analysis')
+    if proj is None: 
+        message = 'Project not sent as an argument to the function performSensitivityAnalysis!'
+        logger.error(message)
+        raise OptimaException(message)
+    
+    if parsetname is None:
+        try:
+            parsetname = proj.parsets[0].name
+            logger.info('Parameter set to be used was not defined, using parameter set: "%s"' %(parsetname))
+        except:
+            message = 'No parameter sets exist in the project'
+            logger.error(message)
+            raise OptimaException(message)
+    
+    if targetpars is None:  cmdPrompt(settings = proj.settings, parset=proj.parsets[parsetname], target=targetpars, targetpops=targetpops)
+    if targetchars is None: cmdPrompt(settings = proj.settings, parset=proj.parsets[parsetname], target=targetchars, targetpops=targetpops, isParameter=False)
+    return None
 
+def cmdPrompt(settings = None, parset=None, target=None, targetpops=None, isParameter=True):
+    pars = parset.par_ids
+    par_types = pars.keys()
+    if isParameter:     label = [x for x in par_types if 'cascade' in x]
+    else:               label = [x for x in par_types if 'characs' in x]
+    if isinstance(label, list) and len(label) == 1: label = label[0]
+    else: 
+        logger.error('The terms "cascade" or "characs" not in parset.par_ids, or multiple parameters with the same name exist. Available keys: %s' %(par_types))
+        raise OptimaException('Unable to generate cmdPrompt, please check log for details')
+    
+    print('The following "%s" items are available for sensitivity analysis:' %label)
+    for index, key in enumerate(pars[label]):
+        print('%i. %s: %s' %(index, key, proj))
+        
+    #prompt = True
+    #while prompt:
+        
+        
+        
+    
+    return
+    
 def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
     """
     
