@@ -246,7 +246,7 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, pop
     if pop_labels is None:
         pop_labels = results.pop_labels
     charac_specs = settings.charac_specs
-    plotdict = settings.plot_settings.plotdict
+    plotdict = settings.plot_settings
     # plot each disease cascade for every population
     plotPopulation(results=results, data=data, title=title, colormappings=colormappings, pop_labels=pop_labels, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # plot characteristics
