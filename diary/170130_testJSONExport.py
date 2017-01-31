@@ -11,8 +11,8 @@ from optima_tb.project import Project
 num_pop = 2
 plot = True
 #plot=False
-databook = 'data/databook-simple-cascade-autocalibration.xlsx'
-proj= Project(name = 'test-dataio', cascade_path = 'data/cascade-simple-calibration.xlsx')
+databook = '../data/databook-simple-cascade-autocalibration.xlsx'
+proj= Project(name = 'test-dataio', cascade_path = '../data/cascade-simple-calibration.xlsx')
 proj.loadSpreadsheet(databook_path = databook)
 proj.makeParset() # make a default parset for population labels etc.
 

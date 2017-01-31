@@ -211,7 +211,7 @@ class Project(object):
             filename = "%s.project"%self.name
         
         logger.info("Attempting to save file in format=%s"%format)
-        filename = exportObj(self,format=format,filename=filename,compression)
+        filename = exportObj(self,filename=filename,format=format,compression=compression)
         logger.info("Saved to file: %s"%filename)
         return filename
         
