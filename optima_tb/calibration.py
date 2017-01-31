@@ -44,31 +44,69 @@ def performSensitivityAnalysis(proj=None, parsetname=None, targetpars = None, ta
             logger.error(message)
             raise OptimaException(message)
     
-    if targetpars is None:  cmdPrompt(settings = proj.settings, parset=proj.parsets[parsetname], target=targetpars, targetpops=targetpops)
-    if targetchars is None: cmdPrompt(settings = proj.settings, parset=proj.parsets[parsetname], target=targetchars, targetpops=targetpops, isParameter=False)
+    if targetpars is None:  targetpars  = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], target=targetpars, targetpops=targetpops)
+    if targetchars is None: targetchars = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], target=targetchars, targetpops=targetpops, isParameter=False)
     return None
 
-def cmdPrompt(settings = None, parset=None, target=None, targetpops=None, isParameter=True):
+def extractParameters(settings = None, parset=None, target=None, targetpops=None, isParameter=True):
     pars = parset.par_ids
     par_types = pars.keys()
-    if isParameter:     label = [x for x in par_types if 'cascade' in x]
-    else:               label = [x for x in par_types if 'characs' in x]
-    if isinstance(label, list) and len(label) == 1: label = label[0]
-    else: 
-        logger.error('The terms "cascade" or "characs" not in parset.par_ids, or multiple parameters with the same name exist. Available keys: %s' %(par_types))
-        raise OptimaException('Unable to generate cmdPrompt, please check log for details')
+    validation = True
+    if isParameter:     
+        label = [x for x in par_types if 'cascade' in x]
+        if isinstance(label, list) and len(label) == 1:
+            label = label[0]
+        else:
+            logger.error('The term "cascade" not in parset.par_ids, or multiple parameters with the same name exist. Available keys: %s' %(par_types))
+            validation = False
+    else:
+        label = [x for x in par_types if 'characs' in x]
+        if isinstance(label, list) and len(label) == 1:
+            label = label[0]
+        else:
+            logger.error('The term "cascade" not in parset.par_ids, or multiple parameters with the same name exist. Available keys: %s' %(par_types))
+            validation = False
+    if not validation: raise OptimaException('Unable to generate command prompt, please check log for details')
     
-    print('The following "%s" items are available for sensitivity analysis:' %label)
+    print('\nThe following "%s" items are available for sensitivity analysis:\n' %label)
     for index, key in enumerate(pars[label]):
-        print('%i. %s: %s' %(index, key, "ss"))
+        try:    
+            print('%i. %s: %s' %(index+1, settings.linkpar_specs[key]['name'], key))
+            cmdPrompt(key=key)
+        except: 
+            print('%i. %s: %s' %(index+1, settings.charac_specs[key]['name'], key))
+            
+    return target
+
+def cmdPrompt(key=None):
+    prompt = True
+    arguments = {}
+    while prompt:
+        user_input = raw_input('Would you like to add above parameter? (y/n): ')
+        if isinstance(user_input, str):
+            if user_input == 'y' or user_input == 'Y':
+                targetpops = []
+                arguments[key] = targetpops
+                prompt = False
+            elif user_input == 'n' or user_input == 'N':
+                prompt = False
+            else:
+                print('Invalid entry detected, please try again')
+                continue
         
-    #prompt = True
-    #while prompt:
-        
-        
-        
-    
-    return
+#dict_change_params = {'v_rate': [0.02],
+#                      'birth_transit' : [5000],
+#                      'rec_act': [0.8]}
+#dict_change_params2 = {'v_rate': [0.2],
+#                      'birth_transit' : [500],
+#                      'rec_act': [0.08]}
+#
+#rate_dict = {'Pop1' : dict_change_params,
+#             'Pop2' : dict_change_params2}
+#
+#
+#pname2='testCalib'
+#proj.makeManualCalibration(pname2,rate_dict)
     
 def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
     """
