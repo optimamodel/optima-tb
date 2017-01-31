@@ -60,7 +60,7 @@ def cmdPrompt(settings = None, parset=None, target=None, targetpops=None, isPara
     
     print('The following "%s" items are available for sensitivity analysis:' %label)
     for index, key in enumerate(pars[label]):
-        print('%i. %s: %s' %(index, key, proj))
+        print('%i. %s: %s' %(index, key, "ss"))
         
     #prompt = True
     #while prompt:
@@ -141,17 +141,43 @@ def _calc_R2(y_obs,y_fit):
     raise NotImplementedError
 
 
-def makeManualCalibration(paramset,rate_dict,plot=False):
+def makeManualCalibration(paramset,rate_dict,use_yfactor=False):
     """
+    Params:
+        paramset        reference to a parameter set that is part of a project
+        rate_dict       a dict of values to be applied to the parameter
+        useYFactor      flag indicating whether the values in the dictionary represent
+                        direct values, or y_factors
+    
+    
+    Example usage:
+        rate_dict_adults = {'mortality_rate': [0.02],
+                            'num_births'    : [0] }
+        rate_dict_sac = {'mortality_rate': [0.2],
+                         'num_births'    : [5000] }
+        rate_dict = {'Adults' : rate_dict_adults,
+                     'SAC'    : rate_dict_sac}
+        runRateCalibration(parameterSet,rate_dict,useYFactor=False)
+        
+        
+        #Setting Yfactors
+        newrate_dict_adults = {'mortality_rate': [1.05], #105%
+                            'num_births'    : [0.9] } # 90%
+        newrate_dict_sac = {'mortality_rate': [0.85], # 85%
+                            'num_births'    : [1.01] } # 101%
+        newrate_dict = {'Adults' : newrate_dict_adults,
+                        'SAC'    : newrate_dict_sac}
+        runRateCalibration(parameterSet,newrate_dict,useYFactor=True)
     
     """
 
     for pop_label in rate_dict.keys():
         logging.info("Updating parameter values for population=%s"%(pop_label))
-        _setRateCalibration(paramset, rate_dict[pop_label], pop_label)
+        _setRateCalibration(paramset, rate_dict[pop_label], pop_label, use_yfactor)
+    return paramset
     
 
-def _setRateCalibration(parset,value_dictionary,pop_label):
+def _setRateCalibration(parset,value_dictionary,pop_label,use_yfactor=False):
     """
     Creats parset and applies a transition/rate change that is applicable for the entire duration of the simulation 
     i.e. individual timepoints are not able to be specified.
@@ -162,12 +188,16 @@ def _setRateCalibration(parset,value_dictionary,pop_label):
         pop_label
         
         
-    Examples
-        rate_dict_adults = {'mortality_rate': [0.02],
-                            'num_births'    : [0] }
+    Examples:
+        # Using values directly
         rate_dict_sac = {'mortality_rate': [0.2],
                          'num_births'    : [5000] }
-        runRateCalibration(project,'myNewParset',rate_dict,'Adults')
+        runRateCalibration(parameterSet,rate_dict_sac,'SAC',useYFactor=False)
+
+        #Setting Yfactors
+        rate_dict_adults = {'mortality_rate': [1.05], #105%
+                            'num_births'    : [0.9] } # 90%
+        runRateCalibration(parameterSet,newrate_dict_adults,'Adults',useYFactor=True)
         
     
     """
@@ -175,14 +205,28 @@ def _setRateCalibration(parset,value_dictionary,pop_label):
     # update the values for a given population
     for k,v in value_dictionary.iteritems():
         par_index = parset.par_ids['cascade'][k]
-        if isinstance(v,list):
-            parset.pars['cascade'][par_index].y[pop_label] = np.array(v)
-        elif isinstance(v, float) or isinstance(v, int):
-            parset.pars['cascade'][par_index].y[pop_label] = np.array([v])
-        if len(parset.pars['cascade'][par_index].t[pop_label]) > 1: # i.e. there are multiple years that we've just ignored
-            # then take the first
-            parset.pars['cascade'][par_index].t[pop_label] = np.array([parset.pars['cascade'][par_index].t[pop_label][0]])
-
+        
+        if not use_yfactor:
+            if isinstance(v,list):
+                parset.pars['cascade'][par_index].y[pop_label] = np.array(v)
+            elif isinstance(v, float) or isinstance(v, int):
+                parset.pars['cascade'][par_index].y[pop_label] = np.array([v])
+            else:
+                raise OptimaException("Unknown value for cascade parameter: %g"%v)
+            # Quick check that we haven't upset the structure, by overwriting one value when there are multiple years. 
+            if len(parset.pars['cascade'][par_index].t[pop_label]) > 1: 
+                # then take the first
+                parset.pars['cascade'][par_index].t[pop_label] = np.array([parset.pars['cascade'][par_index].t[pop_label][0]])
+                
+        else: # we use y_factor
+            if isinstance(v,list):
+                parset.pars['cascade'][par_index].y_factor[pop_label] = np.array(v)
+            elif isinstance(v, float) or isinstance(v, int):
+                parset.pars['cascade'][par_index].y_factor[pop_label] = np.array([v])
+            else:
+                raise OptimaException("Unknown value for cascade parameter: %g"%v)
+    return parset
+                
 
 def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFactor=False,useInitCompartments=False,**calibration_settings):
     """

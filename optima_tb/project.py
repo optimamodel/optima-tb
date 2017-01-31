@@ -56,11 +56,15 @@ class Project(object):
         
         if parameterset is not None:
             parset = parameterset
+            logging.info("Using supplied parameter set in running model simulation")
         elif len(self.parsets) < 1: 
             raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
         else:
-            try: parset = self.parsets[parset_name]
-            except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
+            try: 
+                parset = self.parsets[parset_name]
+                logging.info("Using parameter set '%s' in running model simulation"%parset_name)
+            except: 
+                raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
 
         tm = tic()
         #results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
@@ -128,7 +132,7 @@ class Project(object):
         self.parsets[new_name] = paramset
         
         
-    def makeManualCalibration(self, parset_name, rate_dict):
+    def makeManualCalibration(self, parset_name, rate_dict,use_yfactor=False):
         ''' Take in dictionary of updated values for rates that can be used for manual calibration
             Update values dict: {pop_name : {parameter : value} '''
         if not parset_name in self.parsets.keys():
@@ -136,7 +140,7 @@ class Project(object):
         paramset = self.parsets[parset_name]
         logging.info("Updating parameter values in parset=%s"%(parset_name))
         
-        makeManualCalibration(paramset,rate_dict)
+        paramset = makeManualCalibration(paramset,rate_dict,use_yfactor=use_yfactor)
     
     
     def calculateFit(self,results,metric=None):
