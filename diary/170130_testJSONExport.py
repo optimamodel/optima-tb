@@ -80,5 +80,23 @@ print proj2.name, proj.name
 #print proj2.parsets
 #print proj.parsets
 
+#Add validation
+validate_linkpars = True
+validate_charac = True
+for key in proj.settings.linkpar_specs:
+    for key2 in proj.settings.linkpar_specs[key]:
+        if not proj.settings.linkpar_specs[key][key2] == proj2.settings.linkpar_specs[key][key2]:
+            print('%s is not matching up for %s between the two projects'%(key,key2))
+            validate_linkpars = False
+for key in proj.settings.charac_specs:
+    for key2 in proj.settings.charac_specs[key]:
+        if not proj.settings.charac_specs[key][key2] == proj2.settings.charac_specs[key][key2]:
+            print('Validation failed! %s is not matching up for %s bewtween the two projects'%(key,key2))
+            validate_charac = False
+
+if validate_linkpars: print('Linkpars succesfully validated')
+else: print('Linkpars validation failed!')
+if validate_charac: print('Characteristics succesfully validated')
+else: print('Characteristics validation failed!')
 
 
