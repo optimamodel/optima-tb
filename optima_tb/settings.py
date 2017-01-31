@@ -1,6 +1,5 @@
 #%% Imports
 from optima_tb.utils import odict
-from optima_tb.parsing import FunctionParser
 from optima_tb.cascade import loadCascadeSettingsFunc, plotCascadeFunc
 
 
@@ -55,7 +54,7 @@ class Settings(object):
         self.recursion_limit = 100      # Limit for recursive references, primarily used in avoiding circular references for definitions using dependencies.
         self.fit_metric = 'wape'
         
-        self.parser = FunctionParser(debug = False)      # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
+        self.parser_debug = False      # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
         # Separate autofit and optimization parameters so that can use the asd algorithm
         # with different settings.
@@ -70,7 +69,7 @@ class Settings(object):
                                                          
         logging.info("Created settings based on cascade: %s"%cascade_path)
         
-        self.plot_settings = PlottingSettings()        
+        self.plot_settings = PlottingSettings().plotdict
         
     def resetCascade(self):
         ''' Resets all cascade contents and settings that are fundamental to how a project is structured. '''
@@ -308,6 +307,7 @@ class PlottingSettings():
     
     def __init__(self,output='dev'):
         logging.info("Loading plotting settings")
+        self.plotdict = {} # holder
         self.defaultSettings()
         try:
             outputSettings = getattr(self, '%sSettings'%output)
