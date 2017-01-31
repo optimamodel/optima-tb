@@ -4,6 +4,8 @@ from optima_tb.utils import flattenDict, odict, OptimaException
 from optima_tb.validation import checkNegativePopulation, checkTransitionFraction
 import optima_tb.settings as project_settings
 from optima_tb.results import ResultSet
+from optima_tb.parsing import FunctionParser
+
 
 import logging
 logger = logging.getLogger(__name__)
@@ -234,7 +236,9 @@ class Model(object):
         
         self.t_index = 0                # Keeps track of array index for current timepoint data within all compartments.
         
-        
+        self.parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
+
+            
         
     def getPop(self, pop_label):
         ''' Allow model populations to be retrieved by label rather than index. '''
@@ -247,6 +251,7 @@ class Model(object):
         
         self.sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
         
+        self.parser.debug = settings.parser_debug
         
         for k, pop_label in enumerate(parset.pop_labels):
             self.pops.append(ModelPopulation(settings = settings, label = pop_label, index = k))
@@ -677,7 +682,7 @@ class Model(object):
                         else:
                             val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti]    # As links are duplicated for the same tag, can pull values from the zeroth one.
                         deps[dep_label] = val
-                    new_val = settings.parser.evaluateStack(stack = f_stack, deps = deps)
+                    new_val = self.parser.evaluateStack(stack = f_stack, deps = deps)
                 else:
                     new_val = pars[0].vals[ti]      # As links are duplicated for the same tag, can pull values from the zeroth one.
                 

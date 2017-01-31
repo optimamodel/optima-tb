@@ -2,6 +2,7 @@
 
 
 from optima_tb.utils import odict, OptimaException, flattenDict
+from optima_tb.parsing import FunctionParser
 
 import logging
 logger = logging.getLogger(__name__)
@@ -27,6 +28,8 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     
     from optima_tb.settings import DO_NOT_SCALE, DEFAULT_YFACTOR
     import os
+    
+    parser = FunctionParser(settings.parser_debug) # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
     
     cascade_path = os.path.abspath(cascade_path)
 
@@ -423,7 +426,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     if settings.linkpar_specs[label]['databook_order'] >= 0:
                         raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Tag "Databook Order" column with a negative number so that conflicts with user-provided values do not arise.' % label)
                     settings.par_funcs[label] = True
-                    expr_stack, var_dict = settings.parser.produceStack(val)
+                    expr_stack, var_dict = parser.produceStack(val)
                     settings.linkpar_specs[label]['f_stack'] = expr_stack
                     settings.linkpar_specs[label]['deps'] = var_dict
                     for var in var_dict.keys():
