@@ -5,6 +5,7 @@ from optima_tb.utils import OptimaException, tic, toc, odict
 import optima_tb.settings as settings
 import optima_tb.asd as asd
 from optima_tb.parameters import ParameterSet
+from numpy import linspace
 
 import numpy as np
 from copy import deepcopy as dcp
@@ -16,7 +17,7 @@ Calibration and sensitivity analysis
 """
 
 
-def performSensitivityAnalysis(proj=None, parsetname=None, targetpars = None, targetchars=None, targetpops=None, steps=10, sigma=0.05, overwrite=False):
+def performSensitivityAnalysis(proj=None, parsetname=None, targetpars = None, targetchars=None, savePlot = False, steps=10, sigma=0.05, overwrite=False):
     """
     Randomly perturbs parameter set to get different outcomes and compare
     
@@ -25,7 +26,6 @@ def performSensitivityAnalysis(proj=None, parsetname=None, targetpars = None, ta
         parsetname              -   Parset to run sensitivity analysis
         targetpars              -   Target parameters to run sensitivity analysis
         targetchars             -   Target characteristics to run sensitivity analysis
-        targetpops              -   Target population groups for parameters and characteristics
         steps                   -   Number of sample points
         sigma                   -   Percent perturbation
     """
@@ -43,26 +43,38 @@ def performSensitivityAnalysis(proj=None, parsetname=None, targetpars = None, ta
             message = 'No parameter sets exist in the project'
             logger.error(message)
             raise OptimaException(message)
-    
     poplist = dcp(proj.data['pops']['name_labels'])
+    modified_par_dict = {}
+    
     if targetpars is None:  targetpars  = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], poplist=poplist)
-    if targetchars is None: targetchars = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], poplist=poplist, isParameter=False)
-    for key in targetpars:  logger.info('Sensitivity Analysis: Target parameter: %s | Target Population: %s' %(key, targetpars[key]))
-    for key in targetchars: logger.info('Sensitivity Analysis: Target characteristic: %s | Target Population: %s' %(key, targetchars[key]))
-#dict_change_params = {'v_rate': [0.02],
-#                      'birth_transit' : [5000],
-#                      'rec_act': [0.8]}
-#dict_change_params2 = {'v_rate': [0.2],
-#                      'birth_transit' : [500],
-#                      'rec_act': [0.08]}
-#
-#rate_dict = {'Pop1' : dict_change_params,
-#             'Pop2' : dict_change_params2}
-#
-#
-#pname2='testCalib'
-#proj.makeManualCalibration(pname2,rate_dict)
-    return None
+    #if targetchars is None: targetchars = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], poplist=poplist, isParameter=False)
+    for key in targetpars: logger.info('Sensitivity Analysis: Target parameter: %s | Target Population: %s' %(key, targetpars[key]))
+    #for key in targetchars: logger.info('Sensitivity Analysis: Target characteristic: %s | Target Population: %s' %(key, targetchars[key]))
+      
+    for popname in poplist:
+        for key in targetpars:
+            if poplist[popname] in targetpars[key] and poplist[popname] not in modified_par_dict.keys():
+                modified_par_dict[poplist[popname]] = {key: []}
+            elif poplist[popname] in targetpars[key]: modified_par_dict[poplist[popname]][key] = []
+        #for key in targetchars:
+        #    if poplist[popname] in targetchars[key] and poplist[popname] not in modified_par_dict.keys():
+        #        modified_par_dict[poplist[popname]] = {key: []}
+        #    elif poplist[popname] in targetchars[key]: modified_par_dict[poplist[popname]][key] = []
+    sample_set = linspace(start=1.*(1-sigma), stop=1.*(1+sigma), num=steps)
+    FitScore = odict()
+    results = proj.runSim()
+    FitScore['default'] = proj.calculateFit(results)
+    for yFactor in sample_set:
+        temp_par_dict = dcp(modified_par_dict)
+        new_parset = 'SensitivityAnalysis-'+str(yFactor)
+        for popname in temp_par_dict:
+            for parname in temp_par_dict[popname]:
+                temp_par_dict[popname][parname].append(yFactor)
+        proj.makeManualCalibration(new_parset, temp_par_dict, use_yfactor=True)
+        results = proj.runSim(parset_name=new_parset)
+        FitScore[new_parset] = proj.calculateFit(results)
+        proj.plotResults(results,savePlot=savePlot,figName=new_parset)
+    return FitScore
 
 def extractParameters(settings = None, parset=None, poplist=None, isParameter=True):
     pars = parset.par_ids

@@ -166,6 +166,7 @@ class Project(object):
         datapoints = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,self.data['characs'],metric)
         logger.info("Calculated scores for fit using %s: largest value=%.2f"%(metric,max(score)))
+        return max(score)
       
       
     def runAutofitCalibration(self,new_parset_name = None, old_parset_name="default", target_characs=None):
