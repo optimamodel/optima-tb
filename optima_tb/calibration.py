@@ -63,10 +63,10 @@ def performSensitivityAnalysis(proj=None, parsetname=None, targetpars = None, ta
     sample_set = linspace(start=1.*(1-sigma), stop=1.*(1+sigma), num=steps)
     FitScore = odict()
     results = proj.runSim()
-    FitScore['default'] = proj.calculateFit(results)
+    FitScore['SensitivityAnalysis at '+str(100)+'%'] = proj.calculateFit(results)
     for yFactor in sample_set:
         temp_par_dict = dcp(modified_par_dict)
-        new_parset = 'SensitivityAnalysis-'+str(yFactor)
+        new_parset = 'SensitivityAnalysis at '+str(yFactor*100)+'%'
         for popname in temp_par_dict:
             for parname in temp_par_dict[popname]:
                 temp_par_dict[popname][parname].append(yFactor)
@@ -74,6 +74,8 @@ def performSensitivityAnalysis(proj=None, parsetname=None, targetpars = None, ta
         results = proj.runSim(parset_name=new_parset)
         FitScore[new_parset] = proj.calculateFit(results)
         proj.plotResults(results,savePlot=savePlot,figName=new_parset)
+    print('\nFit scores after modification of the following parameters: %s' % ([x for x in targetpars]))
+    print(FitScore)
     return FitScore
 
 def extractParameters(settings = None, parset=None, poplist=None, isParameter=True):
