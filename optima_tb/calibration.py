@@ -44,11 +44,12 @@ def performSensitivityAnalysis(proj=None, parsetname=None, targetpars = None, ta
             logger.error(message)
             raise OptimaException(message)
     
-    if targetpars is None:  targetpars  = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], target=targetpars, targetpops=targetpops)
-    if targetchars is None: targetchars = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], target=targetchars, targetpops=targetpops, isParameter=False)
+    poplist = dcp(proj.data['pops']['name_labels'])
+    if targetpars is None:  targetpars  = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], target=targetpars, targetpops=targetpops, poplist=poplist)
+    if targetchars is None: targetchars = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], target=targetchars, targetpops=targetpops, poplist=poplist, isParameter=False)
     return None
 
-def extractParameters(settings = None, parset=None, target=None, targetpops=None, isParameter=True):
+def extractParameters(settings = None, parset=None, target=None, targetpops=None, poplist=None, isParameter=True):
     pars = parset.par_ids
     par_types = pars.keys()
     validation = True
@@ -68,17 +69,18 @@ def extractParameters(settings = None, parset=None, target=None, targetpops=None
             validation = False
     if not validation: raise OptimaException('Unable to generate command prompt, please check log for details')
     
-    print('\nThe following "%s" items are available for sensitivity analysis:\n' %label)
+    print('\nThe following "%s" items are available for sensitivity analysis:' %label)
     for index, key in enumerate(pars[label]):
-        try:    
-            print('%i. %s: %s' %(index+1, settings.linkpar_specs[key]['name'], key))
-            cmdPrompt(key=key)
-        except: 
+        if 'cascade' in label:    
+            print('\n%i. %s: %s' %(index+1, settings.linkpar_specs[key]['name'], key))
+            parPrompt(key=key, poplist=poplist)
+        else: 
             print('%i. %s: %s' %(index+1, settings.charac_specs[key]['name'], key))
+            parPrompt(key=key, poplist=poplist)
             
     return target
 
-def cmdPrompt(key=None):
+def parPrompt(key=None, poplist=None):
     prompt = True
     arguments = {}
     while prompt:
@@ -86,14 +88,21 @@ def cmdPrompt(key=None):
         if isinstance(user_input, str):
             if user_input == 'y' or user_input == 'Y':
                 targetpops = []
-                arguments[key] = targetpops
+                arguments[key] = popPrompt(targetpops,poplist)
                 prompt = False
             elif user_input == 'n' or user_input == 'N':
                 prompt = False
             else:
                 print('Invalid entry detected, please try again')
                 continue
-        
+    return
+
+def popPrompt(targetpops,poplist):
+    print('   The following population groups can be used for this parameter:')
+    print('      1. All population' )
+    for index, key in enumerate(poplist):
+        print('      %i. %s : %s' %(index+2, key, poplist[key]))
+    return targetpops
 #dict_change_params = {'v_rate': [0.02],
 #                      'birth_transit' : [5000],
 #                      'rec_act': [0.8]}
