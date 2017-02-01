@@ -45,13 +45,29 @@ def performSensitivityAnalysis(proj=None, parsetname=None, targetpars = None, ta
             raise OptimaException(message)
     
     poplist = dcp(proj.data['pops']['name_labels'])
-    if targetpars is None:  targetpars  = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], target=targetpars, targetpops=targetpops, poplist=poplist)
-    if targetchars is None: targetchars = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], target=targetchars, targetpops=targetpops, poplist=poplist, isParameter=False)
+    if targetpars is None:  targetpars  = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], poplist=poplist)
+    if targetchars is None: targetchars = extractParameters(settings = proj.settings, parset=proj.parsets[parsetname], poplist=poplist, isParameter=False)
+    for key in targetpars:  logger.info('Sensitivity Analysis: Target parameter: %s | Target Population: %s' %(key, targetpars[key]))
+    for key in targetchars: logger.info('Sensitivity Analysis: Target characteristic: %s | Target Population: %s' %(key, targetchars[key]))
+#dict_change_params = {'v_rate': [0.02],
+#                      'birth_transit' : [5000],
+#                      'rec_act': [0.8]}
+#dict_change_params2 = {'v_rate': [0.2],
+#                      'birth_transit' : [500],
+#                      'rec_act': [0.08]}
+#
+#rate_dict = {'Pop1' : dict_change_params,
+#             'Pop2' : dict_change_params2}
+#
+#
+#pname2='testCalib'
+#proj.makeManualCalibration(pname2,rate_dict)
     return None
 
-def extractParameters(settings = None, parset=None, target=None, targetpops=None, poplist=None, isParameter=True):
+def extractParameters(settings = None, parset=None, poplist=None, isParameter=True):
     pars = parset.par_ids
     par_types = pars.keys()
+    target = odict()
     validation = True
     if isParameter:     
         label = [x for x in par_types if 'cascade' in x]
@@ -70,52 +86,51 @@ def extractParameters(settings = None, parset=None, target=None, targetpops=None
     if not validation: raise OptimaException('Unable to generate command prompt, please check log for details')
     
     print('\nThe following "%s" items are available for sensitivity analysis:' %label)
-    for index, key in enumerate(pars[label]):
-        if 'cascade' in label:    
-            print('\n%i. %s: %s' %(index+1, settings.linkpar_specs[key]['name'], key))
-            parPrompt(key=key, poplist=poplist)
-        else: 
-            print('%i. %s: %s' %(index+1, settings.charac_specs[key]['name'], key))
-            parPrompt(key=key, poplist=poplist)
-            
+    if isParameter:
+        for index, key in enumerate(pars[label]): 
+            print('%i. %s: %s' %(index, settings.linkpar_specs[key]['name'], key))   
+        parindex = parPrompt(totalpars=len(pars[label]))
+        for index, key in enumerate(pars[label]):
+            for counter in range(len(parindex)):
+                if index == parindex[counter]: 
+                    target[key] = popPrompt(poplist, settings.linkpar_specs[key]['name'])
+    else: 
+        for index, key in enumerate(pars[label]): 
+            print('%i. %s: %s' %(index, settings.charac_specs[key]['name'], key))
+        charindex = parPrompt(totalpars=len(pars[label]))
+        for index, key in enumerate(pars[label]):
+            for counter in range(len(charindex)):
+                if index == charindex[counter]: 
+                    target[key] = popPrompt(poplist, settings.charac_specs[key]['name'])
     return target
 
-def parPrompt(key=None, poplist=None):
-    prompt = True
-    arguments = {}
-    while prompt:
-        user_input = raw_input('Would you like to add above parameter? (y/n): ')
-        if isinstance(user_input, str):
-            if user_input == 'y' or user_input == 'Y':
-                targetpops = []
-                arguments[key] = popPrompt(targetpops,poplist)
-                prompt = False
-            elif user_input == 'n' or user_input == 'N':
-                prompt = False
-            else:
-                print('Invalid entry detected, please try again')
-                continue
-    return
+def parPrompt(totalpars=None):
+    user_input = raw_input('Please identify the parameters you would like to consider, use comma between each index(e.g. 1,2,3)\nLeave blank if no entry: ')
+    try: pars = list(set(map(int, user_input.split(','))))
+    except: pars = []
+    for index, key in enumerate(pars):
+        if key > totalpars-1: del pars[index]
+    return pars
 
-def popPrompt(targetpops,poplist):
-    print('   The following population groups can be used for this parameter:')
-    print('      1. All population' )
+def popPrompt(poplist, name):
+    updatedpoplist = []
+    print('\nThe following population groups can be used for parameter: %s' %(name))
+    print('   0. All population' )
     for index, key in enumerate(poplist):
-        print('      %i. %s : %s' %(index+2, key, poplist[key]))
-    return targetpops
-#dict_change_params = {'v_rate': [0.02],
-#                      'birth_transit' : [5000],
-#                      'rec_act': [0.8]}
-#dict_change_params2 = {'v_rate': [0.2],
-#                      'birth_transit' : [500],
-#                      'rec_act': [0.08]}
-#
-#rate_dict = {'Pop1' : dict_change_params,
-#             'Pop2' : dict_change_params2}
-#
-#
-#pname2='testCalib'
-#proj.makeManualCalibration(pname2,rate_dict)
+        print('   %i. %s : %s' %(index+1, key, poplist[key]))
+    user_input = raw_input('Please identify the population groups you would like to consider\nUse comma between each index(e.g. 1,2,3): ')
+    try: pops = list(set(map(int, user_input.split(','))))
+    except: pops = [0]
+    for index, key in enumerate(pops):
+        if key == 0: 
+            for item in poplist:
+                updatedpoplist.append(poplist[item])
+            return updatedpoplist
+        elif key > len(poplist): del pops[index]
+        else: continue
+    pops[:] = [x - 1 for x in pops]
+    updatedpoplist = poplist[pops]
+    return updatedpoplist
     
 def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
     """
