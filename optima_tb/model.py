@@ -659,7 +659,10 @@ class Model(object):
                         else:
                             raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))                      
                         
-                        dep.vals[ti] /= val
+                        if val == 0:
+                            dep.vals[ti] = 0
+                        else:
+                            dep.vals[ti] /= val
             
         # Parameters that are functions of dependencies next...
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
