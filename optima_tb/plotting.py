@@ -201,12 +201,15 @@ def _turnOffBorder():
     pl.gca().yaxis.set_ticks_position('left')
 
 
-def isPlottable(comp_label,sim_settings):
+def isPlottable(comp_label,sim_settings,comp_specs):
     """ 
     Returns bool indicating whether a population label should be included in metrics
     for population reporting when plotting cascade
     """
     if comp_label in sim_settings['tag_no_plot']:
+        return False
+    print comp_specs[comp_label]
+    if comp_specs[comp_label].has_key('junction'):
         return False
     return True
 
@@ -292,7 +295,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None, plot_
         colors_dict = getCategoryColors(colormappings)
         # reorder so that colors are same as expected for plotting the population
         for (j,comp) in enumerate(mpops[0].comps):
-            if isPlottable(comp.label,sim_settings):
+            if isPlottable(comp.label,sim_settings,results.comp_specs):
                 colors.append(colors_dict[comp.label])
     
         
@@ -303,7 +306,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None, plot_
         comps = []
         labels = []
         for (j,comp) in enumerate(pop.comps):
-            if isPlottable(comp.label,sim_settings):
+            if isPlottable(comp.label,sim_settings,results.comp_specs):
                 comps.append(comp)
                 if use_full_labels:
                     c_label = comp_labels[comp.label]
