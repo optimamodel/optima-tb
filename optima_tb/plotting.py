@@ -208,7 +208,6 @@ def isPlottable(comp_label,sim_settings,comp_specs):
     """
     if comp_label in sim_settings['tag_no_plot']:
         return False
-    print comp_specs[comp_label]
     if comp_specs[comp_label].has_key('junction'):
         return False
     return True
@@ -404,8 +403,8 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
     pl.suptitle('')
     
     if save_fig:
-        fig.savefig('%s.png' % (save_figname))
-        logger.info("Saved figure: '%s.png'"%save_figname)
+        fig.savefig('%s' % (save_figname))
+        logger.info("Saved figure: '%s'"%save_figname)
         
     
 
@@ -546,8 +545,8 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         
     _turnOffBorder()
     if save_fig:
-        fig.savefig('%s.png' % (save_figname))                    
-        logger.info("Saved figure: '%s.png'"%save_figname)
+        fig.savefig('%s' % (save_figname))                    
+        logger.info("Saved figure: '%s'"%save_figname)
     
     
     
