@@ -61,7 +61,7 @@ class GUICalibration(QtGui.QWidget):
         
         # Screen.
         screen = QtGui.QDesktopWidget().availableGeometry()
-        self.resize(screen.width()*2.0/3.0, screen.height()*2.0/3.0)
+        self.resize(screen.width()*9.0/10.0, screen.height()*9.0/10.0)
         self.setGeometry((screen.width()-self.width())/2, (screen.height()-self.height())/2, 
                          self.width(), self.height())
         
@@ -73,7 +73,7 @@ class GUICalibration(QtGui.QWidget):
         self.label_cascade = QtGui.QLabel('Cascade Filename: ')
         self.edit_cascade = QtGui.QLineEdit()
         self.button_cascade = QtGui.QPushButton('Locate File', self)
-        self.button_cascade.clicked.connect(self.makeSelectFile(display_field = self.edit_cascade))
+        self.button_cascade.clicked.connect(self.factorySelectFile(display_field = self.edit_cascade))
         
         self.button_project_init = QtGui.QPushButton('Create Project', self)
         self.button_project_init.clicked.connect(self.createProject)
@@ -81,7 +81,7 @@ class GUICalibration(QtGui.QWidget):
         self.label_databook = QtGui.QLabel('Databook Filename: ')
         self.edit_databook = QtGui.QLineEdit()
         self.button_databook = QtGui.QPushButton('Locate File', self)
-        self.button_databook.clicked.connect(self.makeSelectFile(display_field = self.edit_databook))
+        self.button_databook.clicked.connect(self.factorySelectFile(display_field = self.edit_databook))
         
         self.button_project_saturate = QtGui.QPushButton('Load Data', self)
         self.button_project_saturate.clicked.connect(self.loadData)
@@ -96,7 +96,7 @@ class GUICalibration(QtGui.QWidget):
         self.table_calibration = QtGui.QTableWidget()
         policy_min = QtGui.QSizePolicy.Minimum
         policy_exp = QtGui.QSizePolicy.Expanding
-        self.layout_stretch = QtGui.QSpacerItem(0, 0, policy_min, policy_exp)
+        self.parset_layout_stretch = QtGui.QSpacerItem(0, 0, policy_min, policy_exp)
         
         # Layout.   
         grid = QtGui.QGridLayout()
@@ -115,12 +115,23 @@ class GUICalibration(QtGui.QWidget):
         grid.addWidget(self.label_parset, 3, 0)
         grid.addWidget(self.combo_parset, 3, 1)        
         
-        total_layout = QtGui.QVBoxLayout()
-        total_layout.addLayout(grid)
-        total_layout.addWidget(self.table_calibration)
-        total_layout.addItem(self.layout_stretch)
-        total_layout.addWidget(self.status_bar)
+        parset_layout = QtGui.QVBoxLayout()
+        parset_layout.addLayout(grid)
+        parset_layout.addWidget(self.table_calibration)
+        parset_layout.addItem(self.parset_layout_stretch)
+        parset_layout.addWidget(self.status_bar)
         
+        self.first_half = QtGui.QWidget()
+        self.first_half.resize(self.width()/2.0, self.height())
+        self.first_half.setLayout(parset_layout)
+        self.second_half = QtGui.QWidget()
+        self.second_half.resize(self.width()/2.0, self.height()/2.0)
+        
+        self.splitter_total = QtGui.QSplitter()
+        self.splitter_total.addWidget(self.first_half)
+        self.splitter_total.addWidget(self.second_half)
+        total_layout = QtGui.QHBoxLayout()
+        total_layout.addWidget(self.splitter_total)
         self.setLayout(total_layout)
     
         self.refreshVisibility()
@@ -144,30 +155,10 @@ class GUICalibration(QtGui.QWidget):
         policy_min = QtGui.QSizePolicy.Minimum
         policy_exp = QtGui.QSizePolicy.Expanding
         if self.flag_pars_visible:
-            self.table_calibration.setVisible(False)    # Resizing columns requires table to be hidden first.
-            self.layout_stretch.changeSize(0, 0, policy_min, policy_min)
-
-            parset = self.project.parsets[self.selected_parset]
-            self.table_calibration.setRowCount(len(parset.pars['cascade']))
-            self.table_calibration.setColumnCount(1+len(self.tvec))
-            self.calibration_items = []
-            
-            k = 0
-            par_labels = []
-            for par in parset.pars['cascade']:
-                par_labels.append(par.label)
-                par_name = self.project.settings.linkpar_specs[par.label]['name']
-                temp = QtGui.QTableWidgetItem()
-                temp.setText(par_name)
-                temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
-                self.table_calibration.setItem(k, 0, temp)
-                
-                k += 1
-            self.table_calibration.setVerticalHeaderLabels(par_labels)
-            self.table_calibration.setHorizontalHeaderLabels(['Name']+[str(int(x)) for x in self.tvec])
-            self.table_calibration.resizeColumnsToContents()
+            self.parset_layout_stretch.changeSize(0, 0, policy_min, policy_min)
+            self.makeParsetTable()
         else:
-            self.layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+            self.parset_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
         self.table_calibration.setVisible(self.flag_pars_visible)
         
     def createProject(self):
@@ -211,11 +202,51 @@ class GUICalibration(QtGui.QWidget):
         self.selected_parset = parset_name
         self.refreshVisibility()
         
-    def makeSelectFile(self, display_field):
+    def factorySelectFile(self, display_field):
         def selectFile(self):
             display_field.setText(QtGui.QFileDialog.getOpenFileName())
         return selectFile
-    
+        
+    def makeParsetTable(self):
+        self.table_calibration.setVisible(False)    # Resizing columns requires table to be hidden first.
+
+        parset = self.project.parsets[self.selected_parset]
+        num_pops = len(parset.pop_labels)
+        row_count = num_pops*(len(parset.pars['cascade'])-len(self.project.settings.par_funcs))
+        self.table_calibration.setRowCount(row_count)
+        self.table_calibration.setColumnCount(2+len(self.tvec))
+        self.calibration_items = []
+        
+        k = 0
+        par_labels = []
+        for par in parset.pars['cascade']:
+            if par.label not in self.project.settings.par_funcs:
+                for pid in xrange(len(parset.pop_labels)):
+                    pop_label = parset.pop_labels[pid]
+                    par_labels.append(par.label+' ['+pop_label+']')
+                    par_name = self.project.settings.linkpar_specs[par.label]['name']
+                    temp = QtGui.QTableWidgetItem()
+                    temp.setText(par_name)
+                    temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
+                    self.table_calibration.setItem(k*num_pops+pid, 0, temp)
+                    temp = QtGui.QTableWidgetItem()
+                    temp.setText(parset.pop_names[pid])
+                    temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
+                    self.table_calibration.setItem(k*num_pops+pid, 1, temp)
+                    
+                    for eid in xrange(len(par.t[pid])):
+                        t = par.t[pid][eid]
+                        y = par.y[pid][eid]
+                        temp = QtGui.QTableWidgetItem()
+                        temp.setText(str(y))
+    #                    temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsEditable or QtCore.Qt.ItemIsSelectable)
+                        self.table_calibration.setItem(k*num_pops+pid, 2+int(t)-self.tvec[0], temp)
+                k += 1
+        self.table_calibration.setVerticalHeaderLabels(par_labels)
+        self.table_calibration.setHorizontalHeaderLabels(['Par. Name','Pop. Name']+[str(int(x)) for x in self.tvec])
+        self.table_calibration.resizeColumnsToContents()
+
+
 
 #%% Functionality for opening GUIs
 
