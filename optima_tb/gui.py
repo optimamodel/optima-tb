@@ -51,9 +51,18 @@ class GUICalibration(QtGui.QWidget):
         self.flag_databook_visible = False
         self.flag_parset_visible = False
         self.flag_pars_visible = False
+        self.selected_parset = None
+        self.calibration_items = []
         
         self.setWindowTitle('Manual Calibration')
         
+        # Screen.
+        screen = QtGui.QDesktopWidget().availableGeometry()
+        self.resize(screen.width()*2.0/3.0, screen.height()*2.0/3.0)
+        self.setGeometry((screen.width()-self.width())/2, (screen.height()-self.height())/2, 
+                         self.width(), self.height())
+        
+        # Widgets.
         self.label_project_name = QtGui.QLabel('Project Name: ')
         self.edit_project_name = QtGui.QLineEdit()
         self.edit_project_name.setText('New Project')
@@ -75,14 +84,18 @@ class GUICalibration(QtGui.QWidget):
         self.button_project_saturate.clicked.connect(self.loadData)
         
         self.label_parset = QtGui.QLabel('Parset: ')
-        self.button_parset = QtGui.QToolButton(self)
-        self.button_parset.setPopupMode(QtGui.QToolButton.MenuButtonPopup)
-        self.button_parset.setMenu(QtGui.QMenu(self.button_parset))
-        self.textbox_parset = QtGui.QTextBrowser(self)
-        action_parset = QtGui.QWidgetAction(self.button_parset)
-        action_parset.setDefaultWidget(self.textbox_parset)
-        self.button_parset.menu().addAction(action_parset)
+        self.combo_parset = QtGui.QComboBox(self)
+        self.combo_parset.activated[str].connect(self.loadCalibration)
         
+        self.status_bar = QtGui.QStatusBar()
+        self.status_bar.showMessage(self.status)
+        
+        self.table_calibration = QtGui.QTableWidget()
+        policy_min = QtGui.QSizePolicy.Minimum
+        policy_exp = QtGui.QSizePolicy.Expanding
+        self.layout_stretch = QtGui.QSpacerItem(0, 0, policy_min, policy_exp)
+        
+        # Layout.   
         grid = QtGui.QGridLayout()
         grid.setSpacing(10)          
         
@@ -97,22 +110,15 @@ class GUICalibration(QtGui.QWidget):
         grid.addWidget(self.button_databook, 2, 2)
         grid.addWidget(self.button_project_saturate, 2, 3)
         grid.addWidget(self.label_parset, 3, 0)
-        grid.addWidget(self.button_parset, 3, 1)
-        
-        self.status_bar = QtGui.QStatusBar()
-        self.status_bar.showMessage(self.status)        
+        grid.addWidget(self.combo_parset, 3, 1)        
         
         total_layout = QtGui.QVBoxLayout()
         total_layout.addLayout(grid)
-        total_layout.addStretch(1)
+        total_layout.addWidget(self.table_calibration)
+        total_layout.addItem(self.layout_stretch)
         total_layout.addWidget(self.status_bar)
         
         self.setLayout(total_layout)
-        
-        screen = QtGui.QDesktopWidget().availableGeometry()
-        self.resize(screen.width()*2.0/3.0, screen.height()*2.0/3.0)
-        self.setGeometry((screen.width()-self.width())/2, (screen.height()-self.height())/2, 
-                         self.width(), self.height())   
     
         self.refreshVisibility()
         self.show()
@@ -126,7 +132,31 @@ class GUICalibration(QtGui.QWidget):
         self.button_project_saturate.setVisible(self.flag_databook_visible)
         
         self.label_parset.setVisible(self.flag_parset_visible)
-        self.button_parset.setVisible(self.flag_parset_visible)
+        self.combo_parset.setVisible(self.flag_parset_visible)
+        if self.flag_parset_visible:
+            self.combo_parset.clear()
+            for parset_name in self.project.parsets:
+                self.combo_parset.addItem(parset_name)
+        
+        policy_min = QtGui.QSizePolicy.Minimum
+        policy_exp = QtGui.QSizePolicy.Expanding
+        if self.flag_pars_visible:
+            self.layout_stretch.changeSize(0, 0, policy_min, policy_min)
+
+            parset = self.project.parsets[self.selected_parset]
+            self.table_calibration.setRowCount(len(parset.pars['cascade']))
+            self.table_calibration.setColumnCount(1)
+            self.calibration_items = []
+            
+            k = 0
+            for par in parset.pars['cascade']:
+                self.calibration_items.append(QtGui.QTableWidgetItem())
+                self.calibration_items[k].setText(par.label)
+                self.table_calibration.setItem(k, 0, self.calibration_items[k])
+                k += 1
+        else:
+            self.layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+        self.table_calibration.setVisible(self.flag_pars_visible)
         
     def createProject(self):
         try:
@@ -137,6 +167,7 @@ class GUICalibration(QtGui.QWidget):
             self.flag_pars_visible = False
         except:
             self.project = None
+            self.selected_parset = None
             self.status = ('Status: Attempt to generate Project failed')
             self.flag_databook_visible = False
             self.flag_parset_visible = False
@@ -146,16 +177,24 @@ class GUICalibration(QtGui.QWidget):
     def loadData(self):
         try:
             self.project.loadSpreadsheet(databook_path = self.edit_databook.text())
-            self.status = ('Status: Valid data loaded into Project "%s"' % self.project.name)
+            self.project.makeParset(name = 'default')
+            self.selected_parset = 'default'
+            self.status = ('Status: Valid data loaded into Project "%s", default parset generated' % self.project.name)
             self.flag_databook_visible = True
             self.flag_parset_visible = True
-            self.flag_pars_visible = False
+            self.flag_pars_visible = True
         except:
             self.project = None
+            self.selected_parset = None
             self.status = ('Status: Attempt to load data into Project failed, Project reset for safety')
             self.flag_databook_visible = False
             self.flag_parset_visible = False
             self.flag_pars_visible = False
+        self.refreshVisibility()
+        
+    def loadCalibration(self, parset_name):
+        self.flag_pars_visible = True
+        self.selected_parset = parset_name
         self.refreshVisibility()
         
     def makeSelectFile(self, display_field):
