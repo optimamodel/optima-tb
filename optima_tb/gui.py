@@ -5,8 +5,9 @@ import logging.config
 logging.config.fileConfig('logging.ini', disable_existing_loggers=False)
 logger = logging.getLogger()
 
-from PyQt4 import QtGui
+from PyQt4 import QtGui, QtCore
 import sys
+import numpy as np
 
 from optima_tb.project import Project
 
@@ -52,7 +53,9 @@ class GUICalibration(QtGui.QWidget):
         self.flag_parset_visible = False
         self.flag_pars_visible = False
         self.selected_parset = None
-        self.calibration_items = []
+        self.tvec = None        
+        
+#        self.calibration_items = []
         
         self.setWindowTitle('Manual Calibration')
         
@@ -141,19 +144,28 @@ class GUICalibration(QtGui.QWidget):
         policy_min = QtGui.QSizePolicy.Minimum
         policy_exp = QtGui.QSizePolicy.Expanding
         if self.flag_pars_visible:
+            self.table_calibration.setVisible(False)    # Resizing columns requires table to be hidden first.
             self.layout_stretch.changeSize(0, 0, policy_min, policy_min)
 
             parset = self.project.parsets[self.selected_parset]
             self.table_calibration.setRowCount(len(parset.pars['cascade']))
-            self.table_calibration.setColumnCount(1)
+            self.table_calibration.setColumnCount(1+len(self.tvec))
             self.calibration_items = []
             
             k = 0
+            par_labels = []
             for par in parset.pars['cascade']:
-                self.calibration_items.append(QtGui.QTableWidgetItem())
-                self.calibration_items[k].setText(par.label)
-                self.table_calibration.setItem(k, 0, self.calibration_items[k])
+                par_labels.append(par.label)
+                par_name = self.project.settings.linkpar_specs[par.label]['name']
+                temp = QtGui.QTableWidgetItem()
+                temp.setText(par_name)
+                temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
+                self.table_calibration.setItem(k, 0, temp)
+                
                 k += 1
+            self.table_calibration.setVerticalHeaderLabels(par_labels)
+            self.table_calibration.setHorizontalHeaderLabels(['Name']+[str(int(x)) for x in self.tvec])
+            self.table_calibration.resizeColumnsToContents()
         else:
             self.layout_stretch.changeSize(0, 0, policy_min, policy_exp)
         self.table_calibration.setVisible(self.flag_pars_visible)
@@ -161,12 +173,14 @@ class GUICalibration(QtGui.QWidget):
     def createProject(self):
         try:
             self.project = Project(name = self.edit_project_name.text(), cascade_path = self.edit_cascade.text(), validation_level = 'error')
+            self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
             self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
             self.flag_databook_visible = True
             self.flag_parset_visible = False
             self.flag_pars_visible = False
         except:
             self.project = None
+            self.tvec = None
             self.selected_parset = None
             self.status = ('Status: Attempt to generate Project failed')
             self.flag_databook_visible = False
