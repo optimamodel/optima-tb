@@ -38,6 +38,10 @@ class Project(object):
         
         logger.info("Created project: %s"%self.name)
         
+    def resetParsets(self):
+        ''' Convenience function called externally to delete all parsets. '''
+        self.parsets = odict()
+        
     def setYear(self, yearRange,observed_data=True):
         '''
         
