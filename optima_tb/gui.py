@@ -54,6 +54,7 @@ class GUICalibration(QtGui.QWidget):
         self.parset_source_name = None
         self.parset_comparison_name = None
         self.tvec = None 
+        self.combo_dict = {}    # Dictionary that maps Parset names to indices used in combo boxes.
         
     def initUI(self):
         
@@ -177,12 +178,10 @@ class GUICalibration(QtGui.QWidget):
         self.button_databook.setVisible(is_cascade_loaded)
         self.button_project_saturate.setVisible(is_cascade_loaded)
         
+        if is_parset_loaded:
+            self.refreshComboBoxes()
         self.label_parset.setVisible(is_parset_loaded)
         self.combo_parset.setVisible(is_parset_loaded)
-        if is_parset_loaded:
-            self.combo_parset.clear()
-            for parset_name in self.project.parsets.keys():
-                self.combo_parset.addItem(parset_name)
         
         policy_min = QtGui.QSizePolicy.Minimum
         policy_exp = QtGui.QSizePolicy.Expanding
@@ -195,14 +194,27 @@ class GUICalibration(QtGui.QWidget):
         
         self.label_compare.setVisible(is_parset_loaded)
         self.combo_compare.setVisible(is_parset_loaded)
-        if is_parset_loaded:
-            self.combo_compare.clear()
-            for parset_name in self.project.parsets.keys():
-                self.combo_compare.addItem(parset_name)
         self.button_compare.setVisible(is_parset_loaded)
         self.label_overwrite.setVisible(is_parset_loaded)
         self.edit_overwrite.setVisible(is_parset_loaded)
         self.button_overwrite.setVisible(is_parset_loaded)
+    
+    # NOTE: This constant refreshing of comboboxes is inefficient and can be improved later.
+    def refreshComboBoxes(self):
+        combo_boxes = [self.combo_parset, self.combo_compare]
+        combo_names = [self.parset_source_name, self.parset_comparison_name]
+        self.combo_dict = {}
+        for k in xrange(len(combo_boxes)):
+            combo_box = combo_boxes[k]
+            combo_name = combo_names[k]
+            combo_box.clear()
+            cid = 0
+            for parset_name in self.project.parsets.keys():
+                self.combo_dict[parset_name] = cid
+                combo_box.addItem(parset_name)
+                cid += 1
+            combo_box.setCurrentIndex(self.combo_dict[combo_name])
+            
         
     def createProject(self):
         try:
@@ -221,7 +233,7 @@ class GUICalibration(QtGui.QWidget):
             self.project.makeParset(name = 'default')
             self.loadCalibration(self.project.parsets[0].name, delay_refresh = True)
             self.selectComparison(self.project.parsets[0].name)
-            self.status = ('Status: Valid data loaded into Project "%s", default parset generated' % self.project.name)
+            self.status = ('Status: Valid data loaded into Project "%s", default Parset generated' % self.project.name)
         except:
             self.resetAttributes()
             self.status = ('Status: Attempt to load data into Project failed, Project reset for safety')
@@ -230,12 +242,21 @@ class GUICalibration(QtGui.QWidget):
     def loadCalibration(self, parset_name, delay_refresh = False):
         self.parset_source_name = parset_name
         self.parset = dcp(self.project.parsets[parset_name])
-        if not delay_refresh: self.refreshVisibility()
+        self.status = ('Status: Parset "%s" selected for editing' % parset_name)
+        if not delay_refresh:
+            self.refreshVisibility()
         
     def saveCalibration(self):
-#        self.parset_edited = parset_name
-#        self.refreshVisibility()
-        return
+        parset_name = self.edit_overwrite.text()
+        if parset_name == '':
+            self.status = ('Status: Attempt to save Parset failed, no name provided')
+        else:
+            if parset_name in self.project.parsets.keys():
+                self.status = ('Status: Parset "%s" successfully overwritten' % parset_name)
+            else:
+                self.status = ('Status: New Parset "%s" added to Project' % parset_name)
+            self.project.parsets[parset_name] = dcp(self.parset)
+        self.refreshVisibility()
         
     def selectComparison(self, parset_name):
         self.parset_comparison_name = parset_name
