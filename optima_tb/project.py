@@ -55,16 +55,15 @@ class Project(object):
             self.settings.tvec_end = yearRange[1]
     
     
-    def runSim(self, parset_name = 'default', parameterset = None, plot = False, debug = False):
+    def runSim(self, parset = None, parset_name = 'default', plot = False, debug = False):
         ''' Run model using a selected parset and store/return results. '''
         
-        if parameterset is not None:
-            parset = parameterset
-        elif len(self.parsets) < 1: 
-            raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
-        else:
-            try: parset = self.parsets[parset_name]
-            except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
+        if parset is None:
+            if len(self.parsets) < 1: 
+                raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
+            else:
+                try: parset = self.parsets[parset_name]
+                except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
 
         tm = tic()
         #results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)

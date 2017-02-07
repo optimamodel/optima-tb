@@ -17,9 +17,9 @@ plot = True
 #plot=False
 
 
-databook = 'data/databook-simple-cascade-autocalibration.xlsx'
+databook = '../data/databook-simple-cascade-autocalibration.xlsx'
   
-proj= Project(name = 'test-Belarus-simple', cascade_path = 'data/cascade-simple-calibration.xlsx')
+proj= Project(name = 'test-Belarus-simple', cascade_path = '../data/cascade-simple-calibration.xlsx')
 proj.setYear([2000.,2030.],False) 
 
 # setup: define category color list. Note that using colormappings will index by compartment keys, so
@@ -49,6 +49,6 @@ print col_list
 proj.loadSpreadsheet(databook_path = databook)
 proj.makeParset()
 results1 = proj.runSim()
-proj.plotResults(results1,debug=False,colormappings=cat_list,save_fig=False)
+proj.plotResults(results1,debug=False,colormappings=cat_list)
 pylab.show()
 

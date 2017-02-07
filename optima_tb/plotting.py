@@ -404,9 +404,8 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
         fig.savefig('%s.png' % (save_figname))
         logger.info("Saved figure: '%s.png'"%save_figname)
         
-    
 
-def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None, plot_observed_data=True, save_fig=False, fig_name=None ,colors=None, plotdict={}):
+def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None, plot_observed_data=True, save_fig=False, fig_name=None, colors=None, plotdict={}):
     """
     Plot a characteristic across all populations
     
@@ -434,62 +433,72 @@ def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None, plot_o
         
     """
     # setup
-    tvec = results.sim_settings['tvec']
-    year_inc = 5.  # TODO: move this to setting
-    yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)
-    mpops = results.m_pops
-    sim_settings = results.sim_settings
+    
     pop_labels = results.pop_labels
     outputs = results.outputs
-    save_figname=None    
-    unit_tag = ''
+    
+    legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}
     
     if outputIDs is None:
         outputIDs = outputs.keys()
         
     for output_id in outputIDs:
-        if not isPlottableCharac(output_id,charac_specs):
-            continue
+        if isPlottableCharac(output_id, charac_specs):
+            y_values, t_values, final_dict = extractCharacteristic(results=results, charac_label=output_id, charac_specs=charac_specs, data=data)
+            _plotLine(y_values, t_values, pop_labels, legendsettings=legendsettings, save_fig=save_fig, **final_dict)
+
+
+def extractCharacteristic(results, charac_label, charac_specs, data, title='', plot_observed_data=True, fig_name=None, plotdict=None):
+    
+    if plotdict is None: plotdict = {}    
+    
+    tvec = results.sim_settings['tvec']
+    year_inc = 5.  # TODO: move this to setting
+    yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)    
+    
+    mpops = results.m_pops
+    outputs = results.outputs
+    sim_settings = results.sim_settings
+    unit_tag = ''
+    
+    output_id = charac_label
+    
+    y_values = []
+    t_values = []
+    yhat = []
+    that = []
+    
+    for k,pop in enumerate(mpops):
         
-        y_values = []
-        t_values = []
-        yhat = []
-        that = []
+        vals = dcp(outputs[output_id][pop.label])
+        if 'plot_percentage' in charac_specs[output_id].keys():
+            vals *= 100
+            unit_tag = ' (%)'
+        y_values.append(vals)
+        t_values.append(sim_settings['tvec'])
         
-        for k,pop in enumerate(mpops):
-            
-            vals = dcp(outputs[output_id][pop.label])
+        if plot_observed_data:
+            ys = data['characs'][output_id][pop.label]['y']
+            ts = data['characs'][output_id][pop.label]['t']
             if 'plot_percentage' in charac_specs[output_id].keys():
-                vals *= 100
-                unit_tag = ' (%)'
-            y_values.append(vals)
-            t_values.append(sim_settings['tvec'])
+                ys *= 100
+            if len(ys)==0:
+                # add an empty list to preserve label colours
+                ys,ts = [],[]
+            yhat.append(ys)
+            that.append(ts)
             
-            if plot_observed_data:
-                ys = data['characs'][output_id][pop.label]['y']
-                ts = data['characs'][output_id][pop.label]['t']
-                if 'plot_percentage' in charac_specs[output_id].keys():
-                    ys *= 100
-                if len(ys)==0:
-                    # add an empty list to preserve label colours
-                    ys,ts = [],[]
-                yhat.append(ys)
-                that.append(ts)
-            
-                
-        dict = {'y_hat': yhat,
-                't_hat': that,
-                'unit_tag': unit_tag,
-                'xlabel':'Year',
-                'ylabel': charac_specs[output_id]['name'] + unit_tag,
-                'x_ticks' : (yr_range,yr_range),
-                'title': '%s Outputs: %s' % (title, charac_specs[output_id]['name']),
-                'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
-        dict.update(plotdict)
-        
-        legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}         
-         
-        _plotLine(y_values, t_values, pop_labels, legendsettings=legendsettings,save_fig=save_fig,**dict)
+    final_dict = {'y_hat': yhat,
+                  't_hat': that,
+                  'unit_tag': unit_tag,
+                  'xlabel':'Year',
+                  'ylabel': charac_specs[output_id]['name'] + unit_tag,
+                  'x_ticks' : (yr_range,yr_range),
+                  'title': '%s Outputs: %s' % (title, charac_specs[output_id]['name']),
+                  'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
+    final_dict.update(plotdict)
+    
+    return y_values, t_values, final_dict
         
     
 def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],

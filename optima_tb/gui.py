@@ -5,9 +5,11 @@ import logging.config
 logging.config.fileConfig('logging.ini', disable_existing_loggers=False)
 logger = logging.getLogger()
 
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from PyQt4 import QtGui, QtCore
 import sys
 import numpy as np
+import pylab as pl
 from copy import deepcopy as dcp
 
 from optima_tb.project import Project
@@ -60,6 +62,8 @@ class GUICalibration(QtGui.QWidget):
         self.col_pop_name = 1   # Column index for table calibration population names.
         
         self.guard_status = False   # Convenient flag that locks status updates if set to true.
+        self.results_current = None
+        self.results_comparison = None
         
     def initUI(self):
         
@@ -123,6 +127,8 @@ class GUICalibration(QtGui.QWidget):
         policy_exp = QtGui.QSizePolicy.Expanding
         self.parset_layout_stretch = QtGui.QSpacerItem(0, 0, policy_min, policy_exp)
         
+        self.table_plotter = QtGui.QTableWidget()
+        
         # Layout.   
         grid_upper = QtGui.QGridLayout()
         grid_upper.setSpacing(10)          
@@ -157,11 +163,17 @@ class GUICalibration(QtGui.QWidget):
         parset_layout.addItem(self.parset_layout_stretch)
         parset_layout.addWidget(self.status_bar)
         
+        self.plotter_layout = QtGui.QGridLayout()
+        self.plotter_layout.setSpacing(5)
+#        plotter_layout = QtGui.QVBoxLayout()
+#        plotter_layout.addWidget(self.table_plotter)
+        
         self.first_half = QtGui.QWidget()
         self.first_half.resize(self.width()/2.0, self.height())
         self.first_half.setLayout(parset_layout)
         self.second_half = QtGui.QWidget()
         self.second_half.resize(self.width()/2.0, self.height()/2.0)
+        self.second_half.setLayout(self.plotter_layout)
         
         self.splitter_total = QtGui.QSplitter()
         self.splitter_total.addWidget(self.first_half)
@@ -228,7 +240,7 @@ class GUICalibration(QtGui.QWidget):
         
     def createProject(self):
         try:
-            self.project = Project(name = self.edit_project_name.text(), cascade_path = self.edit_cascade.text(), validation_level = 'error')
+            self.project = Project(name = self.edit_project_name.text(), cascade_path = self.edit_cascade.text(), validation_level = 'avert')
             self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
             self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
         except:
@@ -272,7 +284,17 @@ class GUICalibration(QtGui.QWidget):
         self.parset_comparison_name = parset_name
         
     def runComparison(self):
-#        CONTINUE HERE.
+        self.status = ('Status: Running models for Parset comparison')
+        self.refreshStatus()
+        self.results_current = self.project.runSim(parset = self.parset)
+        self.status = ('Status: Model successfully processed for edited Parset')
+        self.refreshStatus()
+        self.results_comparison = self.project.runSim(parset_name = self.parset_comparison_name)
+        self.status = ('Status: Model successfully processed for Parset "%s"' % self.parset_comparison_name)
+        self.refreshStatus()
+        self.makePlotterTable()
+        self.results_current = None
+        self.results_comparison = None
         return
         
     def factorySelectFile(self, display_field):
@@ -329,6 +351,68 @@ class GUICalibration(QtGui.QWidget):
         self.table_calibration.resizeColumnsToContents()
         
         self.table_calibration.cellChanged.connect(self.updateParset)
+        
+    def makePlotterTable(self):
+        
+        self.figure = pl.Figure()
+        self.canvas = FigureCanvasQTAgg(self.figure)
+
+        self.axis = self.figure.add_subplot(111)
+        self.axis.scatter([1,2,3],[4,5,6])        
+        
+        self.plotter_layout.addWidget(self.canvas, 0, 0)
+        
+        
+#        self.table_calibration.setVisible(False)    # Resizing columns requires table to be hidden first.
+#        self.table_calibration.clear()
+        
+        
+        
+#        # Disconnect the calibration table from cell change signals to avoid signal flooding during connection.
+#        try: self.table_calibration.cellChanged.disconnect()
+#        except: pass
+#
+##        parset = self.project.parsets[self.parset_source_name]
+#        parset = self.parset
+#        num_pops = len(parset.pop_labels)
+#        row_count = num_pops*(len(parset.pars['cascade'])-len(self.project.settings.par_funcs))
+#        self.table_calibration.setRowCount(row_count)
+#        self.table_calibration.setColumnCount(2+len(self.tvec))
+#        self.calibration_items = []
+#        
+#        k = 0
+#        par_labels = []
+#        for par_type in ['characs','cascade']:
+#            for par in parset.pars[par_type]:
+#                if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or (par_type == 'characs' and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
+#                    for pid in xrange(len(parset.pop_labels)):
+#                        pop_label = parset.pop_labels[pid]
+#                        par_labels.append(par.label+' ['+pop_label+']')
+#                        try:
+#                            par_name = self.project.settings.linkpar_specs[par.label]['name']
+#                        except:
+#                            par_name = self.project.settings.charac_specs[par.label]['name']
+#                        temp = QtGui.QTableWidgetItem()
+#                        temp.setText(par_name)
+#                        temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
+#                        self.table_calibration.setItem(k*num_pops+pid, self.col_par_name, temp)
+#                        temp = QtGui.QTableWidgetItem()
+#                        temp.setText(parset.pop_names[pid])
+#                        temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
+#                        self.table_calibration.setItem(k*num_pops+pid, self.col_pop_name, temp)
+#                        
+#                        for eid in xrange(len(par.t[pid])):
+#                            t = par.t[pid][eid]
+#                            y = par.y[pid][eid]
+#                            temp = QtGui.QTableWidgetItem()
+#                            temp.setText(str(y))
+#                            self.table_calibration.setItem(k*num_pops+pid, 2+int(t)-self.tvec[0], temp)
+#                    k += 1
+#        self.table_calibration.setVerticalHeaderLabels(par_labels)
+#        self.table_calibration.setHorizontalHeaderLabels(['Par. Name','Pop. Name']+[str(int(x)) for x in self.tvec])
+#        self.table_calibration.resizeColumnsToContents()
+#        
+#        self.table_calibration.cellChanged.connect(self.updateParset)
         
     def updateParset(self, row, col):
         new_val_str = str(self.table_calibration.item(row,col).text())
