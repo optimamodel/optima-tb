@@ -105,7 +105,7 @@ class GUICalibration(QtGui.QWidget):
         self.label_compare = QtGui.QLabel('Compare Edits With... ')
         self.combo_compare = QtGui.QComboBox(self)
         self.combo_compare.activated[str].connect(self.selectComparison)
-        self.button_compare = QtGui.QPushButton('Run & Plot Models', self)
+        self.button_compare = QtGui.QPushButton('Compare Models', self)
         self.button_compare.clicked.connect(self.runComparison)
         
         self.label_overwrite = QtGui.QLabel('Save Edits To... ')
@@ -272,8 +272,7 @@ class GUICalibration(QtGui.QWidget):
         self.parset_comparison_name = parset_name
         
     def runComparison(self):
-#        self.parset_comparison_name = parset_name
-#        self.refreshVisibility()
+#        CONTINUE HERE.
         return
         
     def factorySelectFile(self, display_field):
@@ -299,28 +298,32 @@ class GUICalibration(QtGui.QWidget):
         
         k = 0
         par_labels = []
-        for par in parset.pars['cascade']:
-            if par.label not in self.project.settings.par_funcs:
-                for pid in xrange(len(parset.pop_labels)):
-                    pop_label = parset.pop_labels[pid]
-                    par_labels.append(par.label+' ['+pop_label+']')
-                    par_name = self.project.settings.linkpar_specs[par.label]['name']
-                    temp = QtGui.QTableWidgetItem()
-                    temp.setText(par_name)
-                    temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
-                    self.table_calibration.setItem(k*num_pops+pid, self.col_par_name, temp)
-                    temp = QtGui.QTableWidgetItem()
-                    temp.setText(parset.pop_names[pid])
-                    temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
-                    self.table_calibration.setItem(k*num_pops+pid, self.col_pop_name, temp)
-                    
-                    for eid in xrange(len(par.t[pid])):
-                        t = par.t[pid][eid]
-                        y = par.y[pid][eid]
+        for par_type in ['characs','cascade']:
+            for par in parset.pars[par_type]:
+                if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or (par_type == 'characs' and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
+                    for pid in xrange(len(parset.pop_labels)):
+                        pop_label = parset.pop_labels[pid]
+                        par_labels.append(par.label+' ['+pop_label+']')
+                        try:
+                            par_name = self.project.settings.linkpar_specs[par.label]['name']
+                        except:
+                            par_name = self.project.settings.charac_specs[par.label]['name']
                         temp = QtGui.QTableWidgetItem()
-                        temp.setText(str(y))
-                        self.table_calibration.setItem(k*num_pops+pid, 2+int(t)-self.tvec[0], temp)
-                k += 1
+                        temp.setText(par_name)
+                        temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
+                        self.table_calibration.setItem(k*num_pops+pid, self.col_par_name, temp)
+                        temp = QtGui.QTableWidgetItem()
+                        temp.setText(parset.pop_names[pid])
+                        temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
+                        self.table_calibration.setItem(k*num_pops+pid, self.col_pop_name, temp)
+                        
+                        for eid in xrange(len(par.t[pid])):
+                            t = par.t[pid][eid]
+                            y = par.y[pid][eid]
+                            temp = QtGui.QTableWidgetItem()
+                            temp.setText(str(y))
+                            self.table_calibration.setItem(k*num_pops+pid, 2+int(t)-self.tvec[0], temp)
+                    k += 1
         self.table_calibration.setVerticalHeaderLabels(par_labels)
         self.table_calibration.setHorizontalHeaderLabels(['Par. Name','Pop. Name']+[str(int(x)) for x in self.tvec])
         self.table_calibration.resizeColumnsToContents()
@@ -333,7 +336,10 @@ class GUICalibration(QtGui.QWidget):
         
         par_name = str(self.table_calibration.item(row, self.col_par_name).text())
         pop_name = str(self.table_calibration.item(row, self.col_pop_name).text())
-        par_label = self.project.settings.linkpar_name_labels[par_name]
+        try:
+            par_label = self.project.settings.linkpar_name_labels[par_name]
+        except:
+            par_label = self.project.settings.charac_name_labels[par_name]
         pop_label = self.project.data['pops']['name_labels'][pop_name]
         
         par = self.parset.getPar(par_label)
