@@ -53,8 +53,13 @@ class GUICalibration(QtGui.QWidget):
         
         self.parset_source_name = None
         self.parset_comparison_name = None
-        self.tvec = None 
+        self.tvec = None
+        
         self.combo_dict = {}    # Dictionary that maps Parset names to indices used in combo boxes.
+        self.col_par_name = 0   # Column index for table calibration parameter names.
+        self.col_pop_name = 1   # Column index for table calibration population names.
+        
+        self.guard_status = False   # Convenient flag that locks status updates if set to true.
         
     def initUI(self):
         
@@ -113,6 +118,7 @@ class GUICalibration(QtGui.QWidget):
         self.status_bar.setSizeGripEnabled(False)
         
         self.table_calibration = QtGui.QTableWidget()
+        self.table_calibration.cellChanged.connect(self.updateParset)
         policy_min = QtGui.QSizePolicy.Minimum
         policy_exp = QtGui.QSizePolicy.Expanding
         self.parset_layout_stretch = QtGui.QSpacerItem(0, 0, policy_min, policy_exp)
@@ -168,7 +174,7 @@ class GUICalibration(QtGui.QWidget):
         self.show()
         
     def refreshVisibility(self):
-        self.status_bar.showMessage(self.status)
+        self.refreshStatus()
 
         is_cascade_loaded = self.project is not None
         is_parset_loaded = is_cascade_loaded and len(self.project.parsets.keys()) > 0
@@ -214,6 +220,10 @@ class GUICalibration(QtGui.QWidget):
                 combo_box.addItem(parset_name)
                 cid += 1
             combo_box.setCurrentIndex(self.combo_dict[combo_name])
+            
+    def refreshStatus(self):
+        if not self.guard_status:
+            self.status_bar.showMessage(self.status)
             
         
     def createProject(self):
@@ -273,8 +283,14 @@ class GUICalibration(QtGui.QWidget):
         
     def makeParsetTable(self):
         self.table_calibration.setVisible(False)    # Resizing columns requires table to be hidden first.
+        self.table_calibration.clear()
+        
+        # Disconnect the calibration table from cell change signals to avoid signal flooding during connection.
+        try: self.table_calibration.cellChanged.disconnect()
+        except: pass
 
-        parset = self.project.parsets[self.parset_source_name]
+#        parset = self.project.parsets[self.parset_source_name]
+        parset = self.parset
         num_pops = len(parset.pop_labels)
         row_count = num_pops*(len(parset.pars['cascade'])-len(self.project.settings.par_funcs))
         self.table_calibration.setRowCount(row_count)
@@ -292,23 +308,76 @@ class GUICalibration(QtGui.QWidget):
                     temp = QtGui.QTableWidgetItem()
                     temp.setText(par_name)
                     temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
-                    self.table_calibration.setItem(k*num_pops+pid, 0, temp)
+                    self.table_calibration.setItem(k*num_pops+pid, self.col_par_name, temp)
                     temp = QtGui.QTableWidgetItem()
                     temp.setText(parset.pop_names[pid])
                     temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
-                    self.table_calibration.setItem(k*num_pops+pid, 1, temp)
+                    self.table_calibration.setItem(k*num_pops+pid, self.col_pop_name, temp)
                     
                     for eid in xrange(len(par.t[pid])):
                         t = par.t[pid][eid]
                         y = par.y[pid][eid]
                         temp = QtGui.QTableWidgetItem()
                         temp.setText(str(y))
-    #                    temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsEditable or QtCore.Qt.ItemIsSelectable)
                         self.table_calibration.setItem(k*num_pops+pid, 2+int(t)-self.tvec[0], temp)
                 k += 1
         self.table_calibration.setVerticalHeaderLabels(par_labels)
         self.table_calibration.setHorizontalHeaderLabels(['Par. Name','Pop. Name']+[str(int(x)) for x in self.tvec])
         self.table_calibration.resizeColumnsToContents()
+        
+        self.table_calibration.cellChanged.connect(self.updateParset)
+        
+    def updateParset(self, row, col):
+        new_val_str = str(self.table_calibration.item(row,col).text())
+        year = float(str(self.table_calibration.horizontalHeaderItem(col).text()))
+        
+        par_name = str(self.table_calibration.item(row, self.col_par_name).text())
+        pop_name = str(self.table_calibration.item(row, self.col_pop_name).text())
+        par_label = self.project.settings.linkpar_name_labels[par_name]
+        pop_label = self.project.data['pops']['name_labels'][pop_name]
+        
+        par = self.parset.getPar(par_label)
+        try:
+            new_val = float(new_val_str)
+        except:
+            if new_val_str == '':
+                remove_success = par.removeValueAt(t = year, pop_label = pop_label)
+                if remove_success:
+                    self.status = ('Status: Value successfully deleted from Parset')
+                    self.refreshStatus()
+                    return
+                else: self.status = ('Status: Attempt to remove item in Parset failed, at least one value per row required')
+            else: self.status = ('Status: Attempt to edit item in Parset failed, only numbers allowed')
+            self.refreshStatus()
+            self.guard_status = True
+            self.table_calibration.item(row,col).setText(str(par.interpolate(tvec = [year], pop_label = pop_label)[0]))
+            self.guard_status = False
+            return
+        par.insertValuePair(t = year, y = new_val, pop_label = pop_label)
+        self.status = ('Status: Parset "%s" given value "%f" for parameter "%s", population "%s", year "%i"' % (self.parset.name, new_val, par_label, pop_label, year))
+        self.refreshStatus()
+            
+#        if not new_val_str == '':
+#            try:
+#                new_val = float(new_val_str)
+#            except:
+#                self.table_calibration.item(row,col).setText('')
+#                self.status = ('Status: Attempt to edit item in Parset failed, only numbers allowed')
+#                self.refreshStatus()
+#                return
+#            par.insertValuePair(t = year, y = new_val, pop_label = pop_label)
+#        else:
+#            remove_success = par.removeValueAt(t = year, pop_label = pop_label)
+#            if not remove_success:
+#                self.table_calibration.item(row,col).setText(par.interpolate(tvec = [year], pop_label = pop_label)[0])
+#                self.status = ('Status: Attempt to remove item in Parset failed, at least one value per row required')
+#                self.refreshStatus()
+#                return
+##            except:
+##                self.table_calibration.item(row,col).setText('')
+##                self.status = ('Status: Attempt to edit item in Parset failed, Parset may be formatted incorrectly')
+##                self.refreshStatus()
+#        return
 
 
 
