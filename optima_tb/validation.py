@@ -157,7 +157,7 @@ def checkNegativePopulation(model,msettings,dpopsizes,dpop_out,ti,dt,validationS
 
     return dpopsizes, [], []
 
-def checkTransitionFraction(transition,validationSetting):
+def checkTransitionFraction(transition,validationSettings):
     """
     
     Params:

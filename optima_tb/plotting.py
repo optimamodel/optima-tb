@@ -201,12 +201,14 @@ def _turnOffBorder():
     pl.gca().yaxis.set_ticks_position('left')
 
 
-def isPlottable(comp_label,sim_settings):
+def isPlottable(comp_label,sim_settings,comp_specs):
     """ 
     Returns bool indicating whether a population label should be included in metrics
     for population reporting when plotting cascade
     """
     if comp_label in sim_settings['tag_no_plot']:
+        return False
+    if comp_specs[comp_label].has_key('junction'):
         return False
     return True
 
@@ -246,7 +248,7 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, pop
     if pop_labels is None:
         pop_labels = results.pop_labels
     charac_specs = settings.charac_specs
-    plotdict = settings.plot_settings.plotdict
+    plotdict = settings.plot_settings
     # plot each disease cascade for every population
     plotPopulation(results=results, data=data, title=title, colormappings=colormappings, pop_labels=pop_labels, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # plot characteristics
@@ -292,7 +294,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None, plot_
         colors_dict = getCategoryColors(colormappings)
         # reorder so that colors are same as expected for plotting the population
         for (j,comp) in enumerate(mpops[0].comps):
-            if isPlottable(comp.label,sim_settings):
+            if isPlottable(comp.label,sim_settings,results.comp_specs):
                 colors.append(colors_dict[comp.label])
     
         
@@ -303,7 +305,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None, plot_
         comps = []
         labels = []
         for (j,comp) in enumerate(pop.comps):
-            if isPlottable(comp.label,sim_settings):
+            if isPlottable(comp.label,sim_settings,results.comp_specs):
                 comps.append(comp)
                 if use_full_labels:
                     c_label = comp_labels[comp.label]
@@ -401,8 +403,8 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
     pl.suptitle('')
     
     if save_fig:
-        fig.savefig('%s.png' % (save_figname))
-        logger.info("Saved figure: '%s.png'"%save_figname)
+        fig.savefig('%s' % (save_figname))
+        logger.info("Saved figure: '%s'"%save_figname)
         
 
 def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None, plot_observed_data=True, save_fig=False, fig_name=None, colors=None, plotdict={}):
@@ -558,8 +560,8 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         
     _turnOffBorder()
     if save_fig:
-        fig.savefig('%s.png' % (save_figname))                    
-        logger.info("Saved figure: '%s.png'"%save_figname)
+        fig.savefig('%s' % (save_figname))                    
+        logger.info("Saved figure: '%s'"%save_figname)
         
     return fig
     
