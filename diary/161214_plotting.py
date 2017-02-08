@@ -7,7 +7,8 @@ sys.path.append('../optima')
 
 from optima_tb.utils import odict
 from optima_tb.project import Project
-from optima_tb.plotting import getCategoryColors
+from optima_tb.plotting import getCategoryColors, plotPopulation
+
 
 import numpy as np
 import pylab
@@ -48,7 +49,34 @@ print col_list
 #print proj.settings.linkpar_specs
 proj.loadSpreadsheet(databook_path = databook)
 proj.makeParset()
-results1 = proj.runSim()
-proj.plotResults(results1,debug=False,colormappings=cat_list)
-pylab.show()
+results = proj.runSim()
+proj.plotResults(results,debug=False,colormappings=cat_list)
 
+
+
+# 3. example of plotting subset of compartments
+plot_comp_labels = ['acu','act']
+plotPopulation(results=results,
+               data=proj.data,
+               pop_labels=results.pop_labels,
+               title=proj.name.title()+" Infectious", 
+               colormappings=cat_list,
+               plot_observed_label="ac_inf",
+               plot_comp_labels=plot_comp_labels,
+               plotdict = proj.settings.plot_settings,
+               save_fig=True,
+               fig_name="Active Infections")
+
+plot_comp_labels = ['ltu','ltt','acu','act','rec']
+plotPopulation(results=results,
+               data=proj.data,
+               pop_labels=results.pop_labels,
+               title=proj.name.title()+" Infectious", 
+               colormappings=cat_list,
+               plot_observed_data=False,
+               plot_comp_labels=plot_comp_labels,
+               plotdict = proj.settings.plot_settings,
+               save_fig=True,
+               fig_name="Example Infections")
+
+pylab.show()

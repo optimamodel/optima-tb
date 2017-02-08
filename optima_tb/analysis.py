@@ -25,7 +25,7 @@ def __saveProgressionResults(filehandle,results,pop,progression_from,progression
         
 def evaluateDiseaseProgression(proj, specified_progressions, specified_populations=None,starting_pop = 1e6,
                                year_track=[1.,2.,3.,4.,5.], birth_transit=None,
-                               colormappings=None,output_file="ProgressionData.csv"):
+                               colormappings=None,output_file="ProgressionData.csv",output_fig=""):
     """
     Determines disease progression from certain compartments to other compartments, 
     by (artifically) setting the population of a compartment to a predefined size
@@ -139,7 +139,7 @@ def evaluateDiseaseProgression(proj, specified_progressions, specified_populatio
             __saveProgressionResults(output_file_handle,results,pop,prog,reporters,start_year,year_track,starting_pop)
             
             # save plots 
-            proj.plotResults(results,plot_observed_data=False,savePlot=True,figName='DiseaseProgression_compartment_%s'%parset_name,pop_labels=[pop],colormappings=colormappings)
+            proj.plotResults(results,plot_observed_data=False,savePlot=True,figName=output_fig+'DiseaseProgression_compartment_%s'%parset_name,pop_labels=[pop],colormappings=colormappings)
             
             # reset for the next loop
             par.y[pop][0] = 0.

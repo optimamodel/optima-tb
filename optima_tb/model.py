@@ -659,7 +659,10 @@ class Model(object):
                         else:
                             raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))                      
                         
-                        dep.vals[ti] /= val
+                        if val == 0:
+                            dep.vals[ti] = np.inf
+                        else:
+                            dep.vals[ti] /= val
             
         # Parameters that are functions of dependencies next...
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
@@ -722,8 +725,11 @@ class Model(object):
                                     k += 1
                                 wpc = np.multiply(weights, pop_counts)          # Population counts weighted by contact rate.
                                 wpc_sum = sum(wpc)                              # Normalisation factor for weighted population counts.
-                                new_val = np.dot(old_vals, wpc/wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
-                            
+                                if abs(wpc_sum) > project_settings.TOLERANCE:
+                                    new_val = np.dot(old_vals, wpc/wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
+                                else:
+                                    new_val = 0.0   # Only valid because if the weighted sum is zero, all pop_counts must be zero, meaning that the numerator is zero.
+                                    
 #                            if ti == 0:
 #                                print
 #                                print('Timestep: %s' % ti)
