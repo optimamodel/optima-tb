@@ -355,7 +355,9 @@ class PlottingSettings():
                          'facecolors' : 'none',
                          's' : 40,
                          # axes format
-                         'year_inc':5}
+                         'year_inc':5,
+                         # colormapping for category lists
+                         'colormapping_order':'alternate3'} # as we have triplets in undiagnosed --> diagnosed --> on treatment
     
 
 
