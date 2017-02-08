@@ -660,7 +660,7 @@ class Model(object):
                             raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))                      
                         
                         if val == 0:
-                            dep.vals[ti] = 0
+                            dep.vals[ti] = np.inf
                         else:
                             dep.vals[ti] /= val
             
@@ -728,7 +728,7 @@ class Model(object):
                                 if abs(wpc_sum) > project_settings.TOLERANCE:
                                     new_val = np.dot(old_vals, wpc/wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
                                 else:
-                                    new_val = 0.0
+                                    new_val = 0.0   # Only valid because if the weighted sum is zero, all pop_counts must be zero, meaning that the numerator is zero.
                                     
 #                            if ti == 0:
 #                                print
