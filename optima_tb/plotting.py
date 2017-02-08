@@ -478,15 +478,20 @@ def extractCharacteristic(results, charac_label, charac_specs, data, title='', p
         t_values.append(sim_settings['tvec'])
         
         if plot_observed_data:
-            ys = data['characs'][output_id][pop.label]['y']
-            ts = data['characs'][output_id][pop.label]['t']
+            if output_id in data['characs'].keys():
+                ys = data['characs'][output_id][pop.label]['y']
+                ts = data['characs'][output_id][pop.label]['t']
+            else:   # For the case when plottable characteristics were not in the databook and thus not converted to data.
+                ys = []
+                ts = []
             if 'plot_percentage' in charac_specs[output_id].keys():
                 ys *= 100
-            if len(ys)==0:
-                # add an empty list to preserve label colours
-                ys,ts = [],[]
+#            if len(ys)==0:
+#                # add an empty list to preserve label colours
+#                ys,ts = [],[]
             yhat.append(ys)
             that.append(ts)
+            
             
     final_dict = {'y_hat': yhat,
                   't_hat': that,
@@ -522,7 +527,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
             
-        if len(y_hat) > 0: # i.e. we've seen observable data
+        if len(y_hat) > 0 and len(y_hat[k]) > 0: # i.e. we've seen observable data
             ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
             if np.min(y_hat[k]) < ymin_val:
                 ymin_val = np.min(y_hat[k])

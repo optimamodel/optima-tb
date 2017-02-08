@@ -440,9 +440,10 @@ class GUICalibration(QtGui.QWidget):
 #            pop_plot_label = self.project.data['pops']['name_labels'][self.pop_plot_name]
             pid = self.combo_pop_dict[self.pop_plot_name]
 
-            y_values_cur, t_values_cur, final_dict = extractCharacteristic(results=self.results_current, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
-            y_values_com, t_values_com, final_dict = extractCharacteristic(results=self.results_comparison, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
-            figure = _plotLine(ys = [y_values_cur[pid],y_values_com[pid]], ts = [t_values_cur[pid],t_values_com[pid]], labels = ['Edited "%s"' % self.parset.name,'Unedited "%s"' % self.parset_comparison_name], y_hat=final_dict['y_hat'], t_hat=final_dict['t_hat'])
+            y_values_cur, t_values_cur, final_dict_cur = extractCharacteristic(results=self.results_current, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
+            y_values_com, t_values_com, final_dict_com = extractCharacteristic(results=self.results_comparison, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
+
+            figure = _plotLine(ys = [y_values_cur[pid],y_values_com[pid]], ts = [t_values_cur[pid],t_values_com[pid]], labels = ['Edited "%s"' % self.parset.name,'Unedited "%s"' % self.parset_comparison_name], y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
               
             canvas = FigureCanvasQTAgg(figure)
 
@@ -529,7 +530,7 @@ class GUICalibration(QtGui.QWidget):
             self.guard_status = False
             return
         par.insertValuePair(t = year, y = new_val, pop_label = pop_label)
-        self.status = ('Status: Current Parset edit had value "%f" for parameter "%s", population "%s", year "%i"' % (self.parset.name, new_val, par_label, pop_label, year))
+        self.status = ('Status: Current edited Parset uses value "%f" for parameter "%s", population "%s", year "%i"' % (new_val, par_label, pop_label, year))
         self.refreshStatus()
             
 #        if not new_val_str == '':
