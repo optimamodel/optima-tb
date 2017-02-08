@@ -725,8 +725,11 @@ class Model(object):
                                     k += 1
                                 wpc = np.multiply(weights, pop_counts)          # Population counts weighted by contact rate.
                                 wpc_sum = sum(wpc)                              # Normalisation factor for weighted population counts.
-                                new_val = np.dot(old_vals, wpc/wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
-                            
+                                if abs(wpc_sum) > project_settings.TOLERANCE:
+                                    new_val = np.dot(old_vals, wpc/wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
+                                else:
+                                    new_val = 0.0
+                                    
 #                            if ti == 0:
 #                                print
 #                                print('Timestep: %s' % ti)
