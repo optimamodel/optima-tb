@@ -437,7 +437,7 @@ def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None, pl
     pop_labels = results.pop_labels
     outputs = results.outputs
     
-    legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}
+#    legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}
     
     if outputIDs is None:
         outputIDs = outputs.keys()
@@ -507,6 +507,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     """
     
     """
+    if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
     
     ymin_val = np.min(ys[0])
     
@@ -554,6 +555,8 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     if save_fig:
         fig.savefig('%s.png' % (save_figname))                    
         logger.info("Saved figure: '%s.png'"%save_figname)
+        
+    return fig
     
     
     

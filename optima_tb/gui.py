@@ -5,6 +5,9 @@ import logging.config
 logging.config.fileConfig('logging.ini', disable_existing_loggers=False)
 logger = logging.getLogger()
 
+from matplotlib import pyplot as pp
+pp.ioff()   # Turn off interactive mode.
+
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from PyQt4 import QtGui, QtCore
 import sys
@@ -13,6 +16,7 @@ import pylab as pl
 from copy import deepcopy as dcp
 
 from optima_tb.project import Project
+from optima_tb.plotting import extractCharacteristic, _plotLine
 
 #%% GUI classes
 
@@ -55,9 +59,13 @@ class GUICalibration(QtGui.QWidget):
         
         self.parset_source_name = None
         self.parset_comparison_name = None
+        self.charac_plot_name = None
+        self.pop_plot_name = None
         self.tvec = None
         
-        self.combo_dict = {}    # Dictionary that maps Parset names to indices used in combo boxes.
+        self.combo_parset_dict = {}     # Dictionary that maps Parset names to indices used in combo boxes.
+        self.combo_charac_dict = {}     # Dictionary that maps Characteristic names to indices used in combo boxes.
+        self.combo_pop_dict = {}        # Dictionary that maps Population names to indices used in combo boxes.
         self.col_par_name = 0   # Column index for table calibration parameter names.
         self.col_pop_name = 1   # Column index for table calibration population names.
         
@@ -127,7 +135,19 @@ class GUICalibration(QtGui.QWidget):
         policy_exp = QtGui.QSizePolicy.Expanding
         self.parset_layout_stretch = QtGui.QSpacerItem(0, 0, policy_min, policy_exp)
         
-        self.table_plotter = QtGui.QTableWidget()
+#        self.table_plotter = QtGui.QTableWidget()
+        self.label_plotter_charac = QtGui.QLabel('Select Characteristic: ')
+        self.combo_plotter_charac = QtGui.QComboBox(self)
+        self.combo_plotter_charac.activated[str].connect(self.selectCharacteristic)
+        self.label_plotter_pop = QtGui.QLabel('Select Population: ')
+        self.combo_plotter_pop = QtGui.QComboBox(self)
+        self.combo_plotter_pop.activated[str].connect(self.selectPopulation)
+        self.button_plotter = QtGui.QPushButton('Plot Figures', self)
+        self.button_plotter.clicked.connect(self.showPlots)
+        
+        self.scroller_plotter = QtGui.QScrollArea()
+        self.scroller_plotter.setWidgetResizable(False)
+        self.plotter = QtGui.QWidget()
         
         # Layout.   
         grid_upper = QtGui.QGridLayout()
@@ -149,12 +169,17 @@ class GUICalibration(QtGui.QWidget):
         grid_lower = QtGui.QGridLayout()
         grid_lower.setSpacing(10)
         
-        grid_lower.addWidget(self.label_compare, 0, 0)
-        grid_lower.addWidget(self.combo_compare, 0, 1)
-        grid_lower.addWidget(self.button_compare, 0, 2)
-        grid_lower.addWidget(self.label_overwrite, 1, 0)
-        grid_lower.addWidget(self.edit_overwrite, 1, 1)
-        grid_lower.addWidget(self.button_overwrite, 1, 2)
+        grid_lower.addWidget(self.label_overwrite, 0, 0)
+        grid_lower.addWidget(self.edit_overwrite, 0, 1)
+        grid_lower.addWidget(self.button_overwrite, 0, 2)
+        grid_lower.addWidget(self.label_compare, 1, 0)
+        grid_lower.addWidget(self.combo_compare, 1, 1)
+        grid_lower.addWidget(self.button_compare, 1, 2)
+        grid_lower.addWidget(self.label_plotter_charac, 2, 0)
+        grid_lower.addWidget(self.combo_plotter_charac, 2, 1)
+        grid_lower.addWidget(self.label_plotter_pop, 3, 0)
+        grid_lower.addWidget(self.combo_plotter_pop, 3, 1)
+        grid_lower.addWidget(self.button_plotter, 3, 2)
         
         parset_layout = QtGui.QVBoxLayout()
         parset_layout.addLayout(grid_upper)
@@ -163,9 +188,9 @@ class GUICalibration(QtGui.QWidget):
         parset_layout.addItem(self.parset_layout_stretch)
         parset_layout.addWidget(self.status_bar)
         
-        self.plotter_layout = QtGui.QGridLayout()
+        self.plotter_layout = QtGui.QGridLayout()#.QVBoxLayout()
         self.plotter_layout.setSpacing(5)
-#        plotter_layout = QtGui.QVBoxLayout()
+        self.scroller_layout = QtGui.QVBoxLayout()
 #        plotter_layout.addWidget(self.table_plotter)
         
         self.first_half = QtGui.QWidget()
@@ -174,6 +199,10 @@ class GUICalibration(QtGui.QWidget):
         self.second_half = QtGui.QWidget()
         self.second_half.resize(self.width()/2.0, self.height()/2.0)
         self.second_half.setLayout(self.plotter_layout)
+#        self.second_half.setLayout(self.scroller_layout)
+#        self.scroller_layout.addWidget(self.scroller_plotter)
+#        self.scroller_plotter.setWidget(self.plotter)
+#        self.plotter.setLayout(self.plotter_layout)
         
         self.splitter_total = QtGui.QSplitter()
         self.splitter_total.addWidget(self.first_half)
@@ -190,6 +219,7 @@ class GUICalibration(QtGui.QWidget):
 
         is_cascade_loaded = self.project is not None
         is_parset_loaded = is_cascade_loaded and len(self.project.parsets.keys()) > 0
+        are_results_generated = (self.results_current is not None and self.results_comparison is not None)
         
         self.label_databook.setVisible(is_cascade_loaded)
         self.edit_databook.setVisible(is_cascade_loaded)
@@ -197,7 +227,7 @@ class GUICalibration(QtGui.QWidget):
         self.button_project_saturate.setVisible(is_cascade_loaded)
         
         if is_parset_loaded:
-            self.refreshComboBoxes()
+            self.refreshParsetComboBoxes()
         self.label_parset.setVisible(is_parset_loaded)
         self.combo_parset.setVisible(is_parset_loaded)
         
@@ -216,22 +246,63 @@ class GUICalibration(QtGui.QWidget):
         self.label_overwrite.setVisible(is_parset_loaded)
         self.edit_overwrite.setVisible(is_parset_loaded)
         self.button_overwrite.setVisible(is_parset_loaded)
+        
+        if are_results_generated:
+            self.refreshCharacComboBox()
+            self.refreshPopComboBox()
+        self.label_plotter_charac.setVisible(are_results_generated)
+        self.combo_plotter_charac.setVisible(are_results_generated)
+        self.label_plotter_pop.setVisible(are_results_generated)
+        self.combo_plotter_pop.setVisible(are_results_generated)
+        self.button_plotter.setVisible(are_results_generated)
+            
     
     # NOTE: This constant refreshing of comboboxes is inefficient and can be improved later.
-    def refreshComboBoxes(self):
+    def refreshParsetComboBoxes(self):
         combo_boxes = [self.combo_parset, self.combo_compare]
         combo_names = [self.parset_source_name, self.parset_comparison_name]
-        self.combo_dict = {}
+        self.combo_parset_dict = {}
         for k in xrange(len(combo_boxes)):
             combo_box = combo_boxes[k]
             combo_name = combo_names[k]
             combo_box.clear()
             cid = 0
             for parset_name in self.project.parsets.keys():
-                self.combo_dict[parset_name] = cid
+                self.combo_parset_dict[parset_name] = cid
                 combo_box.addItem(parset_name)
                 cid += 1
-            combo_box.setCurrentIndex(self.combo_dict[combo_name])
+            combo_box.setCurrentIndex(self.combo_parset_dict[combo_name])
+            
+    def refreshCharacComboBox(self):
+#        combo_boxes = [self.combo_plotter_charac]
+#        combo_names = [self.parset_source_name]
+        self.combo_charac_dict = {}
+        self.combo_plotter_charac.clear()
+        cid = 0
+        for charac_label in self.project.settings.charac_specs.keys():
+            charac_name = self.project.settings.charac_specs[charac_label]['name']
+            self.combo_charac_dict[charac_name] = cid
+            self.combo_plotter_charac.addItem(charac_name)
+            cid += 1
+        if self.charac_plot_name is None:
+            self.charac_plot_name = self.combo_plotter_charac.itemText(self.combo_plotter_charac.currentIndex())
+        self.combo_plotter_charac.setCurrentIndex(self.combo_charac_dict[self.charac_plot_name])
+        
+    def refreshPopComboBox(self):
+#        combo_boxes = [self.combo_plotter_charac]
+#        combo_names = [self.parset_source_name]
+        self.combo_pop_dict = {}
+        self.combo_plotter_pop.clear()
+        pid = 0
+#        pop_label = self.project.data['pops']['name_labels'][pop_name]
+        for pop_name in self.parset.pop_names:
+#            charac_name = self.project.settings.charac_specs[charac_label]['name']
+            self.combo_pop_dict[pop_name] = pid
+            self.combo_plotter_pop.addItem(pop_name)
+            pid += 1
+        if self.pop_plot_name is None:
+            self.pop_plot_name = self.combo_plotter_pop.itemText(self.combo_plotter_pop.currentIndex())
+        self.combo_plotter_pop.setCurrentIndex(self.combo_pop_dict[self.pop_plot_name])
             
     def refreshStatus(self):
         if not self.guard_status:
@@ -265,6 +336,8 @@ class GUICalibration(QtGui.QWidget):
         self.parset_source_name = parset_name
         self.parset = dcp(self.project.parsets[parset_name])
         self.status = ('Status: Parset "%s" selected for editing' % parset_name)
+        self.results_current = None
+        self.results_comparison = None
         if not delay_refresh:
             self.refreshVisibility()
         
@@ -283,6 +356,14 @@ class GUICalibration(QtGui.QWidget):
     def selectComparison(self, parset_name):
         self.parset_comparison_name = parset_name
         
+    def selectCharacteristic(self, charac_name):
+#        self.charac_plot_label = self.project.settings.charac_name_labels[charac_name]
+        self.charac_plot_name = charac_name
+        
+    def selectPopulation(self, pop_name):
+#        self.charac_plot_label = self.project.settings.charac_name_labels[charac_name]
+        self.pop_plot_name = pop_name
+        
     def runComparison(self):
         self.status = ('Status: Running models for Parset comparison')
         self.refreshStatus()
@@ -292,9 +373,7 @@ class GUICalibration(QtGui.QWidget):
         self.results_comparison = self.project.runSim(parset_name = self.parset_comparison_name)
         self.status = ('Status: Model successfully processed for Parset "%s"' % self.parset_comparison_name)
         self.refreshStatus()
-        self.makePlotterTable()
-        self.results_current = None
-        self.results_comparison = None
+        self.refreshVisibility()
         return
         
     def factorySelectFile(self, display_field):
@@ -352,16 +431,22 @@ class GUICalibration(QtGui.QWidget):
         
         self.table_calibration.cellChanged.connect(self.updateParset)
         
-    def makePlotterTable(self):
+    def showPlots(self):
+        for i in reversed(range(self.plotter_layout.count())): 
+            self.plotter_layout.itemAt(i).widget().setParent(None)        
         
-        self.figure = pl.Figure()
-        self.canvas = FigureCanvasQTAgg(self.figure)
+        if self.charac_plot_name is not None and self.pop_plot_name is not None:
+            charac_plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
+#            pop_plot_label = self.project.data['pops']['name_labels'][self.pop_plot_name]
+            pid = self.combo_pop_dict[self.pop_plot_name]
 
-        self.axis = self.figure.add_subplot(111)
-        self.axis.scatter([1,2,3],[4,5,6])        
-        
-        self.plotter_layout.addWidget(self.canvas, 0, 0)
-        
+            y_values_cur, t_values_cur, final_dict = extractCharacteristic(results=self.results_current, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
+            y_values_com, t_values_com, final_dict = extractCharacteristic(results=self.results_comparison, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
+            figure = _plotLine(ys = [y_values_cur[pid],y_values_com[pid]], ts = [t_values_cur[pid],t_values_com[pid]], labels = ['Edited "%s"' % self.parset.name,'Unedited "%s"' % self.parset_comparison_name], y_hat=final_dict['y_hat'], t_hat=final_dict['t_hat'])
+              
+            canvas = FigureCanvasQTAgg(figure)
+
+            self.plotter_layout.addWidget(canvas)        
         
 #        self.table_calibration.setVisible(False)    # Resizing columns requires table to be hidden first.
 #        self.table_calibration.clear()
@@ -444,7 +529,7 @@ class GUICalibration(QtGui.QWidget):
             self.guard_status = False
             return
         par.insertValuePair(t = year, y = new_val, pop_label = pop_label)
-        self.status = ('Status: Parset "%s" given value "%f" for parameter "%s", population "%s", year "%i"' % (self.parset.name, new_val, par_label, pop_label, year))
+        self.status = ('Status: Current Parset edit had value "%f" for parameter "%s", population "%s", year "%i"' % (self.parset.name, new_val, par_label, pop_label, year))
         self.refreshStatus()
             
 #        if not new_val_str == '':
