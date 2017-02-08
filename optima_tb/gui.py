@@ -8,11 +8,12 @@ logger = logging.getLogger()
 from matplotlib import pyplot as pp
 pp.ioff()   # Turn off interactive mode.
 
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
-from PyQt4 import QtGui, QtCore
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from PyQt5 import QtCore as qtc
+from PyQt5 import QtGui as qtg
+from PyQt5 import QtWidgets as qtw
 import sys
 import numpy as np
-import pylab as pl
 from copy import deepcopy as dcp
 
 from optima_tb.project import Project
@@ -20,7 +21,7 @@ from optima_tb.plotting import extractCharacteristic, _plotLine
 
 #%% GUI classes
 
-class GUI(QtGui.QWidget):
+class GUI(qtw.QWidget):
     
     def __init__(self):
         super(GUI, self).__init__()
@@ -30,13 +31,13 @@ class GUI(QtGui.QWidget):
         
         self.setWindowTitle('GUI Selection Screen')   
         
-        self.button_calibration = QtGui.QPushButton('Manual Calibration', self)
+        self.button_calibration = qtw.QPushButton('Manual Calibration', self)
         self.button_calibration.clicked.connect(self.runGUICalibration)
-        layout = QtGui.QVBoxLayout(self)
+        layout = qtw.QVBoxLayout(self)
         layout.addWidget(self.button_calibration)
         self.setLayout(layout)
         
-        screen = QtGui.QDesktopWidget().availableGeometry()
+        screen = qtw.QDesktopWidget().availableGeometry()
         self.setGeometry((screen.width()-self.width())/2, (screen.height()-self.height())/2, 
                          self.width(), self.height())   
     
@@ -46,7 +47,7 @@ class GUI(QtGui.QWidget):
         self.sub_gui = GUICalibration()
         
 
-class GUICalibration(QtGui.QWidget):
+class GUICalibration(qtw.QWidget):
     
     def __init__(self):
         super(GUICalibration, self).__init__()
@@ -84,73 +85,73 @@ class GUICalibration(QtGui.QWidget):
         self.setWindowTitle('Manual Calibration')
         
         # Screen.
-        screen = QtGui.QDesktopWidget().availableGeometry()
+        screen = qtw.QDesktopWidget().availableGeometry()
         self.resize(screen.width()*9.0/10.0, screen.height()*9.0/10.0)
         self.setGeometry((screen.width()-self.width())/2, (screen.height()-self.height())/2, 
                          self.width(), self.height())
         
         # Widgets.
-        self.label_project_name = QtGui.QLabel('Project Name: ')
-        self.edit_project_name = QtGui.QLineEdit()
+        self.label_project_name = qtw.QLabel('Project Name: ')
+        self.edit_project_name = qtw.QLineEdit()
         self.edit_project_name.setText('New Project')
         
-        self.label_cascade = QtGui.QLabel('Cascade Filename: ')
-        self.edit_cascade = QtGui.QLineEdit()
-        self.button_cascade = QtGui.QPushButton('Locate File', self)
+        self.label_cascade = qtw.QLabel('Cascade Filename: ')
+        self.edit_cascade = qtw.QLineEdit()
+        self.button_cascade = qtw.QPushButton('Locate File', self)
         self.button_cascade.clicked.connect(self.factorySelectFile(display_field = self.edit_cascade))
         
-        self.button_project_init = QtGui.QPushButton('Create Project', self)
+        self.button_project_init = qtw.QPushButton('Create Project', self)
         self.button_project_init.clicked.connect(self.createProject)
         
-        self.label_databook = QtGui.QLabel('Databook Filename: ')
-        self.edit_databook = QtGui.QLineEdit()
-        self.button_databook = QtGui.QPushButton('Locate File', self)
+        self.label_databook = qtw.QLabel('Databook Filename: ')
+        self.edit_databook = qtw.QLineEdit()
+        self.button_databook = qtw.QPushButton('Locate File', self)
         self.button_databook.clicked.connect(self.factorySelectFile(display_field = self.edit_databook))
         
-        self.button_project_saturate = QtGui.QPushButton('Load Data', self)
+        self.button_project_saturate = qtw.QPushButton('Load Data', self)
         self.button_project_saturate.clicked.connect(self.loadData)
         
-        self.label_parset = QtGui.QLabel('Parset To Edit: ')
-        self.combo_parset = QtGui.QComboBox(self)
+        self.label_parset = qtw.QLabel('Parset To Edit: ')
+        self.combo_parset = qtw.QComboBox(self)
         self.combo_parset.activated[str].connect(self.loadCalibration)
         
-        self.label_compare = QtGui.QLabel('Compare Edits With... ')
-        self.combo_compare = QtGui.QComboBox(self)
+        self.label_compare = qtw.QLabel('Compare Edits With... ')
+        self.combo_compare = qtw.QComboBox(self)
         self.combo_compare.activated[str].connect(self.selectComparison)
-        self.button_compare = QtGui.QPushButton('Compare Models', self)
+        self.button_compare = qtw.QPushButton('Compare Models', self)
         self.button_compare.clicked.connect(self.runComparison)
         
-        self.label_overwrite = QtGui.QLabel('Save Edits To... ')
-        self.edit_overwrite = QtGui.QLineEdit()
-        self.button_overwrite = QtGui.QPushButton('Save Calibration', self)
+        self.label_overwrite = qtw.QLabel('Save Edits To... ')
+        self.edit_overwrite = qtw.QLineEdit()
+        self.button_overwrite = qtw.QPushButton('Save Calibration', self)
         self.button_overwrite.clicked.connect(self.saveCalibration)
         
-        self.status_bar = QtGui.QStatusBar()
+        self.status_bar = qtw.QStatusBar()
         self.status_bar.showMessage(self.status)
         self.status_bar.setSizeGripEnabled(False)
         
-        self.table_calibration = QtGui.QTableWidget()
+        self.table_calibration = qtw.QTableWidget()
         self.table_calibration.cellChanged.connect(self.updateParset)
-        policy_min = QtGui.QSizePolicy.Minimum
-        policy_exp = QtGui.QSizePolicy.Expanding
-        self.parset_layout_stretch = QtGui.QSpacerItem(0, 0, policy_min, policy_exp)
+        policy_min = qtw.QSizePolicy.Minimum
+        policy_exp = qtw.QSizePolicy.Expanding
+        self.parset_layout_stretch = qtw.QSpacerItem(0, 0, policy_min, policy_exp)
         
-#        self.table_plotter = QtGui.QTableWidget()
-        self.label_plotter_charac = QtGui.QLabel('Select Characteristic: ')
-        self.combo_plotter_charac = QtGui.QComboBox(self)
+#        self.table_plotter = qtw.QTableWidget()
+        self.label_plotter_charac = qtw.QLabel('Select Characteristic: ')
+        self.combo_plotter_charac = qtw.QComboBox(self)
         self.combo_plotter_charac.activated[str].connect(self.selectCharacteristic)
-        self.label_plotter_pop = QtGui.QLabel('Select Population: ')
-        self.combo_plotter_pop = QtGui.QComboBox(self)
+        self.label_plotter_pop = qtw.QLabel('Select Population: ')
+        self.combo_plotter_pop = qtw.QComboBox(self)
         self.combo_plotter_pop.activated[str].connect(self.selectPopulation)
-        self.button_plotter = QtGui.QPushButton('Plot Figures', self)
+        self.button_plotter = qtw.QPushButton('Plot Figures', self)
         self.button_plotter.clicked.connect(self.showPlots)
         
-        self.scroller_plotter = QtGui.QScrollArea()
+        self.scroller_plotter = qtw.QScrollArea()
         self.scroller_plotter.setWidgetResizable(False)
-        self.plotter = QtGui.QWidget()
+        self.plotter = qtw.QWidget()
         
         # Layout.   
-        grid_upper = QtGui.QGridLayout()
+        grid_upper = qtw.QGridLayout()
         grid_upper.setSpacing(10)          
         
         grid_upper.addWidget(self.label_project_name, 0, 0)
@@ -166,7 +167,7 @@ class GUICalibration(QtGui.QWidget):
         grid_upper.addWidget(self.label_parset, 3, 0)
         grid_upper.addWidget(self.combo_parset, 3, 1)
         
-        grid_lower = QtGui.QGridLayout()
+        grid_lower = qtw.QGridLayout()
         grid_lower.setSpacing(10)
         
         grid_lower.addWidget(self.label_overwrite, 0, 0)
@@ -181,22 +182,22 @@ class GUICalibration(QtGui.QWidget):
         grid_lower.addWidget(self.combo_plotter_pop, 3, 1)
         grid_lower.addWidget(self.button_plotter, 3, 2)
         
-        parset_layout = QtGui.QVBoxLayout()
+        parset_layout = qtw.QVBoxLayout()
         parset_layout.addLayout(grid_upper)
         parset_layout.addWidget(self.table_calibration)
         parset_layout.addLayout(grid_lower)
         parset_layout.addItem(self.parset_layout_stretch)
         parset_layout.addWidget(self.status_bar)
         
-        self.plotter_layout = QtGui.QGridLayout()#.QVBoxLayout()
+        self.plotter_layout = qtw.QGridLayout()#.QVBoxLayout()
         self.plotter_layout.setSpacing(5)
-        self.scroller_layout = QtGui.QVBoxLayout()
+        self.scroller_layout = qtw.QVBoxLayout()
 #        plotter_layout.addWidget(self.table_plotter)
         
-        self.first_half = QtGui.QWidget()
+        self.first_half = qtw.QWidget()
         self.first_half.resize(self.width()/2.0, self.height())
         self.first_half.setLayout(parset_layout)
-        self.second_half = QtGui.QWidget()
+        self.second_half = qtw.QWidget()
         self.second_half.resize(self.width()/2.0, self.height()/2.0)
         self.second_half.setLayout(self.plotter_layout)
 #        self.second_half.setLayout(self.scroller_layout)
@@ -204,10 +205,10 @@ class GUICalibration(QtGui.QWidget):
 #        self.scroller_plotter.setWidget(self.plotter)
 #        self.plotter.setLayout(self.plotter_layout)
         
-        self.splitter_total = QtGui.QSplitter()
+        self.splitter_total = qtw.QSplitter()
         self.splitter_total.addWidget(self.first_half)
         self.splitter_total.addWidget(self.second_half)
-        total_layout = QtGui.QHBoxLayout()
+        total_layout = qtw.QHBoxLayout()
         total_layout.addWidget(self.splitter_total)
         self.setLayout(total_layout)
     
@@ -231,8 +232,8 @@ class GUICalibration(QtGui.QWidget):
         self.label_parset.setVisible(is_parset_loaded)
         self.combo_parset.setVisible(is_parset_loaded)
         
-        policy_min = QtGui.QSizePolicy.Minimum
-        policy_exp = QtGui.QSizePolicy.Expanding
+        policy_min = qtw.QSizePolicy.Minimum
+        policy_exp = qtw.QSizePolicy.Expanding
         if is_parset_loaded:
             self.parset_layout_stretch.changeSize(0, 0, policy_min, policy_min)
             self.makeParsetTable()
@@ -378,7 +379,7 @@ class GUICalibration(QtGui.QWidget):
         
     def factorySelectFile(self, display_field):
         def selectFile(self):
-            display_field.setText(QtGui.QFileDialog.getOpenFileName())
+            display_field.setText(str(qtw.QFileDialog.getOpenFileName()[0]))
         return selectFile
         
     def makeParsetTable(self):
@@ -409,19 +410,19 @@ class GUICalibration(QtGui.QWidget):
                             par_name = self.project.settings.linkpar_specs[par.label]['name']
                         except:
                             par_name = self.project.settings.charac_specs[par.label]['name']
-                        temp = QtGui.QTableWidgetItem()
+                        temp = qtw.QTableWidgetItem()
                         temp.setText(par_name)
-                        temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
+                        temp.setFlags(qtc.Qt.ItemIsEnabled or qtc.Qt.ItemIsSelectable)
                         self.table_calibration.setItem(k*num_pops+pid, self.col_par_name, temp)
-                        temp = QtGui.QTableWidgetItem()
+                        temp = qtw.QTableWidgetItem()
                         temp.setText(parset.pop_names[pid])
-                        temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
+                        temp.setFlags(qtc.Qt.ItemIsEnabled or qtc.Qt.ItemIsSelectable)
                         self.table_calibration.setItem(k*num_pops+pid, self.col_pop_name, temp)
                         
                         for eid in xrange(len(par.t[pid])):
                             t = par.t[pid][eid]
                             y = par.y[pid][eid]
-                            temp = QtGui.QTableWidgetItem()
+                            temp = qtw.QTableWidgetItem()
                             temp.setText(str(y))
                             self.table_calibration.setItem(k*num_pops+pid, 2+int(t)-self.tvec[0], temp)
                     k += 1
@@ -478,19 +479,19 @@ class GUICalibration(QtGui.QWidget):
 #                            par_name = self.project.settings.linkpar_specs[par.label]['name']
 #                        except:
 #                            par_name = self.project.settings.charac_specs[par.label]['name']
-#                        temp = QtGui.QTableWidgetItem()
+#                        temp = qtw.QTableWidgetItem()
 #                        temp.setText(par_name)
-#                        temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
+#                        temp.setFlags(qtc.Qt.ItemIsEnabled or qtc.Qt.ItemIsSelectable)
 #                        self.table_calibration.setItem(k*num_pops+pid, self.col_par_name, temp)
-#                        temp = QtGui.QTableWidgetItem()
+#                        temp = qtw.QTableWidgetItem()
 #                        temp.setText(parset.pop_names[pid])
-#                        temp.setFlags(QtCore.Qt.ItemIsEnabled or QtCore.Qt.ItemIsSelectable)
+#                        temp.setFlags(qtc.Qt.ItemIsEnabled or qtc.Qt.ItemIsSelectable)
 #                        self.table_calibration.setItem(k*num_pops+pid, self.col_pop_name, temp)
 #                        
 #                        for eid in xrange(len(par.t[pid])):
 #                            t = par.t[pid][eid]
 #                            y = par.y[pid][eid]
-#                            temp = QtGui.QTableWidgetItem()
+#                            temp = qtw.QTableWidgetItem()
 #                            temp.setText(str(y))
 #                            self.table_calibration.setItem(k*num_pops+pid, 2+int(t)-self.tvec[0], temp)
 #                    k += 1
@@ -562,7 +563,7 @@ class GUICalibration(QtGui.QWidget):
 def runGUI():
     ''' Function that launches all available back-end GUIs as they are developed. '''
     
-    app = QtGui.QApplication(sys.argv)
+    app = qtw.QApplication(sys.argv)
     app.setApplicationName('Optima GUI')
     gui = GUI()
     sys.exit(app.exec_())
