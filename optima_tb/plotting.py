@@ -490,9 +490,8 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
         fig.savefig('%s' % (save_figname))
         logger.info("Saved figure: '%s'"%save_figname)
         
-    
 
-def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None, plot_observed_data=True, save_fig=False, fig_name=None ,colors=None, plotdict={}):
+def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None, plot_observed_data=True, save_fig=False, fig_name=None, colors=None, plotdict={}):
     """
     Plot a characteristic across all populations
     
@@ -520,62 +519,77 @@ def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None, plot_o
         
     """
     # setup
-    tvec = results.sim_settings['tvec']
-    year_inc = 5.  # TODO: move this to setting
-    yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)
-    mpops = results.m_pops
-    sim_settings = results.sim_settings
+    
     pop_labels = results.pop_labels
     outputs = results.outputs
-    save_figname=None    
-    unit_tag = ''
+    
+#    legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}
     
     if outputIDs is None:
         outputIDs = outputs.keys()
         
     for output_id in outputIDs:
-        if not isPlottableCharac(output_id,charac_specs):
-            continue
+        if isPlottableCharac(output_id, charac_specs):
+            y_values, t_values, final_dict = extractCharacteristic(results=results, charac_label=output_id, charac_specs=charac_specs, data=data)
+            _plotLine(y_values, t_values, pop_labels, legendsettings=None, save_fig=save_fig, **final_dict)
+
+
+def extractCharacteristic(results, charac_label, charac_specs, data, title='', plot_observed_data=True, fig_name=None, plotdict=None):
+    
+    if plotdict is None: plotdict = {}    
+    
+    tvec = results.sim_settings['tvec']
+    year_inc = 5.  # TODO: move this to setting
+    yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)    
+    
+    mpops = results.m_pops
+    outputs = results.outputs
+    sim_settings = results.sim_settings
+    unit_tag = ''
+    
+    output_id = charac_label
+    
+    y_values = []
+    t_values = []
+    yhat = []
+    that = []
+    
+    for k,pop in enumerate(mpops):
         
-        y_values = []
-        t_values = []
-        yhat = []
-        that = []
+        vals = dcp(outputs[output_id][pop.label])
+        if 'plot_percentage' in charac_specs[output_id].keys():
+            vals *= 100
+            unit_tag = ' (%)'
+        y_values.append(vals)
+        t_values.append(sim_settings['tvec'])
         
-        for k,pop in enumerate(mpops):
-            
-            vals = dcp(outputs[output_id][pop.label])
-            if 'plot_percentage' in charac_specs[output_id].keys():
-                vals *= 100
-                unit_tag = ' (%)'
-            y_values.append(vals)
-            t_values.append(sim_settings['tvec'])
-            
-            if plot_observed_data:
+        if plot_observed_data:
+            if output_id in data['characs'].keys():
                 ys = data['characs'][output_id][pop.label]['y']
                 ts = data['characs'][output_id][pop.label]['t']
-                if 'plot_percentage' in charac_specs[output_id].keys():
-                    ys *= 100
-                if len(ys)==0:
-                    # add an empty list to preserve label colours
-                    ys,ts = [],[]
-                yhat.append(ys)
-                that.append(ts)
+            else:   # For the case when plottable characteristics were not in the databook and thus not converted to data.
+                ys = []
+                ts = []
+            if 'plot_percentage' in charac_specs[output_id].keys():
+                ys *= 100
+#            if len(ys)==0:
+#                # add an empty list to preserve label colours
+#                ys,ts = [],[]
+            yhat.append(ys)
+            that.append(ts)
             
-                
-        dict = {'y_hat': yhat,
-                't_hat': that,
-                'unit_tag': unit_tag,
-                'xlabel':'Year',
-                'ylabel': charac_specs[output_id]['name'] + unit_tag,
-                'x_ticks' : (yr_range,yr_range),
-                'title': '%s Outputs: %s' % (title, charac_specs[output_id]['name']),
-                'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
-        dict.update(plotdict)
-        
-        legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}         
-         
-        _plotLine(y_values, t_values, pop_labels, legendsettings=legendsettings,save_fig=save_fig,**dict)
+            
+    final_dict = {'y_hat': yhat,
+                  't_hat': that,
+                  'unit_tag': unit_tag,
+                  'xlabel':'Year',
+                  'ylabel': charac_specs[output_id]['name'] + unit_tag,
+                  'x_ticks' : (yr_range,yr_range),
+                  'title': '%s Outputs: %s' % (title, charac_specs[output_id]['name']),
+                  'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
+    final_dict.update(plotdict)
+    
+    return y_values, t_values, final_dict
         
     
 def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
@@ -584,6 +598,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     """
     
     """
+    if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
     
     ymin_val = np.min(ys[0])
     
@@ -598,7 +613,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
             
-        if len(y_hat) > 0: # i.e. we've seen observable data
+        if len(y_hat) > 0 and len(y_hat[k]) > 0: # i.e. we've seen observable data
             ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
             if np.min(y_hat[k]) < ymin_val:
                 ymin_val = np.min(y_hat[k])
@@ -631,6 +646,8 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     if save_fig:
         fig.savefig('%s' % (save_figname))                    
         logger.info("Saved figure: '%s'"%save_figname)
+        
+    return fig
     
     
     
