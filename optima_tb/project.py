@@ -14,6 +14,7 @@ from optima_tb.plotting import plotProjectResults
 from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
 from optima_tb.scenarios import ParameterScenario, BudgetScenario, CoverageScenario
+from optima_tb.dataio import exportObj, importObj
 
 from uuid import uuid4 as uuid
 from numpy import max
@@ -188,6 +189,7 @@ class Project(object):
         logger.info("Created new parameter set '%s' using autofit"%new_parset_name)
         self.parsets[new_parset_name] = new_parset
         
+        
     def createScenarios(self,scenario_dict):
         """
         Creates the scenarios to be run, and adds them to this project's store
@@ -297,4 +299,31 @@ class Project(object):
     
     
     
+    def exportProject(self,filename=None,format='json',compression='zlib'):
+        """
+        
+        This currently saves everything within a project, including results.
+        
+        Params:
+            filename      filename to save to. If none is supplied, value is set to "<project.name>.project"
+            format        string for supported format types (json)
+            compression   string for supported compression types (zlib)
+        
+        Usage
+            project = Project(name="sample", cascade="cascade.xlsx")
+            project.exportProject()
+            # saves to "sample.project.Z"
+            project.exportProject(filename="special")
+            # saves to "special.Z"
+        
+        """
+        if filename is None:
+            filename = "%s.project"%self.name
+        
+        logger.info("Attempting to save file in format=%s"%format)
+        filename = exportObj(self,filename=filename,format=format,compression=compression)
+        logger.info("Saved to file: %s"%filename)
+        return filename
+        
     
+        

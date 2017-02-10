@@ -141,10 +141,22 @@ def _getColormapRange(cmap,ncols=10,order='alternate'):
     if order == 'random':
         shuffle(order_map)
     elif order == 'alternate':
+        if ncols < 2:
+            return _getColormapRange(cmap, ncols, 'sequential')
         a = order_map[ncols/2:]
         b = order_map[:ncols/2]
         order_map[::2] = a 
         order_map[1::2] = b 
+    elif order == 'alternate3':
+        if ncols < 3:
+            return _getColormapRange(cmap, ncols, 'alternate')
+        third = ncols/3
+        a = order_map[2*third:]
+        b = order_map[third:2*third]
+        c = order_map[:third]
+        order_map[::3] = a 
+        order_map[1::3] = b 
+        order_map[2::3] = c
     else: # order == 'sequential', so leave in order 
         pass
     
@@ -184,7 +196,7 @@ def getCategoryColors(category_list,order='alternate'):
     """
     col_list = odict()
     for k,v in category_list.iteritems():
-        tmp_list = _getColormapRange(k,len(v))
+        tmp_list = _getColormapRange(k,len(v),order)
         for i,label in enumerate(v):
             col_list[label] = tmp_list[i]
     return col_list
@@ -201,12 +213,14 @@ def _turnOffBorder():
     pl.gca().yaxis.set_ticks_position('left')
 
 
-def isPlottable(comp_label,sim_settings):
+def isPlottable(comp_label,sim_settings,comp_specs):
     """ 
     Returns bool indicating whether a population label should be included in metrics
     for population reporting when plotting cascade
     """
     if comp_label in sim_settings['tag_no_plot']:
+        return False
+    if comp_specs[comp_label].has_key('junction'):
         return False
     return True
 
@@ -223,7 +237,7 @@ def isPlottableCharac(output_id,charac_specs):
     
     
 
-def plotProjectResults(results,settings, data, title='', colormappings=None, pop_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
+def plotProjectResults(results,settings, data, title='', colormappings=None, pop_labels=None, plot_comp_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
             
     
     """
@@ -246,9 +260,12 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, pop
     if pop_labels is None:
         pop_labels = results.pop_labels
     charac_specs = settings.charac_specs
-    plotdict = settings.plot_settings.plotdict
+    plotdict = settings.plot_settings
+    
     # plot each disease cascade for every population
-    plotPopulation(results=results, data=data, title=title, colormappings=colormappings, pop_labels=pop_labels, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
+    plotPopulation(results=results, data=data, title=title, colormappings=colormappings, pop_labels=pop_labels, plot_observed_data=plot_observed_data, \
+                   save_fig=save_fig, fig_name=fig_name, plotdict=plotdict, plot_comp_labels=plot_comp_labels)
+    
     # plot characteristics
     plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # internal plotting
@@ -257,7 +274,7 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, pop
     
     
     
-def plotPopulation(results, data, pop_labels, title='',colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, use_full_labels=True, plotdict={}):
+def plotPopulation(results, data, pop_labels, title='',colormappings=None, plot_observed_data=True, plot_observed_label="alive", save_fig=False, fig_name=None, use_full_labels=True, plot_comp_labels=None, plotdict=None):
     """ 
     
     Plot all compartments for all populations
@@ -272,7 +289,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None, plot_
                             The latter is easier for debugging purposes
         
     """
-    # setup
+    # setup data structures
     tvec = results.sim_settings['tvec']
     year_inc = 5.  # TODO: move this to setting
     yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)
@@ -287,36 +304,53 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None, plot_
     else:
         ncol = 2
     
+    # setup: determine compartment indices to be plotted
+    if plot_comp_labels is None:
+        plot_comp_labels = sorted(mpops[0].comp_ids, key=mpops[0].comp_ids.get)
+        
+    comp_indices = [mpops[0].comp_ids[i] for i in plot_comp_labels]
+    
+    
+    # setup: determine colors to be used
     colors = []
     if colormappings is not None:
-        colors_dict = getCategoryColors(colormappings)
+        colors_dict = getCategoryColors(colormappings,plotdict['colormapping_order'])
         # reorder so that colors are same as expected for plotting the population
-        for (j,comp) in enumerate(mpops[0].comps):
-            if isPlottable(comp.label,sim_settings):
-                colors.append(colors_dict[comp.label])
+        for (j,comp_label) in enumerate(plot_comp_labels):
+            if isPlottable(comp_label,sim_settings,results.comp_specs):
+                colors.append(colors_dict[comp_label])
     
+    # setup: plotting dict structures  
+    if plotdict is None:
+        plotdict = {}
+        
         
     # iterate for each key population group
     for (i,pop) in enumerate(mpops):
+        
         if pop.label not in pop_labels:
             continue
         comps = []
         labels = []
-        for (j,comp) in enumerate(pop.comps):
-            if isPlottable(comp.label,sim_settings):
-                comps.append(comp)
+        
+        for comp_id in comp_indices:
+            comp_label = pop.comps[comp_id].label
+            if isPlottable(comp_label,sim_settings,results.comp_specs):
+            
+                comps.append(pop.comps[comp_id])
+                
                 if use_full_labels:
-                    c_label = comp_labels[comp.label]
+                    c_label = comp_labels[comp_label]
                 else:
-                    c_label = comp.label
+                    c_label = comp_label
                 labels.append(c_label)
         if plot_observed_data:
-            ys = data['characs']['alive'][pop.label]['y']
-            ts = data['characs']['alive'][pop.label]['t']
+            ys = data['characs'][plot_observed_label][pop.label]['y']
+            ts = data['characs'][plot_observed_label][pop.label]['t']
             dataobs = (ts,ys)
         xlim = ()
         
-        pl_title = 'Population: %s' % (pop.label)
+        pl_title = title+' Population: %s' % (pop.label)
         if save_fig:
             save_figname = fig_name + "_compartment_%s"%pop.label
         dict = {  'xlim': (tvec[0],tvec[-1]),
@@ -401,8 +435,8 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
     pl.suptitle('')
     
     if save_fig:
-        fig.savefig('%s.png' % (save_figname))
-        logger.info("Saved figure: '%s.png'"%save_figname)
+        fig.savefig('%s' % (save_figname))
+        logger.info("Saved figure: '%s'"%save_figname)
         
     
 
@@ -543,8 +577,8 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         
     _turnOffBorder()
     if save_fig:
-        fig.savefig('%s.png' % (save_figname))                    
-        logger.info("Saved figure: '%s.png'"%save_figname)
+        fig.savefig('%s' % (save_figname))                    
+        logger.info("Saved figure: '%s'"%save_figname)
     
     
     

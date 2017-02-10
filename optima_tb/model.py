@@ -4,6 +4,8 @@ from optima_tb.utils import flattenDict, odict, OptimaException
 from optima_tb.validation import checkNegativePopulation, checkTransitionFraction
 import optima_tb.settings as project_settings
 from optima_tb.results import ResultSet
+from optima_tb.parsing import FunctionParser
+
 
 import logging
 logger = logging.getLogger(__name__)
@@ -234,7 +236,9 @@ class Model(object):
         
         self.t_index = 0                # Keeps track of array index for current timepoint data within all compartments.
         
-        
+        self.parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
+
+            
         
     def getPop(self, pop_label):
         ''' Allow model populations to be retrieved by label rather than index. '''
@@ -247,6 +251,7 @@ class Model(object):
         
         self.sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
         
+        self.parser.debug = settings.parser_debug
         
         for k, pop_label in enumerate(parset.pop_labels):
             self.pops.append(ModelPopulation(settings = settings, label = pop_label, index = k))
@@ -654,7 +659,10 @@ class Model(object):
                         else:
                             raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))                      
                         
-                        dep.vals[ti] /= val
+                        if val == 0:
+                            dep.vals[ti] = np.inf
+                        else:
+                            dep.vals[ti] /= val
             
         # Parameters that are functions of dependencies next...
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
@@ -677,7 +685,7 @@ class Model(object):
                         else:
                             val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti]    # As links are duplicated for the same tag, can pull values from the zeroth one.
                         deps[dep_label] = val
-                    new_val = settings.parser.evaluateStack(stack = f_stack, deps = deps)
+                    new_val = self.parser.evaluateStack(stack = f_stack, deps = deps)
                 else:
                     new_val = pars[0].vals[ti]      # As links are duplicated for the same tag, can pull values from the zeroth one.
                 
@@ -717,8 +725,11 @@ class Model(object):
                                     k += 1
                                 wpc = np.multiply(weights, pop_counts)          # Population counts weighted by contact rate.
                                 wpc_sum = sum(wpc)                              # Normalisation factor for weighted population counts.
-                                new_val = np.dot(old_vals, wpc/wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
-                            
+                                if abs(wpc_sum) > project_settings.TOLERANCE:
+                                    new_val = np.dot(old_vals, wpc/wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
+                                else:
+                                    new_val = 0.0   # Only valid because if the weighted sum is zero, all pop_counts must be zero, meaning that the numerator is zero.
+                                    
 #                            if ti == 0:
 #                                print
 #                                print('Timestep: %s' % ti)
