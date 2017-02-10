@@ -89,6 +89,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if row_id > 0 and ws_nodes.cell_value(row_id, cid_label) not in ['']:
             node_label = str(ws_nodes.cell_value(row_id, cid_label))
             settings.node_specs[node_label] = odict()
+            settings.node_specs[node_label]['name'] = str(ws_nodes.cell_value(row_id, cid_name))
             settings.node_names.append(str(ws_nodes.cell_value(row_id, cid_name)))
             good_for_transfer = True    # A flag for whether a compartment is a valid node to 'migrate' from/into.
             

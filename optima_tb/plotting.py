@@ -598,34 +598,62 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     return fig
     
 
-def plotFlows(results, comp_labels = None):
+def plotFlows(results, settings, comp_labels = None):
     """
     Plot flows rates in and out of a compartment.
     """
     
     tvec = results.sim_settings['tvec']
+    pop_labels = results.pop_labels
     
-    if comp_labels is None: comp_labels = []
+    if comp_labels is None:
+        logger.info("No compartments have been selected for flow-plots.")
+        comp_labels = []
     
     for comp_label in comp_labels:
-        for pop in results.m_pops:
+        for pid in xrange(len(results.m_pops)):
+            pop = results.m_pops[pid]
             all_labels = []
             all_rates = []
             all_tvecs = []
             comp = pop.getComp(comp_label)
-            print comp_label
+#            print comp_label
 #            print 'out'
 #            print comp.outlink_ids
 #            print 'in'
 #            print comp.inlink_ids
-            for comp_link_ids in [comp.inlink_ids, comp.outlink_ids]:
-                for link_tuple in comp.inlink_ids:
+            for in_out in xrange(2):
+                comp_link_ids = [comp.inlink_ids, comp.outlink_ids][in_out]
+                label_tag = ['In: ','Out: '][in_out]
+                for link_tuple in comp_link_ids:
                     link = results.m_pops[link_tuple[0]].links[link_tuple[1]]
-                    all_labels.append(link.label)
-                    all_rates.append(link.vals)
+                    num_flow = dcp(link.vals)
+                    if in_out == 0:
+                        comp_source = results.m_pops[link.index_from[0]].comps[link.index_from[1]]
+                    else:
+                        comp_source = comp
+                    was_proportion = False
+                    if link.val_format == 'proportion':
+                        denom_val = sum(results.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
+                        num_flow /= denom_val
+                        was_proportion = True
+                    if link.val_format == 'fraction' or was_proportion is True:
+                        if was_proportion is True:
+                            num_flow *= comp_source.popsize_old
+                        else:
+                            num_flow = 1 - (1 - num_flow) ** results.dt     # Fractions must be converted to effective timestep rates.
+                            num_flow *= comp_source.popsize
+                        num_flow /= results.dt      # All timestep-based effective fractional rates must be annualised.
+                        
+                    try: legend_label = label_tag + settings.linkpar_specs[link.label]['name']
+                    except: legend_label = label_tag + link.label
+                    all_labels.append(legend_label)
+                    all_rates.append(num_flow)
                     all_tvecs.append(tvec)
             _plotLine(ys=all_rates, ts=all_tvecs, labels=all_labels)
-            
+            pl.title('Population "%s"\nCompartment "%s"' % (pop_labels[pid], settings.node_specs[comp_label]['name']))
+            pl.xlabel('Year')
+            pl.ylabel('Number of People')
                 
     
     

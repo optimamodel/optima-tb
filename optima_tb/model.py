@@ -85,6 +85,7 @@ class ModelCompartment(Node):
     def __init__(self, label = 'default', index = 0, popsize = 0.0):
         Node.__init__(self, label = label, index = index)
         self.popsize = np.array([float(popsize)])   # Number of people in compartment.
+        self.popsize_old = None                     # An array that stores old popsize values in the case of junctions (and perhaps other overwriting).
         self.tag_birth = False                      # Tag for whether this compartment contains unborn people.
         self.tag_dead = False                       # Tag for whether this compartment contains dead people.
         self.junction = False
@@ -592,15 +593,24 @@ class Model(object):
             for pop in self.pops:
                 for junction_label in settings.junction_labels:
                     comp = pop.getComp(junction_label)
+                    
+                    # Stores junction popsize values before emptying.
+                    if review_count == 0:
+                        if comp.popsize_old is None:
+                            comp.popsize_old = dcp(comp.popsize)
+                        else:
+                            comp.popsize_old[ti] = comp.popsize[ti]
+                    # If a junction is being reviewed again, it means that it received inflow before emptying.
+                    # Add this inflow to the stored popsize.
+                    else:
+                        comp.popsize_old[ti] += comp.popsize[ti]
+#                        print 'huzzah'
+#                        print comp.popsize
+#                        print comp.popsize_old
+                            
                     popsize = comp.popsize[ti]
                     
-                    
-                    
-                    if popsize < 0:     # NOTE: Hacky fix for negative values. Needs work in case of super-negatives.
-                        comp.popsize[ti] = 0
-                        popsize = 0
-                        
-                    elif abs(popsize) <= project_settings.TOLERANCE:
+                    if popsize <= project_settings.TOLERANCE:   # Includes negative values.
                         comp.popsize[ti] = 0
                         popsize = 0
                     
