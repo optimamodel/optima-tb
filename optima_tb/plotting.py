@@ -586,12 +586,30 @@ def plotFlows(results, comp_labels = None):
     Plot flows rates in and out of a compartment.
     """
     
+    tvec = results.sim_settings['tvec']
+    
     if comp_labels is None: comp_labels = []
     
     for comp_label in comp_labels:
         for pop in results.m_pops:
+            all_labels = []
+            all_rates = []
+            all_tvecs = []
             comp = pop.getComp(comp_label)
-        
+            print comp_label
+#            print 'out'
+#            print comp.outlink_ids
+#            print 'in'
+#            print comp.inlink_ids
+            for comp_link_ids in [comp.inlink_ids, comp.outlink_ids]:
+                for link_tuple in comp.inlink_ids:
+                    link = results.m_pops[link_tuple[0]].links[link_tuple[1]]
+                    all_labels.append(link.label)
+                    all_rates.append(link.vals)
+                    all_tvecs.append(tvec)
+            _plotLine(ys=all_rates, ts=all_tvecs, labels=all_labels)
+            
+                
     
     
             
