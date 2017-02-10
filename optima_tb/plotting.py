@@ -272,6 +272,58 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, pop
     if debug:
         plotOutflows(results)
     
+def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_pops=None,colormappings=None,plot_observed_data=True,save_fig=False,fig_name=None):
+    """
+    
+    Params
+        scen_results        list of results
+        scen_labels         list of scenario labels, to be displayed
+        plot_characs        list of characeristics to be plotted. If None, then the default list from databook is used
+        
+    Notes: 
+        TODO: replace the default list of plot_characs as a setting value. 
+    
+    """
+    # close all remaining windows
+    pl.close("all") 
+    # setup    
+    charac_specs = settings.charac_specs
+    plotdict = settings.plot_settings
+    
+    if plot_charac is None:
+        pass
+    
+    if plot_pops is None:
+        plot_pops = data.pop_labels #####
+    
+    
+    # generate plots
+    for pop in plot_pops:
+        
+        pid = 0 # TODO
+         
+        for charac in plot_charac:
+        
+            yvals = []
+            tvals = []
+            labels= []
+            observed_data = []
+            
+            for (i,result) in enumerate(scen_results):
+        
+                y_values_cur, t_values_cur, final_dict_cur = extractCharacteristic(results=self.results_current, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
+                yvals.append(y_values_cur)
+                tvals.append(t_values_cur)
+                labels.append(scen_labels[i])
+            
+            if plot_observed_data:
+                pass # SET 
+            
+            figure = _plotLine(ys = yvals, ts = tvals, labels = labels, save_fig=save_fig, fig_name=fig_name)#, y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
+            
+        
+        
+    
     
     
 def plotPopulation(results, data, pop_labels, title='',colormappings=None, plot_observed_data=True, plot_observed_label="alive", save_fig=False, fig_name=None, use_full_labels=True, plot_comp_labels=None, plotdict=None):
