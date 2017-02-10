@@ -25,7 +25,7 @@ from numpy import max
 class Project(object):
     ''' The main Optima project class. Almost all Optima functionality is provided by this class. '''
 
-    def __init__(self, name = 'default', cascade_path = './data/cascade.xlsx', **args):
+    def __init__(self, name = 'default', cascade_path = '../data/cascade.xlsx', **args):
         ''' Initialize project. '''
 
         self.name = name
@@ -41,6 +41,10 @@ class Project(object):
         
         logger.info("Created project: %s"%self.name)
         
+    def resetParsets(self):
+        ''' Convenience function called externally to delete all parsets. '''
+        self.parsets = odict()
+        
     def setYear(self, yearRange,observed_data=True):
         '''
         
@@ -54,16 +58,15 @@ class Project(object):
             self.settings.tvec_end = yearRange[1]
     
     
-    def runSim(self, parset_name = 'default', parameterset = None, plot = False, debug = False):
+    def runSim(self, parset = None, parset_name = 'default', plot = False, debug = False):
         ''' Run model using a selected parset and store/return results. '''
         
-        if parameterset is not None:
-            parset = parameterset
-        elif len(self.parsets) < 1: 
-            raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
-        else:
-            try: parset = self.parsets[parset_name]
-            except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
+        if parset is None:
+            if len(self.parsets) < 1: 
+                raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
+            else:
+                try: parset = self.parsets[parset_name]
+                except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
 
         tm = tic()
         #results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)

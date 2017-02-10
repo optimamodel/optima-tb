@@ -33,6 +33,33 @@ class Parameter(object):
         self.y_format = y_format        # Value format data (e.g. Probability, Fraction or Number).
         self.y_factor = y_factor        # Scale factor of data (i.e. 1., or None indicating that scaling should not occur during automated calibration
         
+    def insertValuePair(self, t, y, pop_label):
+        ''' Check if the inserted t value already exists for the population parameter. If not, append y value. If so, overwrite y value. '''
+        k = 0
+        for t_val in self.t[pop_label]:
+            if t_val == t:
+                self.y[pop_label][k] = y
+                return
+            k += 1
+        self.t[pop_label] = np.append(self.t[pop_label], t)
+        self.y[pop_label] = np.append(self.y[pop_label], y)
+        
+    def removeValueAt(self, t, pop_label):
+        '''
+        Check if the inserted t value already exists for the population parameter.
+        If so, delete it and its y value, but only if others exist.
+        Return a boolean flag for whether removal was a success.        
+        '''
+        if len(self.t[pop_label]) > 1:
+            k = 0
+            for t_val in self.t[pop_label]:
+                if t_val == t:
+                    self.t[pop_label] = np.delete(self.t[pop_label], k)
+                    self.y[pop_label] = np.delete(self.y[pop_label], k)
+                    return True
+                k += 1
+        return False
+        
     def interpolate(self, tvec = None, pop_label = None):
         ''' Take parameter values and construct an interpolated array corresponding to the input time vector. '''
         
@@ -93,6 +120,12 @@ class ParameterSet(object):
         self.contacts = odict()     # Dictionary of inter-population interaction weights.
         
         logging.info("Created ParameterSet: %s"%self.name)
+        
+    def getPar(self, label):
+        for par_type in ['cascade','characs']:
+            if label in self.par_ids[par_type].keys():
+                return self.pars[par_type][self.par_ids[par_type][label]]
+        raise OptimaException('ERROR: Label "%s" cannot be found in parameter set "%s" as either a cascade parameter or characteristic.' % (label,self.name))
     
     def makePars(self, data):
         self.pop_names = data['pops']['name_labels'].keys()
