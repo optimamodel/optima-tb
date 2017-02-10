@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 import numpy as np
 from copy import deepcopy as dcp
-from collections import Counter
 
 
 
@@ -26,7 +25,10 @@ class Node(object):
                                     # For a ModelPopulation, this is intended as an integer.
                                     # For a ModelCompartment, this is intended as a tuple with first element denoting index of ModelPopulation.
         self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
-        self.outlink_ids = []       # List of indices corresponding to each outgoing link.
+        self.outlink_ids = []       # List of tupled indices corresponding to each outgoing link.
+        self.inlink_ids = []        # List of tupled indices corresponding to each ingoing link.
+                                    # Note that the second element of each tuple is the storage id of the link.
+                                    # The first element of each tuple is the storage id of the superset container (e.g. ModelPopulation)
         
     def makeLinkTo(self, other_node, link_index, link_label, is_transfer = False):
         '''
@@ -38,6 +40,7 @@ class Node(object):
             raise OptimaException('ERROR: Attempting to link compartment to something that is not a compartment.')
         self.num_outlinks += 1
         self.outlink_ids.append(link_index)
+        other_node.inlink_ids.append(link_index)
         return Link(object_from = self, object_to = other_node, label = link_label, is_transfer = is_transfer)
 
 class Variable(object):
@@ -59,9 +62,7 @@ class Link(Variable):
     '''
     A more involved version of Variable, representing unidirectional flow between two objects in a network.
     The values stored in this extended version of Variable refer to flow rates.
-    If used in ModelPop, the Link refers to two cascade compartments within a single population.
-    If used in Model, the Link refers to two distinct population groups.
-    In the latter case, intended logic should transfer agents between all (non-dead) corresponding compartments.
+    If used in ModelPop, the Link references two cascade compartments within a single population.
     '''
     def __init__(self, object_from, object_to, label = 'default', val = 0.0, scale_factor = 1.0, is_transfer = False):
         Variable.__init__(self, label = label, val = val)
@@ -110,6 +111,7 @@ class ModelPopulation(Node):
         self.link_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
         self.dep_ids = dict()       # Maps label of a relevant characteristic/parameter to its position index within dependencies list.
         self.t_index = 0            # Keeps track of array index for current timepoint data within all compartments.
+        self.id = index             # A numerical id of the Population. Ideally corresponds to its storage index within Model container.
         
         self.genCascade(settings = settings)    # Convert compartmental cascade into lists of compartment and link objects.
     
@@ -160,7 +162,7 @@ class ModelPopulation(Node):
             if 'tag' in settings.linkpar_specs[label]:
                 tag = settings.linkpar_specs[label]['tag']
                 for pair in settings.links[tag]:
-                    self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]),link_index=k,link_label=label))
+                    self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]),link_index=(self.id,k),link_label=label))
                     if not tag in self.link_ids.keys():
                         self.link_ids[tag] = []
                     self.link_ids[tag].append(k)
@@ -388,7 +390,7 @@ class Model(object):
                             if not comp.tag_birth and not comp.tag_dead and not comp.junction:
                                 
                                 num_links = len(self.getPop(pop_source).links)
-                                link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=num_links,link_label=trans_tag,is_transfer=True)
+                                link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label),link_index=(self.getPop(pop_source).id,num_links),link_label=trans_tag,is_transfer=True)
                                 link.vals = par.interpolate(tvec = self.sim_settings['tvec'], pop_label = pop_target) 
                                 link.val_format = par.y_format[pop_target]
                                 link.scale_factor = par.y_factor[pop_target]
@@ -465,7 +467,8 @@ class Model(object):
                 comp.popsize[ti+1] = comp.popsize[ti]
                     
                 if comp.label not in settings.junction_labels:      # Junctions collect inflows during this step. They do not process outflows here.
-                    for lid in comp.outlink_ids:
+                    for lid_tuple in comp.outlink_ids:
+                        lid = lid_tuple[-1]
                         link = pop.links[lid]
                         
                         # If link values are not pre-allocated to the required time-vector length, extend with the same value as the last index.
@@ -603,9 +606,10 @@ class Model(object):
                     
                     elif popsize > project_settings.TOLERANCE:
                         final_review = False    # Outflows could propagate into other junctions requiring another review.
-                        denom_val = sum(pop.links[lid].vals[ti_link] for lid in comp.outlink_ids)
+                        denom_val = sum(pop.links[lid_tuple[-1]].vals[ti_link] for lid_tuple in comp.outlink_ids)
                         if denom_val == 0: raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
-                        for lid in comp.outlink_ids:
+                        for lid_tuple in comp.outlink_ids:
+                            lid = lid_tuple[-1]
                             link = pop.links[lid]
                             
                             comp.popsize[ti] -= popsize * link.vals[ti_link] / denom_val

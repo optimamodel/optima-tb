@@ -270,7 +270,7 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, pop
     plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # internal plotting
     if debug:
-        plotOutflows(results)
+        plotAllOutflows(results)
     
     
     
@@ -580,26 +580,36 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         fig.savefig('%s' % (save_figname))                    
         logger.info("Saved figure: '%s'"%save_figname)
     
+
+def plotFlows(results, comp_labels = None):
+    """
+    Plot flows rates in and out of a compartment.
+    """
+    
+    if comp_labels is None: comp_labels = []
+    
+    for comp_label in comp_labels:
+        for pop in results.m_pops:
+            comp = pop.getComp(comp_label)
+        
     
     
             
-def plotOutflows(results, num_subplots = 5):
+def plotAllOutflows(results, num_subplots = 5):
     """ 
     Visualise outflows for each compartment in each population as fractions of compartment size
     """
     mpops = results.m_pops
     sim_settings = results.sim_settings
-    
-    # NOTE: Hard coding is bad, but results/plots need a lot more refining before propagating stable reference.
-    num_links = len(mpops[0].links)
-    
-    colors = gridColorMap(num_links)          
+              
     legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':2}        
 
     
     
     pid = 0
     for pop in mpops:
+        num_links = len(pop.links)
+        colors = gridColorMap(num_links)
         cid = 0
         for comp in pop.comps:
             plot_id = cid % num_subplots
@@ -609,7 +619,8 @@ def plotOutflows(results, num_subplots = 5):
                 pl.suptitle('Population (%i): %s' % (pid, pop.label.title()))
                 ax[num_subplots-1].set_xlabel('Year')
             bottom = 0*sim_settings['tvec']
-            for link_id in comp.outlink_ids:
+            for link_tuple in comp.outlink_ids:
+                link_id = link_tuple[-1]
                 extra = dcp(pl.nan_to_num(pop.links[link_id].vals))
                 top = bottom + extra
                 ax[plot_id].fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[link_id], alpha=1, lw=0)
