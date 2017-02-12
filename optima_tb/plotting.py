@@ -284,11 +284,18 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_p
         TODO: replace the default list of plot_characs as a setting value. 
     
     """
+    
+    
+    
     # close all remaining windows
     pl.close("all") 
     # setup    
     charac_specs = settings.charac_specs
     plotdict = settings.plot_settings
+    year_inc = 5.  # TODO: move this to setting
+    tvec = scen_results[0].sim_settings['tvec'] # TODO
+    yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)    
+    
     
     if plot_charac is None:
         pass
@@ -308,18 +315,36 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_p
             tvals = []
             labels= []
             observed_data = []
+            yhat = []
+            that = []
             
-            for (i,result) in enumerate(scen_results):
-        
-                y_values_cur, t_values_cur, final_dict_cur = extractCharacteristic(results=self.results_current, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
-                yvals.append(y_values_cur)
-                tvals.append(t_values_cur)
+            for (i,result_name) in enumerate(scen_results.keys()):
+                result = scen_results[result_name] ############### GET VALUES JUST FOR THIS POPULATION
+                y_values_cur, t_values_cur, final_dict_cur = extractCharacteristic(results=result, charac_label=charac, charac_specs=charac_specs, data=data)
+                yvals.append(y_values_cur[pid])
+                tvals.append(t_values_cur[pid])
                 labels.append(scen_labels[i])
             
             if plot_observed_data:
                 pass # SET 
             
-            figure = _plotLine(ys = yvals, ts = tvals, labels = labels, save_fig=save_fig, fig_name=fig_name)#, y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
+            unit_tag = ''
+            if 'plot_percentage' in charac_specs[charac].keys():
+                for i in range(len(yvals)):
+                    yvals[i] *= 100
+                unit_tag = ' (%)'
+            
+            final_dict = {'y_hat': yhat,
+                  't_hat': that,
+                  'unit_tag': unit_tag,
+                  'xlabel':'Year',
+                  'ylabel': charac_specs[charac]['name'] + unit_tag,
+                  'x_ticks' : (yr_range,yr_range),
+                  'title': 'Scenario comparison: %s [%s]' % (charac_specs[charac]['name'],pop),
+                  'save_figname': '%s_ScenarioComparision_%s_%s'%(fig_name, pop, charac_specs[charac]['name'])}
+            final_dict.update(plotdict)
+            
+            figure = _plotLine(ys = yvals, ts = tvals, labels = labels, legendsettings=None, save_fig=save_fig, fig_name=fig_name, **final_dict)#, y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
             
         
         
@@ -537,7 +562,6 @@ def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None, pl
 def extractCharacteristic(results, charac_label, charac_specs, data, title='', plot_observed_data=True, fig_name=None, plotdict=None):
     
     if plotdict is None: plotdict = {}    
-    
     tvec = results.sim_settings['tvec']
     year_inc = 5.  # TODO: move this to setting
     yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)    
