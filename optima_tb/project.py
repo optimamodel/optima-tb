@@ -291,11 +291,12 @@ class Project(object):
         
         if include_bau:
             results['BAU'] = self.runSim(parset_name = original_parset_name,plot=plot)
+            
         
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
-                results[scen_name] = self.runSim(parset_name = scen_name, parameterset = self.scenarios[scen].getScenarioParset(ops),plot=plot)
+                results[scen_name] = self.runSim(parset_name = scen_name, parset = self.scenarios[scen].getScenarioParset(ops),plot=plot)
         
         return results
     

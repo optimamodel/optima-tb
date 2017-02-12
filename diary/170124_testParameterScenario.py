@@ -76,7 +76,7 @@ def testDirect():
     parset.name = "alice"
     print parset2.name # should be eve
 
-testDirect()
+#testDirect()
 
 
 
@@ -104,8 +104,10 @@ def testProject():
     for resultName in resultset.keys():
         proj.plotResults(resultset[resultName],savePlot=True,figName=resultName)
         pylab.show()
+        
+    return resultset, proj
 
-testProject()
+results, proj = testProject()
 
 
 
