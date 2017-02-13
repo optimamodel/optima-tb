@@ -218,9 +218,15 @@ def isPlottable(comp_label,sim_settings,comp_specs):
     Returns bool indicating whether a population label should be included in metrics
     for population reporting when plotting cascade
     """
+    # TODO make unplottable comp_specs a setting
+    #print comp_label, comp_specs[comp_label].keys()
     if comp_label in sim_settings['tag_no_plot']:
         return False
     if comp_specs[comp_label].has_key('junction'):
+        return False
+    if comp_specs[comp_label].has_key('tag_birth'):
+        return False
+    if comp_specs[comp_label].has_key('tag_dead'):
         return False
     return True
 
