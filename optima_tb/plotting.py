@@ -218,9 +218,15 @@ def isPlottable(comp_label,sim_settings,comp_specs):
     Returns bool indicating whether a population label should be included in metrics
     for population reporting when plotting cascade
     """
+    # TODO make unplottable comp_specs a setting
+    #print comp_label, comp_specs[comp_label].keys()
     if comp_label in sim_settings['tag_no_plot']:
         return False
     if comp_specs[comp_label].has_key('junction'):
+        return False
+    if comp_specs[comp_label].has_key('tag_birth'):
+        return False
+    if comp_specs[comp_label].has_key('tag_dead'):
         return False
     return True
 
@@ -270,7 +276,7 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, pop
     plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # internal plotting
     if debug:
-        plotOutflows(results)
+        plotAllOutflows(results)
     
 def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_pops=None,colormappings=None,plot_observed_data=True,save_fig=False,fig_name=None):
     """
@@ -673,26 +679,109 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         
     return fig
     
+
+def plotFlows(results, settings, comp_labels = None, comp_titles = None, pop_labels = None, pop_titles = None, link_labels = None, include_link_not_exclude = True, link_legend = None, plot_inflows = True, plot_outflows = True, exclude_transfers = False):
+    """
+    Plot flows rates in and out of a compartment.
+    """
+    
+    tvec = results.sim_settings['tvec']
+    if pop_labels is None: pop_labels = results.pop_labels
+    
+    if link_legend is None: link_legend = dict()
+    
+    if comp_labels is None:
+        logger.info("No compartments have been selected for flow-plots.")
+        comp_labels = []
+        
+    if comp_titles is not None and len(comp_titles) != len(comp_labels):
+        logger.error("Flow-plot failure due to the number of compartment plot titles not matching the number of compartments to analyse.")
+    if pop_titles is not None and len(pop_titles) != len(pop_labels):
+        logger.error("Flow-plot failure due to the number of population plot titles not matching the number of populations to analyse.")
+    
+    for cid in xrange(len(comp_labels)):
+        comp_label = comp_labels[cid]
+        for pid in xrange(len(pop_labels)):
+            for pop in results.m_pops:  # NOTE: Inefficient looping. But sufficient.
+                if pop.label == pop_labels[pid]:
+                    all_labels = []
+                    all_rates = []
+                    all_tvecs = []
+                    comp = pop.getComp(comp_label)
+        #            print comp_label
+        #            print 'out'
+        #            print comp.outlink_ids
+        #            print 'in'
+        #            print comp.inlink_ids
+                    for in_out in xrange(2):
+                        if (in_out == 0 and plot_inflows) or (in_out == 1 and plot_outflows):
+                            comp_link_ids = [comp.inlink_ids, comp.outlink_ids][in_out]
+                            label_tag = ['In: ','Out: '][in_out]
+                            for link_tuple in comp_link_ids:
+                                link = results.m_pops[link_tuple[0]].links[link_tuple[1]]
+#                                print link.label
+                                if link_labels is None or (include_link_not_exclude and link.label in link_labels) or (not include_link_not_exclude and link.label not in link_labels):
+                                    try: legend_label = label_tag + settings.linkpar_specs[link.label]['name']
+                                    except: 
+                                        if exclude_transfers: continue
+                                        else: legend_label = label_tag + link.label
+                                    if link.label in link_legend:
+                                        legend_label = link_legend[link.label]    # Overwrite legend for a label.
+                                    num_flow = dcp(link.vals)
+                                    if in_out == 0:
+                                        comp_source = results.m_pops[link.index_from[0]].comps[link.index_from[1]]
+                                    else:
+                                        comp_source = comp
+                                    was_proportion = False
+                                    if link.val_format == 'proportion':
+                                        denom_val = sum(results.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
+                                        num_flow /= denom_val
+                                        was_proportion = True
+                                    if link.val_format == 'fraction' or was_proportion is True:
+                                        if was_proportion is True:
+                                            num_flow *= comp_source.popsize_old
+                                        else:
+                                            num_flow = 1 - (1 - num_flow) ** results.dt     # Fractions must be converted to effective timestep rates.
+                                            num_flow *= comp_source.popsize
+                                        num_flow /= results.dt      # All timestep-based effective fractional rates must be annualised.
+                                        
+                                    all_labels.append(legend_label)
+                                    all_rates.append(num_flow)
+                                    all_tvecs.append(tvec)
+                    if len(all_rates) > 0:
+                        _plotLine(ys=all_rates, ts=all_tvecs, labels=all_labels)
+                    else:
+                        pl.figure()
+                    if comp_titles is not None:
+                        title_comp = comp_titles[cid]
+                    else:
+                        title_comp = 'Compartment: "%s"' % settings.node_specs[comp_label]['name']
+                    if pop_titles is not None:
+                        title_pop = pop_titles[pid]
+                    else:
+                        title_pop = '\nPopulation: "%s"' % pop.label
+                    pl.title(title_comp+title_pop)
+                    pl.xlabel('Year')
+                    pl.ylabel('Number of People')
+                
     
     
             
-def plotOutflows(results, num_subplots = 5):
+def plotAllOutflows(results, num_subplots = 5):
     """ 
     Visualise outflows for each compartment in each population as fractions of compartment size
     """
     mpops = results.m_pops
     sim_settings = results.sim_settings
-    
-    # NOTE: Hard coding is bad, but results/plots need a lot more refining before propagating stable reference.
-    num_links = len(mpops[0].links)
-    
-    colors = gridColorMap(num_links)          
+              
     legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':2}        
 
     
     
     pid = 0
     for pop in mpops:
+        num_links = len(pop.links)
+        colors = gridColorMap(num_links)
         cid = 0
         for comp in pop.comps:
             plot_id = cid % num_subplots
@@ -702,7 +791,8 @@ def plotOutflows(results, num_subplots = 5):
                 pl.suptitle('Population (%i): %s' % (pid, pop.label.title()))
                 ax[num_subplots-1].set_xlabel('Year')
             bottom = 0*sim_settings['tvec']
-            for link_id in comp.outlink_ids:
+            for link_tuple in comp.outlink_ids:
+                link_id = link_tuple[-1]
                 extra = dcp(pl.nan_to_num(pop.links[link_id].vals))
                 top = bottom + extra
                 ax[plot_id].fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[link_id], alpha=1, lw=0)
