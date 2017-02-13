@@ -270,7 +270,7 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, pop
     plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # internal plotting
     if debug:
-        plotOutflows(results)
+        plotAllOutflows(results)
     
     
     
@@ -438,9 +438,8 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
         fig.savefig('%s' % (save_figname))
         logger.info("Saved figure: '%s'"%save_figname)
         
-    
 
-def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None, plot_observed_data=True, save_fig=False, fig_name=None ,colors=None, plotdict={}):
+def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None, plot_observed_data=True, save_fig=False, fig_name=None, colors=None, plotdict={}):
     """
     Plot a characteristic across all populations
     
@@ -468,62 +467,77 @@ def plotCharacteristic(results,charac_specs,data,title='',outputIDs=None, plot_o
         
     """
     # setup
-    tvec = results.sim_settings['tvec']
-    year_inc = 5.  # TODO: move this to setting
-    yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)
-    mpops = results.m_pops
-    sim_settings = results.sim_settings
+    
     pop_labels = results.pop_labels
     outputs = results.outputs
-    save_figname=None    
-    unit_tag = ''
+    
+#    legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}
     
     if outputIDs is None:
         outputIDs = outputs.keys()
         
     for output_id in outputIDs:
-        if not isPlottableCharac(output_id,charac_specs):
-            continue
+        if isPlottableCharac(output_id, charac_specs):
+            y_values, t_values, final_dict = extractCharacteristic(results=results, charac_label=output_id, charac_specs=charac_specs, data=data)
+            _plotLine(y_values, t_values, pop_labels, legendsettings=None, save_fig=save_fig, **final_dict)
+
+
+def extractCharacteristic(results, charac_label, charac_specs, data, title='', plot_observed_data=True, fig_name=None, plotdict=None):
+    
+    if plotdict is None: plotdict = {}    
+    
+    tvec = results.sim_settings['tvec']
+    year_inc = 5.  # TODO: move this to setting
+    yr_range = np.arange(tvec[0],tvec[-1]+0.1,year_inc,dtype=int)    
+    
+    mpops = results.m_pops
+    outputs = results.outputs
+    sim_settings = results.sim_settings
+    unit_tag = ''
+    
+    output_id = charac_label
+    
+    y_values = []
+    t_values = []
+    yhat = []
+    that = []
+    
+    for k,pop in enumerate(mpops):
         
-        y_values = []
-        t_values = []
-        yhat = []
-        that = []
+        vals = dcp(outputs[output_id][pop.label])
+        if 'plot_percentage' in charac_specs[output_id].keys():
+            vals *= 100
+            unit_tag = ' (%)'
+        y_values.append(vals)
+        t_values.append(sim_settings['tvec'])
         
-        for k,pop in enumerate(mpops):
-            
-            vals = dcp(outputs[output_id][pop.label])
-            if 'plot_percentage' in charac_specs[output_id].keys():
-                vals *= 100
-                unit_tag = ' (%)'
-            y_values.append(vals)
-            t_values.append(sim_settings['tvec'])
-            
-            if plot_observed_data:
+        if plot_observed_data:
+            if output_id in data['characs'].keys():
                 ys = data['characs'][output_id][pop.label]['y']
                 ts = data['characs'][output_id][pop.label]['t']
-                if 'plot_percentage' in charac_specs[output_id].keys():
-                    ys *= 100
-                if len(ys)==0:
-                    # add an empty list to preserve label colours
-                    ys,ts = [],[]
-                yhat.append(ys)
-                that.append(ts)
+            else:   # For the case when plottable characteristics were not in the databook and thus not converted to data.
+                ys = []
+                ts = []
+            if 'plot_percentage' in charac_specs[output_id].keys():
+                ys *= 100
+#            if len(ys)==0:
+#                # add an empty list to preserve label colours
+#                ys,ts = [],[]
+            yhat.append(ys)
+            that.append(ts)
             
-                
-        dict = {'y_hat': yhat,
-                't_hat': that,
-                'unit_tag': unit_tag,
-                'xlabel':'Year',
-                'ylabel': charac_specs[output_id]['name'] + unit_tag,
-                'x_ticks' : (yr_range,yr_range),
-                'title': '%s Outputs: %s' % (title, charac_specs[output_id]['name']),
-                'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
-        dict.update(plotdict)
-        
-        legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}         
-         
-        _plotLine(y_values, t_values, pop_labels, legendsettings=legendsettings,save_fig=save_fig,**dict)
+            
+    final_dict = {'y_hat': yhat,
+                  't_hat': that,
+                  'unit_tag': unit_tag,
+                  'xlabel':'Year',
+                  'ylabel': charac_specs[output_id]['name'] + unit_tag,
+                  'x_ticks' : (yr_range,yr_range),
+                  'title': '%s Outputs: %s' % (title, charac_specs[output_id]['name']),
+                  'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
+    final_dict.update(plotdict)
+    
+    return y_values, t_values, final_dict
         
     
 def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
@@ -532,6 +546,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     """
     
     """
+    if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
     
     ymin_val = np.min(ys[0])
     
@@ -546,7 +561,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
             
-        if len(y_hat) > 0: # i.e. we've seen observable data
+        if len(y_hat) > 0 and len(y_hat[k]) > 0: # i.e. we've seen observable data
             ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
             if np.min(y_hat[k]) < ymin_val:
                 ymin_val = np.min(y_hat[k])
@@ -579,27 +594,112 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     if save_fig:
         fig.savefig('%s' % (save_figname))                    
         logger.info("Saved figure: '%s'"%save_figname)
+        
+    return fig
     
+
+def plotFlows(results, settings, comp_labels = None, comp_titles = None, pop_labels = None, pop_titles = None, link_labels = None, include_link_not_exclude = True, link_legend = None, plot_inflows = True, plot_outflows = True, exclude_transfers = False):
+    """
+    Plot flows rates in and out of a compartment.
+    """
+    
+    tvec = results.sim_settings['tvec']
+    if pop_labels is None: pop_labels = results.pop_labels
+    
+    if link_legend is None: link_legend = dict()
+    
+    if comp_labels is None:
+        logger.info("No compartments have been selected for flow-plots.")
+        comp_labels = []
+        
+    if comp_titles is not None and len(comp_titles) != len(comp_labels):
+        logger.error("Flow-plot failure due to the number of compartment plot titles not matching the number of compartments to analyse.")
+    if pop_titles is not None and len(pop_titles) != len(pop_labels):
+        logger.error("Flow-plot failure due to the number of population plot titles not matching the number of populations to analyse.")
+    
+    for cid in xrange(len(comp_labels)):
+        comp_label = comp_labels[cid]
+        for pid in xrange(len(pop_labels)):
+            for pop in results.m_pops:  # NOTE: Inefficient looping. But sufficient.
+                if pop.label == pop_labels[pid]:
+                    all_labels = []
+                    all_rates = []
+                    all_tvecs = []
+                    comp = pop.getComp(comp_label)
+        #            print comp_label
+        #            print 'out'
+        #            print comp.outlink_ids
+        #            print 'in'
+        #            print comp.inlink_ids
+                    for in_out in xrange(2):
+                        if (in_out == 0 and plot_inflows) or (in_out == 1 and plot_outflows):
+                            comp_link_ids = [comp.inlink_ids, comp.outlink_ids][in_out]
+                            label_tag = ['In: ','Out: '][in_out]
+                            for link_tuple in comp_link_ids:
+                                link = results.m_pops[link_tuple[0]].links[link_tuple[1]]
+#                                print link.label
+                                if link_labels is None or (include_link_not_exclude and link.label in link_labels) or (not include_link_not_exclude and link.label not in link_labels):
+                                    try: legend_label = label_tag + settings.linkpar_specs[link.label]['name']
+                                    except: 
+                                        if exclude_transfers: continue
+                                        else: legend_label = label_tag + link.label
+                                    if link.label in link_legend:
+                                        legend_label = link_legend[link.label]    # Overwrite legend for a label.
+                                    num_flow = dcp(link.vals)
+                                    if in_out == 0:
+                                        comp_source = results.m_pops[link.index_from[0]].comps[link.index_from[1]]
+                                    else:
+                                        comp_source = comp
+                                    was_proportion = False
+                                    if link.val_format == 'proportion':
+                                        denom_val = sum(results.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
+                                        num_flow /= denom_val
+                                        was_proportion = True
+                                    if link.val_format == 'fraction' or was_proportion is True:
+                                        if was_proportion is True:
+                                            num_flow *= comp_source.popsize_old
+                                        else:
+                                            num_flow = 1 - (1 - num_flow) ** results.dt     # Fractions must be converted to effective timestep rates.
+                                            num_flow *= comp_source.popsize
+                                        num_flow /= results.dt      # All timestep-based effective fractional rates must be annualised.
+                                        
+                                    all_labels.append(legend_label)
+                                    all_rates.append(num_flow)
+                                    all_tvecs.append(tvec)
+                    if len(all_rates) > 0:
+                        _plotLine(ys=all_rates, ts=all_tvecs, labels=all_labels)
+                    else:
+                        pl.figure()
+                    if comp_titles is not None:
+                        title_comp = comp_titles[cid]
+                    else:
+                        title_comp = 'Compartment: "%s"' % settings.node_specs[comp_label]['name']
+                    if pop_titles is not None:
+                        title_pop = pop_titles[pid]
+                    else:
+                        title_pop = '\nPopulation: "%s"' % pop.label
+                    pl.title(title_comp+title_pop)
+                    pl.xlabel('Year')
+                    pl.ylabel('Number of People')
+                
     
     
             
-def plotOutflows(results, num_subplots = 5):
+def plotAllOutflows(results, num_subplots = 5):
     """ 
     Visualise outflows for each compartment in each population as fractions of compartment size
     """
     mpops = results.m_pops
     sim_settings = results.sim_settings
-    
-    # NOTE: Hard coding is bad, but results/plots need a lot more refining before propagating stable reference.
-    num_links = len(mpops[0].links)
-    
-    colors = gridColorMap(num_links)          
+              
     legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':2}        
 
     
     
     pid = 0
     for pop in mpops:
+        num_links = len(pop.links)
+        colors = gridColorMap(num_links)
         cid = 0
         for comp in pop.comps:
             plot_id = cid % num_subplots
@@ -609,7 +709,8 @@ def plotOutflows(results, num_subplots = 5):
                 pl.suptitle('Population (%i): %s' % (pid, pop.label.title()))
                 ax[num_subplots-1].set_xlabel('Year')
             bottom = 0*sim_settings['tvec']
-            for link_id in comp.outlink_ids:
+            for link_tuple in comp.outlink_ids:
+                link_id = link_tuple[-1]
                 extra = dcp(pl.nan_to_num(pop.links[link_id].vals))
                 top = bottom + extra
                 ax[plot_id].fill_between(sim_settings['tvec'], bottom, top, facecolor=colors[link_id], alpha=1, lw=0)
