@@ -598,13 +598,15 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     return fig
     
 
-def plotFlows(results, settings, comp_labels = None, comp_titles = None, pop_labels = None, pop_titles = None, link_labels = None, include_link_not_exclude = True, plot_inflows = True, plot_outflows = True, exclude_transfers = False):
+def plotFlows(results, settings, comp_labels = None, comp_titles = None, pop_labels = None, pop_titles = None, link_labels = None, include_link_not_exclude = True, link_legend = None, plot_inflows = True, plot_outflows = True, exclude_transfers = False):
     """
     Plot flows rates in and out of a compartment.
     """
     
     tvec = results.sim_settings['tvec']
     if pop_labels is None: pop_labels = results.pop_labels
+    
+    if link_legend is None: link_legend = dict()
     
     if comp_labels is None:
         logger.info("No compartments have been selected for flow-plots.")
@@ -635,12 +637,14 @@ def plotFlows(results, settings, comp_labels = None, comp_titles = None, pop_lab
                             label_tag = ['In: ','Out: '][in_out]
                             for link_tuple in comp_link_ids:
                                 link = results.m_pops[link_tuple[0]].links[link_tuple[1]]
-    #                            print link.label
+#                                print link.label
                                 if link_labels is None or (include_link_not_exclude and link.label in link_labels) or (not include_link_not_exclude and link.label not in link_labels):
                                     try: legend_label = label_tag + settings.linkpar_specs[link.label]['name']
                                     except: 
                                         if exclude_transfers: continue
                                         else: legend_label = label_tag + link.label
+                                    if link.label in link_legend:
+                                        legend_label = link_legend[link.label]    # Overwrite legend for a label.
                                     num_flow = dcp(link.vals)
                                     if in_out == 0:
                                         comp_source = results.m_pops[link.index_from[0]].comps[link.index_from[1]]
