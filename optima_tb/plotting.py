@@ -598,7 +598,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     return fig
     
 
-def plotFlows(results, settings, comp_labels = None, comp_titles = None, pop_labels = None, pop_titles = None):
+def plotFlows(results, settings, comp_labels = None, comp_titles = None, pop_labels = None, pop_titles = None, link_labels = None, include_link_not_exclude = True, plot_inflows = True, plot_outflows = True, exclude_transfers = False):
     """
     Plot flows rates in and out of a compartment.
     """
@@ -630,34 +630,42 @@ def plotFlows(results, settings, comp_labels = None, comp_titles = None, pop_lab
         #            print 'in'
         #            print comp.inlink_ids
                     for in_out in xrange(2):
-                        comp_link_ids = [comp.inlink_ids, comp.outlink_ids][in_out]
-                        label_tag = ['In: ','Out: '][in_out]
-                        for link_tuple in comp_link_ids:
-                            link = results.m_pops[link_tuple[0]].links[link_tuple[1]]
-                            num_flow = dcp(link.vals)
-                            if in_out == 0:
-                                comp_source = results.m_pops[link.index_from[0]].comps[link.index_from[1]]
-                            else:
-                                comp_source = comp
-                            was_proportion = False
-                            if link.val_format == 'proportion':
-                                denom_val = sum(results.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
-                                num_flow /= denom_val
-                                was_proportion = True
-                            if link.val_format == 'fraction' or was_proportion is True:
-                                if was_proportion is True:
-                                    num_flow *= comp_source.popsize_old
-                                else:
-                                    num_flow = 1 - (1 - num_flow) ** results.dt     # Fractions must be converted to effective timestep rates.
-                                    num_flow *= comp_source.popsize
-                                num_flow /= results.dt      # All timestep-based effective fractional rates must be annualised.
-                                
-                            try: legend_label = label_tag + settings.linkpar_specs[link.label]['name']
-                            except: legend_label = label_tag + link.label
-                            all_labels.append(legend_label)
-                            all_rates.append(num_flow)
-                            all_tvecs.append(tvec)
-                    _plotLine(ys=all_rates, ts=all_tvecs, labels=all_labels)
+                        if (in_out == 0 and plot_inflows) or (in_out == 1 and plot_outflows):
+                            comp_link_ids = [comp.inlink_ids, comp.outlink_ids][in_out]
+                            label_tag = ['In: ','Out: '][in_out]
+                            for link_tuple in comp_link_ids:
+                                link = results.m_pops[link_tuple[0]].links[link_tuple[1]]
+    #                            print link.label
+                                if link_labels is None or (include_link_not_exclude and link.label in link_labels) or (not include_link_not_exclude and link.label not in link_labels):
+                                    try: legend_label = label_tag + settings.linkpar_specs[link.label]['name']
+                                    except: 
+                                        if exclude_transfers: continue
+                                        else: legend_label = label_tag + link.label
+                                    num_flow = dcp(link.vals)
+                                    if in_out == 0:
+                                        comp_source = results.m_pops[link.index_from[0]].comps[link.index_from[1]]
+                                    else:
+                                        comp_source = comp
+                                    was_proportion = False
+                                    if link.val_format == 'proportion':
+                                        denom_val = sum(results.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
+                                        num_flow /= denom_val
+                                        was_proportion = True
+                                    if link.val_format == 'fraction' or was_proportion is True:
+                                        if was_proportion is True:
+                                            num_flow *= comp_source.popsize_old
+                                        else:
+                                            num_flow = 1 - (1 - num_flow) ** results.dt     # Fractions must be converted to effective timestep rates.
+                                            num_flow *= comp_source.popsize
+                                        num_flow /= results.dt      # All timestep-based effective fractional rates must be annualised.
+                                        
+                                    all_labels.append(legend_label)
+                                    all_rates.append(num_flow)
+                                    all_tvecs.append(tvec)
+                    if len(all_rates) > 0:
+                        _plotLine(ys=all_rates, ts=all_tvecs, labels=all_labels)
+                    else:
+                        pl.figure()
                     if comp_titles is not None:
                         title_comp = comp_titles[cid]
                     else:
