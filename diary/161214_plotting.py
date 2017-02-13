@@ -55,6 +55,7 @@ results = proj.runSim()
 
 
 # 3. example of plotting subset of compartments
+"""
 plot_comp_labels = ['acu','act']
 plotPopulation(results=results,
                data=proj.data,
@@ -66,8 +67,9 @@ plotPopulation(results=results,
                plotdict = proj.settings.plot_settings,
                save_fig=True,
                fig_name="Active Infections")
-
+"""
 plot_comp_labels = ['ltu','ltt','acu','act','rec']
+plot_comp_labels = ['ltu','ltt','rec','acu','act'] # check that we can plot them in whatever order we want ... and we can
 plotPopulation(results=results,
                data=proj.data,
                pop_labels=results.pop_labels,
