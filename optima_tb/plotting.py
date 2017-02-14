@@ -241,6 +241,19 @@ def isPlottableCharac(output_id,charac_specs):
     except: 
         return True
     
+def getPIDs(results,poplabels):
+    """
+    Takes in a list of poplabels and returns the corresponding PIDs
+    
+    TODO: this can be improved and made more efficient by either a better implementation of this
+    look up, OR (better yet) by improving the data structures of mpops.
+    """
+    pids = []
+    for poplabel in poplabels:
+        for i,pop in enumerate(results.m_pops):
+            if pop.label == poplabel:
+                pids.append(i)
+    return pids
     
 
 def plotProjectResults(results,settings, data, title='', colormappings=None, pop_labels=None, plot_comp_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
@@ -307,14 +320,15 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_p
         pass
     
     if plot_pops is None:
-        plot_pops = data.pop_labels #####
-    
+        plot_ids = getPIDs(scen_results[0],plot_pops) #####
+    else:
+        plot_ids = range(len(scen_results[0].m_pops))
+        plot_pops = [pop.label for pop in scen_results[0].m_pops]
     
     # generate plots
-    for pop in plot_pops:
+    for (i, pid) in enumerate(plot_ids):
+        plot_label = plot_pops[i]
         
-        pid = 0 # TODO
-         
         for charac in plot_charac:
         
             yvals = []
@@ -332,7 +346,7 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_p
                 labels.append(scen_labels[i])
             
             if plot_observed_data:
-                pass # SET 
+                pass # TODO: include 
             
             unit_tag = ''
             if 'plot_percentage' in charac_specs[charac].keys():
@@ -346,8 +360,8 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_p
                   'xlabel':'Year',
                   'ylabel': charac_specs[charac]['name'] + unit_tag,
                   'x_ticks' : (yr_range,yr_range),
-                  'title': 'Scenario comparison: %s [%s]' % (charac_specs[charac]['name'],pop),
-                  'save_figname': '%s_ScenarioComparision_%s_%s'%(fig_name, pop, charac_specs[charac]['name'])}
+                  'title': 'Scenario comparison: %s [%s]' % (charac_specs[charac]['name'],plot_label),
+                  'save_figname': '%s_ScenarioComparision_%s_%s'%(fig_name, plot_label, charac_specs[charac]['name'])}
             final_dict.update(plotdict)
             
             figure = _plotLine(ys = yvals, ts = tvals, labels = labels, legendsettings=None, save_fig=save_fig, fig_name=fig_name, **final_dict)#, y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
