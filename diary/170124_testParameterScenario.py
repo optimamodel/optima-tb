@@ -5,6 +5,7 @@ from optima_tb.scenarios import ParameterScenario
 from optima_tb.utils import odict
 from optima_tb.settings import Settings, DO_NOT_SCALE
 from optima_tb.project import Project
+from optima_tb.plotting import plotScenarios
 
 
 """
@@ -101,13 +102,25 @@ def testProject():
                    }
     proj.createScenarios(scen_values)
     resultset = proj.runScenarios(parset.name,include_bau=True)
-    for resultName in resultset.keys():
-        proj.plotResults(resultset[resultName],savePlot=True,figName=resultName)
-        pylab.show()
+    #for resultName in resultset.keys():
+    #    proj.plotResults(resultset[resultName],savePlot=True,figName=resultName)
+    #    pylab.show()
         
     return resultset, proj
 
 results, proj = testProject()
+
+
+
+
+
+
+scen_labels = ['BAU','Test1']
+characs = ['at_treat','vaccin','lt_inf','ac_inf','alive','test_act_prev']
+plotScenarios(results,scen_labels,proj.settings,proj.data,plot_charac=characs,plot_pops=['Pop1'])
+pylab.show()
+
+
 
 
 
