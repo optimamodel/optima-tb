@@ -291,7 +291,8 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, pop
     if debug:
         plotAllOutflows(results)
     
-def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_pops=None,colormappings=None,plot_observed_data=True,save_fig=False,fig_name=None):
+def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_pops=None,
+                  colormappings=None,plot_observed_data=True,save_fig=False,fig_name=None):
     """
     
     Params
@@ -320,13 +321,13 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_p
         pass
     
     if plot_pops is None:
-        plot_ids = getPIDs(scen_results[0],plot_pops) #####
+        plot_pids = getPIDs(scen_results[0],plot_pops) #####
     else:
-        plot_ids = range(len(scen_results[0].m_pops))
+        plot_pids = range(len(scen_results[0].m_pops))
         plot_pops = [pop.label for pop in scen_results[0].m_pops]
     
     # generate plots
-    for (i, pid) in enumerate(plot_ids):
+    for (i, pid) in enumerate(plot_pids):
         plot_label = plot_pops[i]
         
         for charac in plot_charac:
@@ -350,12 +351,12 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_p
             
             unit_tag = ''
             if 'plot_percentage' in charac_specs[charac].keys():
-                for i in range(len(yvals)):
-                    yvals[i] *= 100
+                ### we don't vals *= 100, as this is already done in extractCharacteristic()
                 unit_tag = ' (%)'
             
             final_dict = {'y_hat': yhat,
                   't_hat': that,
+                  'ylim' : 0,
                   'unit_tag': unit_tag,
                   'xlabel':'Year',
                   'ylabel': charac_specs[charac]['name'] + unit_tag,
@@ -601,6 +602,7 @@ def extractCharacteristic(results, charac_label, charac_specs, data, title='', p
     for k,pop in enumerate(mpops):
         
         vals = dcp(outputs[output_id][pop.label])
+        
         if 'plot_percentage' in charac_specs[output_id].keys():
             vals *= 100
             unit_tag = ' (%)'
@@ -694,11 +696,12 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     return fig
     
 
-def plotFlows(results, settings, comp_labels = None, comp_titles = None, pop_labels = None, pop_titles = None, link_labels = None, include_link_not_exclude = True, link_legend = None, plot_inflows = True, plot_outflows = True, exclude_transfers = False):
+def plotFlows(results, settings, comp_labels = None, comp_titles = None, pop_labels = None, pop_titles = None, 
+              link_labels = None, include_link_not_exclude = True, link_legend = None, 
+              plot_inflows = True, plot_outflows = True, exclude_transfers = False):
     """
     Plot flows rates in and out of a compartment.
     """
-    
     tvec = results.sim_settings['tvec']
     if pop_labels is None: pop_labels = results.pop_labels
     
@@ -718,50 +721,25 @@ def plotFlows(results, settings, comp_labels = None, comp_titles = None, pop_lab
         for pid in xrange(len(pop_labels)):
             for pop in results.m_pops:  # NOTE: Inefficient looping. But sufficient.
                 if pop.label == pop_labels[pid]:
-                    all_labels = []
-                    all_rates = []
-                    all_tvecs = []
+
                     comp = pop.getComp(comp_label)
         #            print comp_label
         #            print 'out'
         #            print comp.outlink_ids
         #            print 'in'
         #            print comp.inlink_ids
-                    for in_out in xrange(2):
-                        if (in_out == 0 and plot_inflows) or (in_out == 1 and plot_outflows):
-                            comp_link_ids = [comp.inlink_ids, comp.outlink_ids][in_out]
-                            label_tag = ['In: ','Out: '][in_out]
-                            for link_tuple in comp_link_ids:
-                                link = results.m_pops[link_tuple[0]].links[link_tuple[1]]
-#                                print link.label
-                                if link_labels is None or (include_link_not_exclude and link.label in link_labels) or (not include_link_not_exclude and link.label not in link_labels):
-                                    try: legend_label = label_tag + settings.linkpar_specs[link.label]['name']
-                                    except: 
-                                        if exclude_transfers: continue
-                                        else: legend_label = label_tag + link.label
-                                    if link.label in link_legend:
-                                        legend_label = link_legend[link.label]    # Overwrite legend for a label.
-                                    num_flow = dcp(link.vals)
-                                    if in_out == 0:
-                                        comp_source = results.m_pops[link.index_from[0]].comps[link.index_from[1]]
-                                    else:
-                                        comp_source = comp
-                                    was_proportion = False
-                                    if link.val_format == 'proportion':
-                                        denom_val = sum(results.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
-                                        num_flow /= denom_val
-                                        was_proportion = True
-                                    if link.val_format == 'fraction' or was_proportion is True:
-                                        if was_proportion is True:
-                                            num_flow *= comp_source.popsize_old
-                                        else:
-                                            num_flow = 1 - (1 - num_flow) ** results.dt     # Fractions must be converted to effective timestep rates.
-                                            num_flow *= comp_source.popsize
-                                        num_flow /= results.dt      # All timestep-based effective fractional rates must be annualised.
-                                        
-                                    all_labels.append(legend_label)
-                                    all_rates.append(num_flow)
-                                    all_tvecs.append(tvec)
+        
+                    all_rates, all_tvecs, all_labels = _extractFlows(comp=comp,
+                                                                    results=results, 
+                                                                    settings=settings,
+                                                                    tvec=tvec,
+                                                                    link_labels=link_labels,
+                                                                    include_link_not_exclude=include_link_not_exclude,
+                                                                    link_legend=link_legend,
+                                                                    plot_inflows=plot_inflows,
+                                                                    plot_outflows=plot_outflows,
+                                                                    exclude_transfers=exclude_transfers)
+                        
                     if len(all_rates) > 0:
                         _plotLine(ys=all_rates, ts=all_tvecs, labels=all_labels)
                     else:
@@ -778,8 +756,53 @@ def plotFlows(results, settings, comp_labels = None, comp_titles = None, pop_lab
                     pl.xlabel('Year')
                     pl.ylabel('Number of People')
                 
-    
-    
+        
+        
+        
+def _extractFlows(comp, results, settings, tvec, link_labels = None, include_link_not_exclude = True, link_legend = None, 
+                  plot_inflows = True, plot_outflows = True, exclude_transfers = False):
+    all_labels = []
+    all_rates = []
+    all_tvecs = []
+    for in_out in xrange(2):
+        if (in_out == 0 and plot_inflows) or (in_out == 1 and plot_outflows):
+            comp_link_ids = [comp.inlink_ids, comp.outlink_ids][in_out]
+            label_tag = ['In: ','Out: '][in_out]
+            for link_tuple in comp_link_ids:
+                link = results.m_pops[link_tuple[0]].links[link_tuple[1]]
+#               print link.label
+                if link_labels is None or (include_link_not_exclude and link.label in link_labels) or (not include_link_not_exclude and link.label not in link_labels):
+                    try: 
+                        legend_label = label_tag + settings.linkpar_specs[link.label]['name']
+                    except: 
+                        if exclude_transfers: continue
+                        else: legend_label = label_tag + link.label
+                    if link.label in link_legend:
+                        legend_label = link_legend[link.label]    # Overwrite legend for a label.
+                    num_flow = dcp(link.vals)
+                    if in_out == 0:
+                        comp_source = results.m_pops[link.index_from[0]].comps[link.index_from[1]]
+                    else:
+                        comp_source = comp
+                    was_proportion = False
+                    if link.val_format == 'proportion':
+                        denom_val = sum(results.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
+                        num_flow /= denom_val
+                        was_proportion = True
+                    if link.val_format == 'fraction' or was_proportion is True:
+                        if was_proportion is True:
+                            num_flow *= comp_source.popsize_old
+                        else:
+                            num_flow = 1 - (1 - num_flow) ** results.dt     # Fractions must be converted to effective timestep rates.
+                            num_flow *= comp_source.popsize
+                        num_flow /= results.dt      # All timestep-based effective fractional rates must be annualised.
+                        
+                    all_labels.append(legend_label)
+                    all_rates.append(num_flow)
+                    all_tvecs.append(tvec)
+
+
+    return all_rates, all_tvecs, all_labels
             
 def plotAllOutflows(results, num_subplots = 5):
     """ 
@@ -790,8 +813,6 @@ def plotAllOutflows(results, num_subplots = 5):
               
     legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':2}        
 
-    
-    
     pid = 0
     for pop in mpops:
         num_links = len(pop.links)
