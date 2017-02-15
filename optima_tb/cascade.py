@@ -41,6 +41,8 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     ws_pars =       workbook.sheet_by_name('Parameters')
     try: ws_sheetnames = workbook.sheet_by_name('Databook Sheet Names')
     except: ws_sheetnames = None
+    try: ws_progtypes = workbook.sheet_by_name('Program Types')
+    except: ws_progtypes = None
     
     
     #%% Optional sheet: Databook Sheet Names
@@ -373,8 +375,8 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
         if ws_pars.cell_value(0, col_id) == 'Function': cid_function = col_id
-        if ws_pars.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id
-        if ws_pars.cell_value(0, col_id) == 'Special Rules': cid_rules = col_id     # NOTE: Consider whether calibrate column is necessary. At least get rid of the punctuation.
+        if ws_pars.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id      # NOTE: Consider whether calibrate column is necessary. At least get rid of the punctuation.
+        if ws_pars.cell_value(0, col_id) == 'Special Rules': cid_rules = col_id
     if None in [cid_tag, cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
     
@@ -489,6 +491,22 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     test_names = settings.linkpar_name_labels.keys() + settings.charac_name_labels.keys()
     if len(test_names) != len(set(test_names)):
         raise OptimaException('ERROR: Cascade workbook appears to have duplicate characteristic/parameter full names.')
+    
+    
+    #%% Optional sheet: Program Types
+    # This worksheet, if it exists, defines definitional categories for programs that structures what the user enters in the project databook.
+    # If this sheet does not exist, coverage/budget scenarios and optimisations should be unavailable.
+    cid_label = None
+    cid_name = None
+    cid_pars = None
+    for col_id in xrange(ws_progtypes.ncols):
+    if None in [cid_tag, cid_label]:
+        raise OptimaException('ERROR: Program type worksheet does not have correct column headers.')
+        
+    for row_id in xrange(ws_progtypes.nrows):
+        if row_id > 0 and label not in [''] and name not in ['']:
+    
+    #CONTINUE HERE.
     
     validation = cascadeValidation(settings=settings)
     if not validation: raise OptimaException('ERROR: Cascade workbook appears to have issues with births and deaths definition, please check log.')

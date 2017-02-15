@@ -74,12 +74,43 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
             worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%s,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption_overrides[aid]), None, assumption)
             worksheet.write(row_id, at_col + 2, 'OR')
         
-#        # Make changes to the first row be mirrored in the other rows.
-#        if aid > 0:
-#            for k in xrange(len(tvec)):
-#                worksheet.write(row_id, offset + k, '=IF(%s="","",%s)' % (rc(row_id-aid,offset+k),rc(row_id-aid,offset+k)), None, '')
+        
+def makeTagMatrix(worksheet, at_row, num_rows, at_col, labels, formula_labels = None, allowed_vals = None, no_validation = False):
+    '''
+    Create a matrix where users tag relations between one (left-column positioned) list and a potentially different (top-row positioned) list.
+    The tags are forced to be from a finite-discrete allowed_vals set unless no_validation is turned on.
+    Note that the left-column positioned list is not included in this matrix.
+    
+    Args:
+        worksheet       -   The worksheet in which to produce the matrix.
+        at_row          -   The row at which the top-left corner of the matrix will be fixed.
+        num_rows        -   Excluding the matrix header row, the number of rows (i.e. taggable items) for this matrix.
+        at_col          -   The column at which the top-left corner of the matrix will be fixed.
+        labels          -   A list of labels for objects to be related to (e.g. populations for programs).
+        formula_labels  -   An optional list corresponding to labels that contains Excel formulas.
+                            The labels list is still required for default values.
+                            In the case that the databook is not opened in Excel prior to loading, the defaults are read in.
+        allowed_vals    -   A list of allowed values that matrix elements can be tagged by.
+        no_validation   -   If true, does not enforce Excel validation for the allowed values.
+    '''
+    
+    if allowed_vals is None: allowed_vals = ['n', 'y']
+    if formula_labels is None: formula_labels = dcp(labels)
+    if len(formula_labels) != len(labels): raise OptimaException('ERROR: The numbers of formula-based and default labels passed to a matrix-writing process do not match.')
+    
+    for k in xrange(len(labels)):
+        worksheet.write(at_row, at_col + k, formula_labels[k], None, labels[k])
+        
+    for row_pre in xrange(num_rows):
+        row_id = at_row + row_pre + 1
+        for col_pre in xrange(len(labels)):
+            col_id = at_col + col_pre
+            
+            worksheet.write(row_id, col_id, allowed_vals[0])      # Default choice for data format.
+            if not no_validation:
+                worksheet.data_validation('%s' % rc(row_id,col_id), {'validate': 'list', 'source': allowed_vals, 'ignore_blank': False})          
                
-               
+                
 def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = None, allowed_vals = None, no_validation = False, symmetric = False, self_connections = ''):
     '''
     Create a matrix where users tag connections from a (left-column positioned) list to the same (top-row positioned) list.
@@ -130,14 +161,24 @@ def makeConnectionMatrix(worksheet, at_row, at_col, labels, formula_labels = Non
 #%% Function for generating project databook
 
 # NOTE: Comment this better later, especially with the fact that all Excel formulae need a fall-back value.
-def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 2):
+def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 2, num_progs = 0):
     ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
-    
+
+    include_progs = False
+    if num_progs > 0:
+        if len(settings.progtype_specs.keys()) > 0:
+            include_progs = True
+        else:
+            raise OptimaException('ERROR: Attempting to create a databook with program sections, despite no program types defined in loaded cascade.')
+                                          
     workbook = xw.Workbook(databook_path)
     ws_pops = workbook.add_worksheet(settings.databook['sheet_names']['pops'])
     ws_contact = workbook.add_worksheet(settings.databook['sheet_names']['contact'])
     ws_transmat = workbook.add_worksheet(settings.databook['sheet_names']['transmat'])
     ws_transval = workbook.add_worksheet(settings.databook['sheet_names']['transval'])
+    if include_progs:
+        ws_progmat = workbook.add_worksheet(settings.databook['sheet_names']['progmat'])
+        ws_progval = workbook.add_worksheet(settings.databook['sheet_names']['progval'])
     
     # Regarding cascade parameters and characteristics, store sheets and corresponding row ids for further writing.
     ws_params = odict()
@@ -155,6 +196,8 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     ws_contact_width = 25
     ws_transmat_width = 15
     ws_transval_width = 15
+    ws_progmat_width = 15
+    ws_progval_width = 15
     name_width = 60
     assumption_width = 10
     
@@ -163,8 +206,8 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     age_max_col = 3
     ws_pops.write(0, 0, 'Name')
     ws_pops.write(0, 1, 'Abbreviation')
-    ws_pops.write(0, 2, 'Minimum Age')
-    ws_pops.write(0, 3, 'Maximum Age')
+    ws_pops.write(0, age_min_col, 'Minimum Age')
+    ws_pops.write(0, age_max_col, 'Maximum Age')
     
     # While writing default population names and labels, they are stored for future reference as well.
     pop_names_default = []
@@ -176,7 +219,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
         pop_labels_default.append(pop_label)
         ws_pops.write(pid+1, 0, pop_name)
         ws_pops.write(pid+1, 1, '=LEFT(%s,3)&"%i"' % (rc(pid+1,0), pid+1), None, pop_label)
-    ws_pops.set_column(0, 4, ws_pops_width)
+    ws_pops.set_column(0, 3, ws_pops_width)
     
     # Excel formulae strings that point to population names and labels are likewise stored.
     pop_names_formula = []
@@ -247,6 +290,32 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     ws_transval.set_column(0, 0, ws_transval_width)
     ws_transval.set_column(2, 2, ws_transval_width)
     ws_transval.set_column(3, 4, assumption_width)
+    
+    #%% Program definitions sheet.
+    if include_progs:
+        ws_progmat.write(0, 0, 'Name')
+        ws_progmat.write(0, 1, 'Abbreviation')
+        
+        # While writing default program names and labels, they are stored for future reference as well.
+        prog_names_default = []
+        prog_labels_default = []
+        for prid in xrange(num_progs):
+            prog_name = 'Program '+str(prid+1)
+            prog_label = pop_name[0:4]+str(prid+1)
+            prog_names_default.append(prog_name)
+            prog_labels_default.append(prog_label)
+            ws_progmat.write(prid+1, 0, prog_name)
+            ws_progmat.write(prid+1, 1, '=LEFT(%s,4)&"%i"' % (rc(prid+1,0), prid+1), None, prog_label)
+        ws_progmat.set_column(0, 1, ws_progmat_width)
+        
+        # Excel formulae strings that point to program names and labels are likewise stored.
+        prog_names_formula = []
+        prog_labels_formula = []
+        for prid in xrange(num_progs):
+            prog_names_formula.append("='%s'!%s" % (settings.databook['sheet_names']['progmat'], rc(prid+1,0,True,True)))
+            prog_labels_formula.append("='%s'!%s" % (settings.databook['sheet_names']['progmat'], rc(prid+1,1,True,True)))
+            
+        makeTagMatrix(worksheet = ws_progmat, at_row = 0, num_rows = num_progs, at_col = 2, labels = pop_labels_default, formula_labels = pop_labels_formula)
     
     #%% Combine characteristics and parameters into one dictionary, then print out all elements to appropriate datasheets.
     all_specs = dcp(settings.charac_specs)

@@ -88,13 +88,13 @@ class Project(object):
             
     
     
-    def makeSpreadsheet(self, databook_path = None, num_pops = 5, num_migrations = 2):
+    def makeSpreadsheet(self, databook_path = None, num_pops = 5, num_migrations = 2, num_progs = 0):
         ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
         
         if databook_path is None: databook_path = '../data/' + self.name + '-data.xlsx'
         logging.info("Attempting to create databook %s"%databook_path)
         
-        makeSpreadsheetFunc(settings = self.settings, databook_path = databook_path, num_pops = num_pops, num_migrations = num_migrations)        
+        makeSpreadsheetFunc(settings = self.settings, databook_path = databook_path, num_pops = num_pops, num_migrations = num_migrations, num_progs = num_progs)        
         
     
     def loadSpreadsheet(self, databook_path = None):
