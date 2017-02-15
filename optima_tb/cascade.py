@@ -500,11 +500,18 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     cid_name = None
     cid_pars = None
     for col_id in xrange(ws_progtypes.ncols):
+        if ws_progtypes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
+        if ws_progtypes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+        if ws_progtypes.cell_value(0, col_id) == 'Impact Parameters': cid_pars = col_id
     if None in [cid_tag, cid_label]:
         raise OptimaException('ERROR: Program type worksheet does not have correct column headers.')
         
     for row_id in xrange(ws_progtypes.nrows):
+        label = str(ws_progtypes.cell_value(row_id, cid_label))
+        name = str(ws_progtypes.cell_value(row_id, cid_name))
         if row_id > 0 and label not in [''] and name not in ['']:
+            settings.progtype_specs[label] = {'name':name}
+            settings.progtype_name_labels[name] = label
     
     #CONTINUE HERE.
     

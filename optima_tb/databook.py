@@ -17,7 +17,7 @@ from copy import deepcopy as dcp
 
 #%% Utility functions to generate sub-blocks of the project databook
 
-def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, assumption_overrides = None, data_formats = None, print_conditions = None):
+def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, assumption_overrides = None, data_formats = None, print_conditions = None, no_header = False):
     '''
     Create a block where users choose data-entry format and enter values either as an assumption or time-dependent array.
     
@@ -50,17 +50,21 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
                             
     offset = at_col + 3     # This is the column at which the input year range and corresponding values should be written.
     
-    worksheet.write(at_row, at_col, 'Format')
-    worksheet.write(at_row, at_col + 1, 'Assumption')
-    for k in xrange(len(tvec)):
-        worksheet.write(at_row, offset + k, tvec[k])  
+    if not no_header:
+        worksheet.write(at_row, at_col, 'Format')
+        worksheet.write(at_row, at_col + 1, 'Assumption')
+        for k in xrange(len(tvec)):
+            worksheet.write(at_row, offset + k, tvec[k])
+        header_offset = 1
+    else:
+        header_offset = 0
     
     # If no overrides are provided or they are of incorrect length, just revert to the original assumption.    
     if assumption_overrides is None or len(assumption_overrides) != num_arrays:
         assumption_overrides = [assumption]*num_arrays
     
     for aid in xrange(num_arrays):
-        row_id = at_row + aid + 1
+        row_id = at_row + aid + header_offset
         offset = at_col + 3
         
         worksheet.write(row_id, at_col, data_format_assumption)      # Default choice for data format.
@@ -197,7 +201,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     ws_transmat_width = 15
     ws_transval_width = 15
     ws_progmat_width = 15
-    ws_progval_width = 15
+    ws_progval_width = 30
     name_width = 60
     assumption_width = 10
     
@@ -316,6 +320,48 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
             prog_labels_formula.append("='%s'!%s" % (settings.databook['sheet_names']['progmat'], rc(prid+1,1,True,True)))
             
         makeTagMatrix(worksheet = ws_progmat, at_row = 0, num_rows = num_progs, at_col = 2, labels = pop_labels_default, formula_labels = pop_labels_formula)
+        
+    #%% Program details sheet.
+    
+    if include_progs:
+    #    sh_pops = settings.databook['sheet_names']['pops']      # Convenient abbreviation.
+        row_id = 0
+        for prid in xrange(num_progs):
+            ws_progval.write(row_id, 0, prog_names_formula[prid], None, prog_names_default[prid])
+            ws_progval.write(row_id, 1, settings.progtype_name_labels.keys()[0])
+            ws_progval.data_validation('%s' % rc(row_id,1), {'validate': 'list', 'source': settings.progtype_name_labels.keys(), 'ignore_blank': False})
+            ws_progval.write(row_id + 1, 0, '...')
+            ws_progval.write(row_id + 2, 0, 'Cost-Coverage Details')
+            ws_progval.write(row_id + 2, 1, 'Historical Program Coverage')
+            ws_progval.write(row_id + 3, 1, 'Historical Program Funding')
+            makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 1, at_col = 2, num_arrays = 1, tvec = data_tvec)#, assumption_overrides = assumption_overrides, print_conditions = print_conditions)
+            makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 3, at_col = 2, num_arrays = 1, tvec = data_tvec, data_formats = ['USD'], no_header = True)
+    #        print_conditions = []
+    #        assumption_overrides = []
+    #        
+    #        k = 0   # A counter for number of arrays, used to id print conditions.
+    #        print_row = row_id
+    #        for source_id in xrange(num_pops):
+    #            for target_id in xrange(num_pops):
+    #                if source_id != target_id:
+    #                    row_id += 1
+    #                    r = mig_matrix_rows[mid] + source_id + 1
+    #                    c = target_id + 1
+    #                    ws_transval.write(row_id, 0, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[source_id][1:],'"..."'), None, '...')
+    #                    ws_transval.write(row_id, 1, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"','"--->"','""'), None, '')
+    #                    ws_transval.write(row_id, 2, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[target_id][1:],'""'), None, '')
+    #                    
+    #                    print_conditions.append('%s<>"..."' % rc(print_row+k+1,0))
+    #                    if mid == 0:    # Aging assumptions are equations that try to work out aging fraction based on Minimum and Maximum pop age.
+    #                        assumption_equation = "IF(AND('%s'!%s<>%s,'%s'!%s<>%s),1/('%s'!%s-'%s'!%s+1),0)" % (sh_pops, rc(source_id+1,age_max_col), '""', sh_pops, rc(source_id+1,age_min_col), '""', sh_pops, rc(source_id+1,age_max_col), sh_pops, rc(source_id+1,age_min_col))
+    #                        assumption_overrides.append(assumption_equation)
+    #                    k += 1
+    #        makeValueEntryArrayBlock(worksheet = ws_transval, at_row = print_row, at_col = 3, num_arrays = num_pops*(num_pops-1), tvec = data_tvec, assumption_overrides = assumption_overrides, print_conditions = print_conditions)
+            
+            row_id += 5
+            
+        ws_progval.set_column(0, 1, ws_progval_width)
+        ws_progval.set_column(2, 3, assumption_width)
     
     #%% Combine characteristics and parameters into one dictionary, then print out all elements to appropriate datasheets.
     all_specs = dcp(settings.charac_specs)
