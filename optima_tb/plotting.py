@@ -687,6 +687,7 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
         
 
 def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None, 
+                       pop_ids = None, plot_total = False,
                        plot_observed_data=True, save_fig=False, fig_name=None, 
                        colors=None, plotdict=None):
     """
@@ -698,6 +699,8 @@ def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None,
         title
         outputIDs        list of compartment labels (characs.keys()) which will be selectively be plotted
                          Default: None, which causes all labels to be plotted
+        pop_ids          list of labels for subset of populations to be plotted. If None, all populations are plotted
+        plot_total       sum and plot the total. 
         plotObservedData plot observed data points on top of simulated data. Useful for calibration
         save_fig         bool to indicate whether to save the figure to file
         colors           list of colors for populations
@@ -713,6 +716,8 @@ def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None,
                 'marker': 'o',
                 'x_ticks' : ([2000,2030],[2000,2030]),
                 'save_figname': 'MyPlot'}
+                
+    
         
     """
     # setup
