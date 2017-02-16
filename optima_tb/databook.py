@@ -305,7 +305,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
         prog_labels_default = []
         for prid in xrange(num_progs):
             prog_name = 'Program '+str(prid+1)
-            prog_label = pop_name[0:4]+str(prid+1)
+            prog_label = prog_name[0:4]+str(prid+1)
             prog_names_default.append(prog_name)
             prog_labels_default.append(prog_label)
             ws_progmat.write(prid+1, 0, prog_name)
@@ -332,8 +332,9 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
             ws_progval.data_validation('%s' % rc(row_id,1), {'validate': 'list', 'source': settings.progtype_name_labels.keys(), 'ignore_blank': False})
             ws_progval.write(row_id + 1, 0, '...')
             ws_progval.write(row_id + 2, 0, 'Cost-Coverage Details')
-            ws_progval.write(row_id + 2, 1, 'Historical Program Coverage')
-            ws_progval.write(row_id + 3, 1, 'Historical Program Funding')
+            ws_progval.write(row_id + 3, 0, '...')
+            ws_progval.write(row_id + 2, 1, 'Program Coverage')
+            ws_progval.write(row_id + 3, 1, 'Program Funding')
             makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 1, at_col = 2, num_arrays = 1, tvec = data_tvec)#, assumption_overrides = assumption_overrides, print_conditions = print_conditions)
             makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 3, at_col = 2, num_arrays = 1, tvec = data_tvec, data_formats = ['USD'], no_header = True)
     #        print_conditions = []
@@ -437,7 +438,15 @@ def loadSpreadsheetFunc(settings, databook_path):
     except:
         ws_contact_exists = False
         logging.warning('There is no "%s" sheet in project data workbook.' % settings.databook['sheet_names']['contact'])
-        
+    
+    # Program sheets can be optional. If either does not exist, the other is ignored.
+    ws_prog_exists = True
+    try:
+        ws_progmat = workbook.sheet_by_name(settings.databook['sheet_names']['progmat'])
+        ws_progval = workbook.sheet_by_name(settings.databook['sheet_names']['progval'])
+    except:
+        ws_prog_exists = False
+        logging.warning('One or two program-based sheets, "%s" and "%s", are excluded in the project data workbook.' % (settings.databook['sheet_names']['progmat'],settings.databook['sheet_names']['progval']))
     
     # Regarding cascade parameters and characteristics, store sheets and corresponding row ids for further writing.
     ws_params = odict()
@@ -449,11 +458,10 @@ def loadSpreadsheetFunc(settings, databook_path):
         ws_params['charac'] = workbook.sheet_by_name(settings.databook['sheet_names']['charac'])
     if settings.make_sheet_linkpars:
         ws_params['linkpars'] = workbook.sheet_by_name(settings.databook['sheet_names']['linkpars'])
-#    ws_charac = workbook.sheet_by_name(settings.databook['sheet_names']['charac'])
-#    ws_linkpars = workbook.sheet_by_name(settings.databook['sheet_names']['linkpars'])
 
     #%% Population names sheet.
     data = odict()
+    data['meta'] = dict()       # NOTE: Consider making this much more important in the future. Maybe store pop definitions here.
     data['pops'] = odict()
     data['pops']['name_labels'] = odict()
     data['pops']['label_names'] = odict()      # A reverse of the previous dictionary.
@@ -498,7 +506,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                     
     
 
-    #%% Inter-population transitions sheet.
+    #%% Inter-population transfer definitions sheet.
     # Migration matrices must be divided from each other by an empty row.
     data['transfers'] = odict()
     mig_specified = False
@@ -577,7 +585,118 @@ def loadSpreadsheetFunc(settings, databook_path):
             mig_type = str(zero_col).lower().replace(' ','_')
             array_id = 0
 
-
+    #%% Program definitions sheet.
+    data['meta']['progs'] = dict()
+    data['meta']['progs']['name_labels'] = odict()
+    data['meta']['progs']['label_names'] = odict()      # A reverse of the previous dictionary.
+    data['progs'] = odict()
+    if ws_prog_exists:
+        for row_id in xrange(ws_progmat.nrows):
+            if row_id > 0:
+                if ws_progmat.cell_value(row_id, 0) not in ['']:
+                    if ws_progmat.cell_value(row_id, 1) not in ['']:
+                        prog_label = str(ws_progmat.cell_value(row_id, 1))
+                    else:
+                        prog_label = 'prog' + str(row_id)
+                    data['meta']['progs']['name_labels'][str(ws_progmat.cell_value(row_id, 0))] = prog_label
+                    data['meta']['progs']['label_names'][prog_label] = str(ws_progmat.cell_value(row_id, 0))
+                    data['progs'][prog_label] = dict()
+                    for col_id in xrange(ws_progmat.ncols):
+                        if col_id > 1:
+                            if str(ws_progmat.cell_value(row_id, col_id)) == 'y':
+                                if 'target_pops' not in data['progs'][prog_label].keys():
+                                    data['progs'][prog_label]['target_pops'] = []
+                                data['progs'][prog_label]['target_pops'].append(str(ws_progmat.cell_value(0, col_id)))
+                                
+    #%% Program details sheet.
+    if ws_prog_exists:
+        prog_specified = False
+        prog_name = None
+        prog_label = None
+        prog_row_id = 0
+        temp = odict()
+        for row_id in xrange(ws_progval.nrows):
+            zero_col = ws_progval.cell_value(row_id, 0)
+            
+            # If parser finds an empty row (technically empty first cell) program-parsing resets, ready for the next custom program.
+            if prog_specified and zero_col in ['']:
+                prog_specified = False
+                
+            # Parse through program-specific data rows.
+            if prog_specified:
+                get_data = False
+                important_col = str(ws_progval.cell_value(row_id, 1))
+                if important_col == 'Program Coverage':
+                    tag = 'cov'
+                    get_data = True
+                if important_col == 'Program Funding':
+                    tag = 'cost'
+                    get_data = True
+                if get_data:
+                    for col_id in xrange(ws_progval.ncols):
+                        if col_id == 2:
+                            data['progs'][prog_label]['%s_format' % tag] = str(ws_progval.cell_value(row_id, col_id)).lower()
+                        if col_id > 2 and isinstance(ws_progval.cell_value(row_id, col_id), Number):
+                            val = ws_progval.cell_value(row_id, col_id)
+                            
+                            if not isinstance(ws_progval.cell_value(prog_row_id+1, col_id), Number):
+                                tval = str(ws_progval.cell_value(prog_row_id+1, col_id+2))
+                                temp[prog_label]['t_assumption'] = tval
+                                if ('%s_assumption' % tag) not in temp[prog_label].keys(): temp[prog_label]['%s_assumption' % tag] = dict()
+                                temp[prog_label]['%s_assumption' % tag] = val
+                                break
+                            else:
+                                tval = str(ws_progval.cell_value(prog_row_id+1, col_id))
+                                if tval not in temp[prog_label].keys(): temp[prog_label][tval] = dict()
+                                temp[prog_label][tval][tag] = val
+    
+    
+            
+            # First row after a blank one must contain the new program name as its first element. Parser re-activated.
+            if not prog_specified and zero_col not in ['']:
+                prog_specified = True
+                prog_name = str(zero_col)
+                prog_label = data['meta']['progs']['name_labels'][prog_name]
+                prog_row_id = row_id
+                data['progs'][prog_label]['prog_type'] = str(ws_progval.cell_value(row_id, 1))
+                temp[prog_label] = odict()
+        
+        # Cost coverage data must be converted into time, cost and coverage lists.
+        for prog_label in data['progs'].keys():
+            list_t = []
+            list_cost = []
+            list_cov = []
+            
+            # Run through all non-assumption temp-dict keys, i.e. years.
+            for tval in sorted(temp[prog_label].keys()):
+                try: t = float(tval)
+                except: continue
+                list_t.append(t)
+                cost = np.nan
+                cov = np.nan
+                
+                # If cost or coverage is missing for a year for which the other exists, make use of an assumption or, failing that, np.nan.
+                if 'cost' in temp[prog_label][tval]:
+                    cost = float(temp[prog_label][tval]['cost'])
+                elif 'cost_assumption' in temp[prog_label]:
+                    cost = float(temp[prog_label]['cost_assumption'])
+                if 'cov' in temp[prog_label][tval]:
+                    cov = float(temp[prog_label][tval]['cov'])
+                elif 'cov_assumption' in temp[prog_label]:
+                    cov = float(temp[prog_label]['cov_assumption'])
+                list_cost.append(cost)
+                list_cov.append(cov)
+            if len(list_t) == 0:     # In the case that only assumptions are given...
+                try:
+                    list_t.append(float(temp[prog_label]['t_assumption']))
+                    list_cost.append(float(temp[prog_label]['cost_assumption']))
+                    list_cov.append(float(temp[prog_label]['cov_assumption']))
+                except:
+                    raise OptimaException('ERROR: There is incomplete cost-coverage data provided in the databook for program "%s".' % prog_label)
+            data['progs'][prog_label]['t'] = np.array(list_t)
+            data['progs'][prog_label]['cost'] = np.array(list_cost)
+            data['progs'][prog_label]['cov'] = np.array(list_cov)
+        
     
     #%% Gather data value inputs for epidemic characteristics and cascade parameters sheets, be they custom or standard.
     
@@ -751,8 +870,8 @@ def databookValidation(data=None):
                         if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0:
                             logging.warning('Minimum and maximum age is defined incorrectly for Population: %s' % (pop))
                             validation = False
-                    elif key == 'contacts':
-                        # NOTE: Validation to be filled in for contacts at some point.
+                    elif key in ['meta','contacts','progs']:
+                        # NOTE: Similar validation to be filled in for these keys at some point if required.
                         pass
                     else:
                         for loop in range (len(data[key][attribute][pop][label])):

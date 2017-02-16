@@ -35,6 +35,7 @@ class Project(object):
         self.data = odict()
 
         self.parsets = odict()
+        self.progsets = odict()
         self.results = odict()
         
         self.scenarios = odict()
