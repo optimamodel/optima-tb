@@ -39,7 +39,7 @@ sum_total = True
 
 from_year = 2010
 to_year = 2015
-
+"""
 snnot_all =     calculateCumulativeDerivatives(results=results, settings=proj.settings, 
                                                 from_year = from_year, to_year=to_year, 
                                                 comp_labels=comp_labels, comp_titles=comp_titles, 
@@ -50,4 +50,5 @@ snnot_all =     calculateCumulativeDerivatives(results=results, settings=proj.se
                                                 sum_total = sum_total,
                                                 exclude_transfers=exclude_transfers)
 
-
+"""
+print calcLatentIncidence(results,settings,from_year,to_year)

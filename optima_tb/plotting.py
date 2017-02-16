@@ -731,7 +731,7 @@ def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None,
     for output_id in outputIDs:
         if isPlottableCharac(output_id, charac_specs):
             y_values, t_values, final_dict, pop_labels = extractCharacteristic(results=results, charac_label=output_id, 
-                                                                   charac_specs=charac_specs, data=data, 
+                                                                   charac_specs=charac_specs, data=data, plot_observed_data=plot_observed_data,
                                                                    pop_labels = pop_labels, plot_total = plot_total,
                                                                    fig_name=fig_name, plotdict=plotdict)
             
@@ -879,7 +879,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
 
 def plotFlows(results, settings, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
               link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False,
-              plot_inflows = True, plot_outflows = True, exclude_transfers = False,
+              plot_inflows = True, plot_outflows = True, exclude_transfers = False, observed_data = None,
               save_fig=False, fig_name=None, colors=None, suppress_plot=False):
     """
     Plot flows rates in and out of a compartment.
@@ -894,15 +894,17 @@ def plotFlows(results, settings, comp_labels = None, comp_titles = None, plot_po
         start_year, end_year = tvec[0], tvec[1]
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
     
+    print pop_labels, plot_pops
     
     
+    if pop_labels is None:
+        pop_labels = results.pop_labels
     
-    if pop_labels is None: pop_labels = results.pop_labels
     
     if link_legend is None: link_legend = dict()
     
     if plot_pops is None:
-        plot_pids = getPIDs(results,plot_pops)
+        plot_pids = getPIDs(results,pop_labels)
     else:
         plot_pids = range(len(results.m_pops))
         plot_pops = [pop.label for pop in results.m_pops]
@@ -952,13 +954,18 @@ def plotFlows(results, settings, comp_labels = None, comp_titles = None, plot_po
                 title_pop = '\nPopulation: "%s"' % pop.label
         
             
-            final_dict = {'ylim' : 0,
+            final_dict = {
+              'ylim' : 0,
               'xlabel':'Year',
               'ylabel': 'Number of People',
               'x_ticks' : (yr_range,yr_range),
               'title': title_comp+title_pop,
               'save_figname': '%s_FlowComparision_%s_%s'%(fig_name,comp_label,plot_label)
               }
+            
+            if observed_data is not None:
+                final_dict['y_hat'] = [observed_data[0]]
+                final_dict['t_hat'] = [observed_data[1]]
             final_dict.update(plotdict)
             
             
@@ -981,7 +988,7 @@ def _extractFlows(comp, results, settings, tvec, link_labels = None, include_lin
             label_tag = ['In: ','Out: '][in_out]
             for link_tuple in comp_link_ids:
                 link = results.m_pops[link_tuple[0]].links[link_tuple[1]]
-#               print link.label
+                #print link.label, link_labels, include_link_not_exclude
                 if link_labels is None or (include_link_not_exclude and link.label in link_labels) or (not include_link_not_exclude and link.label not in link_labels):
                     try: 
                         legend_label = label_tag + settings.linkpar_specs[link.label]['name']
