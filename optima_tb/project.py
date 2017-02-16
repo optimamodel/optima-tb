@@ -236,7 +236,7 @@ class Project(object):
             none
             
         
-        Example: 
+        Parameter Scenario Example: 
             scvalues = odict()
             param = 'birth_transit'
             scvalues[param] = odict()
@@ -249,11 +249,21 @@ class Project(object):
                                   'run_scenario' : True,
                                   'scenario_values': scvalues}
                }
-            proj= Project(name = 'sampleProject', cascade_path = 'data/cascade-simple.xlsx')
+            proj = Project(name = 'sampleProject', cascade_path = 'data/cascade-simple.xlsx')
             proj.createScenarios(scen_values)
-
-        
-                 
+            
+        Budget Scenario Example: 
+            scvalues = odict()
+            scvalues['Prog1'] = odict()
+            scvalues['Prog1']['t'] = [2010.,2015.,2020.,2025.]
+            scvalues['Prog1']['funding'] = [1e7, 2e7, 3e7, 5e7]
+            scen_values = { 'test_scenario': {'type': 'Budget',
+                                  'run_scenario' : True,
+                                  'scenario_values': scvalues}
+               }
+            proj = Project(name = 'sampleProject', cascade_path = 'data/cascade-simple.xlsx')
+            proj.createScenarios(scen_values)
+  
         """
         logger.info("About to create scenarios")
         
@@ -267,6 +277,8 @@ class Project(object):
             
             if vals['type'].lower() == 'parameter':
                 self.scenarios[scenario_name] = ParameterScenario(name=scenario_name,pop_labels=pop_labels,**vals)
+            elif vals['type'].lower() == 'budget':
+                self.scenarios[scenario_name] = BudgetScenario(name=scenario_name,pop_labels=pop_labels,**vals)
             else:
                 raise NotImplementedError("ERROR: no corresponding Scenario type for scenario=%s"%scenario_name)
         
@@ -299,12 +311,12 @@ class Project(object):
         results = odict()
         
         if include_bau:
-            results['BAU'] = self.runSim(parset_name = original_parset_name,plot=plot)
+            results['BAU'] = self.runSim(parset_name = original_parset_name, plot=plot)
         
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
-                results[scen_name] = self.runSim(parset_name = scen_name, parameterset = self.scenarios[scen].getScenarioParset(ops),plot=plot)
+                results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(ops), parset_name = scen_name, plot=plot)
         
         return results
     
