@@ -60,7 +60,7 @@ class Project(object):
             self.settings.tvec_end = yearRange[1]
     
     
-    def runSim(self, parset = None, parset_name = 'default', plot = False, debug = False):
+    def runSim(self, parset = None, parset_name = 'default', progset = None, progset_name = None, options = None, plot = False, debug = False):
         ''' Run model using a selected parset and store/return results. '''
         
         if parset is None:
@@ -69,10 +69,18 @@ class Project(object):
             else:
                 try: parset = self.parsets[parset_name]
                 except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
+                
+        if progset is None:
+            try: progset = self.progsets[progset_name]
+            except: logger.info('Initiating a standard run of project "%s" (i.e. without the influence of programs).' % self.name)
+        if progset is not None:
+            if options is None:
+                logger.info('Program set "%s" will be ignored while running project "%s" due to no options specified.' % (progset.name, self.name))
+                progset = None
 
         tm = tic()
         #results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
-        results = runModel(settings = self.settings, parset = parset)
+        results = runModel(settings = self.settings, parset = parset, progset = progset, options = options)
         toc(tm, label = 'running %s model' % self.name)
         
         if plot:
@@ -94,7 +102,7 @@ class Project(object):
         ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
         
         if databook_path is None: databook_path = '../data/' + self.name + '-data.xlsx'
-        logging.info("Attempting to create databook %s"%databook_path)
+        logger.info("Attempting to create databook %s"%databook_path)
         
         makeSpreadsheetFunc(settings = self.settings, databook_path = databook_path, num_pops = num_pops, num_migrations = num_migrations, num_progs = num_progs)        
         
@@ -102,7 +110,7 @@ class Project(object):
     def loadSpreadsheet(self, databook_path = None):
         ''' Load data spreadsheet into Project data dictionary. '''
         if databook_path is None: databook_path = '../data/' + self.name + '-data.xlsx'
-        logging.info("Attempting to load databook %s"%databook_path)
+        logger.info("Attempting to load databook %s"%databook_path)
         
         self.data = loadSpreadsheetFunc(settings = self.settings, databook_path = databook_path) 
         
@@ -149,7 +157,7 @@ class Project(object):
         if not parset_name in self.parsets.keys():
             self.makeParset(name=parset_name)
         paramset = self.parsets[parset_name]
-        logging.info("Updating parameter values in parset=%s"%(parset_name))
+        logger.info("Updating parameter values in parset=%s"%(parset_name))
         
         makeManualCalibration(paramset,rate_dict)
     

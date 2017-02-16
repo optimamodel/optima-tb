@@ -496,24 +496,25 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     #%% Optional sheet: Program Types
     # This worksheet, if it exists, defines definitional categories for programs that structures what the user enters in the project databook.
     # If this sheet does not exist, coverage/budget scenarios and optimisations should be unavailable.
-    cid_label = None
-    cid_name = None
-    cid_pars = None
-    for col_id in xrange(ws_progtypes.ncols):
-        if ws_progtypes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
-        if ws_progtypes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
-        if ws_progtypes.cell_value(0, col_id) == 'Impact Parameters': cid_pars = col_id
-    if None in [cid_tag, cid_label]:
-        raise OptimaException('ERROR: Program type worksheet does not have correct column headers.')
+    if ws_progtypes:
+        cid_label = None
+        cid_name = None
+        cid_pars = None
+        for col_id in xrange(ws_progtypes.ncols):
+            if ws_progtypes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Impact Parameters': cid_pars = col_id
+        if None in [cid_tag, cid_label]:
+            raise OptimaException('ERROR: Program type worksheet does not have correct column headers.')
+            
+        for row_id in xrange(ws_progtypes.nrows):
+            label = str(ws_progtypes.cell_value(row_id, cid_label))
+            name = str(ws_progtypes.cell_value(row_id, cid_name))
+            if row_id > 0 and label not in [''] and name not in ['']:
+                settings.progtype_specs[label] = {'name':name}
+                settings.progtype_name_labels[name] = label
         
-    for row_id in xrange(ws_progtypes.nrows):
-        label = str(ws_progtypes.cell_value(row_id, cid_label))
-        name = str(ws_progtypes.cell_value(row_id, cid_name))
-        if row_id > 0 and label not in [''] and name not in ['']:
-            settings.progtype_specs[label] = {'name':name}
-            settings.progtype_name_labels[name] = label
-    
-    #CONTINUE HERE.
+        #CONTINUE HERE.
     
     validation = cascadeValidation(settings=settings)
     if not validation: raise OptimaException('ERROR: Cascade workbook appears to have issues with births and deaths definition, please check log.')
