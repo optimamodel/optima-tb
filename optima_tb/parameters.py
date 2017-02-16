@@ -105,7 +105,7 @@ class ParameterSet(object):
     
     def __init__(self, name='default'):
         self.name = name 
-        self.uid   = uuid()
+        self.uid = uuid()
 
         self.pop_names = []         # List of population names.
                                     # Names are used only for user interface and can be more elaborate than simple labels.
@@ -125,7 +125,7 @@ class ParameterSet(object):
         for par_type in ['cascade','characs']:
             if label in self.par_ids[par_type].keys():
                 return self.pars[par_type][self.par_ids[par_type][label]]
-        raise OptimaException('ERROR: Label "%s" cannot be found in parameter set "%s" as either a cascade parameter or characteristic.' % (label,self.name))
+        raise OptimaException('ERROR: Label "%s" cannot be found in parameter set "%s" as either a cascade parameter or characteristic.' % (label, self.name))
     
     def makePars(self, data):
         self.pop_names = data['pops']['name_labels'].keys()

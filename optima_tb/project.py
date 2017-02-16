@@ -10,6 +10,7 @@ from optima_tb.utils import tic, toc, odict, OptimaException
 from optima_tb.model import runModel
 from optima_tb.settings import Settings 
 from optima_tb.parameters import ParameterSet, export_paramset, load_paramset
+from optima_tb.programs import ProgramSet
 from optima_tb.plotting import plotProjectResults
 from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
@@ -114,13 +115,20 @@ class Project(object):
         self.parsets[name] = ParameterSet(name = name)
         self.parsets[name].makePars(self.data)
         
-    def exportParset(self,parset_name):
+    def makeProgset(self, name = 'default'):
+        ''' Transform project data into a set of programs that can be used in budget scenarios and optimisations. '''
+
+        if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
+        self.progsets[name] = ProgramSet(name = name)
+        self.progsets[name].makeProgs(self.data)
+        
+    def exportParset(self, parset_name):
         ''' Exports parset to .csv file '''
         if not parset_name in self.parsets.keys():
             raise OptimaException("ERROR: no parameter set '%s' found"%parset_name)
         export_paramset(self.parsets[parset_name])
         
-    def importParset(self,parset_filename,new_name=None):
+    def importParset(self, parset_filename, new_name=None):
         ''' Imports parameter set from .csv file '''
         paramset = load_paramset(parset_filename)
         if new_name is None:
@@ -146,7 +154,7 @@ class Project(object):
         makeManualCalibration(paramset,rate_dict)
     
     
-    def calculateFit(self,results,metric=None):
+    def calculateFit(self, results, metric=None):
         '''
         Calculates the score for the fit during manual calibration and prints to output. 
         
@@ -170,7 +178,7 @@ class Project(object):
         logger.info("Calculated scores for fit using %s: largest value=%.2f"%(metric,max(score)))
       
       
-    def runAutofitCalibration(self,new_parset_name = None, old_parset_name="default", target_characs=None):
+    def runAutofitCalibration(self, new_parset_name = None, old_parset_name="default", target_characs=None):
         """
         Runs the autofitting calibration routine, as according to the parameter settings in the 
         settings.autofit_params configuration.
@@ -194,7 +202,7 @@ class Project(object):
         self.parsets[new_parset_name] = new_parset
         
         
-    def createScenarios(self,scenario_dict):
+    def createScenarios(self, scenario_dict):
         """
         Creates the scenarios to be run, and adds them to this project's store
         of available scenarios to run. Each scenario is described as a (key, value)
@@ -266,7 +274,7 @@ class Project(object):
         
         
 
-    def runScenarios(self,original_parset_name,include_bau=False,plot=False):
+    def runScenarios(self, original_parset_name, include_bau=False, plot=False):
         """
         Runs scenarios that are contained in this project's collection of scenarios (i.e. self.scenarios). 
         For each scenario run, using original_parset_name, the results generated are saved and 
@@ -303,7 +311,7 @@ class Project(object):
     
     
     
-    def exportProject(self,filename=None,format='json',compression='zlib'):
+    def exportProject(self, filename=None, format='json', compression='zlib'):
         """
         
         This currently saves everything within a project, including results.

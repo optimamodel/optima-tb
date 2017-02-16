@@ -601,6 +601,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                     data['meta']['progs']['name_labels'][str(ws_progmat.cell_value(row_id, 0))] = prog_label
                     data['meta']['progs']['label_names'][prog_label] = str(ws_progmat.cell_value(row_id, 0))
                     data['progs'][prog_label] = dict()
+                    data['progs'][prog_label]['name'] = str(ws_progmat.cell_value(row_id, 0))   # Label name linkage is also in metadata, but redundancy here is ok for now.
                     for col_id in xrange(ws_progmat.ncols):
                         if col_id > 1:
                             if str(ws_progmat.cell_value(row_id, col_id)) == 'y':
