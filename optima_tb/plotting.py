@@ -903,7 +903,7 @@ def plotFlows(results, settings, comp_labels = None, comp_titles = None, plot_po
     
     if link_legend is None: link_legend = dict()
     
-    if plot_pops is None:
+    if plot_pops is not None:
         plot_pids = getPIDs(results,pop_labels)
     else:
         plot_pids = range(len(results.m_pops))
