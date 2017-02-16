@@ -154,7 +154,6 @@ def evaluateDiseaseProgression(proj, specified_progressions, specified_populatio
 def calculateCumulativeDerivatives(results, settings, from_year, to_year,
                                    comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
                                    link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False,
-                                   sum_popualation = True,
                                    plot_inflows = True, plot_outflows = True, exclude_transfers = False):
     """
     
@@ -166,6 +165,8 @@ def calculateCumulativeDerivatives(results, settings, from_year, to_year,
     rates, tvecs, labels = extractDerivatives(results=results, 
                                               settings=settings,
                                               tvec=tvec,
+                                              plot_inflows=plot_inflows,
+                                              plot_outflows=plot_outflows,
                                               comp_labels = comp_labels, 
                                               comp_titles = comp_titles, 
                                               pop_labels = pop_labels, 
@@ -177,8 +178,6 @@ def calculateCumulativeDerivatives(results, settings, from_year, to_year,
                                               sum_total=sum_total,
                                               exclude_transfers = exclude_transfers)
     
-    
-    # TODO
     # sum across populations
     yvals = np.array(rates)
     yvals = yvals.sum(axis=0)[0]
@@ -219,8 +218,6 @@ def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles 
     """
     
     """
-    print "AAA  "
-    print plot_pops, pop_labels
     
     if pop_labels is None: pop_labels = results.pop_labels
     
@@ -244,9 +241,7 @@ def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles 
     all_rates = []
     all_tvecs = []
     all_labels = []
-    
-    print "BBB"
-    print plot_pids, plot_pops, pop_labels
+
     
     for (i,comp_label) in enumerate(comp_labels):
         
@@ -255,7 +250,7 @@ def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles 
             plot_label = plot_pops[j]
             
             comp = results.m_pops[pid].getComp(comp_label)
-
+            
             rates, tvecs, labels = _extractFlows(comp=comp,
                                                     results=results, 
                                                     settings=settings,
@@ -267,6 +262,7 @@ def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles 
                                                     plot_outflows=plot_outflows,
                                                     sum_total=sum_total,
                                                     exclude_transfers=exclude_transfers)
+        
             all_rates.append(rates)
             all_tvecs.append(tvecs)
             all_labels.append(labels)
