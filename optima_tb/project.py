@@ -79,8 +79,10 @@ class Project(object):
                 progset = None
 
         tm = tic()
-        #results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
+
+        #results = runModel(settings = self.settings, parset = parset)
         results = runModel(settings = self.settings, parset = parset, progset = progset, options = options)
+
         toc(tm, label = 'running %s model' % self.name)
         
         if plot:
@@ -277,7 +279,8 @@ class Project(object):
         
         pop_labels = self.data['pops']['label_names']
         
-        for (scenario_name,vals) in scenario_dict.iteritems():
+        for scenario_name in scenario_dict.keys():
+            vals = scenario_dict[scenario_name]
             
             if scenario_name in self.scenarios.keys():
                 logger.warn("Attempting to add scenario '%s' to project %s, that already contains scenario of the same name. Will ignore."%(scenario_name,self.name))
@@ -294,7 +297,7 @@ class Project(object):
         
         
 
-    def runScenarios(self, original_parset_name, include_bau=False, plot=False):
+    def runScenarios(self,original_parset_name,scenario_set_name=None,include_bau=False,plot=False,save_results=False):
         """
         Runs scenarios that are contained in this project's collection of scenarios (i.e. self.scenarios). 
         For each scenario run, using original_parset_name, the results generated are saved and 
@@ -319,12 +322,22 @@ class Project(object):
         results = odict()
         
         if include_bau:
-            results['BAU'] = self.runSim(parset_name = original_parset_name, plot=plot)
+            results['BAU'] = self.runSim(parset_name = original_parset_name,plot=plot)
+
         
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
+
                 results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(ops), parset_name = scen_name, plot=plot)
+                
+                if scenario_set_name is None:
+                    results[scen_name].name = '%s'%(scen_name)
+                else:
+                    results[scen_name].name = '%s:%s'%(scenario_set_name,scen_name)
+                    
+                if save_results:
+                    results[scen_name].export()
         
         return results
     

@@ -45,6 +45,13 @@ class Settings(object):
             self.validation = ValidationSettings(args['validation_level']).settings
         except:
             self.validation = ValidationSettings().settings
+        
+        try:
+            self.plot_settings = PlottingSettings(args['plotting_level']).plotdict
+        except:
+            self.plot_settings = PlottingSettings().plotdict
+            
+            
 
         self.tvec_start = 2000.0     # Default start year for data input and simulations.
         self.tvec_end = 2030.0       # Default end year for data input and simulations.
@@ -69,7 +76,7 @@ class Settings(object):
                                                          
         logging.info("Created settings based on cascade: %s"%cascade_path)
         
-        self.plot_settings = PlottingSettings().plotdict
+        
         
     def resetCascade(self):
         ''' Resets all cascade contents and settings that are fundamental to how a project is structured. '''
@@ -373,4 +380,29 @@ class PlottingSettings():
         
         pl.rcParams['figure.figsize'] = (15, 10)
         pl.rcParams['savefig.dpi'] = 300
+        
+    def presentationSettings(self):
+        pl.rcParams['font.size'] = 16
+        pl.rcParams['figure.figsize'] = (9, 8)
+        pl.rcParams['savefig.dpi'] = 300
+        
+        pl.rcParams['lines.linewidth'] = 5
+        pl.rcParams['lines.marker'] = 'None'
+        
+        pl.rcParams['axes.linewidth'] = 3
+        pl.rcParams['axes.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['axes.titlesize'] = pl.rcParams['font.size']
+        
+        pl.rcParams['xtick.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['xtick.major.size'] = 3
+        pl.rcParams['xtick.minor.size'] = 0
+        pl.rcParams['xtick.major.width'] = 2
+        pl.rcParams['xtick.minor.width'] = 0
+        pl.rcParams['ytick.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['ytick.major.size'] = 3
+        pl.rcParams['ytick.minor.size'] = 0
+        pl.rcParams['ytick.major.width'] = 2
+        pl.rcParams['ytick.minor.width'] = 0
+        
+        
         
