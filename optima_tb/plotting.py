@@ -356,7 +356,7 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_p
             
             for (i,result_name) in enumerate(scen_results.keys()):
                 result = scen_results[result_name] ############### GET VALUES JUST FOR THIS POPULATION
-                y_values_cur, t_values_cur, final_dict_cur = extractCharacteristic(results=result, charac_label=charac, charac_specs=charac_specs, data=data)
+                y_values_cur, t_values_cur, final_dict_cur, _ = extractCharacteristic(results=result, charac_label=charac, charac_specs=charac_specs, data=data)
                 yvals.append(y_values_cur[pid])
                 tvals.append(t_values_cur[pid])
                 labels.append(scen_labels[i])
@@ -687,7 +687,7 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
         
 
 def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None, 
-                       pop_ids = None, plot_total = False,
+                       pop_labels = None, plot_total = False,
                        plot_observed_data=True, save_fig=False, fig_name=None, 
                        colors=None, plotdict=None):
     """
@@ -721,8 +721,6 @@ def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None,
         
     """
     # setup
-    print plotdict
-    pop_labels = results.pop_labels
     outputs = results.outputs
     
 #    legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}
@@ -732,25 +730,30 @@ def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None,
         
     for output_id in outputIDs:
         if isPlottableCharac(output_id, charac_specs):
-            y_values, t_values, final_dict = extractCharacteristic(results=results, charac_label=output_id, charac_specs=charac_specs, data=data, fig_name=fig_name, plotdict=plotdict)
+            y_values, t_values, final_dict, pop_labels = extractCharacteristic(results=results, charac_label=output_id, 
+                                                                   charac_specs=charac_specs, data=data, 
+                                                                   pop_labels = pop_labels, plot_total = plot_total,
+                                                                   fig_name=fig_name, plotdict=plotdict)
+            
             _plotLine(y_values, t_values, pop_labels, legendsettings=None, save_fig=save_fig, **final_dict)
 
 
-def extractCharacteristic(results, charac_label, charac_specs, data, title='', plot_observed_data=True, fig_name=None, plotdict=None):
+def extractCharacteristic(results, charac_label, charac_specs, data, title='', 
+                          pop_labels = None, plot_total = False, plot_observed_data=True, fig_name=None, plotdict=None):
     
     if plotdict is None: plotdict = {}    
     tvec = results.sim_settings['tvec']
     year_inc = 5.  # TODO: move this to setting
-    
     if 'xlim' in plotdict.keys():
         xlim = plotdict['xlim']
         start_year, end_year = xlim[0], xlim[1]
     else:
-        start_year, end_year = tvec[0], tvec[1]
+        start_year, end_year = tvec[0], tvec[-1]
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
       
-    
-    mpops = results.m_pops
+    if pop_labels is None:
+        pop_labels = [pop.label for pop in results.m_pops]
+        
     outputs = results.outputs
     sim_settings = results.sim_settings
     unit_tag = ''
@@ -762,9 +765,9 @@ def extractCharacteristic(results, charac_label, charac_specs, data, title='', p
     yhat = []
     that = []
     
-    for k,pop in enumerate(mpops):
+    for k,poplabel in enumerate(pop_labels):
         
-        vals = dcp(outputs[output_id][pop.label])
+        vals = dcp(outputs[output_id][poplabel])
         
         if 'plot_percentage' in charac_specs[output_id].keys():
             vals *= 100
@@ -774,8 +777,8 @@ def extractCharacteristic(results, charac_label, charac_specs, data, title='', p
         
         if plot_observed_data:
             if output_id in data['characs'].keys():
-                ys = data['characs'][output_id][pop.label]['y']
-                ts = data['characs'][output_id][pop.label]['t']
+                ys = data['characs'][output_id][poplabel]['y']
+                ts = data['characs'][output_id][poplabel]['t']
             else:   # For the case when plottable characteristics were not in the databook and thus not converted to data.
                 ys = []
                 ts = []
@@ -787,6 +790,16 @@ def extractCharacteristic(results, charac_label, charac_specs, data, title='', p
             yhat.append(ys)
             that.append(ts)
             
+    if plot_total:
+        y_values = np.array(y_values)
+        y_values = [y_values.sum(axis=0)]
+        t_values = [t_values[0]]
+        # enforce so that no observed data is included (as we can't enforce that all points are supplied).
+        # This can be circumvented i.e. plotting against totals, by updating the values in 
+        # the returned plotting dictionary
+        yhat = [[]]
+        that = [[]]
+        pop_labels = ['Total']
             
     final_dict = {'y_hat': yhat,
                   't_hat': that,
@@ -798,7 +811,7 @@ def extractCharacteristic(results, charac_label, charac_specs, data, title='', p
                   'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
     final_dict.update(plotdict)
     
-    return y_values, t_values, final_dict
+    return y_values, t_values, final_dict, pop_labels
         
     
 def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
@@ -807,6 +820,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     """
     
     """
+    
     if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
     
     ymin_val = np.min(ys[0])
@@ -866,7 +880,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
 def plotFlows(results, settings, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
               link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False,
               plot_inflows = True, plot_outflows = True, exclude_transfers = False,
-              save_fig=False, fig_name=None, colors=None):
+              save_fig=False, fig_name=None, colors=None, suppress_plot=False):
     """
     Plot flows rates in and out of a compartment.
     """
