@@ -40,10 +40,13 @@ class ResultSet(object):
                 t_observed_data       = [2000.,2001.,2002., ...]
     """
     
-    def __init__(self, model, parset, settings):
+    def __init__(self, model, parset, settings, name=None):
         
         self.uuid = uuid()
-        self.name = 'results:' + parset.name
+        if name is None:
+            self.name = 'results:' + parset.name
+        else:
+            self.name = name
         self.parset_name = parset.name
         self.parset_id  = parset.uid
         

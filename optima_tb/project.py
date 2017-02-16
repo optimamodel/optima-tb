@@ -25,7 +25,7 @@ from numpy import max
 class Project(object):
     ''' The main Optima project class. Almost all Optima functionality is provided by this class. '''
 
-    def __init__(self, name = 'default', cascade_path = './data/cascade.xlsx', **args):
+    def __init__(self, name = 'default', cascade_path = '../data/cascade.xlsx', **args):
         ''' Initialize project. '''
 
         self.name = name
@@ -41,6 +41,10 @@ class Project(object):
         
         logger.info("Created project: %s"%self.name)
         
+    def resetParsets(self):
+        ''' Convenience function called externally to delete all parsets. '''
+        self.parsets = odict()
+        
     def setYear(self, yearRange,observed_data=True):
         '''
         
@@ -54,19 +58,17 @@ class Project(object):
             self.settings.tvec_end = yearRange[1]
     
     
-    def runSim(self, parset_name = 'default', parameterset = None, plot = False, debug = False):
+    def runSim(self, parset = None, parset_name = 'default', plot = False, debug = False):
         ''' Run model using a selected parset and store/return results. '''
         
-        if parameterset is not None:
-            parset = parameterset
-        elif len(self.parsets) < 1: 
-            raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
-        else:
-            try: parset = self.parsets[parset_name]
-            except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
+        if parset is None:
+            if len(self.parsets) < 1: 
+                raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
+            else:
+                try: parset = self.parsets[parset_name]
+                except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
 
         tm = tic()
-        #results, sim_settings, outputs = runModel(settings = self.settings, parset = parset)
         results = runModel(settings = self.settings, parset = parset)
         toc(tm, label = 'running %s model' % self.name)
         
@@ -247,7 +249,8 @@ class Project(object):
         
         pop_labels = self.data['pops']['label_names']
         
-        for (scenario_name,vals) in scenario_dict.iteritems():
+        for scenario_name in scenario_dict.keys():
+            vals = scenario_dict[scenario_name]
             
             if scenario_name in self.scenarios.keys():
                 logger.warn("Attempting to add scenario '%s' to project %s, that already contains scenario of the same name. Will ignore."%(scenario_name,self.name))
@@ -262,7 +265,7 @@ class Project(object):
         
         
 
-    def runScenarios(self,original_parset_name,include_bau=False,plot=False):
+    def runScenarios(self,original_parset_name,scenario_set_name=None,include_bau=False,plot=False,save_results=False):
         """
         Runs scenarios that are contained in this project's collection of scenarios (i.e. self.scenarios). 
         For each scenario run, using original_parset_name, the results generated are saved and 
@@ -288,11 +291,21 @@ class Project(object):
         
         if include_bau:
             results['BAU'] = self.runSim(parset_name = original_parset_name,plot=plot)
+            
         
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
-                results[scen_name] = self.runSim(parset_name = scen_name, parameterset = self.scenarios[scen].getScenarioParset(ops),plot=plot)
+                
+                results[scen_name] = self.runSim(parset_name = scen_name, parset = self.scenarios[scen].getScenarioParset(ops),plot=plot)
+                
+                if scenario_set_name is None:
+                    results[scen_name].name = '%s'%(scen_name)
+                else:
+                    results[scen_name].name = '%s:%s'%(scenario_set_name,scen_name)
+                    
+                if save_results:
+                    results[scen_name].export()
         
         return results
     
