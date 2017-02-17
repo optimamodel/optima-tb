@@ -665,7 +665,7 @@ class Model(object):
             
         # Parameters that are functions of dependencies next...
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
-        impact_pars = ['spdyes_rate']
+        impact_pars = ['spddiag_rate','spmdiag_rate','spxdiag_rate','snddiag_rate','snmdiag_rate','snxdiag_rate','spdyes_rate','spmyes_rate','spxyes_rate','sndyes_rate','snmyes_rate','snxyes_rate','spdsuc_rate','spmsuc_rate','spxsuc_rate','sndsuc_rate','snmsuc_rate','snxsuc_rate']
         for par_label in (settings.par_funcs.keys() + impact_pars):
             for pop in self.pops:
                 pars = []
@@ -690,11 +690,32 @@ class Model(object):
                     new_val = pars[0].vals[ti]      # As links are duplicated for the same tag, can pull values from the zeroth one.
                 
                 # WARNING: HARD-CODED TEST OF PROGRAM OVERWRITES.
-                if 'progs_start' in self.sim_settings and self.sim_settings['progs_start'] >= self.sim_settings['tvec'][ti]:
+                if 'progs_start' in self.sim_settings and self.sim_settings['progs_start'] <= self.sim_settings['tvec'][ti]:
 #                    print 'Nyow'
-                    if par_label == 'spdyes_rate':
-#                        print 'Woot'
-                        new_val = progset.progs[0].getImpact(1)
+                    if par_label in impact_pars:
+#                        print pars[0].val_format
+                        for prog in progset.progs:
+                            
+                            # Make sure each program impact is in the format of the parameter it affects.
+                            source_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
+                            if pars[0].val_format == 'fraction':
+                                if prog.cov_format == 'fraction':
+                                    impact = prog.getImpact(100000)
+                                elif prog.cov_format == 'number':
+                                    if source_size == 0:
+                                        impact = 0
+                                    else:
+                                        impact = prog.getImpact(100000)/source_size
+                                    if impact > 1.0: impact = 1.0
+                            elif pars[0].val_format == 'number':
+                                if prog.cov_format == 'fraction':
+                                    impact = prog.getImpact(100000)*source_size
+                                elif prog.cov_format == 'number':
+                                    impact = prog.getImpact(100000)
+                        print prog.name
+                        print prog.func_specs['pars']['unit_cost']
+                        print impact
+                        new_val = impact
                 
                 for par in pars:
                     par.vals[ti] = new_val

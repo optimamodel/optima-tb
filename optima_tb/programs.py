@@ -26,7 +26,9 @@ class ProgramSet:
             t = data['progs'][prog_label]['t']
             cost = data['progs'][prog_label]['cost']
             cov = data['progs'][prog_label]['cov']
-            new_prog = Program(name = prog_name, label = prog_label, prog_type = prog_type, t = t, cost = cost, cov = cov)
+            cost_format = data['progs'][prog_label]['cost_format']
+            cov_format = data['progs'][prog_label]['cov_format']
+            new_prog = Program(name = prog_name, label = prog_label, prog_type = prog_type, t = t, cost = cost, cov = cov, cost_format = cost_format, cov_format = cov_format)
             self.progs.append(new_prog)
             self.prog_ids[prog_label] = l 
         
@@ -39,7 +41,7 @@ class ProgramSet:
 
 class Program:
     
-    def __init__(self, name, label, prog_type, t = None, cost = None, cov = None):#, duration, category=None):
+    def __init__(self, name, label, prog_type, t = None, cost = None, cov = None, cost_format = None, cov_format = None):#, duration, category=None):
         """
         
         """
@@ -54,6 +56,8 @@ class Program:
         self.t = t                      # Time data.
         self.cost = cost                # Spending data.
         self.cov = cov                  # Coverage data.
+        self.cost_format = cost_format
+        self.cov_format = cov_format
         
         self.func_specs = dict()
         self.genFunctionSpecs()
