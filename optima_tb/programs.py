@@ -62,7 +62,7 @@ class Program:
         self.func_specs = dict()
         self.genFunctionSpecs()
         
-    def interpolate(self, tvec = None):
+    def interpolate(self, tvec = None, attribute = None):
         ''' Takes attribute values and constructs a dictionary of interpolated array corresponding to the input time vector. Ignores np.nan. '''
         
         # Validate input.
@@ -73,18 +73,19 @@ class Program:
 
         output = dict()
 
-        if len(self.t) == 1:    # If there is only one timepoint, corresponding cost and cov values should be real valued after loading databook. But can double-validate later.
-            output['cost'] = np.ones(len(tvec))*(self.cost)[0]   # Don't bother running interpolation loops if constant. Good for performance.
-            output['cov'] = np.ones(len(tvec))*(self.cov)[0]
-        else:
-            input_cost = dcp(self.cost)
-            input_cov = dcp(self.cov)
-            val_types = ['cost','cov']
-            val_arrays = [input_cost,input_cov]
-            for k in xrange(len(val_types)):
-                val_type = val_types[k]
-                val_array = val_arrays[k]
-                
+        input_cost = dcp(self.cost)
+        input_cov = dcp(self.cov)
+        val_types = ['cost','cov']
+        val_arrays = [input_cost,input_cov]
+        
+        for k in xrange(len(val_types)):
+            val_type = val_types[k]
+            val_array = val_arrays[k]
+            if attribute is not None and attribute != val_type: continue
+        
+            if len(self.t) == 1:    # If there is only one timepoint, corresponding cost and cov values should be real valued after loading databook. But can double-validate later.
+                output[val_type] = np.ones(len(tvec))*(val_array)[0]   # Don't bother running interpolation loops if constant. Good for performance.
+            else:
                 t_array = dcp(self.t)   # Need to refresh this during each attribute interpolation loop.
                 
                 # Eliminate np.nan from value array before interpolation. Makes sure timepoints are appropriately constrained.
@@ -116,9 +117,15 @@ class Program:
         self.func_specs['type'] = func_type
         
         # WARNING: HARD-CODED AND SIMPLISTIC UNIT-COST GENERATION METHOD. AMEND ASAP.
-        output = self.interpolate(tvec=[2100])
+        output = self.interpolate(tvec=[max(self.t)])    # Use the latest year stored in the program to inform unit costs.
         self.func_specs['pars'] = dict()
-        self.func_specs['pars']['unit_cost'] = output['cov'][0]/output['cost'][0]
+        self.func_specs['pars']['unit_cost'] = output['cov'][-1]/output['cost'][-1]
+        
+    def getDefaultBudget(self, year = None):
+        if year is None: year = max(self.t)
+        output = self.interpolate(tvec=[year], attribute='cost')
+        budget = output['cost'][-1]
+        return budget
         
     def getImpact(self, budget):
         
