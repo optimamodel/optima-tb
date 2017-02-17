@@ -951,7 +951,7 @@ def plotFlows(results, settings, comp_labels = None, comp_titles = None, plot_po
             if pop_titles is not None:
                 title_pop = plot_pops[j]
             else:
-                title_pop = '\nPopulation: "%s"' % pop.label
+                title_pop = '\nPopulation: "%s"' % pop_labels[j]
         
             
             final_dict = {

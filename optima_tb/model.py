@@ -665,7 +665,10 @@ class Model(object):
             
         # Parameters that are functions of dependencies next...
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
-        impact_pars = ['spddiag_rate','spmdiag_rate','spxdiag_rate','snddiag_rate','snmdiag_rate','snxdiag_rate','spdyes_rate','spmyes_rate','spxyes_rate','sndyes_rate','snmyes_rate','snxyes_rate','spdsuc_rate','spmsuc_rate','spxsuc_rate','sndsuc_rate','snmsuc_rate','snxsuc_rate']
+
+        # WARNING: IMPACT PARAMETER ORDER NEEDS TO BE CONSIDERED.
+#        impact_pars = ['spddiag_rate','spmdiag_rate','spxdiag_rate','snddiag_rate','snmdiag_rate','snxdiag_rate','spdyes_rate','spmyes_rate','spxyes_rate','sndyes_rate','snmyes_rate','snxyes_rate','spdsuc_rate','spmsuc_rate','spxsuc_rate','sndsuc_rate','snmsuc_rate','snxsuc_rate']
+        impact_pars = ['spdyes_rate']
         for par_label in (settings.par_funcs.keys() + impact_pars):
             for pop in self.pops:
                 pars = []
@@ -689,34 +692,57 @@ class Model(object):
                 else:
                     new_val = pars[0].vals[ti]      # As links are duplicated for the same tag, can pull values from the zeroth one.
                 
-                # WARNING: HARD-CODED TEST OF PROGRAM OVERWRITES.
+                # WARNING: HARD-CODED TEST OF PROGRAM OVERWRITES. CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
                 if 'progs_start' in self.sim_settings and self.sim_settings['progs_start'] <= self.sim_settings['tvec'][ti]:
 #                    print 'Nyow'
                     if par_label in impact_pars:
 #                        print pars[0].val_format
-                        for prog in progset.progs:
-                            prog_budget = prog.getDefaultBudget()
+                        for prog in progset.progs[0:1]:
+                            
+                            # Make sure the population in the loop is a target of this program.
+                            if pop.label not in prog.target_pops:
+                                continue
+                            new_val = 0
+                            prog_budget = 0#1e7#prog.getDefaultBudget()
+                            
+                            # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
+                            source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
+                            source_set_size = 0
+                            for from_pop in prog.target_pops:
+                                source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
                             
                             # Make sure each program impact is in the format of the parameter it affects.
-                            source_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
                             if pars[0].val_format == 'fraction':
                                 if prog.cov_format == 'fraction':
                                     impact = prog.getImpact(prog_budget)
                                 elif prog.cov_format == 'number':
-                                    if source_size == 0:
-                                        impact = 0
+                                    if source_element_size <= project_settings.TOLERANCE:
+                                        impact = 0.0
                                     else:
-                                        impact = prog.getImpact(prog_budget)/source_size
-                                    if impact > 1.0: impact = 1.0
+                                        impact = prog.getImpact(prog_budget)/source_set_size
+                                    if impact > 1.0: impact = 1.0   # Maximum fraction allowable due to timestep conversion.
                             elif pars[0].val_format == 'number':
                                 if prog.cov_format == 'fraction':
-                                    impact = prog.getImpact(prog_budget)*source_size
+                                    impact = prog.getImpact(prog_budget)*source_element_size
                                 elif prog.cov_format == 'number':
-                                    impact = prog.getImpact(prog_budget)
-                        print prog.name
-                        print prog.func_specs['pars']['unit_cost']
-                        print impact
-                        new_val = impact
+                                    if source_element_size <= project_settings.TOLERANCE:
+                                        impact = 0.0
+                                    else:
+                                        impact = prog.getImpact(prog_budget)*source_set_size/source_element_size
+                            if self.sim_settings['tvec'][ti] in [2020,2030]:
+                                print('Program Name: %s' % prog.name)
+                                print('Program Budget: %f' % prog_budget)
+                                print('Target Population: %s' % pop.label)
+                                print('Target Parameter: %s' % par_label)
+                                print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
+                                print('Program Impact: %f' % prog.getImpact(prog_budget))
+                                print('Program Impact Format: %s' % prog.cov_format)
+                                print('Source Compartment Size (Target Pop): %f' % source_element_size)
+                                print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
+                                print('Converted Impact: %f' % impact)
+                                print('Converted Impact Format: %s' % pars[0].val_format)
+                                print
+                            new_val += impact
                 
                 for par in pars:
                     par.vals[ti] = new_val

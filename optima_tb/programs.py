@@ -28,7 +28,11 @@ class ProgramSet:
             cov = data['progs'][prog_label]['cov']
             cost_format = data['progs'][prog_label]['cost_format']
             cov_format = data['progs'][prog_label]['cov_format']
-            new_prog = Program(name = prog_name, label = prog_label, prog_type = prog_type, t = t, cost = cost, cov = cov, cost_format = cost_format, cov_format = cov_format)
+            target_pops = data['progs'][prog_label]['target_pops']
+            new_prog = Program(name = prog_name, label = prog_label, prog_type = prog_type, 
+                               t = t, cost = cost, cov = cov, 
+                               cost_format = cost_format, cov_format = cov_format,
+                               target_pops = target_pops)
             self.progs.append(new_prog)
             self.prog_ids[prog_label] = l 
         
@@ -41,7 +45,7 @@ class ProgramSet:
 
 class Program:
     
-    def __init__(self, name, label, prog_type, t = None, cost = None, cov = None, cost_format = None, cov_format = None):#, duration, category=None):
+    def __init__(self, name, label, prog_type, t = None, cost = None, cov = None, cost_format = None, cov_format = None, target_pops = None):
         """
         
         """
@@ -58,6 +62,9 @@ class Program:
         self.cov = cov                  # Coverage data.
         self.cost_format = cost_format
         self.cov_format = cov_format
+        
+        if target_pops is None: target_pops = []
+        self.target_pops = target_pops
         
         self.func_specs = dict()
         self.genFunctionSpecs()
@@ -116,12 +123,17 @@ class Program:
         
         self.func_specs['type'] = func_type
         
-        # WARNING: HARD-CODED AND SIMPLISTIC UNIT-COST GENERATION METHOD. AMEND ASAP.
+        # WARNING: HARD-CODED AND SIMPLISTIC UNIT-COST GENERATION METHOD. IMAGINE IF THERE IS ZERO SPENDING FOR A PROGRAM IN THE LAST YEAR. AMEND ASAP.
         output = self.interpolate(tvec=[max(self.t)])    # Use the latest year stored in the program to inform unit costs.
         self.func_specs['pars'] = dict()
         self.func_specs['pars']['unit_cost'] = output['cov'][-1]/output['cost'][-1]
         
     def getDefaultBudget(self, year = None):
+        '''
+        Returns program cost, interpolated either for a given year or the last year that data exists for, as a budget.
+        Note that users may enter a unit cost into assumptions, which will provide a flawed budget value in the absence of other data.
+        '''
+        
         if year is None: year = max(self.t)
         output = self.interpolate(tvec=[year], attribute='cost')
         budget = output['cost'][-1]
