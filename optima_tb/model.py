@@ -239,6 +239,11 @@ class Model(object):
         if 'progs_start' in options:
             if progset is not None:
                 self.sim_settings['progs_start'] = options['progs_start']
+                self.sim_settings['impact_pars_not_func'] = []      # All function-based parameters will be updated in particular order.
+                                                                    # Impact parameters unaccounted for must be noted and updated afterwards.
+                for impact_label in progset.impacts.keys():
+                    if impact_label not in settings.par_funcs.keys():
+                        self.sim_settings['impact_pars_not_func'].append(impact_label)
             else:
                 raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
         
@@ -662,14 +667,13 @@ class Model(object):
                             dep.vals[ti] = np.inf
                         else:
                             dep.vals[ti] /= val
-            
-        # Parameters that are functions of dependencies next...
+        
+        # Handle parameters now that require calculations between timestep-based updates.
+        # 1st:  Any parameter that is a function of others (i.e. of previously calculated dependencies).
+        # 2nd:  Any parameter that is overwritten by a program-based cost-coverage-impact transformation.
+        # 3rd:  Any parameter that is overwritten by a special rule, e.g. averaging across populations.
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
-
-        # WARNING: IMPACT PARAMETER ORDER NEEDS TO BE CONSIDERED.
-#        impact_pars = ['spddiag_rate','spmdiag_rate','spxdiag_rate','snddiag_rate','snmdiag_rate','snxdiag_rate','spdyes_rate','spmyes_rate','spxyes_rate','sndyes_rate','snmyes_rate','snxyes_rate','spdsuc_rate','spmsuc_rate','spxsuc_rate','sndsuc_rate','snmsuc_rate','snxsuc_rate']
-        impact_pars = ['spdyes_rate']
-        for par_label in (settings.par_funcs.keys() + impact_pars):
+        for par_label in (settings.par_funcs.keys() + self.sim_settings['impact_pars_not_func']):
             for pop in self.pops:
                 pars = []
                 if par_label in settings.par_deps:
@@ -694,16 +698,16 @@ class Model(object):
                 
                 # WARNING: HARD-CODED TEST OF PROGRAM OVERWRITES. CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
                 if 'progs_start' in self.sim_settings and self.sim_settings['progs_start'] <= self.sim_settings['tvec'][ti]:
-#                    print 'Nyow'
-                    if par_label in impact_pars:
+                    if par_label in progset.impacts.keys():
 #                        print pars[0].val_format
-                        for prog in progset.progs[0:1]:
+                        for prog_label in progset.impacts[par_label]:
+                            prog = progset.getProg(prog_label)
                             
                             # Make sure the population in the loop is a target of this program.
                             if pop.label not in prog.target_pops:
                                 continue
                             new_val = 0
-                            prog_budget = 0#1e7#prog.getDefaultBudget()
+                            prog_budget = 1e6#prog.getDefaultBudget()
                             
                             # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
                             source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]

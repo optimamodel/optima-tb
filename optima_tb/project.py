@@ -96,7 +96,7 @@ class Project(object):
     def plotResults(self, results, colormappings=None, debug=False, pop_labels=None, plot_observed_data=True,savePlot=False,figName=None):
         ''' Plot all available results '''
 
-        plotProjectResults(results,settings=self.settings, data=self.data, title = self.name.title(), colormappings=colormappings, pop_labels=pop_labels, debug = debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
+        plotProjectResults(results, settings=self.settings, data=self.data, title = self.name.title(), colormappings=colormappings, pop_labels=pop_labels, debug = debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
             
     
     
@@ -130,7 +130,7 @@ class Project(object):
 
         if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
         self.progsets[name] = ProgramSet(name = name)
-        self.progsets[name].makeProgs(self.data)
+        self.progsets[name].makeProgs(data = self.data, settings = self.settings)
         
     def exportParset(self, parset_name):
         ''' Exports parset to .csv file '''

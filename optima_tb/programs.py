@@ -17,9 +17,11 @@ class ProgramSet:
         self.progs = list()
         self.prog_ids = dict()
         
+        self.impacts = dict()
+        
         logging.info("Created ProgramSet: %s"%self.name)
         
-    def makeProgs(self, data):
+    def makeProgs(self, data, settings):
         for l, prog_label in enumerate(data['progs']):
             prog_name = data['progs'][prog_label]['name']
             prog_type = data['progs'][prog_label]['prog_type']
@@ -29,12 +31,18 @@ class ProgramSet:
             cost_format = data['progs'][prog_label]['cost_format']
             cov_format = data['progs'][prog_label]['cov_format']
             target_pops = data['progs'][prog_label]['target_pops']
+            prog_type_name = data['progs'][prog_label]['prog_type']
+            prog_type_label = settings.progtype_name_labels[prog_type_name]
+            target_pars = settings.progtype_specs[prog_type_label]['impact_pars']
+            for target_par in target_pars:
+                if target_par not in self.impacts: self.impacts[target_par] = []
+                self.impacts[target_par].append(prog_label)
             new_prog = Program(name = prog_name, label = prog_label, prog_type = prog_type, 
                                t = t, cost = cost, cov = cov, 
                                cost_format = cost_format, cov_format = cov_format,
-                               target_pops = target_pops)
+                               target_pops = target_pops, target_pars = target_pars)
             self.progs.append(new_prog)
-            self.prog_ids[prog_label] = l 
+            self.prog_ids[prog_label] = l
         
     def getProg(self, label):
         if label in self.prog_ids.keys():
@@ -45,7 +53,7 @@ class ProgramSet:
 
 class Program:
     
-    def __init__(self, name, label, prog_type, t = None, cost = None, cov = None, cost_format = None, cov_format = None, target_pops = None):
+    def __init__(self, name, label, prog_type, t = None, cost = None, cov = None, cost_format = None, cov_format = None, target_pops = None, target_pars = None):
         """
         
         """
@@ -65,6 +73,9 @@ class Program:
         
         if target_pops is None: target_pops = []
         self.target_pops = target_pops
+        
+        if target_pars is None: target_pars = []
+        self.target_pars = target_pars
         
         self.func_specs = dict()
         self.genFunctionSpecs()

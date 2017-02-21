@@ -506,13 +506,19 @@ def loadCascadeSettingsFunc(cascade_path, settings):
             if ws_progtypes.cell_value(0, col_id) == 'Impact Parameters': cid_pars = col_id
         if None in [cid_tag, cid_label]:
             raise OptimaException('ERROR: Program type worksheet does not have correct column headers.')
-            
+        
+        current_label = None    # A way to associate extra lines of details to one program.
         for row_id in xrange(ws_progtypes.nrows):
             label = str(ws_progtypes.cell_value(row_id, cid_label))
             name = str(ws_progtypes.cell_value(row_id, cid_name))
             if row_id > 0 and label not in [''] and name not in ['']:
-                settings.progtype_specs[label] = {'name':name}
-                settings.progtype_name_labels[name] = label
+                current_label = label
+                settings.progtype_specs[current_label] = {'name':name, 'impact_pars':[]}
+                settings.progtype_name_labels[name] = current_label
+                                             
+            par = str(ws_progtypes.cell_value(row_id, cid_pars))
+            if row_id > 0 and par not in ['']:
+                settings.progtype_specs[current_label]['impact_pars'].append(par)
         
         #CONTINUE HERE.
     
