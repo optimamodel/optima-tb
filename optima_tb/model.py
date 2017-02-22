@@ -241,6 +241,10 @@ class Model(object):
                 self.sim_settings['progs_start'] = options['progs_start']
                 self.sim_settings['impact_pars_not_func'] = []      # All function-based parameters will be updated in particular order.
                                                                     # Impact parameters unaccounted for must be noted and updated afterwards.
+                if 'init_alloc' in options:
+                    self.sim_settings['init_alloc'] = options['init_alloc']
+                if 'saturate_with_default_budgets' in options:
+                    self.sim_settings['saturate_with_default_budgets'] = options['saturate_with_default_budgets']
                 for impact_label in progset.impacts.keys():
                     if impact_label not in settings.par_funcs.keys():
                         self.sim_settings['impact_pars_not_func'].append(impact_label)
@@ -394,11 +398,11 @@ class Model(object):
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
         
         # Make sure initially-filled junctions are processed and initial dependencies are calculated.
-        self.updateDependencies(settings = settings, progset = progset, do_special = False)     # Done first just in case junctions are dependent on characteristics.
+        self.updateValues(settings = settings, progset = progset, do_special = False)     # Done first just in case junctions are dependent on characteristics.
                                                                                                 # No special rules are applied at this stage, otherwise calculations would be iterated twice before the first step forward.
                                                                                                 # NOTE: If junction outflows were to be tagged by special rules, initial calculations may be off. Return to this later and consider logic rigorously.
         self.processJunctions(settings = settings)
-        self.updateDependencies(settings = settings, progset = progset)
+        self.updateValues(settings = settings, progset = progset)
 
 
         # set up sim_settings for later use wrt population tags
@@ -420,7 +424,7 @@ class Model(object):
 #            self.printModelState(self.t_index)
             self.stepForward(settings = settings, dt = settings.tvec_dt)
             self.processJunctions(settings = settings)
-            self.updateDependencies(settings = settings, progset = progset)
+            self.updateValues(settings = settings, progset = progset)
         
         return self.pops, self.sim_settings
 
@@ -621,7 +625,7 @@ class Model(object):
 
 
 
-    def updateDependencies(self, settings, progset = None, do_special = True):
+    def updateValues(self, settings, progset = None, do_special = True):
         '''
         Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
         These dependencies must be calculated in the same order as defined in settings, characteristics before parameters, otherwise references may break.
@@ -706,8 +710,14 @@ class Model(object):
                             # Make sure the population in the loop is a target of this program.
                             if pop.label not in prog.target_pops:
                                 continue
+                            if 'init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']:
+                                prog_budget = self.sim_settings['init_alloc'][prog_label]
+                            else:
+                                if 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
+                                    prog_budget = prog.getDefaultBudget()
+                                else: 
+                                    continue
                             new_val = 0
-                            prog_budget = 1e6#prog.getDefaultBudget()
                             
                             # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
                             source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
