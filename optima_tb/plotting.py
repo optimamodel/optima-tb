@@ -195,6 +195,7 @@ def getCategoryColors(category_list,order='alternate'):
     
     """
     col_list = odict()
+    cat_colors = []
     for k,v in category_list.iteritems():
         
         if isinstance(k, str) and k.startswith('#'):
@@ -208,9 +209,22 @@ def getCategoryColors(category_list,order='alternate'):
             raise OptimaException('Unknown color format: '+k)
         for i,label in enumerate(v):
             col_list[label] = tmp_list[i]
-    return col_list
+        cat_colors.append(tmp_list[0])
+    return col_list,cat_colors
     
     
+def separateLegend(labels,colors,fig_name):
+    
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    print labels, colors
+    fig = plt.figure()
+    patches = [
+        mpatches.Patch(color=color, label=label)
+        for label, color in zip(labels, colors)]
+    fig.legend(patches, labels, loc='center', frameon=False)
+    plt.savefig("%s_legend"%fig_name)
+
 
 def _turnOffBorder():
     """
@@ -222,7 +236,7 @@ def _turnOffBorder():
     pl.gca().yaxis.set_ticks_position('left')
 
 
-def isPlottable(comp_label,sim_settings,comp_specs):
+def isPlottableComp(comp_label,sim_settings,comp_specs):
     """ 
     Returns bool indicating whether a population label should be included in metrics
     for population reporting when plotting cascade
@@ -265,7 +279,7 @@ def getPIDs(results,poplabels):
     return pids
     
 
-def plotProjectResults(results,settings, data, title='', colormappings=None, pop_labels=None, plot_comp_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
+def plotProjectResults(results,settings, data, title='', colormappings=None, colorlabels=None, pop_labels=None, plot_comp_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
             
     
     """
@@ -291,8 +305,8 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, pop
     plotdict = settings.plot_settings
     
     # plot each disease cascade for every population
-    plotPopulation(results=results, data=data, title=title, colormappings=colormappings, pop_labels=pop_labels, plot_observed_data=plot_observed_data, \
-                   save_fig=save_fig, fig_name=fig_name, plotdict=plotdict, plot_comp_labels=plot_comp_labels)
+    #plotPopulation(results=results, data=data, title=title, colormappings=colormappings, cat_labels=colorlabels, pop_labels=pop_labels, plot_observed_data=plot_observed_data, \
+    #               save_fig=save_fig, fig_name=fig_name, plotdict=plotdict, plot_comp_labels=plot_comp_labels)
     
     # plot characteristics
     plotCharacteristic(results=results, charac_specs=charac_specs, data=data, title=title, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
@@ -376,7 +390,7 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_p
                   'xlabel':'Year',
                   'ylabel': charac_specs[charac]['name'] + unit_tag,
                   'x_ticks' : (yr_range,yr_range),
-                  'title': 'Scenario comparison: %s [%s]' % (charac_specs[charac]['name'],plot_label),
+                  'title': 'Scenario comparison:\n%s [%s]' % (charac_specs[charac]['name'],plot_label),
                   'save_figname': '%s_ScenarioComparision_%s_%s'%(fig_name, plot_label, charac_specs[charac]['name'])}
             final_dict.update(plotdict)
             
@@ -475,7 +489,7 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,plot_charac=None,pl
                 
                 comp = result.m_pops[pid].getComp(comp_label)
                 
-                all_rates, all_tvecs, all_labels = _extractFlows(comp=comp,
+                all_rates, all_tvecs, all_labels = extractFlows(comp=comp,
                                                                     results=result, 
                                                                     settings=settings,
                                                                     tvec=tvec,
@@ -515,7 +529,7 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,plot_charac=None,pl
                
 def plotPopulation(results, data, pop_labels, title='',colormappings=None, 
                    plot_observed_data=True, plot_observed_label="alive", save_fig=False, fig_name=None, 
-                   use_full_labels=True, plot_comp_labels=None, plotdict=None):
+                   use_full_labels=True, plot_comp_labels=None, plotdict=None,cat_labels=None):
     """ 
     
     Plot all compartments for all populations
@@ -533,7 +547,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
     # setup data structures
     tvec = results.sim_settings['tvec']
     year_inc = 5.  # TODO: move this to setting
-    if 'xlim' in plotdict.keys():
+    if plotdict is not None and 'xlim' in plotdict.keys():
         xlim = plotdict['xlim']
         start_year, end_year = xlim[0], xlim[1]
     else:
@@ -561,10 +575,10 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
     # setup: determine colors to be used
     colors = []
     if colormappings is not None:
-        colors_dict = getCategoryColors(colormappings,plotdict['colormapping_order'])
+        colors_dict, cat_colors = getCategoryColors(colormappings,plotdict['colormapping_order'])
         # reorder so that colors are same as expected for plotting the population
         for (j,comp_label) in enumerate(plot_comp_labels):
-            if isPlottable(comp_label,sim_settings,results.comp_specs):
+            if isPlottableComp(comp_label,sim_settings,results.comp_specs):
                 colors.append(colors_dict[comp_label])
     
     # setup: plotting dict structures  
@@ -577,24 +591,10 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
         
         if pop.label not in pop_labels:
             continue
-        comps = []
-        labels = []
         
-        for comp_id in comp_indices:
-            comp_label = pop.comps[comp_id].label
-            if isPlottable(comp_label,sim_settings,results.comp_specs):
-            
-                comps.append(pop.comps[comp_id])
-                
-                if use_full_labels:
-                    c_label = comp_labels[comp_label]
-                else:
-                    c_label = comp_label
-                labels.append(c_label)
-        if plot_observed_data:
-            ys = data['characs'][plot_observed_label][pop.label]['y']
-            ts = data['characs'][plot_observed_label][pop.label]['t']
-            dataobs = (ts,ys)
+        yvals, labels, dataobs = extractCompartment(results, sim_settings, pop, comp_indices, data, comp_labels=comp_labels, plot_observed_data=plot_observed_data, 
+                                           plot_observed_label=plot_observed_label, use_full_labels=use_full_labels)
+        
         xlim = ()
         
         pl_title = title+' Population: %s' % (pop.label)
@@ -614,77 +614,17 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
                            'bbox_to_anchor':(1.05, 0.5), 
                            'ncol':ncol}
    
-        _plotStackedCompartments(tvec, comps, labels,datapoints=dataobs,title=pl_title,legendsettings=legendsettings, 
+        _plotStackedCompartments(tvec, yvals, labels,datapoints=dataobs,title=pl_title,legendsettings=legendsettings, catlabels=cat_labels,catcolors=cat_colors,
                                      save_fig=save_fig,save_figname=save_figname,**dict)
         
-      
-def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',ylabel=None,xlabel=None,xlim=None,ymin=None,ylim=None,save_figname=None,
-                            save_fig=False,colors=None,marker='o',edgecolors='k',facecolors='none',s=40,zorder=10,linewidth=3,x_ticks=None,legendsettings={},**kwargs):  
-    """ 
-    Plot compartments in time. 
-    This creates a stacked plot of several compartments, over a given period.
-    Observed data points can also be additionally plotted, overlaying the data
         
-    Params:
-        tvec        time period
-        comps       compartment sizes
-        labels      list of labels
-        datapoints  observed datapoints, specified as a list of tuples 
-        **kwargs    further keyword arguments, such as ylims
-    """
-    if colors is None or len(colors) != len(comps):
-        if len(colors) != len(comps):
-            logger.info("Plotting: setting color scheme to be default colormap, as not all compartments had color assigned")
-        colors = gridColorMap(len(comps))
-    
-    # setup
-    fig, ax = pl.subplots()
-    bottom = 0*tvec
-    max_val = 0
-    
-    for (k,comp) in enumerate(comps):
-        top = bottom + comp.popsize
-        lw = 0
-        if save_fig:
-            lw = 0.1
-        ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=lw) # for some reason, lw=0 leads to no plot if we then use fig.savefig()
-        reg, = ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
-        bottom = dcp(top)
+    if dict.has_key('legend_off') and dict['legend_off']:
+        # Do this separately to main iteration so that figure not corrupted
+        # Note that colorlist may be different to colors, as it represents 
+        # classes of compartments
+        separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name)
         
-    max_val = max(top)
-        
-    if datapoints is not None:
-        ts,ys= datapoints[0],datapoints[1]
-        ax.scatter(ts,ys,marker=marker,edgecolors=edgecolors,facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
-        if max(ys) > max_val:
-            max_val = max(ys) 
-            
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
-    
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    if xlim is not None:
-        ax.set_xlim(xlim)
-    ax.set_ylim(ymax=max_val*1.05)
-    if ylim is not None:
-        ax.set_ylim(ylim)
-    elif ymin is not None:
-        ax.set_ylim(ymin=ymin)
-    
-    if x_ticks is not None:
-        ax.set_xticks(x_ticks[0])
-        ax.set_xticklabels(x_ticks[1])
-    
-    ax.legend(labels,**legendsettings)
-    _turnOffBorder()
-    pl.suptitle('')
-    
-    if save_fig:
-        fig.savefig('%s' % (save_figname))
-        logger.info("Saved figure: '%s'"%save_figname)
-        
+         
 
 def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None, 
                        pop_labels = None, plot_total = False,
@@ -727,6 +667,7 @@ def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None,
     
     if outputIDs is None:
         outputIDs = outputs.keys()
+           
         
     for output_id in outputIDs:
         if isPlottableCharac(output_id, charac_specs):
@@ -735,8 +676,253 @@ def plotCharacteristic(results, charac_specs, data, title='', outputIDs=None,
                                                                    pop_labels = pop_labels, plot_total = plot_total,
                                                                    fig_name=fig_name, plotdict=plotdict)
             
-            _plotLine(y_values, t_values, pop_labels, legendsettings=None, save_fig=save_fig, **final_dict)
+            _plotLine(y_values, t_values, pop_labels, legendsettings=None, save_fig=save_fig, colors=colors, **final_dict)
 
+
+
+
+def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
+              link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False,
+              plot_inflows = True, plot_outflows = True, exclude_transfers = False, observed_data = None,
+              save_fig=False, fig_name=None, colors=None, suppress_plot=False):
+    """
+    Plot flows rates in and out of a compartment.
+    """
+    plotdict = settings.plot_settings
+    year_inc = 5. # TODO remove hardcoded ref
+    tvec = results.sim_settings['tvec']
+    if 'xlim' in plotdict.keys():
+        xlim = plotdict['xlim']
+        start_year, end_year = xlim[0], xlim[1]
+    else:
+        start_year, end_year = tvec[0], tvec[1]
+    yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
+    
+    print pop_labels, plot_pops
+    
+    
+    if pop_labels is None:
+        pop_labels = results.pop_labels
+    
+    
+    if link_legend is None: link_legend = dict()
+    
+    if plot_pops is None:
+        plot_pids = getPIDs(results,pop_labels)
+    else:
+        plot_pids = range(len(results.m_pops))
+        plot_pops = [pop.label for pop in results.m_pops]
+    
+    if comp_labels is None:
+        logger.info("No compartments have been selected for flow-plots.")
+        comp_labels = []
+        
+    if comp_titles is not None and len(comp_titles) != len(comp_labels):
+        logger.error("Flow-plot failure due to the number of compartment plot titles not matching the number of compartments to analyse.")
+    if pop_titles is not None and len(pop_titles) != len(pop_labels):
+        logger.error("Flow-plot failure due to the number of population plot titles not matching the number of populations to analyse.")
+    
+    
+    for (i,comp_label) in enumerate(comp_labels):
+        
+        
+        for (j, pid) in enumerate(plot_pids):
+            
+            plot_label = plot_pops[j]
+            
+            comp = results.m_pops[pid].getComp(comp_label)
+    #            print comp_label
+    #            print 'out'
+    #            print comp.outlink_ids
+    #            print 'in'
+    #            print comp.inlink_ids
+
+            all_rates, all_tvecs, all_labels = extractFlows(comp=comp,
+                                                            results=results, 
+                                                            settings=settings,
+                                                            tvec=tvec,
+                                                            link_labels=link_labels,
+                                                            include_link_not_exclude=include_link_not_exclude,
+                                                            link_legend=link_legend,
+                                                            plot_inflows=plot_inflows,
+                                                            plot_outflows=plot_outflows,
+                                                            sum_total=sum_total,
+                                                            exclude_transfers=exclude_transfers)
+            
+            if comp_titles is not None:
+                title_comp = comp_titles[i]
+            else:
+                title_comp = 'Compartment: "%s"' % settings.node_specs[comp_label]['name']
+            if pop_titles is not None:
+                title_pop = plot_pops[j]
+            else:
+                title_pop = '\nPopulation: "%s"' % pop.label
+        
+            
+            final_dict = {
+              'ylim' : 0,
+              'xlabel':'Year',
+              'ylabel': 'Number of People',
+              'x_ticks' : (yr_range,yr_range),
+              'title': title_comp+title_pop,
+              'save_figname': '%s_FlowComparision_%s_%s'%(fig_name,comp_label,plot_label)
+              }
+            
+            if observed_data is not None:
+                final_dict['y_hat'] = [observed_data[0]]
+                final_dict['t_hat'] = [observed_data[1]]
+            final_dict.update(plotdict)
+            
+            
+            if len(all_rates) > 0:
+                _plotLine(ys=all_rates, ts=all_tvecs, labels=all_labels,colors=colors,save_fig=save_fig, **final_dict)
+            else:
+                logger.warn("No flows selected for plotting")
+            
+
+def plotPopulationFlows(results, settings, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
+              link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False, sum_population=False,
+              plot_inflows = True, plot_outflows = True, exclude_transfers = False, observed_data = None,
+              save_fig=False, fig_name=None, colors=None, suppress_plot=False):
+    """
+    Plot flows rates in and out of a compartment, across populations. 
+    
+    Suitable for total new infections, deaths, etc. where the net flow is required. 
+    """
+    plotdict = settings.plot_settings
+    year_inc = 5. # TODO remove hardcoded ref
+    tvec = results.sim_settings['tvec']
+    if 'xlim' in plotdict.keys():
+        xlim = plotdict['xlim']
+        start_year, end_year = xlim[0], xlim[1]
+    else:
+        start_year, end_year = tvec[0], tvec[1]
+    yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
+    
+    print pop_labels, plot_pops
+    
+    
+    if pop_labels is None:
+        pop_labels = results.pop_labels
+    
+    
+    if link_legend is None: link_legend = dict()
+    
+    if plot_pops is None:
+        plot_pids = getPIDs(results,pop_labels)
+    else:
+        plot_pids = range(len(results.m_pops))
+        plot_pops = [pop.label for pop in results.m_pops]
+    
+    if comp_labels is None:
+        logger.info("No compartments have been selected for flow-plots.")
+        comp_labels = []
+        
+    if comp_titles is not None and len(comp_titles) != len(comp_labels):
+        logger.error("Flow-plot failure due to the number of compartment plot titles not matching the number of compartments to analyse.")
+    if pop_titles is not None and len(pop_titles) != len(pop_labels):
+        logger.error("Flow-plot failure due to the number of population plot titles not matching the number of populations to analyse.")
+    
+    
+    for (i,comp_label) in enumerate(comp_labels):
+        
+        all_rates = []
+        all_tvecs = []
+        
+        
+        for (j, pid) in enumerate(plot_pids):
+            
+            plot_label = plot_pops[j]
+            
+            comp = results.m_pops[pid].getComp(comp_label)
+    #            print comp_label
+    #            print 'out'
+    #            print comp.outlink_ids
+    #            print 'in'
+    #            print comp.inlink_ids
+
+            rates, tvecs, all_labels = extractFlows(comp=comp,
+                                                            results=results, 
+                                                            settings=settings,
+                                                            tvec=tvec,
+                                                            link_labels=link_labels,
+                                                            include_link_not_exclude=include_link_not_exclude,
+                                                            link_legend=link_legend,
+                                                            plot_inflows=plot_inflows,
+                                                            plot_outflows=plot_outflows,
+                                                            sum_total=sum_total,
+                                                            exclude_transfers=exclude_transfers)
+            
+            print len(rates), len(tvecs)
+        
+            
+            all_rates.append(rates)
+            all_tvecs.append(tvecs)
+            
+        if comp_titles is not None:
+            title_comp = comp_titles[i]
+        else:
+            title_comp = 'Compartment: "%s"' % settings.node_specs[comp_label]['name']
+        if pop_titles is not None:
+            title_pop = plot_pops[j]
+        else:
+            title_pop = '\nPopulation: "%s"' % pop.label
+    
+        
+        final_dict = {
+          'ylim' : 0,
+          'xlabel':'Year',
+          'ylabel': 'Number of People',
+          'x_ticks' : (yr_range,yr_range),
+          'title': title_comp,
+          'save_figname': '%s_FlowComparision_%s'%(fig_name,comp_label)
+          }
+            
+        if observed_data is not None:
+            final_dict['y_hat'] = [observed_data[0]]
+            final_dict['t_hat'] = [observed_data[1]]
+        final_dict.update(plotdict)
+        
+        print all_rates
+        print all_tvecs
+        
+        if len(all_rates) > 0:
+            _plotLine(ys=all_rates, ts=all_tvecs, labels=all_labels,colors=colors,save_fig=save_fig, **final_dict)
+        else:
+            logger.warn("No flows selected for plotting")
+            
+
+
+
+def extractCompartment(results, sim_settings, pop, comp_indices, data, comp_labels=None, plot_observed_data=True, plot_observed_label="alive", 
+                   use_full_labels=False):
+    
+    comps = []
+    labels = []
+    dataobs = None
+        
+    for comp_id in comp_indices:
+        
+        comp_label = pop.comps[comp_id].label
+        
+        if isPlottableComp(comp_label,sim_settings,results.comp_specs):
+        
+            comps.append(pop.comps[comp_id])
+            
+            if use_full_labels:
+                c_label = comp_labels[comp_label]
+            else:
+                c_label = comp_label
+            labels.append(c_label)
+            
+    if plot_observed_data:
+        ys = data['characs'][plot_observed_label][pop.label]['y']
+        ts = data['characs'][plot_observed_label][pop.label]['t']
+        dataobs = (ts,ys)
+
+    return comps, labels, dataobs
+
+    
 
 def extractCharacteristic(results, charac_label, charac_specs, data, title='', 
                           pop_labels = None, plot_total = False, plot_observed_data=True, fig_name=None, plotdict=None):
@@ -813,171 +999,8 @@ def extractCharacteristic(results, charac_label, charac_specs, data, title='',
     
     return y_values, t_values, final_dict, pop_labels
         
-    
-def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
-             legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None,
-             marker='o',s=40,facecolors='none',linewidth=3,zorder=10,save_fig=False,save_figname=None,**kwargs):
-    """
-    
-    """
-    
-    if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
-    
-    ymin_val = np.min(ys[0])
-    
-    if colors is None:        
-        colors = gridColorMap(len(ys))       
-        
-    fig, ax = pl.subplots()
-    
-    for k,yval in enumerate(ys):
-        
-        ax.plot(ts[k], yval, c=colors[k])
-        if np.min(yval) < ymin_val:
-            ymin_val = np.min(yval)
-            
-        if len(y_hat) > 0 and len(y_hat[k]) > 0: # i.e. we've seen observable data
-            ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
-            if np.min(y_hat[k]) < ymin_val:
-                ymin_val = np.min(y_hat[k])
-        
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
-    
-          
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.legend(labels, **legendsettings)
-    
-    ymin = ax.get_ylim()[0]
-    # Set the ymin to be halfway between the ymin_val and current ymin. 
-    # This seems to get rid of the worst of bad choices for ylabels[0] = -5 when the real ymin=0
-    tmp_val = (ymin+ymin_val)/2.
-    ax.set_ylim(ymin=tmp_val)
-    if ylim is not None:
-        ax.set_ylim(ylim)
-    
-    
-    if xlim is not None:
-        ax.set_xlim(xlim)
-    
-    if x_ticks is not None:
-        ax.set_xticks(x_ticks[0])
-        ax.set_xticklabels(x_ticks[1])
-    if y_ticks is not None:
-        ax.set_yticks(y_ticks[0])
-        ax.set_yticklabels(y_ticks[1])
-        
-    _turnOffBorder()
-    if save_fig:
-        fig.savefig('%s' % (save_figname))                    
-        logger.info("Saved figure: '%s'"%save_figname)
-        
-    return fig
-    
-
-def plotFlows(results, settings, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
-              link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False,
-              plot_inflows = True, plot_outflows = True, exclude_transfers = False, observed_data = None,
-              save_fig=False, fig_name=None, colors=None, suppress_plot=False):
-    """
-    Plot flows rates in and out of a compartment.
-    """
-    plotdict = settings.plot_settings
-    year_inc = 5. # TODO remove hardcoded ref
-    tvec = results.sim_settings['tvec']
-    if 'xlim' in plotdict.keys():
-        xlim = plotdict['xlim']
-        start_year, end_year = xlim[0], xlim[1]
-    else:
-        start_year, end_year = tvec[0], tvec[1]
-    yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
-    
-    print pop_labels, plot_pops
-    
-    
-    if pop_labels is None:
-        pop_labels = results.pop_labels
-    
-    
-    if link_legend is None: link_legend = dict()
-    
-    if plot_pops is None:
-        plot_pids = getPIDs(results,pop_labels)
-    else:
-        plot_pids = range(len(results.m_pops))
-        plot_pops = [pop.label for pop in results.m_pops]
-    
-    if comp_labels is None:
-        logger.info("No compartments have been selected for flow-plots.")
-        comp_labels = []
-        
-    if comp_titles is not None and len(comp_titles) != len(comp_labels):
-        logger.error("Flow-plot failure due to the number of compartment plot titles not matching the number of compartments to analyse.")
-    if pop_titles is not None and len(pop_titles) != len(pop_labels):
-        logger.error("Flow-plot failure due to the number of population plot titles not matching the number of populations to analyse.")
-    
-    
-    for (i,comp_label) in enumerate(comp_labels):
-        
-        for (j, pid) in enumerate(plot_pids):
-            
-            plot_label = plot_pops[j]
-            
-            comp = results.m_pops[pid].getComp(comp_label)
-    #            print comp_label
-    #            print 'out'
-    #            print comp.outlink_ids
-    #            print 'in'
-    #            print comp.inlink_ids
-
-            all_rates, all_tvecs, all_labels = _extractFlows(comp=comp,
-                                                            results=results, 
-                                                            settings=settings,
-                                                            tvec=tvec,
-                                                            link_labels=link_labels,
-                                                            include_link_not_exclude=include_link_not_exclude,
-                                                            link_legend=link_legend,
-                                                            plot_inflows=plot_inflows,
-                                                            plot_outflows=plot_outflows,
-                                                            sum_total=sum_total,
-                                                            exclude_transfers=exclude_transfers)
-            
-            if comp_titles is not None:
-                title_comp = comp_titles[i]
-            else:
-                title_comp = 'Compartment: "%s"' % settings.node_specs[comp_label]['name']
-            if pop_titles is not None:
-                title_pop = plot_pops[j]
-            else:
-                title_pop = '\nPopulation: "%s"' % pop.label
-        
-            
-            final_dict = {
-              'ylim' : 0,
-              'xlabel':'Year',
-              'ylabel': 'Number of People',
-              'x_ticks' : (yr_range,yr_range),
-              'title': title_comp+title_pop,
-              'save_figname': '%s_FlowComparision_%s_%s'%(fig_name,comp_label,plot_label)
-              }
-            
-            if observed_data is not None:
-                final_dict['y_hat'] = [observed_data[0]]
-                final_dict['t_hat'] = [observed_data[1]]
-            final_dict.update(plotdict)
-            
-            
-            if len(all_rates) > 0:
-                _plotLine(ys=all_rates, ts=all_tvecs, labels=all_labels,colors=colors,save_fig=save_fig, **final_dict)
-            else:
-                pl.figure()
-            
-
-        
-        
-def _extractFlows(comp, results, settings, tvec, link_labels = None, include_link_not_exclude = True, link_legend = None, 
+      
+def extractFlows(comp, results, settings, tvec, link_labels = None, include_link_not_exclude = True, link_legend = None, 
                   plot_inflows = True, plot_outflows = True, exclude_transfers = False, sum_total=False):
     all_labels = []
     all_rates = []
@@ -1026,7 +1049,151 @@ def _extractFlows(comp, results, settings, tvec, link_labels = None, include_lin
         all_rates = [all_rates_tmp.sum(axis=0)]
         
     return all_rates, all_tvecs, all_labels
+    
+     
+def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',ylabel=None,xlabel=None,xlim=None,ymin=None,ylim=None,save_figname=None,legend_off=False,
+                            save_fig=False,colors=None,catlabels=None,catcolors=None,
+                            marker='o',edgecolors='k',facecolors='none',s=40,zorder=10,linewidth=3,x_ticks=None,legendsettings={},**kwargs):  
+    """ 
+    Plot compartments in time. 
+    This creates a stacked plot of several compartments, over a given period.
+    Observed data points can also be additionally plotted, overlaying the data
+        
+    Params:
+        tvec        time period
+        comps       compartment sizes
+        labels      list of labels
+        datapoints  observed datapoints, specified as a list of tuples 
+        **kwargs    further keyword arguments, such as ylims
+    """
+    if colors is None or len(colors) != len(comps):
+        if len(colors) != len(comps):
+            logger.info("Plotting: setting color scheme to be default colormap, as not all compartments had color assigned")
+        colors = gridColorMap(len(comps))
+    
+    # setup
+    fig, ax = pl.subplots()
+    bottom = 0*tvec
+    max_val = 0
+    
+    for (k,comp) in enumerate(comps):
+        top = bottom + comp.popsize
+        lw = 0
+        if save_fig:
+            lw = 0.1
+        ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=lw) # for some reason, lw=0 leads to no plot if we then use fig.savefig()
+        reg, = ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
+        bottom = dcp(top)
+        
+    max_val = max(top)
+        
+    if datapoints is not None:
+        ts,ys= datapoints[0],datapoints[1]
+        ax.scatter(ts,ys,marker=marker,edgecolors=edgecolors,facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
+        if max(ys) > max_val:
+            max_val = max(ys) 
             
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
+    
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    ax.set_ylim(ymax=max_val*1.05)
+    if ylim is not None:
+        ax.set_ylim(ylim)
+    elif ymin is not None:
+        ax.set_ylim(ymin=ymin)
+    
+    if x_ticks is not None:
+        ax.set_xticks(x_ticks[0])
+        ax.set_xticklabels(x_ticks[1])
+    
+    if not legend_off:
+        ax.legend(labels, **legendsettings)
+    
+    _turnOffBorder()
+    pl.suptitle('')
+    
+    if save_fig:
+        fig.savefig('%s' % (save_figname))
+        logger.info("Saved figure: '%s'"%save_figname)
+        
+    
+ 
+    
+def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
+             legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None,
+             marker='o',s=40,facecolors='none',linewidth=3,zorder=10,save_fig=False,save_figname=None,legend_off=False,**kwargs):
+    """
+    
+    """
+    
+    if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
+    
+    ymin_val = np.min(ys[0])
+    
+    if colors is None:        
+        colors = gridColorMap(len(ys))  
+    elif len(colors) < len(ys):
+        colors = gridColorMap(len(ys))    
+        
+    fig, ax = pl.subplots()
+    print len(ys), len(ts), len(colors)
+    for k,yval in enumerate(ys):
+        
+        ax.plot(ts[k], yval, c=colors[k])
+        if np.min(yval) < ymin_val:
+            ymin_val = np.min(yval)
+            
+        if len(y_hat) > 0 and len(y_hat[k]) > 0: # i.e. we've seen observable data
+            ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
+            if np.min(y_hat[k]) < ymin_val:
+                ymin_val = np.min(y_hat[k])
+        
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
+    
+          
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    
+    
+    if not legend_off:
+        ax.legend(labels, **legendsettings)
+    
+    ymin = ax.get_ylim()[0]
+    # Set the ymin to be halfway between the ymin_val and current ymin. 
+    # This seems to get rid of the worst of bad choices for ylabels[0] = -5 when the real ymin=0
+    tmp_val = (ymin+ymin_val)/2.
+    ax.set_ylim(ymin=tmp_val)
+    if ylim is not None:
+        ax.set_ylim(ylim)
+    
+    
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    
+    if x_ticks is not None:
+        ax.set_xticks(x_ticks[0])
+        ax.set_xticklabels(x_ticks[1])
+    if y_ticks is not None:
+        ax.set_yticks(y_ticks[0])
+        ax.set_yticklabels(y_ticks[1])
+        
+    _turnOffBorder()
+    if save_fig:
+        fig.savefig('%s' % (save_figname))                    
+        logger.info("Saved figure: '%s'"%save_figname)
+        
+    return fig
+    
+
+        
+              
 def plotAllOutflows(results, num_subplots = 5):
     """ 
     Visualise outflows for each compartment in each population as fractions of compartment size
