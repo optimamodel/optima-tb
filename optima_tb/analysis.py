@@ -6,7 +6,7 @@ import numpy as np
 from optima_tb.utils import OptimaException, odict
 from optima_tb.cascade import __addCharacteristic
 from optima_tb.databook import __addCharacteristicData, getEmptyData
-from optima_tb.plotting import _extractFlows 
+from optima_tb.plotting import extractFlows 
 
 
 
@@ -251,7 +251,7 @@ def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles 
             
             comp = results.m_pops[pid].getComp(comp_label)
             
-            rates, tvecs, labels = _extractFlows(comp=comp,
+            rates, tvecs, labels = extractFlows(comp=comp,
                                                     results=results, 
                                                     settings=settings,
                                                     tvec=tvec,
@@ -262,7 +262,7 @@ def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles 
                                                     plot_outflows=plot_outflows,
                                                     sum_total=sum_total,
                                                     exclude_transfers=exclude_transfers)
-        
+            
             all_rates.append(rates)
             all_tvecs.append(tvecs)
             all_labels.append(labels)
