@@ -306,10 +306,10 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, col
     
     # plot each disease cascade for every population
     plotPopulation(results=results, data=data, title=title, colormappings=colormappings, cat_labels=colorlabels, pop_labels=pop_labels, plot_observed_data=plot_observed_data, \
-                   save_fig=save_fig, fig_name=fig_name, plotdict=plotdict, plot_comp_labels=plot_comp_labels)
-    
+                   save_fig=save_fig, fig_name=fig_name, plotdict=plotdict, comp_labels=plot_comp_labels)
+     
     # plot characteristics
-    #plotCharacteristic(results=results, settings=settings, pop_labels=pop_labels, data=data, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
+    plotCharacteristic(results=results, settings=settings, pop_labels=pop_labels, data=data, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # internal plotting
     if debug:
         plotAllOutflows(results)
@@ -684,10 +684,10 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         start_year, end_year = tvec[0], tvec[-1]
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
       
-    
         
     # now only select characteristics which are plottable
     outputIDs = [output_id for output_id in outputIDs if isPlottableCharac(output_id, charac_specs)]       
+
 
     # extract all characteristics we're interested in, all at once
     y_values, labels, unit_tags, dataobs = extractCharacteristic(results, data, charac_specs, charac_labels=outputIDs, pop_labels=pop_labels, plot_observed_data=plot_observed_data, plot_total=plot_total)
@@ -731,8 +731,6 @@ def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles
         start_year, end_year = tvec[0], tvec[1]
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
     
-    #print pop_labels, plot_pops
-    
     
     if pop_labels is None:
         pop_labels = results.pop_labels
@@ -764,12 +762,7 @@ def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles
             plot_label = plot_pops[j]
             
             comp = results.m_pops[pid].getComp(comp_label)
-    #            print comp_label
-    #            print 'out'
-    #            print comp.outlink_ids
-    #            print 'in'
-    #            print comp.inlink_ids
-
+    
             all_rates, all_tvecs, all_labels = extractFlows(comp=comp,
                                                             results=results, 
                                                             settings=settings,
@@ -1053,7 +1046,7 @@ def extCharTmp():
 
 def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_labels=None, plot_observed_data=True, plot_total=False):
         
-    datapoints = results.getCharacteristicDatapoints(pop_label=pop_labels,char_label=charac_labels,use_observed_times=False)
+    datapoints, _, _ = results.getCharacteristicDatapoints(pop_label=pop_labels,char_label=charac_labels,use_observed_times=False)
     
     unit_tags = []
     dataobs = None
@@ -1066,7 +1059,7 @@ def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_l
     for k,output_id in enumerate(charac_labels):
         
         if 'plot_percentage' in charac_specs[output_id].keys():
-            y_values = [datapoints[output_id][pop] for pop in pop_labels]
+            y_values = [datapoints[output_id][i] for i,p in enumerate(pop_labels)]
             y_values = np.array(y_values)
             y_values *= 100
             datapoints[output_id] = y_values            
