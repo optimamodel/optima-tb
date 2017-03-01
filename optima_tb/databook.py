@@ -17,7 +17,7 @@ from copy import deepcopy as dcp
 
 #%% Utility functions to generate sub-blocks of the project databook
 
-def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, assumption_overrides = None, data_formats = None, print_conditions = None, no_header = False):
+def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, assumption_overrides = None, data_formats = None, print_conditions = None, no_header = False, only_assumption = False):
     '''
     Create a block where users choose data-entry format and enter values either as an assumption or time-dependent array.
     
@@ -35,6 +35,8 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
                                     This is not data validation, but will determine the form of calculations during model processing.
         print_conditions        -   A list of Excel-string conditions that are used to test whether data-entry arrays should be shown.
                                     List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
+        no_header               -   A flag for whether the output excel block should contain assumption and year column headers.
+        only_assumption         -   Locks out value entry for anything but the assumption.
                                 
     Note that if no data format is specified, data formats for 'Fraction' or 'Number' are available. The default choice of the 
     data format is assumed that if the assumption value is larger than 1., then it is likely to be a Number, otherwise it is assumed to be a Fraction.
@@ -62,6 +64,9 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
     # If no overrides are provided or they are of incorrect length, just revert to the original assumption.    
     if assumption_overrides is None or len(assumption_overrides) != num_arrays:
         assumption_overrides = [assumption]*num_arrays
+                               
+    value_default = ''
+    if only_assumption: value_default = '...'
     
     for aid in xrange(num_arrays):
         row_id = at_row + aid + header_offset
@@ -71,12 +76,20 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
         worksheet.data_validation('%s' % rc(row_id,at_col), {'validate': 'list', 'source': data_formats, 'ignore_blank': False}) 
         if not print_conditions is None and not print_conditions[aid] is None:
             worksheet.write(row_id, at_col, '=IF(%s,"%s","")' % (print_conditions[aid], data_format_assumption), None, '')      # Default choice for data format.
-            worksheet.write(row_id, at_col + 1, '=IF(%s,IF(SUMPRODUCT(--(%s:%s<>""))=0,%s,"N.A."),"")' % (print_conditions[aid], rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption_overrides[aid]), None, '')
+            worksheet.write(row_id, at_col + 1, '=IF(%s,IF(SUMPRODUCT(--(%s:%s<>"%s"))=0,%s,"N.A."),"")' % (print_conditions[aid], rc(row_id,offset), rc(row_id,offset+len(tvec)-1), value_default, assumption_overrides[aid]), None, '')
             worksheet.write(row_id, at_col + 2, '=IF(%s,"OR","")' % print_conditions[aid], None, '')
+            if only_assumption:
+                for k in xrange(len(tvec)):
+                    worksheet.write(row_id, at_col + 3 + k, '=IF(%s,"%s","")' % (print_conditions[aid], value_default), None, '')
+                    worksheet.data_validation('%s' % rc(row_id,at_col+3+k), {'validate': 'list', 'source': ['%s' % value_default], 'ignore_blank': False})
         else:
             worksheet.write(row_id, at_col, data_format_assumption)      # Default choice for data format.
-            worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>""))=0,%s,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), assumption_overrides[aid]), None, assumption)
+            worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>"%s"))=0,%s,"N.A.")' % (rc(row_id,offset), rc(row_id,offset+len(tvec)-1), value_default, assumption_overrides[aid]), None, assumption)
             worksheet.write(row_id, at_col + 2, 'OR')
+            if only_assumption:
+                for k in xrange(len(tvec)):
+                    worksheet.write(row_id, at_col + 3 + k, '%s' % value_default)
+                    worksheet.data_validation('%s' % rc(row_id,at_col+3+k), {'validate': 'list', 'source': ['%s' % value_default], 'ignore_blank': False})
         
         
 def makeTagMatrix(worksheet, at_row, num_rows, at_col, labels, formula_labels = None, allowed_vals = None, no_validation = False):
@@ -324,7 +337,6 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     #%% Program details sheet.
     
     if include_progs:
-    #    sh_pops = settings.databook['sheet_names']['pops']      # Convenient abbreviation.
         row_id = 0
         for prid in xrange(num_progs):
             ws_progval.write(row_id, 0, prog_names_formula[prid], None, prog_names_default[prid])
@@ -333,33 +345,15 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
             ws_progval.write(row_id + 1, 0, '...')
             ws_progval.write(row_id + 2, 0, 'Cost-Coverage Details')
             ws_progval.write(row_id + 3, 0, '...')
+            ws_progval.write(row_id + 4, 0, '...')
             ws_progval.write(row_id + 2, 1, 'Program Coverage')
             ws_progval.write(row_id + 3, 1, 'Program Funding')
-            makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 1, at_col = 2, num_arrays = 1, tvec = data_tvec)#, assumption_overrides = assumption_overrides, print_conditions = print_conditions)
+            ws_progval.write(row_id + 4, 1, '=CONCATENATE("Unit Cost Estimate",IF(%s="Fraction"," (Per 1%%)",""))' % rc(row_id+2,2), None, 'Unit Cost Estimate')
+            makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 1, at_col = 2, num_arrays = 1, tvec = data_tvec, data_formats = ['Number','Fraction'])
             makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 3, at_col = 2, num_arrays = 1, tvec = data_tvec, data_formats = ['USD'], no_header = True)
-    #        print_conditions = []
-    #        assumption_overrides = []
-    #        
-    #        k = 0   # A counter for number of arrays, used to id print conditions.
-    #        print_row = row_id
-    #        for source_id in xrange(num_pops):
-    #            for target_id in xrange(num_pops):
-    #                if source_id != target_id:
-    #                    row_id += 1
-    #                    r = mig_matrix_rows[mid] + source_id + 1
-    #                    c = target_id + 1
-    #                    ws_transval.write(row_id, 0, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[source_id][1:],'"..."'), None, '...')
-    #                    ws_transval.write(row_id, 1, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"','"--->"','""'), None, '')
-    #                    ws_transval.write(row_id, 2, "=IF('%s'!%s=%s,%s,%s)" % (settings.databook['sheet_names']['transmat'],rc(r,c),'"y"',pop_names_formula[target_id][1:],'""'), None, '')
-    #                    
-    #                    print_conditions.append('%s<>"..."' % rc(print_row+k+1,0))
-    #                    if mid == 0:    # Aging assumptions are equations that try to work out aging fraction based on Minimum and Maximum pop age.
-    #                        assumption_equation = "IF(AND('%s'!%s<>%s,'%s'!%s<>%s),1/('%s'!%s-'%s'!%s+1),0)" % (sh_pops, rc(source_id+1,age_max_col), '""', sh_pops, rc(source_id+1,age_min_col), '""', sh_pops, rc(source_id+1,age_max_col), sh_pops, rc(source_id+1,age_min_col))
-    #                        assumption_overrides.append(assumption_equation)
-    #                    k += 1
-    #        makeValueEntryArrayBlock(worksheet = ws_transval, at_row = print_row, at_col = 3, num_arrays = num_pops*(num_pops-1), tvec = data_tvec, assumption_overrides = assumption_overrides, print_conditions = print_conditions)
+            makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 4, at_col = 2, num_arrays = 1, tvec = data_tvec, assumption = '1.0E+300', data_formats = ['=CONCATENATE(%s)' % (rc(row_id+3,2))], no_header = True, only_assumption = True)
             
-            row_id += 5
+            row_id += 6
             
         ws_progval.set_column(0, 1, ws_progval_width)
         ws_progval.set_column(2, 3, assumption_width)
@@ -602,11 +596,12 @@ def loadSpreadsheetFunc(settings, databook_path):
                     data['meta']['progs']['label_names'][prog_label] = str(ws_progmat.cell_value(row_id, 0))
                     data['progs'][prog_label] = dict()
                     data['progs'][prog_label]['name'] = str(ws_progmat.cell_value(row_id, 0))   # Label name linkage is also in metadata, but redundancy here is ok for now.
+                    data['progs'][prog_label]['target_pops'] = []
                     for col_id in xrange(ws_progmat.ncols):
                         if col_id > 1:
                             if str(ws_progmat.cell_value(row_id, col_id)) == 'y':
-                                if 'target_pops' not in data['progs'][prog_label].keys():
-                                    data['progs'][prog_label]['target_pops'] = []
+#                                if 'target_pops' not in data['progs'][prog_label].keys():
+#                                    data['progs'][prog_label]['target_pops'] = []
                                 data['progs'][prog_label]['target_pops'].append(str(ws_progmat.cell_value(0, col_id)))
                                 
     #%% Program details sheet.
@@ -633,6 +628,10 @@ def loadSpreadsheetFunc(settings, databook_path):
                 if important_col == 'Program Funding':
                     tag = 'cost'
                     get_data = True
+                print important_col
+                if important_col.startswith('Unit Cost Estimate'):
+                    print 'huzzah'
+                    data['progs'][prog_label]['unit_cost'] = str(ws_progval.cell_value(row_id, 3))
                 if get_data:
                     for col_id in xrange(ws_progval.ncols):
                         if col_id == 2:

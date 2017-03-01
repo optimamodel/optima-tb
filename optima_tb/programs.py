@@ -37,10 +37,15 @@ class ProgramSet:
             for target_par in target_pars:
                 if target_par not in self.impacts: self.impacts[target_par] = []
                 self.impacts[target_par].append(prog_label)
-            new_prog = Program(name = prog_name, label = prog_label, prog_type = prog_type, 
+            new_prog = Program(name = prog_name, label = prog_label, prog_type = prog_type,
                                t = t, cost = cost, cov = cov, 
                                cost_format = cost_format, cov_format = cov_format,
                                target_pops = target_pops, target_pars = target_pars)
+            
+            func_pars = dict()
+            func_pars['unit_cost'] = data['progs'][prog_label]['unit_cost']
+            new_prog.genFunctionSpecs(func_pars = func_pars)
+            
             self.progs.append(new_prog)
             self.prog_ids[prog_label] = l
         
@@ -78,7 +83,6 @@ class Program:
         self.target_pars = target_pars
         
         self.func_specs = dict()
-        self.genFunctionSpecs()
         
     def interpolate(self, tvec = None, attribute = None):
         ''' Takes attribute values and constructs a dictionary of interpolated array corresponding to the input time vector. Ignores np.nan. '''
@@ -130,14 +134,15 @@ class Program:
         
         return output
         
-    def genFunctionSpecs(self, func_type = 'linear'):
+    def genFunctionSpecs(self, func_pars, func_type = 'linear'):
         
         self.func_specs['type'] = func_type
         
-        # WARNING: HARD-CODED AND SIMPLISTIC UNIT-COST GENERATION METHOD. IMAGINE IF THERE IS ZERO SPENDING FOR A PROGRAM IN THE LAST YEAR. AMEND ASAP.
-        output = self.interpolate(tvec=[max(self.t)])    # Use the latest year stored in the program to inform unit costs.
+#        # WARNING: HARD-CODED AND SIMPLISTIC UNIT-COST GENERATION METHOD. IMAGINE IF THERE IS ZERO SPENDING FOR A PROGRAM IN THE LAST YEAR. AMEND ASAP.
+#        output = self.interpolate(tvec=[max(self.t)])    # Use the latest year stored in the program to inform unit costs.
         self.func_specs['pars'] = dict()
-        self.func_specs['pars']['unit_cost'] = output['cov'][-1]/output['cost'][-1]
+#        self.func_specs['pars']['unit_cost'] = output['cov'][-1]/output['cost'][-1]
+        self.func_specs['pars']['unit_cost'] = func_pars['unit_cost']
         
     def getDefaultBudget(self, year = None):
         '''
@@ -153,7 +158,10 @@ class Program:
     def getImpact(self, budget):
         
         # WARNING: ASSUMING COVERAGE IS IMPACT.
-        return self.func_specs['pars']['unit_cost']*budget
+        if self.cov_format.lower() == 'fraction':
+            return self.func_specs['pars']['unit_cost']*budget*0.01     # Unit cost is per percentage when format is a fraction.
+        else:
+            return self.func_specs['pars']['unit_cost']*budget
         
 
 #        self.duration = duration
