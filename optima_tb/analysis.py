@@ -160,24 +160,23 @@ def calculateCumulativeDerivatives(results, settings, from_year, to_year,
     
     """
     tvec = results.sim_settings['tvec']
-    #print comp_labels
-    #print pop_labels
+    
     rates, tvecs, labels = extractDerivatives(results=results, 
                                               settings=settings,
                                               tvec=tvec,
                                               plot_inflows=plot_inflows,
                                               plot_outflows=plot_outflows,
                                               comp_labels = comp_labels, 
-                                              comp_titles = comp_titles, 
+                                              #comp_titles = comp_titles, 
                                               pop_labels = pop_labels, 
-                                              pop_titles = pop_titles, 
-                                              plot_pops = pop_labels,
+                                              #pop_titles = pop_titles, 
+                                              #plot_pops = pop_labels,
                                               link_labels = link_labels, 
                                               include_link_not_exclude = include_link_not_exclude, 
                                               link_legend = link_legend, 
                                               sum_total=sum_total,
                                               exclude_transfers = exclude_transfers)
-    
+
     # sum across populations
     yvals = np.array(rates)
     yvals = yvals.sum(axis=0)[0]
@@ -212,31 +211,29 @@ def getPIDs(results,poplabels):
     return pids
     
 
-def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
+def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles = None, pop_labels = None, 
               link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False,
               plot_inflows = True, plot_outflows = True, exclude_transfers = False):
     """
     
     """
     
-    if pop_labels is None: pop_labels = results.pop_labels
-    
     if link_legend is None: link_legend = dict()
     
-    if plot_pops is not None:
-        plot_pids = getPIDs(results,plot_pops)
+    if pop_labels is not None:
+        plot_pids = getPIDs(results,pop_labels)
     else:
         plot_pids = range(len(results.m_pops))
-        plot_pops = [pop.label for pop in results.m_pops]
+        pop_labels = [pop.label for pop in results.m_pops]
     
     if comp_labels is None:
-        logger.info("No compartments have been selected for flow-plots.")
+        logger.error("No compartments have been selected for flow-plots.")
         comp_labels = []
+        return
+        
         
     if comp_titles is not None and len(comp_titles) != len(comp_labels):
         logger.error("Flow-plot failure due to the number of compartment plot titles not matching the number of compartments to analyse.")
-    if pop_titles is not None and len(pop_titles) != len(pop_labels):
-        logger.error("Flow-plot failure due to the number of population plot titles not matching the number of populations to analyse.")
     
     all_rates = []
     all_tvecs = []
@@ -247,11 +244,8 @@ def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles 
         
         for (j, pid) in enumerate(plot_pids):
             
-            plot_label = plot_pops[j]
-            
-            comp = results.m_pops[pid].getComp(comp_label)
-            
-            rates, tvecs, labels = extractFlows(comp=comp,
+            rates, tvecs, labels = extractFlows(pop_labels=[pid],
+                                                    comp_label=comp_label,
                                                     results=results, 
                                                     settings=settings,
                                                     tvec=tvec,
