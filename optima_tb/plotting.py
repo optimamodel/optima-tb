@@ -403,7 +403,7 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it represents 
         # classes of compartments
-        separateLegend(labels=labels,colors=cat_colors,fig_name=fig_name+"_ScenarioComparison")
+        separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_ScenarioComparison")
         
          
     
@@ -654,7 +654,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
                            'ncol':ncol}
    
         _plotStackedCompartments(tvec, y_values[i][:], labels, datapoints=(that[i],yhat[i]),
-                                 title=pl_title,legendsettings=legendsettings, catlabels=cat_labels,catcolors=cat_colors,
+                                 title=pl_title,legendsettings=legendsettings, catlabels=cat_labels,catcolors=colors,
                                  save_fig=save_fig,save_figname=save_figname,**pdict)
         
         
