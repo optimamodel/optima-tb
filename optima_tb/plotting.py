@@ -314,8 +314,8 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, col
     if debug:
         plotAllOutflows(results)
     
-def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_pops=None,
-                  colormappings=None,colors=None,plot_observed_data=True,save_fig=False,fig_name=None):
+def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_labels=None,
+                  colormappings=None,colors=None,plot_observed_data=False,save_fig=False,fig_name=None):
     """
     Line plots for scenarios. Should be used for characteristics only.
     
@@ -347,60 +347,70 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,plot_p
     
     
     if plot_charac is None:
-        pass
+        plot_charac = results.outputs.keys()
+        plot_charac = [output_id for output_id in plot_charac if isPlottableCharac(output_id, charac_specs)]       
+
     
-    if plot_pops is None:
-        plot_pids = getPIDs(scen_results[0],plot_pops) #####
+    if pop_labels is None:
+        plot_pids = getPIDs(scen_results[0],pop_labels) #####
     else:
         plot_pids = range(len(scen_results[0].m_pops))
-        plot_pops = [pop.label for pop in scen_results[0].m_pops]
+        pop_labels = [pop.label for pop in scen_results[0].m_pops]
     
     # generate plots
     for (i, pid) in enumerate(plot_pids):
-        plot_label = plot_pops[i]
+        pop_label = pop_labels[i]
         
         for charac in plot_charac:
         
             yvals = []
-            tvals = []
             labels= []
             observed_data = []
             yhat = []
             that = []
             
-            for (i,result_name) in enumerate(scen_results.keys()):
-                result = scen_results[result_name] ############### GET VALUES JUST FOR THIS POPULATION
-                y_values_cur, t_values_cur, final_dict_cur, _ = extractCharacteristic(results=result, charac_label=charac, charac_specs=charac_specs, data=data)
-                yvals.append(y_values_cur[pid])
-                tvals.append(t_values_cur[pid])
-                labels.append(scen_labels[i])
+            for (ri,result_name) in enumerate(scen_results.keys()):
+                result = scen_results[result_name] 
+                y_values_cur, _, _, _ = extractCharacteristic(results=result, charac_labels=[charac], charac_specs=charac_specs, data=data, pop_labels=[pop_label])
+
+                yvals.append(y_values_cur[charac][:][0])
+                labels.append(scen_labels[ri])
             
             if plot_observed_data:
-                pass # TODO: include 
+                pass # TODO: include in future, but will require information as to which is the 'Current conditions' / 'BAU' scenario.
             
             unit_tag = ''
             if 'plot_percentage' in charac_specs[charac].keys():
                 ### we don't vals *= 100, as this is already done in extractCharacteristic()
                 unit_tag = ' (%)'
             
-            final_dict = {'y_hat': yhat,
-                  't_hat': that,
+            final_dict = {#'y_hat': yhat,
+                  #'t_hat': that,
                   'ylim' : 0,
                   'unit_tag': unit_tag,
                   'xlabel':'Year',
                   'ylabel': charac_specs[charac]['name'] + unit_tag,
                   'x_ticks' : (yr_range,yr_range),
-                  'title': 'Scenario comparison:\n%s [%s]' % (charac_specs[charac]['name'],plot_label),
-                  'save_figname': '%s_ScenarioComparision_%s_%s'%(fig_name, plot_label, charac_specs[charac]['name'])}
+                  'title': 'Scenario comparison:\n%s [%s]' % (charac_specs[charac]['name'],pop_label),
+                  'save_figname': '%s_ScenarioComparision_%s_%s'%(fig_name, pop_label, charac_specs[charac]['name'])}
             final_dict.update(plotdict)
             
-            figure = _plotLine(ys = yvals, ts = tvals, labels = labels, legendsettings=None, save_fig=save_fig, fig_name=fig_name, colors=colors, **final_dict)#, y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
             
+            figure = _plotLine(ys = yvals, ts = np.tile(tvec,(len(labels),1)), labels = labels, legendsettings=None, save_fig=save_fig, fig_name=fig_name, colors=colors, **final_dict)#, y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
+            
+    if final_dict.has_key('legend_off') and final_dict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it represents 
+        # classes of compartments
+        separateLegend(labels=labels,colors=cat_colors,fig_name=fig_name+"_ScenarioComparison")
         
-def plotScenarioFlows(scen_results,scen_labels,settings,data,plot_charac=None,plot_pops=None,
-                      comp_labels = None, comp_titles = None, pop_labels = None, pop_titles = None, 
+         
+    
+    
+def plotScenarioFlows(scen_results,scen_labels,settings,data,
+                      comp_labels = None, comp_titles = None, pop_labels = None, 
                       link_labels = None, include_link_not_exclude = True, link_legend = None, 
-                      plot_inflows = True, plot_outflows = True, exclude_transfers = False, sum_total=False,
+                      plot_inflows = True, plot_outflows = True, exclude_transfers = False, sum_total=False, sum_population=False,
                       colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, colors=None):
     """
     Line plots for scenarios. Should be used for flows (instantaneous rates) only.
@@ -422,82 +432,64 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,plot_charac=None,pl
     plotdict = settings.plot_settings
     year_inc = 5.  # TODO: move this to setting
     tvec = scen_results[0].sim_settings['tvec'] # TODO
+    
     if 'xlim' in plotdict.keys():
         xlim = plotdict['xlim']
         start_year, end_year = xlim[0], xlim[1]
     else:
         start_year, end_year = tvec[0], tvec[1]
+        
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
-    
-    
-    if plot_charac is None:
-        pass
-    
-    if plot_pops is None:
+        
+  
+    if pop_labels is not None:
         plot_pids = getPIDs(scen_results[0],plot_pops)
     else:
+        pop_labels = scen_results[0].pop_labels
         plot_pids = range(len(scen_results[0].m_pops))
-        plot_pops = [pop.label for pop in scen_results[0].m_pops]
-    
-    if pop_labels is None: pop_labels = scen_results[0].pop_labels
+
     
     if link_legend is None: link_legend = dict()
     
     if comp_labels is None:
-        logger.info("No compartments have been selected for flow-plots.")
+        logger.error("No compartments have been selected for flow-plots.")
         comp_labels = []
+        return
         
     if comp_titles is not None and len(comp_titles) != len(comp_labels):
         logger.error("Flow-plot failure due to the number of compartment plot titles not matching the number of compartments to analyse.")
-    if pop_titles is not None and len(pop_titles) != len(pop_labels):
-        logger.error("Flow-plot failure due to the number of population plot titles not matching the number of populations to analyse.")
     
-    
-    # generate plots
-    """
-    for (i, pid) in enumerate(plot_pids):
-        plot_label = plot_pops[i]
-        
-        for charac in plot_charac:
-        
-            yvals = []
-            tvals = []
-            labels= []
-            observed_data = []
-            yhat = []
-            that = []
-    """       
+          
             
     for (i,comp_label) in enumerate(comp_labels):
         
         for (j, pid) in enumerate(plot_pids):
             
-            plot_label = plot_pops[j]
+            pop_label = pop_labels[j]
             
             yvals = []
             tvals = []
             labels= []
-            observed_data = []
-            yhat = []
-            that = []
             
             for (k,result_name) in enumerate(scen_results.keys()):
                 
                 result = scen_results[result_name]  
                 
-                comp = result.m_pops[pid].getComp(comp_label)
-                
-                all_rates, all_tvecs, all_labels = extractFlows(comp=comp,
-                                                                    results=result, 
-                                                                    settings=settings,
-                                                                    tvec=tvec,
-                                                                    link_labels=link_labels,
-                                                                    include_link_not_exclude=include_link_not_exclude,
-                                                                    link_legend=link_legend,
-                                                                    plot_inflows=plot_inflows,
-                                                                    plot_outflows=plot_outflows,
-                                                                    sum_total=sum_total,
-                                                                    exclude_transfers=exclude_transfers)
+                all_rates, all_tvecs, all_labels = extractFlows(pop_labels=[pid],
+                                                                comp_label=comp_label,
+                                                                results=result, 
+                                                                settings=settings,
+                                                                tvec=tvec,
+                                                                link_labels=link_labels,
+                                                                include_link_not_exclude=include_link_not_exclude,
+                                                                link_legend=link_legend,
+                                                                plot_inflows=plot_inflows,
+                                                                plot_outflows=plot_outflows,
+                                                                sum_total=sum_total,
+                                                                sum_population=sum_population,
+                                                                exclude_transfers=exclude_transfers)
+                                
+                                
                 
                 yvals.append(all_rates[0])
                 tvals.append(all_tvecs[0])
@@ -507,17 +499,16 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,plot_charac=None,pl
                 title_comp = comp_titles[i]
             else:
                 title_comp = 'Compartment: "%s"' % settings.node_specs[comp_label]['name']
-            if pop_titles is not None:
-                title_pop = plot_pops[j]
-            else:
-                title_pop = '\nPopulation: "%s"' % pop.label
+            
+            
+            title_pop = '\nPopulation: "%s"' % pop_label
             
             final_dict = {'ylim' : 0,
               'xlabel':'Year',
               'ylabel': 'Number of People',
               'x_ticks' : (yr_range,yr_range),
-              'title': 'Scenario : %s' % (title_comp+title_pop),
-              'save_figname': '%s_ScenarioFlowComparision_%s_%s'%(fig_name,comp_label,plot_label)
+              'title': '%s %s' % (title_comp,title_pop),
+              'save_figname': '%s_ScenarioFlowComparision_%s_%s'%(fig_name,comp_label,pop_label)
               }
             final_dict.update(plotdict)
         
@@ -890,35 +881,6 @@ def plotPopulationFlows(results, settings, comp_labels = None, comp_titles = Non
             
     # TODO: plot separate legend
 
-"""
-def extractOldCompartment(results, sim_settings, pop, comp_indices, data, comp_labels=None, plot_observed_data=True, plot_observed_label="alive", 
-                   use_full_labels=False):
-    
-    comps = []
-    labels = []
-    dataobs = None
-        
-    for comp_id in comp_indices:
-        
-        comp_label = pop.comps[comp_id].label
-        
-        if isPlottableComp(comp_label,sim_settings,results.comp_specs):
-        
-            comps.append(pop.comps[comp_id])
-            
-            if use_full_labels:
-                c_label = comp_labels[comp_label]
-            else:
-                c_label = comp_label
-            labels.append(c_label)
-            
-    if plot_observed_data:
-        ys = data['characs'][plot_observed_label][pop.label]['y']
-        ts = data['characs'][plot_observed_label][pop.label]['t']
-        dataobs = (ts,ys)
-
-    return comps, labels, dataobs
-"""
 def extractCompartment(results, data, pop_labels=None, comp_labels=None, 
                        plot_observed_data=True, plot_observed_label="alive", use_full_labels=False):
         
@@ -941,109 +903,8 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
         dataobs = (that,yhat)
 
     return datapoints, pop_labels, comp_labels, dataobs
-    
-"""
-def extractOldCharacteristic(results, charac_label, charac_specs, data, title='', 
-                          pop_labels = None, plot_total = False, plot_observed_data=True, fig_name=None, plotdict=None):
-    
-    if plotdict is None: plotdict = {}    
-    tvec = results.sim_settings['tvec']
-    year_inc = 5.  # TODO: move this to setting
-    if 'xlim' in plotdict.keys():
-        xlim = plotdict['xlim']
-        start_year, end_year = xlim[0], xlim[1]
-    else:
-        start_year, end_year = tvec[0], tvec[-1]
-    yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
-      
-    if pop_labels is None:
-        pop_labels = [pop.label for pop in results.m_pops]
-        
-    outputs = results.outputs
-    sim_settings = results.sim_settings
-    unit_tag = ''
-    
-    output_id = charac_label
-    
-    y_values = []
-    t_values = []
-    yhat = []
-    that = []
-    
-    for k,poplabel in enumerate(pop_labels):
-        
-        vals = dcp(outputs[output_id][poplabel])
-        
-        if 'plot_percentage' in charac_specs[output_id].keys():
-            vals *= 100
-            unit_tag = ' (%)'
-        y_values.append(vals)
-        t_values.append(sim_settings['tvec'])
-        
-        if plot_observed_data:
-            if output_id in data['characs'].keys():
-                ys = data['characs'][output_id][poplabel]['y']
-                ts = data['characs'][output_id][poplabel]['t']
-            else:   # For the case when plottable characteristics were not in the databook and thus not converted to data.
-                ys = []
-                ts = []
-            if 'plot_percentage' in charac_specs[output_id].keys():
-                ys *= 100
-#            if len(ys)==0:
-#                # add an empty list to preserve label colours
-#                ys,ts = [],[]
-            yhat.append(ys)
-            that.append(ts)
-            
-    if plot_total:
-        y_values = np.array(y_values)
-        y_values = [y_values.sum(axis=0)]
-        t_values = [t_values[0]]
-        # enforce so that no observed data is included (as we can't enforce that all points are supplied).
-        # This can be circumvented i.e. plotting against totals, by updating the values in 
-        # the returned plotting dictionary
-        yhat = [[]]
-        that = [[]]
-        pop_labels = ['Total']
-            
-    final_dict = {'y_hat': yhat,
-                  't_hat': that,
-                  'unit_tag': unit_tag,
-                  'xlabel':'Year',
-                  'ylabel': charac_specs[output_id]['name'] + unit_tag,
-                  'x_ticks' : (yr_range,yr_range),
-                  'title': '%s Outputs: %s' % (title, charac_specs[output_id]['name']),
-                  'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
-    final_dict.update(plotdict)
-    
-    return y_values, t_values, final_dict, pop_labels
-
-def extCharTmp():
-    if plotdict is None: plotdict = {}    
-    tvec = results.sim_settings['tvec']
-    year_inc = 5.  # TODO: move this to setting
-    if 'xlim' in plotdict.keys():
-        xlim = plotdict['xlim']
-        start_year, end_year = xlim[0], xlim[1]
-    else:
-        start_year, end_year = tvec[0], tvec[-1]
-    yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
-      
-    if pop_labels is None:
-        pop_labels = [pop.label for pop in results.m_pops]
-        
-    outputs = results.outputs
-    sim_settings = results.sim_settings
-    unit_tag = ''
-    
-    output_id = charac_label
-    
-    y_values = []
-    t_values = []
-    yhat = []
-    that = []
-"""
-
+ 
+ 
 def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_labels=None, plot_observed_data=True, plot_total=False):
         
     datapoints, _, _ = results.getCharacteristicDatapoints(pop_label=pop_labels,char_label=charac_labels,use_observed_times=False)
@@ -1108,10 +969,8 @@ def extractFlows(pop_labels, comp_label, results, settings, tvec, link_labels = 
         
     for (j, pid) in enumerate(pop_labels):
             
-        #plot_label = plot_pops[j]
-        
         comp = results.m_pops[pid].getComp(comp_label)
-
+        
         all_labels = []
         pop_rates = []
         pop_tvecs = []
