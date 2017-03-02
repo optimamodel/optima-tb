@@ -71,6 +71,11 @@ class ResultSet(object):
         # work-in-progress: in time, these sections should be removed and only the data
         # points we are interested should be listed
         self.m_pops = model.pops
+        
+        self.pop_label_index = {}
+        for i, pop in enumerate(self.m_pops):
+            self.pop_label_index[pop.label] = i
+        
         self.sim_settings = model.sim_settings
         self.pop_labels = self.outputs[0].keys()
         self.comp_labels = settings.node_names
@@ -107,8 +112,10 @@ class ResultSet(object):
         
         
         
-    def getPopDatapoints(self, pop_id = None, comp_id = None):
+    def getCompartmentSizes(self, pop_labels = None, comp_label = None, use_observed_times=False):
         """
+        #PopDatapoints
+        
         Returns the data points for the simulation, for each compartment, 
         that should correspond to times of the observed data. This method is intended for
         use with calibration. 
@@ -120,16 +127,55 @@ class ResultSet(object):
         [Intended]
         If pop_id or comp_id are specified, then the method returns the simulated data points for
         just those populations or compartments.
-        Otherwise, the simulated data points for all popuations and compartments are returned.
+        Otherwise, the simulated data points for all populations and compartments are returned.
 
         @param pop_id: population id, either as single id or as list
         @param comp_id: compartment id, either as single id or as list
                 
         """
-        pass
+        if pop_labels is not None:
+            if isinstance(pop_labels, list):
+                pops = pop_labels
+            else:
+                pops = [pop_labels]
+        else:
+            pops = self.pop_labels
+            
+        if comp_label is not None:
+            if isinstance(comp_label, list):
+                comps = comp_label
+            elif isinstance(comp_label, odict):
+                comps = comp_label.keys()
+            else:
+                comps = [comp_label]
+        else:
+            comps = self.comp_specs.keys()
+        
+        # this currently uses odict for the output ... 
+        datapoints = odict() 
+        comp_labels = []
+        for pi in pops:
+            
+            datapoints[pi] = odict() 
+            p_index = self.pop_label_index[pi]
+            
+            for cj in range(len(self.comp_specs.keys())):#comps:
+                # TODO: this is an inefficient implementation and needs to be improved; possibly with a rethink of the data structures
+                if not self.m_pops[p_index].comps[cj].label in comps:
+                    continue
+        
+                comp_labels.append(self.m_pops[p_index].comps[cj].label)
+        
+                if use_observed_times:
+                    datapoints[pi][self.m_pops[p_index].comps[cj].label] = self.m_pops[p_index].comps[cj][self.indices_observed_data]
+                else:
+                    datapoints[pi][self.m_pops[p_index].comps[cj].label] = self.m_pops[p_index].comps[cj]
+                
+        
+        return datapoints, pops, comp_labels
     
     
-    def getCharacteristicDatapoints(self,pop_label = None, char_label = None):
+    def getCharacteristicDatapoints(self,pop_label = None, char_label = None, use_observed_times=False):
         """
         Returns the data points for the simulation, for each characteristics, 
         that should correspond to times of the observed data. This method is intended for
@@ -160,13 +206,66 @@ class ResultSet(object):
         else:
             chars = self.char_labels
         
-        # this currently uses odict for the output ... Hmm, not sure whether this is the best
+        # this currently uses odict for the output ... 
         datapoints = odict() 
         for cj in chars:
             datapoints[cj] = odict() 
             for pi in pops:
-                datapoints[cj][pi] = self.outputs[cj][pi][self.indices_observed_data]
-        return datapoints
+                if use_observed_times:
+                    datapoints[cj][pi] = self.outputs[cj][pi][self.indices_observed_data]
+                else:
+                    datapoints[cj][pi] = self.outputs[cj][pi]
+        return datapoints, chars, pops
+      
+      
+    def getFlow(self, comp, inflows = True, outflows = True, invert = False, link_legend = None, exclude_transfers = False):
+        """
+        TODO finish method (moved across from plotting.py)
+        
+        """
+        all_labels = []
+        all_rates = []
+        all_tvecs = []
+        
+        for in_out in xrange(2): # in, then out
+            if (in_out == 0 and plot_inflows) or (in_out == 1 and plot_outflows):
+                comp_link_ids = [comp.inlink_ids, comp.outlink_ids][in_out]
+                label_tag = ['In: ','Out: '][in_out]
+                for link_tuple in comp_link_ids:
+                    link = self.m_pops[link_tuple[0]].links[link_tuple[1]]
+                    #print link.label, link_labels, include_link_not_exclude
+                    if link_labels is None or (invert and link.label in link_labels) or (not invert and link.label not in link_labels):
+                        try: 
+                            legend_label = label_tag + settings.linkpar_specs[link.label]['name']
+                        except: 
+                            if exclude_transfers: continue
+                            else: legend_label = label_tag + link.label
+                        if link.label in link_legend:
+                            legend_label = link_legend[link.label]    # Overwrite legend for a label.
+                        num_flow = dcp(link.vals)
+                        if in_out == 0:
+                            comp_source = self.m_pops[link.index_from[0]].comps[link.index_from[1]]
+                        else:
+                            comp_source = comp
+                        was_proportion = False
+                        if link.val_format == 'proportion':
+                            denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
+                            num_flow /= denom_val
+                            was_proportion = True
+                        if link.val_format == 'fraction' or was_proportion is True:
+                            if was_proportion is True:
+                                num_flow *= comp_source.popsize_old
+                            else:
+                                num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
+                                num_flow *= comp_source.popsize
+                            num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
+                            
+                        all_labels.append(legend_label)
+                        all_rates.append(num_flow)
+                        all_tvecs.append(tvec)
+        
+        return all_rates, all_labels
+        
                 
     def export(self, filestem=None, sep=',', writetofile=True):
         """
