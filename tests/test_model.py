@@ -1,6 +1,5 @@
 from optima_tb.project import Project
 from optima_tb.utils import odict
-
 from copy import deepcopy as dcp
 import unittest
 import numpy as np
@@ -20,6 +19,10 @@ class ModelTest(unittest.TestCase):
         self.proj.settings.tvec_end = 2030.0
         self.proj.settings.tvec_observed_end = 2015.0
         self.proj.settings.tvec_dt = 1.0/4
+        dt = self.proj.settings.tvec_dt
+        plot_over = [2000,2030]
+        self.proj.settings.plot_settings['x_ticks'] = [np.arange(plot_over[0],plot_over[1]+dt,5,dtype=int),np.arange(plot_over[0],plot_over[1]+dt,5,dtype=int)]
+        self.proj.settings.plot_settings['xlim'] = (plot_over[0]-0.5,plot_over[1]+0.5)
         self.proj.makeParset()
 
     def tearDown(self):
@@ -62,21 +65,21 @@ class SimpleModel(ModelTest):
             - as for SimpleModel but with deaths included
         """
         #Test to see whether 10% of untreated population die annually in children
-        self.proj.data['linkpars']['mort_u']['SAC']['y'][-1] = 0.1
+        self.proj.data['linkpars']['mort_u']['GEN']['y'][-1] = 0.1
         results = self.proj.runSim()
-        self.assertAlmostEqual(9576, int(results.outputs['death_label']['SAC'][-1]), 6, 'Total number of children deaths should be approximately 9,576 deaths at a rate of 10% per annum without births')
-        self.assertEqual(0, int(results.outputs['death_label']['GEN'][-1]), 'Total number of adult deaths should be 0 deaths at a rate of 0% per annum without aging')
-        self.assertAlmostEqual(190423, int(results.outputs['alive']['SAC'][-1]), 6, 'Children should be dying at an annual rate of 10% using initial value of 10,000(i.e approximately 9,576 deaths) without births')
-        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'Adult Population is dying even though death rate for adults is 0% without aging')
+        self.assertAlmostEqual(6224, int(results.outputs['death_label']['GEN'][-1]), 4, 'Total number of adult deaths should be approximately 6224 deaths at a rate of 10% per annum without births')
+        self.assertEqual(0, int(results.outputs['death_label']['SAC'][-1]), 'Total number of children deaths should be 0 deaths at a rate of 0% per annum without aging')
+        self.assertAlmostEqual(193775, int(results.outputs['alive']['GEN'][-1]), 6, 'Adult population should be dying at an annual rate of 10% for untreated cases without births')
+        self.assertEqual(200000, int(results.outputs['alive']['SAC'][-1]), 'Children Population is dying even though death rate for adults is 0% without aging')
         self.proj.data['linkpars']['mort_u']['SAC']['y'][-1] = 0.
         
         #Test to see whether 10 people on treatment die annually
         self.proj.data['linkpars']['mort_t']['GEN']['y'][-1] = 10.
-        results = self.proj.runSim()
+        results = self.proj.runSim()        
         self.assertEqual(0, int(results.outputs['death_label']['SAC'][-1]), 'Total number of children deaths should be 0 deaths since number of deaths per year is equal to number 0')
-        self.assertEqual(300, int(results.outputs['death_label']['GEN'][-1]), 'Total number of adult deaths should be 300 deaths since number o deaths per year is equal to number 10')
+        self.assertEqual(6524, int(results.outputs['death_label']['GEN'][-1]), 'Total number of adult deaths should be 6524 deaths since number of deaths per year is equal to number 10')
         self.assertEqual(200000, int(results.outputs['alive']['SAC'][-1]), 'Children Population is dying even though death rate for adults is 0%')
-        self.assertEqual(199700, int(results.outputs['alive']['GEN'][-1]), 'Adult Population is dying even though death rate for adults is 0%')
+        self.assertEqual(193475, int(results.outputs['alive']['GEN'][-1]), 'Adult Population is deaths could not be mapped properly')
         self.proj.data['linkpars']['mort_t']['GEN']['y'][-1] = 0.
         return None
     
@@ -130,9 +133,49 @@ class SimpleModel(ModelTest):
         self.assertEqual(199700, int(results.outputs['alive']['SAC'][-1]), 'Children(0-14) population size at end of simulation period should be 199,700 without deaths, births or aging')
         self.assertEqual(200300, int(results.outputs['alive']['GEN'][-1]), 'Adult population size at end of simulation period should be 200,300 without deaths or aging')
         self.proj.data['transfers']['migration_type_1'] = odict()
+        return None
+    
+    def test_interinfectivity_model(self):
+        """
+        Assumptions:
+            - as for SimpleModel
+            - no births
+            - no transfers
+            - Pop1: Everyone is in Susceptible
+            - Pop2: Significant amount of people are infected
+        """
+        origproj = dcp(self.proj)
+        tomodify = ['lu_prog', 'tmt_a', 'rec_act']
+        for par in tomodify:
+            for popkey in self.proj.data['linkpars'][par]:
+                self.proj.data['linkpars'][par][popkey]['y'][-1] = 0.05
+            
+        intermediateproj = dcp(self.proj)
         
+        #Condition 1: No Interpopulation Infection:
+        self.proj.makeParset(name='test_interinfectivity')
+        results = self.proj.runSim(parset_name='test_interinfectivity')
+        self.proj = dcp(intermediateproj)
         
+        #Condition 2: Interpopulation Infection:
+        self.proj.data['contacts']['from']['GEN']['SAC'] = 1.0
+        self.proj.data['contacts']['from']['SAC']['GEN'] = 1.0
+        self.proj.data['contacts']['into']['SAC']['GEN'] = 1.0
+        self.proj.data['contacts']['into']['GEN']['SAC'] = 1.0
+        self.proj.makeParset(name='test_interinfectivity')
+        results = self.proj.runSim(parset_name='test_interinfectivity')
+        self.proj = dcp(intermediateproj)
         
+        #Condition 3: Interpopulation Infection:
+        self.proj.data['contacts']['from']['GEN']['SAC'] = 10.0
+        self.proj.data['contacts']['from']['SAC']['GEN'] = 10.0
+        self.proj.data['contacts']['into']['SAC']['GEN'] = 10.0
+        self.proj.data['contacts']['into']['GEN']['SAC'] = 10.0
+        self.proj.makeParset(name='test_interinfectivity')
+        results = self.proj.runSim(parset_name='test_interinfectivity')
+        
+        #Reset before exit
+        self.proj = dcp(origproj)
         return None
     
 class FullModel(ModelTest):
