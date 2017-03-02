@@ -152,10 +152,22 @@ def evaluateDiseaseProgression(proj, specified_progressions, specified_populatio
     
     
 def calculateCumulativeDerivatives(results, settings, from_year, to_year,
-                                   comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
+                                   comp_labels = None, pop_labels = None, 
                                    link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False,
                                    plot_inflows = True, plot_outflows = True, exclude_transfers = False):
     """
+    Calculate the sum of yearly flows to determine total values over a period.
+    
+    Parameters:
+        results        results
+        settings       project settings
+        from_year, to_year    period over which to calculate the cumulative 
+        comp_labels    list of compartments
+        pop_labels     list of populations
+            other args as per plotting/plotFlows 
+    
+    Outputs:
+        list of summed flows for each year in the period (from_year,to_year)
     
     
     """
@@ -183,12 +195,9 @@ def calculateCumulativeDerivatives(results, settings, from_year, to_year,
     tvals = np.array(tvecs[0])[0]
     # extract years that we need
     idx = (tvals>=from_year)*(tvals<=to_year)*(tvals%1.==0.0)
-    #print idx
-    #print tvals[idx]
-    #print yvals[idx]
+    
     summed_derivatives = yvals[idx].sum()
-    #print summed_derivatives
-    # return values
+    
     return summed_derivatives
     
                                                 
