@@ -280,8 +280,6 @@ def getPIDs(results,poplabels):
     
 
 def plotProjectResults(results,settings, data, title='', colormappings=None, colorlabels=None, pop_labels=None, plot_comp_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
-            
-    
     """
     Plot all results associated with a project. By default, this is a disease cascade for 
     each population, as well as characteristics of interest. 
@@ -317,19 +315,22 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, col
 def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_labels=None,
                   colormappings=None,colors=None,plot_observed_data=False,save_fig=False,fig_name=None):
     """
-    Line plots for scenarios. Should be used for characteristics only.
+    Line plots of characteristics across scenarios, including alive, total infected population, etc.
     
     Params
         scen_results        list of results
         scen_labels         list of scenario labels, to be displayed
-        plot_characs        list of characteristics to be plotted. If None, then the default list from databook is used
+        settings            project settings
+        data                project data
+        plot_charac         list of characteristics to be plotted. If None, then the default list from databook is used
+        pop_labels          list of populations to be plotted. If None, then the default list from databook
+        colormappings
+        colors
+        plot_observed_data
+        save_fig
+        fig_name
         
-    Notes: 
-        TODO: replace the default list of plot_characs as a setting value. 
-    
     """
-    
-    
     
     # close all remaining windows
     pl.close("all") 
@@ -413,18 +414,20 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
                       plot_inflows = True, plot_outflows = True, exclude_transfers = False, sum_total=False, sum_population=False,
                       colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, colors=None):
     """
-    Line plots for scenarios. Should be used for flows (instantaneous rates) only.
+    Line plots of flows across scenarios. Should be used for flows (instantaneous rates) only, such
+    as incidence, deaths, notifications, etc.
     
     Params
         scen_results        list of results
         scen_labels         list of scenario labels, to be displayed
-        plot_characs        list of characeristics to be plotted. If None, then the default list from databook is used
+        settings            project settings
+        data                project data
         
-    Notes: 
-        TODO: replace the default list of plot_characs as a setting value. 
+        other params as per plotFlows, including comp_labels, comp_titles, pop_labels
+ 
+    
     
     """
-    
     # close all remaining windows
     pl.close("all") 
     # setup    
@@ -525,13 +528,56 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
     
     Params:
         results         Results object
+        data            project data
+        pop_labels      list of populations to be plotted. 
+                        Default: None, all populations will be plotted
+        comp_labels     list of compartments to be plotted. Note that only plottable compartments (as defined in isPlottableComp())
+                        are plotted.
+                        Default: None, all compartments will be plotted
         title           String, for title of plots
-        colormapping    odict with comp.labels as keys and corresponding rgba colors as values
-        plotObservedData    boolean flag: whether observed data should be plotted
+        colormappings    odict with comp.labels as keys and corresponding rgba colors as values
+        cat_labels       m
+        plot_observed_data    boolean flag: whether observed data should be plotted
+        plot_observed_label
         save_fig        boolean flag, whether to save figure as "Full_compartment_<pop_label>"
         use_full_labels     boolean flag: whether to use full compartment label (i.e. 'Susceptible') or short label version (i.e. 'sus')
                             The latter is easier for debugging purposes
+        plotdict
+    
         
+    Example usage:
+    
+        # Plot all compartments for 15-64, using default color mapping, with no observed data
+    
+        pop_labels = ['15-64']
+        plotPopulation(results, data, pop_labels, plot_observed_data=False)
+    
+    
+    
+        # Plot only active compartments for all populations, using a specific colormap and plotting
+        # observed data (within the data object, with the label 'ac_inf')
+        
+        cat_list = odict()
+        cat_list['#005B9A'] = ['sus']
+        cat_list['#0191C8'] = ['vac']
+        cat_list['Purples'] = ['lteu', 'ltlu','lted','ltet','ltld','ltlt']
+        cat_list['Oranges'] = ['spdu', 'spdd', 'spdt', 'spmu', 'spmd', 'spmt', 'spxu', 'spxd', 'spxt']
+        cat_list['Reds']    = ['sndu', 'sndd', 'sndt', 'snmu', 'snmd', 'snmt', 'snxu', 'snxd', 'snxt']
+        cat_list['Greens']  = ['acr','ltr']
+        labels = ['Susceptible','Vaccinated','Latent TB','Active TB (S+)','Active TB (S-)','Recovered']  
+        plot_comp_labels = ['spdu', 'sndu', 'spdd', 'sndd', 'spdt', 'sndt',
+                        'spmu', 'snmu', 'spmd', 'snmd', 'spmt', 'snmt',
+                        'spxu', 'spxd', 'spxt']
+                          
+        plotPopulation(results=results,
+                   data=proj.data,
+                   pop_labels=None,
+                   title="Active TB", 
+                   colormappings=cat_list,
+                   cat_labels=labels,
+                   plot_observed_label="ac_inf",
+                   comp_labels=plot_comp_labels)
+    
     """
     # setup data structures
     tvec = results.sim_settings['tvec']
@@ -629,18 +675,21 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
     
     Params:
         results
-        charac_specs
-        title
-        outputIDs        list of compartment labels (characs.keys()) which will be selectively be plotted
+        settings         project settings
+        data             observed data
+        title            label for plot
+        outputIDs        list of characeristics which will be selectively be plotted
                          Default: None, which causes all labels to be plotted
-        pop_ids          list of labels for subset of populations to be plotted. If None, all populations are plotted
-        plot_total       sum and plot the total. 
-        plotObservedData plot observed data points on top of simulated data. Useful for calibration
+        pop_labels          list of labels for subset of populations to be plotted. If None, all populations are plotted
+        plot_total       flag indicating whether to sum and plot the total. 
+        plot_observed_data plot observed data points on top of simulated data. Useful for calibration
         save_fig         bool to indicate whether to save the figure to file
+        fig_name         name to save figures to
         colors           list of colors for populations
+        plotdict         project settings plotting dictionary
         
         
-    Example dict:
+    Example usage:
         dict = {'y_hat': yhat,
                 't_hat': that,
                 'unit_tag': '(%)', # default = ''
@@ -651,6 +700,9 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
                 'x_ticks' : ([2000,2030],[2000,2030]),
                 'save_figname': 'MyPlot'}
                 
+        charac_labels = ['ac_inf','dead']
+        plotCharacteristic(results=results, settings=settings, outputIDs=charac_labels, pop_labels=pop_labels, data=data, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
+    
     
         
     """
@@ -662,7 +714,7 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         pop_labels = [pop.label for pop in results.m_pops]
             
     if plotdict is None: 
-        plotdict = {}    
+        plotdict = {}
         
     tvec = results.sim_settings['tvec']
     charac_specs = settings.charac_specs
@@ -711,6 +763,9 @@ def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles
               save_fig=False, fig_name=None, colors=None):
     """
     Plot flows rates in and out of a compartment.
+    
+    # TODO complete 
+    
     """
     plotdict = settings.plot_settings
     year_inc = 5. # TODO remove hardcoded ref
@@ -802,9 +857,66 @@ def plotPopulationFlows(results, settings, comp_labels = None, comp_titles = Non
               plot_inflows = True, plot_outflows = True, exclude_transfers = False, observed_data = None,
               save_fig=False, fig_name=None, colors=None):
     """
-    Plot flows rates in and out of a compartment, across populations. 
+    Plot flows rates in and out of a compartment, across populations. Intended usage is 
+    for plots such as total new infections, deaths, etc. where the net flow is required. 
     
-    Suitable for total new infections, deaths, etc. where the net flow is required. 
+    Params:
+        results
+        settings
+        comp_labels        list of compartments 
+        comp_titles        list of titles for the plots. Should be the same length as comp_labels
+        pop_labels         list of population labels
+        link_labels        ? list of labels for each flows
+        include_link_not_exclude    flag indicating whether to invert choice 
+        link_legend          list with y-labels
+        sum_total            flag indicating whether to sum across all outflows / inflows 
+        sum_population       flag indicating whether to sum across all populations
+        plot_inflows         flag indicating whether to plot inflows
+        plot_outflows        flag indicating whether to plot outflows
+        exclude_transfers    flag indicating whether to consider transfer from/to other populations
+        observed_data        tuple of list of observed values (phew) with ([y_values],[x_values])
+        save_fig             flag indicating whether to save
+        fig_name             name of filename
+        colors               list of colors, either as hex format
+        
+    Returns:
+        
+    
+    
+    Example:
+        pop_labels = ['15-64','65+'] 
+        single_color = ['#562387']
+        include_link_not_exclude = True
+        plot_inflows = True
+        plot_outflows = False
+        exclude_transfers = True
+        comp_labels = ['spxu']
+        comp_titles = ['New XDR infections']
+        link_legend = ['Number of new cases']
+        link_labels = None
+        sum_total = True
+        
+        # plot new XDR infections for 15-64, and 65+ populations
+        plotPopulationFlows(results=results, settings=proj.settings, 
+                      comp_labels=[comp_label], comp_titles=[comp_titles[i]+' per population'], 
+                      pop_labels=pop_labels, 
+                      link_labels=link_labels, include_link_not_exclude=include_link_not_exclude,
+                      link_legend=link_legend, sum_total=sum_total, sum_population = False,
+                      plot_inflows=plot_inflows, plot_outflows=plot_outflows,
+                      exclude_transfers=exclude_transfers, colors=single_color,
+                      save_fig=True, fig_name=fig_name+"_XDRIncidencePop")
+       
+       pop_labels = None
+       # plot total new XDR infections across populations
+        plotPopulationFlows(results=results, settings=proj.settings, 
+                      comp_labels=[comp_label], comp_titles=[comp_titles[i]+' total'], 
+                      pop_labels=pop_labels, 
+                      link_labels=link_labels, include_link_not_exclude=include_link_not_exclude,
+                      link_legend=link_legend, sum_total=sum_total, sum_population = True,
+                      plot_inflows=plot_inflows, plot_outflows=plot_outflows,
+                      exclude_transfers=exclude_transfers, colors=single_color,
+                      save_fig=True, fig_name=fig_name+"_XDRIncidencePop")
+        
     """
     plotdict = settings.plot_settings
     year_inc = 5. # TODO remove hardcoded ref
@@ -883,7 +995,18 @@ def plotPopulationFlows(results, settings, comp_labels = None, comp_titles = Non
 
 def extractCompartment(results, data, pop_labels=None, comp_labels=None, 
                        plot_observed_data=True, plot_observed_label="alive", use_full_labels=False):
-        
+    """
+    Wrapper method to extract compartments for a subset of populations and compartments:
+    
+    Params:
+        results            results
+        data                project data
+        pop_labels          list of populations to extrac. Default: None, which returns all populations
+        comp_labels         list of compartments to extract. Default: None, which returns all compartments
+        plot_observed_data    flag indicating whether to extract observed datapoints
+        plot_observed_label   label of location of observed datapoints
+        use_full_labels     
+    """
     datapoints, pop_labels, comp_labels = results.getCompartmentSizes(pop_labels=pop_labels,comp_label=comp_labels,use_observed_times=False)
     dataobs = None
             
@@ -906,7 +1029,19 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
  
  
 def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_labels=None, plot_observed_data=True, plot_total=False):
+    """
+    Wrapper method to extract characteristics for a subset of populations:
+    
+    Params:
+        results            results
+        data                project data
+        charac_specs
+        pop_labels          list of populations to extrac. Default: None, which returns all populations
+        charac_labels         list of characteristics to extract. Default: None, which returns all characteristics
+        plot_observed_data    flag indicating whether to extract observed datapoints
+        plot_total            flag indicating whether to sum across populations
         
+    """
     datapoints, _, _ = results.getCharacteristicDatapoints(pop_label=pop_labels,char_label=charac_labels,use_observed_times=False)
     
     unit_tags = []
@@ -963,7 +1098,19 @@ def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_l
       
 def extractFlows(pop_labels, comp_label, results, settings, tvec, link_labels = None, include_link_not_exclude = True, link_legend = None, 
                   plot_inflows = True, plot_outflows = True, exclude_transfers = False, sum_total=False, sum_population = False):
+    """
+    Wrapper method to extract flows for a subset of populations and compartments:
     
+    Params:
+        pop_labels         list of populations to extrac. 
+        comp_label         list of characteristics to extract. 
+        results            results
+        setting            project setting
+        tvec                
+        sum_total            flag indicating whether to sum across the flows
+        sum_population       flag indicating whether to sum across the populations
+        
+    """
     all_rates = []
     all_tvecs = []
         
@@ -1042,7 +1189,7 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
         comps       compartment sizes
         labels      list of labels
         datapoints  observed datapoints, specified as a list of tuples 
-        **kwargs    further keyword arguments, such as ylims
+        **kwargs    further keyword arguments, such as ylims, legend_off, edgecolors, etc.
     """
     if colors is None or len(colors) != len(comps):
         if len(colors) != len(comps):
@@ -1115,7 +1262,14 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
              legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None,
              marker='o',s=40,facecolors='none',linewidth=3,zorder=10,save_fig=False,save_figname=None,legend_off=False,**kwargs):
     """
+    Plots multiple lines, with additional option of overlaying observed datapoints
     
+    Params:
+        ys        list of values for ys, with each entry corresponding to a line
+        ts        list of values for xs, with each entry corresponding to a line
+        labels    list of labels for each line
+        colors    list of colors for each line
+        **kwargs    further keyword arguments, such as ylims, legend_off, edgecolors, etc.
     """
     
     if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
