@@ -33,7 +33,7 @@ cat_list['Purples'] =  ['ltu','ltt']
 cat_list['Reds'] =     ['acu','act']
 cat_list['Greens'] =   ['rec']
 cat_list['Greys'] =    ['dead']
-
+cat_labels = ['Susceptible','Latent','Active','Recovered','Dead']
 
 """
 # 1. Test category color list
@@ -50,7 +50,7 @@ print col_list
 proj.loadSpreadsheet(databook_path = databook)
 proj.makeParset()
 results = proj.runSim()
-proj.plotResults(results,debug=False,colormappings=cat_list)
+proj.plotResults(results,debug=False,colormappings=cat_list,colorlabels=cat_labels)
 
 
 
@@ -69,16 +69,15 @@ plotPopulation(results=results,
                fig_name="Active Infections")
 """
 plot_comp_labels = ['ltu','ltt','acu','act','rec']
-plot_comp_labels = ['ltu','ltt','rec','acu','act'] # check that we can plot them in whatever order we want ... and we can
+#plot_comp_labels = ['ltu','ltt','rec','acu','act'] # check that we can plot them in whatever order we want ... and we can
 plotPopulation(results=results,
                data=proj.data,
                pop_labels=results.pop_labels,
                title=proj.name.title()+" Infectious", 
                colormappings=cat_list,
-               plot_observed_data=False,
-               plot_comp_labels=plot_comp_labels,
-               plotdict = proj.settings.plot_settings,
-               save_fig=True,
-               fig_name="Example Infections")
+               cat_labels=cat_labels,
+               plot_observed_data=True,
+               plotdict=proj.settings.plot_settings,
+               comp_labels=plot_comp_labels)
 
 pylab.show()

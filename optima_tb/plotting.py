@@ -1008,7 +1008,7 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
         use_full_labels     
     """
     datapoints, pop_labels, comp_labels = results.getCompartmentSizes(pop_labels=pop_labels,comp_label=comp_labels,use_observed_times=False)
-    dataobs = None
+    yhat, that = [], []
             
     if use_full_labels:
         labels = [comp.label for comp in results.m_pops[0].comps]
@@ -1017,13 +1017,13 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
        
     if plot_observed_data:
         
-        yhat, that = [], []
         for pop in pop_labels:
             ys = data['characs'][plot_observed_label][pop]['y']
             ts = data['characs'][plot_observed_label][pop]['t']
             yhat.append(ys)
             that.append(ts)
-        dataobs = (that,yhat)
+    
+    dataobs = (that,yhat)
 
     return datapoints, pop_labels, comp_labels, dataobs
  
