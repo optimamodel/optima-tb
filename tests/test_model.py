@@ -195,20 +195,28 @@ class FullModel(ModelTest):
     """
         
     def test_full_model(self):
-        pass
-#        tempproj = dcp(self.proj)
-#        tempdatabook = dcp(self.databook)
-#        tempcascade = dcp(self.cascade)
-#        self.databook = '../tests/databooks/databook_model_full.xlsx'
-#        self.cascade =  '../tests/cascade_spreadsheet/cascade_model_full.xlsx'
-#        self.proj= Project(name = 'unittest_fullmodel', cascade_path = cascade)
-#        self.proj.makeSpreadsheet(databook_path=databook)
-#        
-#        
-#        self.cascade = dcp(tempcascade)
-#        self.databook = dcp(tempdatabook)
-#        self.proj = dcp(tempproj)
-#        return None
+        #save original settings
+        tempproj = dcp(self.proj)
+        tempdatabook = dcp(self.databook)
+        tempcascade = dcp(self.cascade)
+        
+        #Overwrite by writing in new settings
+        databook = '../tests/databooks/databook_model_full.xlsx'
+        cascade =  '../tests/cascade_spreadsheet/cascade_model_full.xlsx'
+        self.proj= Project(name = 'unittest_fullmodel', cascade_path = cascade, validation_level='error')
+        self.proj.loadSpreadsheet(databook_path=databook)
+        
+        #Run Unit Tests
+        self.proj.makeParset(name='test_full_model')
+        results = self.proj.runSim(parset_name='test_full_model')
+        results.export(filestem='test-hahaha')
+        self.proj.plotResults(results)
+        
+        #Reset all changes
+        self.cascade = dcp(tempcascade)
+        self.databook = dcp(tempdatabook)
+        self.proj = dcp(tempproj)
+        return None
      
 
 class EvilModels(ModelTest):
