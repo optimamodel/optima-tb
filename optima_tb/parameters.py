@@ -371,7 +371,7 @@ class ParameterSet(object):
         logger.debug("Adding two parameter sets together: %s + %s"%(a.name,b.name))
         c = dcp(a)
         for par_name, b_index in b.par_ids['cascade'].iteritems():
-            print par_name
+            
             # find corresponding par_id in c
             c_index = c.par_ids['cascade'][par_name]
             # for each population referenced:
@@ -419,7 +419,7 @@ class ParameterSet(object):
         logger.debug("Shifting two parameter sets together: %s << %s"%(a.name,b.name))
         c = dcp(a)
         for par_name, b_index in b.par_ids['cascade'].iteritems():
-            print par_name
+            
             # find corresponding par_id in c
             c_index = c.par_ids['cascade'][par_name]
             # for each population referenced:
