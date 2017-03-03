@@ -41,8 +41,9 @@ class SimpleModel(ModelTest):
             - no deaths or births
         """
         results = self.proj.runSim()
-        self.assertEqual(200000, int(results.outputs['alive']['SAC'][-1]), 'Final Children Population is different from initial population of 200,000')
-        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'Final Adult Population is different from initial population of 200,000')
+        self.assertEqual(self.proj.data['characs']['alive']['SAC']['y'][0], results.outputs['alive']['SAC'][-1], 'Final Children Population is different from initial population of 200,000')
+        print('############################Databook value: %s, Simulation value: %s' %(self.proj.data['characs']['alive']['GEN']['y'][0], results.outputs['alive']['GEN'][-1]))
+        self.assertEqual(self.proj.data['characs']['alive']['GEN']['y'][0], results.outputs['alive']['GEN'][-1], 'Final Adult Population is different from initial population of 200,000')
         return None
         
     def test_birth_model(self):
@@ -55,7 +56,8 @@ class SimpleModel(ModelTest):
         self.assertEqual(-3000, int(results.outputs['birth_label']['SAC'][-1]), 'Cummulative number of child births for children at end of simulation period is incorrect')
         self.assertEqual(0, int(results.outputs['birth_label']['GEN'][-1]), 'Cummulative number of adult births at end of simulation period is non-zero')
         self.assertEqual(203000, int(results.outputs['alive']['SAC'][-1]), 'The Children Population number of births is not increasing by 100 per year')
-        self.assertEqual(200000, int(results.outputs['alive']['GEN'][-1]), 'The Adult Population is including births')
+        print('############################Databook value: %s, Simulation value: %s' %(self.proj.data['characs']['alive']['GEN']['y'][0], results.outputs['alive']['GEN'][-1]))
+        self.assertEqual(self.proj.data['characs']['alive']['GEN']['y'][0], results.outputs['alive']['GEN'][-1], 'The Adult Population is including births')
         self.proj.data['linkpars']['birth_transit']['SAC']['y'][-1] = 0.
         return None
     
@@ -131,6 +133,7 @@ class SimpleModel(ModelTest):
         self.proj.makeParset(name='test_transfernumber')
         results = self.proj.runSim(parset_name='test_transfernumber')
         self.assertEqual(199700, int(results.outputs['alive']['SAC'][-1]), 'Children(0-14) population size at end of simulation period should be 199,700 without deaths, births or aging')
+        print('############################Expected value: 200300, Simulation value: %s' %(results.outputs['alive']['GEN'][-1]))
         self.assertEqual(200300, int(results.outputs['alive']['GEN'][-1]), 'Adult population size at end of simulation period should be 200,300 without deaths or aging')
         self.proj.data['transfers']['migration_type_1'] = odict()
         return None
@@ -141,8 +144,8 @@ class SimpleModel(ModelTest):
             - as for SimpleModel
             - no births
             - no transfers
-            - Pop1: Everyone is in Susceptible
-            - Pop2: Significant amount of people are infected
+            - SAC: Everyone is in Susceptible
+            - GEN: Significant amount of people are infected
         """
         origproj = dcp(self.proj)
         tomodify = ['lu_prog', 'tmt_a', 'rec_act']
@@ -153,8 +156,11 @@ class SimpleModel(ModelTest):
         intermediateproj = dcp(self.proj)
         
         #Condition 1: No Interpopulation Infection:
-        self.proj.makeParset(name='test_interinfectivity')
-        results = self.proj.runSim(parset_name='test_interinfectivity')
+        self.proj.makeParset(name='test_interinfectivity_condition1')
+        results1 = self.proj.runSim(parset_name='test_interinfectivity_condition1')
+        self.assertEqual(0, int(sum(results1.outputs['lt_inf']['SAC'])+sum(results1.outputs['ac_inf']['SAC'])), 'Children(0-14) population is getting infected with Infection rate = 0 and Interpopulation Infectivity turned off') 
+        self.assertGreater(results1.outputs['lt_inf']['GEN'][1], results1.outputs['lt_inf']['GEN'][0], 'Adult population are not getting additional infections with Infection rate > 0 and Interpopulation Infectivity turned off')
+        self.assertGreater(results1.outputs['ac_inf']['GEN'][1], results1.outputs['ac_inf']['GEN'][0], 'Adult population are not getting additional infections with Infection rate > 0 and Interpopulation Infectivity turned off')
         self.proj = dcp(intermediateproj)
         
         #Condition 2: Interpopulation Infection:
@@ -162,18 +168,20 @@ class SimpleModel(ModelTest):
         self.proj.data['contacts']['from']['SAC']['GEN'] = 1.0
         self.proj.data['contacts']['into']['SAC']['GEN'] = 1.0
         self.proj.data['contacts']['into']['GEN']['SAC'] = 1.0
-        self.proj.makeParset(name='test_interinfectivity')
-        results = self.proj.runSim(parset_name='test_interinfectivity')
+        self.proj.makeParset(name='test_interinfectivity_condition2')
+        results2 = self.proj.runSim(parset_name='test_interinfectivity_condition2')
+        self.assertGreater(int(results2.outputs['lt_inf']['SAC'][1]), 0, 'Children(0-14) population is not getting infected with Interpopulation Infectivity with equal weighting')
+        self.assertGreater(int(results2.outputs['ac_inf']['SAC'][-1]), 0, 'Children(0-14) population is not progressing to active TB in case Interpopulation Infectivity with equal weighting')
         self.proj = dcp(intermediateproj)
-        
-        #Condition 3: Interpopulation Infection:
+        #Condition 3: Interpopulation Infection high rate of interinfectivity in children by adult population
         self.proj.data['contacts']['from']['GEN']['SAC'] = 10.0
         self.proj.data['contacts']['from']['SAC']['GEN'] = 10.0
         self.proj.data['contacts']['into']['SAC']['GEN'] = 10.0
         self.proj.data['contacts']['into']['GEN']['SAC'] = 10.0
-        self.proj.makeParset(name='test_interinfectivity')
-        results = self.proj.runSim(parset_name='test_interinfectivity')
-        
+        self.proj.makeParset(name='test_interinfectivity_condition3')
+        results3 = self.proj.runSim(parset_name='test_interinfectivity_condition3')
+        self.assertGreater(int(results3.outputs['lt_inf']['SAC'][1]), int(results2.outputs['lt_inf']['SAC'][1]), 'Increased latent infections in Children(0-14) population is not witnessed when compared to condition 2 with Interpopulation Infectivity with impact children ten weighting')
+        self.assertGreater(int(results3.outputs['ac_inf']['SAC'][-1]),int(results2.outputs['ac_inf']['SAC'][-1]), 'Increased active infections in Children(0-14) population is not witnessed when compared to condition 2 with Interpopulation Infectivity with impact children ten times weighting')
         #Reset before exit
         self.proj = dcp(origproj)
         return None
