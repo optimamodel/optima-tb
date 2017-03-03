@@ -163,7 +163,7 @@ class Project(object):
         if self.data is None or len(self.data)==0:
             raise OptimaException('ERROR: no data is specified. Cannot calculate fit.')
         
-        datapoints = results.getCharacteristicDatapoints()
+        datapoints, _, _ = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,self.data['characs'],metric)
         logger.info("Calculated scores for fit using %s: largest value=%.2f"%(metric,max(score)))
       
