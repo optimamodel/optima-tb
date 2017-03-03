@@ -674,7 +674,10 @@ class Model(object):
                             raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))                      
                         
                         if val == 0:
-                            dep.vals[ti] = np.inf
+                            if abs(dep.vals[ti]) < project_settings.TOLERANCE:
+                                dep.vals[ti] = 0        # Given a zero/zero case, make the answer zero.
+                            else:
+                                dep.vals[ti] = np.inf   # Given a non-zero/zero case, keep the answer infinite.
                         else:
                             dep.vals[ti] /= val
             
