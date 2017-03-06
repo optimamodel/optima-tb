@@ -93,10 +93,10 @@ class Project(object):
         return results
         
 
-    def plotResults(self, results, colormappings=None, debug=False, pop_labels=None, plot_observed_data=True,savePlot=False,figName=None):
+    def plotResults(self, results, colormappings=None, colorlabels=None, debug=False, pop_labels=None, plot_observed_data=True,savePlot=False,figName=None):
         ''' Plot all available results '''
 
-        plotProjectResults(results, settings=self.settings, data=self.data, title = self.name.title(), colormappings=colormappings, pop_labels=pop_labels, debug = debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
+        plotProjectResults(results, settings=self.settings, data=self.data, title = self.name.title(), colormappings=colormappings, colorlabels=colorlabels, pop_labels=pop_labels, debug = debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
             
     
     
@@ -183,7 +183,7 @@ class Project(object):
         if self.data is None or len(self.data)==0:
             raise OptimaException('ERROR: no data is specified. Cannot calculate fit.')
         
-        datapoints = results.getCharacteristicDatapoints()
+        datapoints, _, _ = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,self.data['characs'],metric)
         logger.info("Calculated scores for fit using %s: largest value=%.2f"%(metric,max(score)))
       

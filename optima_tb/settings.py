@@ -383,7 +383,7 @@ class PlottingSettings():
         
     def presentationSettings(self):
         pl.rcParams['font.size'] = 16
-        pl.rcParams['figure.figsize'] = (9, 8)
+        pl.rcParams['figure.figsize'] = (9, 7)
         pl.rcParams['savefig.dpi'] = 300
         
         pl.rcParams['lines.linewidth'] = 5
@@ -403,6 +403,8 @@ class PlottingSettings():
         pl.rcParams['ytick.minor.size'] = 0
         pl.rcParams['ytick.major.width'] = 2
         pl.rcParams['ytick.minor.width'] = 0
+        
+        self.plotdict['legend_off'] = True
         
         
         

@@ -6,7 +6,7 @@ import numpy as np
 from optima_tb.utils import OptimaException, odict
 from optima_tb.cascade import __addCharacteristic
 from optima_tb.databook import __addCharacteristicData, getEmptyData
-from optima_tb.plotting import _extractFlows 
+from optima_tb.plotting import extractFlows 
 
 
 
@@ -152,44 +152,52 @@ def evaluateDiseaseProgression(proj, specified_progressions, specified_populatio
     
     
 def calculateCumulativeDerivatives(results, settings, from_year, to_year,
-                                   comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
+                                   comp_labels = None, pop_labels = None, 
                                    link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False,
                                    plot_inflows = True, plot_outflows = True, exclude_transfers = False):
     """
+    Calculate the sum of yearly flows to determine total values over a period.
+    
+    Parameters:
+        results        results
+        settings       project settings
+        from_year, to_year    period over which to calculate the cumulative 
+        comp_labels    list of compartments
+        pop_labels     list of populations
+            other args as per plotting/plotFlows 
+    
+    Outputs:
+        list of summed flows for each year in the period (from_year,to_year)
     
     
     """
     tvec = results.sim_settings['tvec']
-    #print comp_labels
-    #print pop_labels
+    
     rates, tvecs, labels = extractDerivatives(results=results, 
                                               settings=settings,
                                               tvec=tvec,
                                               plot_inflows=plot_inflows,
                                               plot_outflows=plot_outflows,
                                               comp_labels = comp_labels, 
-                                              comp_titles = comp_titles, 
+                                              #comp_titles = comp_titles, 
                                               pop_labels = pop_labels, 
-                                              pop_titles = pop_titles, 
-                                              plot_pops = pop_labels,
+                                              #pop_titles = pop_titles, 
+                                              #plot_pops = pop_labels,
                                               link_labels = link_labels, 
                                               include_link_not_exclude = include_link_not_exclude, 
                                               link_legend = link_legend, 
                                               sum_total=sum_total,
                                               exclude_transfers = exclude_transfers)
-    
+
     # sum across populations
     yvals = np.array(rates)
     yvals = yvals.sum(axis=0)[0]
     tvals = np.array(tvecs[0])[0]
     # extract years that we need
     idx = (tvals>=from_year)*(tvals<=to_year)*(tvals%1.==0.0)
-    #print idx
-    #print tvals[idx]
-    #print yvals[idx]
+    
     summed_derivatives = yvals[idx].sum()
-    #print summed_derivatives
-    # return values
+    
     return summed_derivatives
     
                                                 
@@ -212,31 +220,29 @@ def getPIDs(results,poplabels):
     return pids
     
 
-def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
+def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles = None, pop_labels = None, 
               link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False,
               plot_inflows = True, plot_outflows = True, exclude_transfers = False):
     """
     
     """
     
-    if pop_labels is None: pop_labels = results.pop_labels
-    
     if link_legend is None: link_legend = dict()
     
-    if plot_pops is not None:
-        plot_pids = getPIDs(results,plot_pops)
+    if pop_labels is not None:
+        plot_pids = getPIDs(results,pop_labels)
     else:
         plot_pids = range(len(results.m_pops))
-        plot_pops = [pop.label for pop in results.m_pops]
+        pop_labels = [pop.label for pop in results.m_pops]
     
     if comp_labels is None:
-        logger.info("No compartments have been selected for flow-plots.")
+        logger.error("No compartments have been selected for flow-plots.")
         comp_labels = []
+        return
+        
         
     if comp_titles is not None and len(comp_titles) != len(comp_labels):
         logger.error("Flow-plot failure due to the number of compartment plot titles not matching the number of compartments to analyse.")
-    if pop_titles is not None and len(pop_titles) != len(pop_labels):
-        logger.error("Flow-plot failure due to the number of population plot titles not matching the number of populations to analyse.")
     
     all_rates = []
     all_tvecs = []
@@ -247,11 +253,8 @@ def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles 
         
         for (j, pid) in enumerate(plot_pids):
             
-            plot_label = plot_pops[j]
-            
-            comp = results.m_pops[pid].getComp(comp_label)
-            
-            rates, tvecs, labels = _extractFlows(comp=comp,
+            rates, tvecs, labels = extractFlows(pop_labels=[pid],
+                                                    comp_label=comp_label,
                                                     results=results, 
                                                     settings=settings,
                                                     tvec=tvec,
@@ -262,7 +265,7 @@ def extractDerivatives(results, settings, tvec, comp_labels = None, comp_titles 
                                                     plot_outflows=plot_outflows,
                                                     sum_total=sum_total,
                                                     exclude_transfers=exclude_transfers)
-        
+            
             all_rates.append(rates)
             all_tvecs.append(tvecs)
             all_labels.append(labels)
