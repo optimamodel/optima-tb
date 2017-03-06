@@ -17,26 +17,28 @@ from copy import deepcopy as dcp
 
 #%% Utility functions to generate sub-blocks of the project databook
 
-def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, assumption_overrides = None, data_formats = None, print_conditions = None, no_header = False, only_assumption = False):
+def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption = 0.0, assumption_overrides = None, data_formats = None, print_conditions = None, print_conditions_blank_preloading = True, no_header = False, only_assumption = False):
     '''
     Create a block where users choose data-entry format and enter values either as an assumption or time-dependent array.
     
     Args:
-        worksheet               -   The worksheet in which to produce the block.
-        at_row                  -   The row at which the top-left corner of the block will be fixed.
-        at_col                  -   The column at which the top-left corner of the block will be fixed.
-        num_arrays              -   The number of input arrays to generate.
-        tvec                    -   The year range for which values are (optionally) to be entered.
-        assumption              -   The default value to read from the assumption column in case the file is not first opened in Excel before loading.
-                                    Without opening file in Excel, custom equations are not calculated.
-        assumption_overrides    -   A list of default values to use (or equations to calculate) in the assumption column, assuming the file is opened in Excel.
-                                    List must be of num_arrays length.
-        data_formats            -   A list of formats that data can be entered as.
-                                    This is not data validation, but will determine the form of calculations during model processing.
-        print_conditions        -   A list of Excel-string conditions that are used to test whether data-entry arrays should be shown.
-                                    List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
-        no_header               -   A flag for whether the output excel block should contain assumption and year column headers.
-        only_assumption         -   Locks out value entry for anything but the assumption.
+        worksheet                           -   The worksheet in which to produce the block.
+        at_row                              -   The row at which the top-left corner of the block will be fixed.
+        at_col                              -   The column at which the top-left corner of the block will be fixed.
+        num_arrays                          -   The number of input arrays to generate.
+        tvec                                -   The year range for which values are (optionally) to be entered.
+        assumption                          -   The default value to read from the assumption column in case the file is not first opened in Excel before loading.
+                                                Without opening file in Excel, custom equations are not calculated.
+        assumption_overrides                -   A list of default values to use (or equations to calculate) in the assumption column, assuming the file is opened in Excel.
+                                                List must be of num_arrays length.
+        data_formats                        -   A list of formats that data can be entered as.
+                                                This is not data validation, but will determine the form of calculations during model processing.
+        print_conditions                    -   A list of Excel-string conditions that are used to test whether data-entry arrays should be shown.
+                                                List must be of num_arrays length, but can include values of None to allow default printing behaviour for certain rows.
+        print_conditions_blank_preloading   -   If True, pre-loaded Excel files have default format/assumption values set to ''. This can cause problems when auto-loading.
+                                                If False, default format/assumption values are loadable, even if opening the Excel file then blanks them out.
+        no_header                           -   A flag for whether the output excel block should contain assumption and year column headers.
+        only_assumption                     -   Locks out value entry for anything but the assumption.
                                 
     Note that if no data format is specified, data formats for 'Fraction' or 'Number' are available. The default choice of the 
     data format is assumed that if the assumption value is larger than 1., then it is likely to be a Number, otherwise it is assumed to be a Fraction.
@@ -49,6 +51,14 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
             data_format_assumption = data_formats[1] # Number
     else:
         data_format_assumption = data_formats[0]
+    
+    # Handles issues where user wants to autoload assumptions rather print-condition blanks.
+    if not print_conditions_blank_preloading:
+        preloaded_data_format = data_format_assumption
+        preloaded_assumption = assumption
+    else:
+        preloaded_data_format = ''
+        preloaded_assumption = ''
                             
     offset = at_col + 3     # This is the column at which the input year range and corresponding values should be written.
     
@@ -75,8 +85,8 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
         worksheet.write(row_id, at_col, data_format_assumption)      # Default choice for data format.
         worksheet.data_validation('%s' % rc(row_id,at_col), {'validate': 'list', 'source': data_formats, 'ignore_blank': False}) 
         if not print_conditions is None and not print_conditions[aid] is None:
-            worksheet.write(row_id, at_col, '=IF(%s,"%s","")' % (print_conditions[aid], data_format_assumption), None, '')      # Default choice for data format.
-            worksheet.write(row_id, at_col + 1, '=IF(%s,IF(SUMPRODUCT(--(%s:%s<>"%s"))=0,%s,"N.A."),"")' % (print_conditions[aid], rc(row_id,offset), rc(row_id,offset+len(tvec)-1), value_default, assumption_overrides[aid]), None, '')
+            worksheet.write(row_id, at_col, '=IF(%s,"%s","")' % (print_conditions[aid], data_format_assumption), None, preloaded_data_format)      # Default choice for data format.
+            worksheet.write(row_id, at_col + 1, '=IF(%s,IF(SUMPRODUCT(--(%s:%s<>"%s"))=0,%s,"N.A."),"")' % (print_conditions[aid], rc(row_id,offset), rc(row_id,offset+len(tvec)-1), value_default, assumption_overrides[aid]), None, preloaded_assumption)
             worksheet.write(row_id, at_col + 2, '=IF(%s,"OR","")' % print_conditions[aid], None, '')
             if only_assumption:
                 for k in xrange(len(tvec)):
@@ -363,16 +373,17 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
                 else: ws_progval.write(row_id + 5 + row_imp, 0, '...')
                 print_conditions.append('%s<>"..."' % rc(row_id+5+row_imp,1))
                 super_string = '"..."'
-                default_attname = super_string
+                assumption_attname = super_string
                 for k in xrange(num_progtypes):
                     progtype_name = settings.progtype_name_labels.keys()[k]
                     progtype_label = settings.progtype_name_labels[k]
                     try: attrib_name = settings.progtype_specs[progtype_label]['attribute_name_labels'].keys()[row_imp]
                     except: attrib_name = '...'
-                    if k == 0: default_attname = attrib_name
+                    if k == 0:
+                        assumption_attname = attrib_name
                     super_string = 'IF(%s="%s","%s",%s)' % (rc(row_id,1), progtype_name, attrib_name, super_string)
-                ws_progval.write(row_id + 5 + row_imp, 1, '='+super_string, None, default_attname)
-            makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 5, at_col = 2, num_arrays = rows_imp, tvec = data_tvec, data_formats = ['Number','Fraction'], print_conditions = print_conditions, no_header = True)
+                ws_progval.write(row_id + 5 + row_imp, 1, '='+super_string, None, assumption_attname)
+            makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 5, at_col = 2, num_arrays = rows_imp, tvec = data_tvec, data_formats = ['Unique'], print_conditions = print_conditions, print_conditions_blank_preloading = False, no_header = True)
                 
             
             row_id += 6 + rows_imp
@@ -622,8 +633,6 @@ def loadSpreadsheetFunc(settings, databook_path):
                     for col_id in xrange(ws_progmat.ncols):
                         if col_id > 1:
                             if str(ws_progmat.cell_value(row_id, col_id)) == 'y':
-#                                if 'target_pops' not in data['progs'][prog_label].keys():
-#                                    data['progs'][prog_label]['target_pops'] = []
                                 data['progs'][prog_label]['target_pops'].append(str(ws_progmat.cell_value(0, col_id)))
                                 
     #%% Program details sheet.
@@ -631,6 +640,8 @@ def loadSpreadsheetFunc(settings, databook_path):
         prog_specified = False
         prog_name = None
         prog_label = None
+        progtype_name = None
+        progtype_label = None
         prog_row_id = 0
         temp = odict()
         for row_id in xrange(ws_progval.nrows):
@@ -650,12 +661,15 @@ def loadSpreadsheetFunc(settings, databook_path):
                 if important_col == 'Program Funding':
                     tag = 'cost'
                     get_data = True
-                print important_col
                 if important_col.startswith('Unit Cost Estimate'):
-                    print 'huzzah'
                     data['progs'][prog_label]['unit_cost'] = str(ws_progval.cell_value(row_id, 3))
+                if important_col in settings.progtype_specs[progtype_label]['attribute_name_labels'].keys():
+                    tag = settings.progtype_specs[progtype_label]['attribute_name_labels'][important_col]
+                    get_data = True
                 if get_data:
                     for col_id in xrange(ws_progval.ncols):
+                        print tag
+                        print ws_progval.cell_value(row_id, col_id)
                         if col_id == 2:
                             data['progs'][prog_label]['%s_format' % tag] = str(ws_progval.cell_value(row_id, col_id)).lower()
                         if col_id > 2 and isinstance(ws_progval.cell_value(row_id, col_id), Number):
@@ -680,7 +694,9 @@ def loadSpreadsheetFunc(settings, databook_path):
                 prog_name = str(zero_col)
                 prog_label = data['meta']['progs']['name_labels'][prog_name]
                 prog_row_id = row_id
-                data['progs'][prog_label]['prog_type'] = str(ws_progval.cell_value(row_id, 1))
+                progtype_name = str(ws_progval.cell_value(row_id, 1))
+                progtype_label = settings.progtype_name_labels[progtype_name]
+                data['progs'][prog_label]['prog_type'] = progtype_name
                 temp[prog_label] = odict()
         
         # Cost coverage data must be converted into time, cost and coverage lists.
@@ -688,6 +704,9 @@ def loadSpreadsheetFunc(settings, databook_path):
             list_t = []
             list_cost = []
             list_cov = []
+            progtype_label = settings.progtype_name_labels[data['progs'][prog_label]['prog_type']]
+            num_attribs = len(settings.progtype_specs[progtype_label]['attribute_name_labels'])
+            list_attribs = [[] for x in xrange(num_attribs)]
             
             # Run through all non-assumption temp-dict keys, i.e. years.
             for tval in sorted(temp[prog_label].keys()):
@@ -708,16 +727,36 @@ def loadSpreadsheetFunc(settings, databook_path):
                     cov = float(temp[prog_label]['cov_assumption'])
                 list_cost.append(cost)
                 list_cov.append(cov)
+                for aid in xrange(num_attribs):
+                    attrib_label = settings.progtype_specs[progtype_label]['attribute_name_labels'][aid]
+                    attrib = np.nan
+                    if attrib_label in temp[prog_label][tval]:
+                        attrib = float(temp[prog_label][tval][attrib_label])
+                    elif attrib_label+'_assumption' in temp[prog_label]:
+                        attrib = float(temp[prog_label][attrib_label+'_assumption'])
+                    list_attribs[aid].append(attrib)
+                        
+                    
             if len(list_t) == 0:     # In the case that only assumptions are given...
                 try:
                     list_t.append(float(temp[prog_label]['t_assumption']))
                     list_cost.append(float(temp[prog_label]['cost_assumption']))
                     list_cov.append(float(temp[prog_label]['cov_assumption']))
+                    print num_attribs
+                    print list_attribs
+                    print temp[prog_label]
+                    for aid in xrange(num_attribs):
+                        attrib_label = settings.progtype_specs[progtype_label]['attribute_name_labels'][aid]
+                        list_attribs[aid].append(float(temp[prog_label][attrib_label+'_assumption']))
+                        
                 except:
                     raise OptimaException('ERROR: There is incomplete cost-coverage data provided in the databook for program "%s".' % prog_label)
             data['progs'][prog_label]['t'] = np.array(list_t)
             data['progs'][prog_label]['cost'] = np.array(list_cost)
             data['progs'][prog_label]['cov'] = np.array(list_cov)
+            for aid in xrange(num_attribs):
+                attrib_label = settings.progtype_specs[progtype_label]['attribute_name_labels'][aid]
+                data['progs'][prog_label][attrib_label] = np.array(list_attribs[aid])
         
     
     #%% Gather data value inputs for epidemic characteristics and cascade parameters sheets, be they custom or standard.

@@ -526,6 +526,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                         attrib_label = str(ws_progtypes.cell_value(row_id, cid_attlabel))
                         attrib_name = str(ws_progtypes.cell_value(row_id, cid_attname))
                         if '' not in [attrib_label, attrib_name]:
+                            if attrib_label in ['t','cov','cost']: raise OptimaException('ERROR: Attribute label "%s" in cascade program sheet is restricted for internal use.' % attrib_label)
                             settings.progtype_specs[current_label]['attribute_label_names'][attrib_label] = attrib_name
                             settings.progtype_specs[current_label]['attribute_name_labels'][attrib_name] = attrib_label
                     
