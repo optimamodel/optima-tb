@@ -499,26 +499,40 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     if ws_progtypes:
         cid_label = None
         cid_name = None
+        cid_attlabel = None
+        cid_attname = None
         cid_pars = None
         for col_id in xrange(ws_progtypes.ncols):
             if ws_progtypes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Attribute Labels': cid_attlabel = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Attribute Names': cid_attname = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Impact Parameters': cid_pars = col_id
         if None in [cid_tag, cid_label]:
             raise OptimaException('ERROR: Program type worksheet does not have correct column headers.')
         
         current_label = None    # A way to associate extra lines of details to one program.
         for row_id in xrange(ws_progtypes.nrows):
-            label = str(ws_progtypes.cell_value(row_id, cid_label))
-            name = str(ws_progtypes.cell_value(row_id, cid_name))
-            if row_id > 0 and label not in [''] and name not in ['']:
-                current_label = label
-                settings.progtype_specs[current_label] = {'name':name, 'impact_pars':[]}
-                settings.progtype_name_labels[name] = current_label
-                                             
-            par = str(ws_progtypes.cell_value(row_id, cid_pars))
-            if row_id > 0 and par not in ['']:
-                settings.progtype_specs[current_label]['impact_pars'].append(par)
+            if row_id > 0:
+                label = str(ws_progtypes.cell_value(row_id, cid_label))
+                name = str(ws_progtypes.cell_value(row_id, cid_name))
+                if not '' in [label, name]:
+                    current_label = label
+                    settings.progtype_specs[current_label] = {'name':name, 'impact_pars':[], 'attribute_label_names':{}, 'attribute_name_labels':{}}
+                    settings.progtype_name_labels[name] = current_label
+                
+                if not current_label is None:
+                    if not None in [cid_attlabel, cid_attname]:
+                        attrib_label = str(ws_progtypes.cell_value(row_id, cid_attlabel))
+                        attrib_name = str(ws_progtypes.cell_value(row_id, cid_attname))
+                        if '' not in [attrib_label, attrib_name]:
+                            settings.progtype_specs[current_label]['attribute_label_names'][attrib_label] = attrib_name
+                            settings.progtype_specs[current_label]['attribute_name_labels'][attrib_name] = attrib_label
+                    
+                    if not cid_pars is None:
+                        par = str(ws_progtypes.cell_value(row_id, cid_pars))
+                        if par not in ['']:
+                            settings.progtype_specs[current_label]['impact_pars'].append(par)
         
         #CONTINUE HERE.
     
