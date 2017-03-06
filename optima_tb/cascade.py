@@ -518,7 +518,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 name = str(ws_progtypes.cell_value(row_id, cid_name))
                 if not '' in [label, name]:
                     current_label = label
-                    settings.progtype_specs[current_label] = {'name':name, 'impact_pars':[], 'attribute_label_names':{}, 'attribute_name_labels':{}}
+                    settings.progtype_specs[current_label] = {'name':name, 'impact_pars':[], 'attribute_label_names':odict(), 'attribute_name_labels':odict()}
                     settings.progtype_name_labels[name] = current_label
                 
                 if not current_label is None:
@@ -534,7 +534,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                         if par not in ['']:
                             settings.progtype_specs[current_label]['impact_pars'].append(par)
         
-        #CONTINUE HERE.
+        settings.databook['format']['programs']['max_lines_impact'] = max([len(settings.progtype_specs[x]['attribute_name_labels'].keys()) for x in settings.progtype_specs.keys()])
     
     validation = cascadeValidation(settings=settings)
     if not validation: raise OptimaException('ERROR: Cascade workbook appears to have issues with births and deaths definition, please check log.')

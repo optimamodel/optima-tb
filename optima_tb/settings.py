@@ -126,6 +126,8 @@ class Settings(object):
         self.databook['suffix']['seed'] =   ' [S]'  # Suffix for characteristics used as model seeds (i.e. for initialisation).
         self.databook['suffix']['output'] = ' [O]'  # Suffix for characteristics used solely as outputs for diagnostic and/or calibration purposes.
         self.databook['suffix']['par'] =    ' [P]'  # Suffix for parameters that are used at every step of model calculations.
+        
+        self.databook['format'] = {'programs':{'max_lines_impact':0}}
     
     def resetCalibrationParameters(self):
         """

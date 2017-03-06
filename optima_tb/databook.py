@@ -214,7 +214,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     ws_transmat_width = 15
     ws_transval_width = 15
     ws_progmat_width = 15
-    ws_progval_width = 30
+    ws_progval_width = 35
     name_width = 60
     assumption_width = 10
     
@@ -337,6 +337,9 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
     #%% Program details sheet.
     
     if include_progs:
+        rows_imp = settings.databook['format']['programs']['max_lines_impact']
+        num_progtypes = len(settings.progtype_name_labels.keys())
+        
         row_id = 0
         for prid in xrange(num_progs):
             ws_progval.write(row_id, 0, prog_names_formula[prid], None, prog_names_default[prid])
@@ -353,7 +356,26 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
             makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 3, at_col = 2, num_arrays = 1, tvec = data_tvec, data_formats = ['USD'], no_header = True)
             makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 4, at_col = 2, num_arrays = 1, tvec = data_tvec, assumption = '1.0E+300', data_formats = ['=CONCATENATE(%s)' % (rc(row_id+3,2))], no_header = True, only_assumption = True)
             
-            row_id += 6
+            print_conditions = []
+            ws_progval.write(row_id + 5, 0, 'Impact Attributes')
+            for row_imp in xrange(rows_imp):
+                if row_imp == 0: ws_progval.write(row_id + 5 + row_imp, 0, 'Impact Attributes')
+                else: ws_progval.write(row_id + 5 + row_imp, 0, '...')
+                print_conditions.append('%s<>"..."' % rc(row_id+5+row_imp,1))
+                super_string = '"..."'
+                default_attname = super_string
+                for k in xrange(num_progtypes):
+                    progtype_name = settings.progtype_name_labels.keys()[k]
+                    progtype_label = settings.progtype_name_labels[k]
+                    try: attrib_name = settings.progtype_specs[progtype_label]['attribute_name_labels'].keys()[row_imp]
+                    except: attrib_name = '...'
+                    if k == 0: default_attname = attrib_name
+                    super_string = 'IF(%s="%s","%s",%s)' % (rc(row_id,1), progtype_name, attrib_name, super_string)
+                ws_progval.write(row_id + 5 + row_imp, 1, '='+super_string, None, default_attname)
+            makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 5, at_col = 2, num_arrays = rows_imp, tvec = data_tvec, data_formats = ['Number','Fraction'], print_conditions = print_conditions, no_header = True)
+                
+            
+            row_id += 6 + rows_imp
             
         ws_progval.set_column(0, 1, ws_progval_width)
         ws_progval.set_column(2, 3, assumption_width)
