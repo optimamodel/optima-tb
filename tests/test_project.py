@@ -37,12 +37,21 @@ class TestProject(ModelTest):
             self.assertEqual(temp.keys(), [], 'Attribute "%s" of project is a non-empty odict' % attribute_type)
         return None
     
+    def test_makespreadsheet(self):
+        '''
+            1. Checks whether spreadsheet is created or not
+        '''
+        temp_databook = self.databook.replace('full', 'test')
+        self.proj.makeSpreadsheet(databook_path=temp_databook)
+        os.remove(temp_databook)
+        return None
+    
     def test_loadspreadsheet(self):
         '''
             1. All data types exist within project.data
             2. No other entries are created  when loadspreadsheet is called (e.g. resultset, scenario)
         '''
-        self.proj.loadSpreadsheet(databook_path=databook)
+        self.proj.loadSpreadsheet(databook_path=self.databook)
         
         #Check data exists and is loaded into the project from spreadsheet
         for data_type in self.data:
@@ -66,7 +75,7 @@ class TestProject(ModelTest):
             4. No other entries are created  when loadspreadsheet is called (e.g. resultset, scenario)
             5. Test whether reset parset manages to ensure all parsets are set as empty odicts
         '''
-        self.proj.loadSpreadsheet(databook_path=databook)
+        self.proj.loadSpreadsheet(databook_path=self.databook)
         self.assertEqual(0, len(self.proj.parsets), 'A parset already exists even though makeParset was not called')
         
         #Test makeParset
@@ -108,7 +117,7 @@ class TestProject(ModelTest):
         return None
     
     def test_runSim(self):
-        self.proj.loadSpreadsheet(databook_path=databook)
+        self.proj.loadSpreadsheet(databook_path=self.databook)
         self.proj.makeParset()
         try:
             plot_over = [self.proj.settings.tvec_start, self.proj.settings.tvec_end]
@@ -122,7 +131,7 @@ class TestProject(ModelTest):
         return None
 
     def test_import_export_parset(self) :
-        self.proj.loadSpreadsheet(databook_path=databook)
+        self.proj.loadSpreadsheet(databook_path=self.databook)
         self.proj.makeParset()
         parset_name = self.proj.parsets[-1].name
         default = 'default'
@@ -156,16 +165,20 @@ class TestProject(ModelTest):
                                     elif isinstance(newtemp[popkey], np.ndarray):
                                         x = newtemp[popkey].tolist()
                                         y = newtemp2[popkey].tolist()
-                                        if np.isnan(x) and np.isnan(y): continue
-                                        elif np.isinf(x) and np.isinf(y): continue
-                                        self.assertListEqual(x, y, 'Parameter are mismatched between imported and exported parsets for par_type "%s". key "%s", par "%s". subpar "%s", popkey "%s"' % (par_type, key, par, subpar, popkey))
+                                        for element in range(len(x)):
+                                            if np.isnan(x[element]) and np.isnan(y[element]): validation = True
+                                            elif np.isinf(x[element]) and np.isinf(y[element]): validation = True
+                                        else: 
+                                            try: 
+                                                if validation == True: continue
+                                            except: self.assertListEqual(x, y, 'Parameter are mismatched between imported and exported parsets for par_type "%s". key "%s", par "%s". subpar "%s", popkey "%s"' % (par_type, key, par, subpar, popkey))
                                     elif isinstance(newtemp[popkey], float):
                                         self.assertEqual(float(newtemp[popkey]), float(newtemp2[popkey]), 'Parameter are mismatched between imported and exported parsets for par_type "%s". key "%s", par "%s". subpar "%s", popkey "%s"' % (par_type, key, par, subpar, popkey))
         os.remove(parset_name+'.csv')
         return None
     
     def test_calculateFit(self):
-        self.proj.loadSpreadsheet(databook_path=databook)
+        self.proj.loadSpreadsheet(databook_path=self.databook)
         self.proj.makeParset()
         results = self.proj.runSim()
         score = self.proj.calculateFit(results)
@@ -173,7 +186,7 @@ class TestProject(ModelTest):
         return None
     
     def test_exportProject(self):
-        self.proj.loadSpreadsheet(databook_path=databook)
+        self.proj.loadSpreadsheet(databook_path=self.databook)
         self.proj.makeParset()
         filename = self.proj.exportProject()
         proj2 = importObj(filename=filename)
@@ -187,7 +200,7 @@ class TestProject(ModelTest):
         return None
     
     def test_makeManualCalibration(self):
-        self.proj.loadSpreadsheet(databook_path=databook)
+        self.proj.loadSpreadsheet(databook_path=self.databook)
         self.proj.makeParset()
         results1 = self.proj.runSim()
         score1 = self.proj.calculateFit(results1)
@@ -202,13 +215,29 @@ class TestProject(ModelTest):
         pname2 = 'test_Manual_calibration'
         self.proj.makeManualCalibration(parset_name=pname2, rate_dict=rate_dict)
         results2 = self.proj.runSim(parset_name=pname2)
-        score2 = self.proj.calculateFit(results2)        
+        score2 = self.proj.calculateFit(results2)
         self.assertNotEqual(max(score1), max(score2), 'Fit Scores should not be the same since parameter rates are different!')
         return None
     
     def test_runAutofitCalibration(self):
-        self.proj.loadSpreadsheet(databook_path=databook)
+        self.proj.loadSpreadsheet(databook_path=self.databook)
+        self.proj.setYear([2000,2015], observed_data=False)
         self.proj.makeParset()
+        results1 = self.proj.runSim()
+        score1 = self.proj.calculateFit(results1)
+        self.proj.settings.autofit_params['timelimit'] = 10.0
+        #Autocalibrate all parameters        
+        self.proj.runAutofitCalibration(new_parset_name='test_auto_calibration1')
+        results2 = self.proj.runSim(parset_name='test_auto_calibration1')
+        score2 = self.proj.calculateFit(results2)
+        #Autocalibrate one parameter
+        self.proj.runAutofitCalibration(new_parset_name='test_auto_calibration2', target_characs=['num_lat'])
+        results3 = self.proj.runSim(parset_name='test_auto_calibration2')
+        score3 = self.proj.calculateFit(results3)
+        #Compare results
+        self.assertLess(max(score2), max(score1), 'Minimization did not work as expected, fit score for default case: "%f", fit score for autofit: "%f"' %(max(score1), max(score2)))
+        self.assertNotEqual(max(score2), max(score3), 'Fit Scores should not be the same since target parameter rates are different!')
+        self.assertNotEqual(results1.outputs['num_lat']['15-49'][0], results3.outputs['num_lat']['15-49'][0], 'Autocalibration did not modify target characteristic "num_lat"')
         return None
     
     
