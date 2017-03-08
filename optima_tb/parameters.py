@@ -168,6 +168,19 @@ class ParameterSet(object):
                     
         self.contacts = dcp(data['contacts'])   # Simple copying of the contacts structure into data. No need to be an object.
     
+    
+    def inflate(self,tvec):
+        """
+        Inflates cascade parameters only
+        
+        """
+        for (id,par) in enumerate(self.pars['cascade']):
+            for j,pop_label in enumerate(self.pop_labels):        
+                self.pars['cascade'][id].y[j] = par.interpolate(tvec = tvec, pop_label = pop_label)
+                self.pars['cascade'][id].t[j] = tvec
+        
+    
+    
     def __getMinMax(self,y_format):
         if y_format.lower() == 'fraction':
             return (0.,1.)
