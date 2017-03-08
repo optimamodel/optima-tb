@@ -159,9 +159,9 @@ class Program:
         
         # WARNING: ASSUMING COVERAGE IS IMPACT.
         if self.cov_format.lower() == 'fraction':
-            return self.func_specs['pars']['unit_cost']*budget*0.01     # Unit cost is per percentage when format is a fraction.
+            return float(budget)*0.01/self.func_specs['pars']['unit_cost']*budget     # Unit cost is per percentage when format is a fraction.
         else:
-            return self.func_specs['pars']['unit_cost']*budget
+            return float(budget)/self.func_specs['pars']['unit_cost']
         
 
 #        self.duration = duration

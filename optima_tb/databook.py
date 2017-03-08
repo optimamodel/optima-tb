@@ -662,14 +662,14 @@ def loadSpreadsheetFunc(settings, databook_path):
                     tag = 'cost'
                     get_data = True
                 if important_col.startswith('Unit Cost Estimate'):
-                    data['progs'][prog_label]['unit_cost'] = str(ws_progval.cell_value(row_id, 3))
+                    data['progs'][prog_label]['unit_cost'] = float(str(ws_progval.cell_value(row_id, 3)))
                 if important_col in settings.progtype_specs[progtype_label]['attribute_name_labels'].keys():
                     tag = settings.progtype_specs[progtype_label]['attribute_name_labels'][important_col]
                     get_data = True
                 if get_data:
                     for col_id in xrange(ws_progval.ncols):
-                        print tag
-                        print ws_progval.cell_value(row_id, col_id)
+#                        print tag
+#                        print ws_progval.cell_value(row_id, col_id)
                         if col_id == 2:
                             data['progs'][prog_label]['%s_format' % tag] = str(ws_progval.cell_value(row_id, col_id)).lower()
                         if col_id > 2 and isinstance(ws_progval.cell_value(row_id, col_id), Number):
@@ -742,9 +742,9 @@ def loadSpreadsheetFunc(settings, databook_path):
                     list_t.append(float(temp[prog_label]['t_assumption']))
                     list_cost.append(float(temp[prog_label]['cost_assumption']))
                     list_cov.append(float(temp[prog_label]['cov_assumption']))
-                    print num_attribs
-                    print list_attribs
-                    print temp[prog_label]
+#                    print num_attribs
+#                    print list_attribs
+#                    print temp[prog_label]
                     for aid in xrange(num_attribs):
                         attrib_label = settings.progtype_specs[progtype_label]['attribute_name_labels'][aid]
                         list_attribs[aid].append(float(temp[prog_label][attrib_label+'_assumption']))

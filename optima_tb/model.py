@@ -743,7 +743,9 @@ class Model(object):
                                         impact = 0.0
                                     else:
                                         impact = prog.getImpact(prog_budget)*source_set_size/source_element_size
-                            if self.sim_settings['tvec'][ti] in [2020,2030]:
+                            
+                            year_check = 2020
+                            if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 1.5*settings.tvec_dt:
                                 print('Program Name: %s' % prog.name)
                                 print('Program Budget: %f' % prog_budget)
                                 print('Target Population: %s' % pop.label)
