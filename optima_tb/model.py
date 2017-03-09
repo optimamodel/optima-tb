@@ -701,7 +701,7 @@ class Model(object):
                     new_val = pars[0].vals[ti]      # As links are duplicated for the same tag, can pull values from the zeroth one.
                 
                 # WARNING: HARD-CODED TEST OF PROGRAM OVERWRITES. CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
-                if 'progs_start' in self.sim_settings and self.sim_settings['progs_start'] <= self.sim_settings['tvec'][ti]:
+                if 'progs_start' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start']:
                     if par_label in progset.impacts.keys():
 #                        print pars[0].val_format
                         for prog_label in progset.impacts[par_label]:
@@ -728,21 +728,21 @@ class Model(object):
                             # Make sure each program impact is in the format of the parameter it affects.
                             if pars[0].val_format == 'fraction':
                                 if prog.cov_format == 'fraction':
-                                    impact = prog.getImpact(prog_budget)
+                                    impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti])
                                 elif prog.cov_format == 'number':
                                     if source_element_size <= project_settings.TOLERANCE:
                                         impact = 0.0
                                     else:
-                                        impact = prog.getImpact(prog_budget)/source_set_size
+                                        impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti])/source_set_size
                                     if impact > 1.0: impact = 1.0   # Maximum fraction allowable due to timestep conversion.
                             elif pars[0].val_format == 'number':
                                 if prog.cov_format == 'fraction':
-                                    impact = prog.getImpact(prog_budget)*source_element_size
+                                    impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti])*source_element_size
                                 elif prog.cov_format == 'number':
                                     if source_element_size <= project_settings.TOLERANCE:
                                         impact = 0.0
                                     else:
-                                        impact = prog.getImpact(prog_budget)*source_set_size/source_element_size
+                                        impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti])*source_set_size/source_element_size
                             
                             year_check = 2020
                             if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 1.5*settings.tvec_dt:
@@ -751,7 +751,8 @@ class Model(object):
                                 print('Target Population: %s' % pop.label)
                                 print('Target Parameter: %s' % par_label)
                                 print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
-                                print('Program Impact: %f' % prog.getImpact(prog_budget))
+                                print('Standard Program Impact: %f' % prog.getImpact(prog_budget))
+                                print('Rescaled Program Impact: %f' % prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti]))
                                 print('Program Impact Format: %s' % prog.cov_format)
                                 print('Source Compartment Size (Target Pop): %f' % source_element_size)
                                 print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)

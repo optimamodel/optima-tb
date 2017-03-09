@@ -1,4 +1,4 @@
-from optima_tb.utils import OptimaException
+from optima_tb.utils import OptimaException, odict
 from optima_tb.interpolation import interpolateFunc
 
 import logging
@@ -30,16 +30,19 @@ class ProgramSet:
             cov = data['progs'][prog_label]['cov']
             cost_format = data['progs'][prog_label]['cost_format']
             cov_format = data['progs'][prog_label]['cov_format']
+            attributes = data['progs'][prog_label]['attributes']
             target_pops = data['progs'][prog_label]['target_pops']
             prog_type_name = data['progs'][prog_label]['prog_type']
             prog_type_label = settings.progtype_name_labels[prog_type_name]
             target_pars = settings.progtype_specs[prog_type_label]['impact_pars']
-            for target_par in target_pars:
+            for target_par in target_pars.keys():
                 if target_par not in self.impacts: self.impacts[target_par] = []
                 self.impacts[target_par].append(prog_label)
+                
             new_prog = Program(name = prog_name, label = prog_label, prog_type = prog_type,
                                t = t, cost = cost, cov = cov, 
                                cost_format = cost_format, cov_format = cov_format,
+                               attributes = attributes,
                                target_pops = target_pops, target_pars = target_pars)
             
             func_pars = dict()
@@ -58,7 +61,7 @@ class ProgramSet:
 
 class Program:
     
-    def __init__(self, name, label, prog_type, t = None, cost = None, cov = None, cost_format = None, cov_format = None, target_pops = None, target_pars = None):
+    def __init__(self, name, label, prog_type, t = None, cost = None, cov = None, cost_format = None, cov_format = None, attributes = {}, target_pops = None, target_pars = None):
         """
         
         """
@@ -70,11 +73,13 @@ class Program:
         if t is None: t = []
         if cost is None: cost = []
         if cov is None: cov = []
+        if attributes is None: attributes = odict()
         self.t = t                      # Time data.
         self.cost = cost                # Spending data.
         self.cov = cov                  # Coverage data.
         self.cost_format = cost_format
         self.cov_format = cov_format
+        self.attributes = attributes
         
         if target_pops is None: target_pops = []
         self.target_pops = target_pops
@@ -84,7 +89,7 @@ class Program:
         
         self.func_specs = dict()
         
-    def interpolate(self, tvec = None, attribute = None):
+    def interpolate(self, tvec = None, attributes = None):
         ''' Takes attribute values and constructs a dictionary of interpolated array corresponding to the input time vector. Ignores np.nan. '''
         
         # Validate input.
@@ -97,25 +102,25 @@ class Program:
 
         input_cost = dcp(self.cost)
         input_cov = dcp(self.cov)
-        val_types = ['cost','cov']
-        val_arrays = [input_cost,input_cov]
+        val_types = ['cost','cov'] + [x for x in self.attributes.keys()]
+        val_arrays = [input_cost,input_cov] + [y for y in self.attributes.values()]
         
         for k in xrange(len(val_types)):
             val_type = val_types[k]
             val_array = val_arrays[k]
-            if attribute is not None and attribute != val_type: continue
-        
-            if len(self.t) == 1:    # If there is only one timepoint, corresponding cost and cov values should be real valued after loading databook. But can double-validate later.
-                output[val_type] = np.ones(len(tvec))*(val_array)[0]   # Don't bother running interpolation loops if constant. Good for performance.
-            else:
-                t_array = dcp(self.t)   # Need to refresh this during each attribute interpolation loop.
+            if attributes is not None and val_type not in attributes: continue
+            
+            t_array = dcp(self.t)   # Need to refresh this during each attribute interpolation loop.
                 
-                # Eliminate np.nan from value array before interpolation. Makes sure timepoints are appropriately constrained.
-                t_temp = dcp(t_array)
-                val_temp = dcp(val_array)
-                t_array = dcp(t_temp[~np.isnan(val_temp)])
-                val_array = dcp(val_temp[~np.isnan(val_temp)])
-                             
+            # Eliminate np.nan from value array before interpolation. Makes sure timepoints are appropriately constrained.
+            t_temp = dcp(t_array)
+            val_temp = dcp(val_array)
+            t_array = dcp(t_temp[~np.isnan(val_temp)])
+            val_array = dcp(val_temp[~np.isnan(val_temp)])
+        
+            if len(t_array) == 1:    # If there is only one timepoint, corresponding cost and cov values should be real valued after loading databook. But can double-validate later.
+                output[val_type] = np.ones(len(tvec))*(val_array)[0]   # Don't bother running interpolation loops if constant. Good for performance.
+            else:                             
                 # Pad the input vectors for interpolation with minimum and maximum timepoint values, to avoid extrapolated values blowing up.
                 ind_min, t_min = min(enumerate(t_array), key = lambda p: p[1])
                 ind_max, t_max = max(enumerate(t_array), key = lambda p: p[1])
@@ -151,23 +156,36 @@ class Program:
         '''
         
         if year is None: year = max(self.t)
-        output = self.interpolate(tvec=[year], attribute='cost')
+        output = self.interpolate(tvec=[year], attributes=['cost'])
         budget = output['cost'][-1]
         return budget
         
-    def getImpact(self, budget):
+    def getImpact(self, budget, impact_label = None, parser = None, year = None):
         
-        # WARNING: ASSUMING COVERAGE IS IMPACT.
+        # Baseline impact is just coverage.
         if self.cov_format.lower() == 'fraction':
-            return float(budget)*0.01/self.func_specs['pars']['unit_cost']*budget     # Unit cost is per percentage when format is a fraction.
+            imp = float(budget)*0.01/self.func_specs['pars']['unit_cost']*budget     # Unit cost is per percentage when format is a fraction.
         else:
-            return float(budget)/self.func_specs['pars']['unit_cost']
+            imp = float(budget)/self.func_specs['pars']['unit_cost']
         
-
-#        self.duration = duration
-#        self.category = category
-        
-#        self.cost_coverage = []
+        # If impact parameter has an impact function, this is what coverage is scaled by.
+        if not impact_label is None:
+            if 'f_stack' in self.target_pars[impact_label].keys():
+                if parser is None:
+                    raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" without a parser, due to the existence of an impact function.' % (self.label,impact_label))
+                f_stack = dcp(self.target_pars[impact_label]['f_stack'])
+                attribs = dcp(self.target_pars[impact_label]['attribs'])
+                for attrib_label in attribs.keys():
+                    if attrib_label in self.attributes.keys():
+                        if year is None: year = max(self.t)
+                        output = self.interpolate(tvec=[year], attributes=[attrib_label])
+                    else:
+                        raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" due to a missing reference "%s".' % (self.label,impact_label,attrib_label))
+                    attribs[attrib_label] = output[attrib_label][-1]
+                new_val = parser.evaluateStack(stack = f_stack, deps = attribs)
+                imp *= new_val      # Scale coverage.
+                
+        return imp
         
         
 #class TreatmentProgram(Program):

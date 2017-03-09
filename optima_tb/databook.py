@@ -671,7 +671,11 @@ def loadSpreadsheetFunc(settings, databook_path):
 #                        print tag
 #                        print ws_progval.cell_value(row_id, col_id)
                         if col_id == 2:
-                            data['progs'][prog_label]['%s_format' % tag] = str(ws_progval.cell_value(row_id, col_id)).lower()
+                            if tag in ['cov','cost']:
+                                data['progs'][prog_label]['%s_format' % tag] = str(ws_progval.cell_value(row_id, col_id)).lower()
+                            else:   # Assume attributes have unique formats. No need to store at this time.
+                                pass
+#                                data['progs'][prog_label]['attributes']['%s_format' % tag] = str(ws_progval.cell_value(row_id, col_id)).lower()
                         if col_id > 2 and isinstance(ws_progval.cell_value(row_id, col_id), Number):
                             val = ws_progval.cell_value(row_id, col_id)
                             
@@ -697,6 +701,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                 progtype_name = str(ws_progval.cell_value(row_id, 1))
                 progtype_label = settings.progtype_name_labels[progtype_name]
                 data['progs'][prog_label]['prog_type'] = progtype_name
+                data['progs'][prog_label]['attributes'] = odict()
                 temp[prog_label] = odict()
         
         # Cost coverage data must be converted into time, cost and coverage lists.
@@ -756,7 +761,7 @@ def loadSpreadsheetFunc(settings, databook_path):
             data['progs'][prog_label]['cov'] = np.array(list_cov)
             for aid in xrange(num_attribs):
                 attrib_label = settings.progtype_specs[progtype_label]['attribute_name_labels'][aid]
-                data['progs'][prog_label][attrib_label] = np.array(list_attribs[aid])
+                data['progs'][prog_label]['attributes'][attrib_label] = np.array(list_attribs[aid])
         
     
     #%% Gather data value inputs for epidemic characteristics and cascade parameters sheets, be they custom or standard.
