@@ -24,6 +24,12 @@ class Scenario(object):
     def getScenarioParset(self):
         raise NotImplementedError
     
+    def makeScenarioProgset(self):
+        raise NotImplementedError
+    
+    def getScenarioProgset(self, progset):
+        raise NotImplementedError
+    
 class ParameterScenario(Scenario):
     
     def __init__(self,name,run_scenario=False,overwrite=True,scenario_values=None,pop_labels=None,**kwargs):
@@ -87,8 +93,10 @@ class ParameterScenario(Scenario):
             return parset + self.scenario_parset
     
     
-    
-    
+
+    def getScenarioProgset(self, progset):
+        return progset    
+
     
 class BudgetScenario(Scenario):
     
@@ -113,11 +121,16 @@ class BudgetScenario(Scenario):
         """
 
         """
-        if self.overwrite: # update values in parset with those in scenario_parset
-            return parset << self.scenario_parset
-        else: # add the two together
-            return parset + self.scenario_parset
+        return parset 
 
+    def makeScenarioProgset(self):
+        # TODO implement
+        raise NotImplementedError
+
+
+    def getScenarioProgset(self, progset):
+        # TODO implement
+        return progset
 
 
 class CoverageScenario(Scenario):

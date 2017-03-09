@@ -297,7 +297,7 @@ class Project(object):
         
         
 
-    def runScenarios(self,original_parset_name,scenario_set_name=None,include_bau=False,plot=False,save_results=False):
+    def runScenarios(self,original_parset_name,original_progset_name=None,scenario_set_name=None,include_bau=False,plot=False,save_results=False):
         """
         Runs scenarios that are contained in this project's collection of scenarios (i.e. self.scenarios). 
         For each scenario run, using original_parset_name, the results generated are saved and 
@@ -318,7 +318,13 @@ class Project(object):
         Returns:
             results    dictionary of results obtained for each scenario, with key = scenario_name
         """
-        ops = self.parsets[original_parset_name]
+        orig_parset = self.parsets[original_parset_name]
+        
+        if original_progset_name is not None:
+            orig_progset = self.progsets[original_progset_name]
+        else:
+            orig_progset = None
+            
         results = odict()
         
         if include_bau:
@@ -329,7 +335,7 @@ class Project(object):
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
 
-                results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(ops), parset_name = scen_name, plot=plot)
+                results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(orig_parset), progset=self.scenarios[scen].getScenarioProgset(orig_progset), parset_name = scen_name, plot=plot)
                 
                 if scenario_set_name is None:
                     results[scen_name].name = '%s'%(scen_name)
