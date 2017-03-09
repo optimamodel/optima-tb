@@ -336,7 +336,7 @@ class PlottingSettings():
         
         pl.rcParams['savefig.dpi'] = 300
         pl.rcParams['savefig.format'] = 'png'
-        pl.rcParams['savefig.transparent'] =  'True'
+        pl.rcParams['savefig.transparent'] =  'False'
         
         pl.rcParams['figure.max_open_warning'] = 40
         
