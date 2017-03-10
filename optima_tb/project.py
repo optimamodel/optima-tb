@@ -297,7 +297,7 @@ class Project(object):
         
         
 
-    def runScenarios(self,original_parset_name,original_progset_name=None,scenario_set_name=None,include_bau=False,plot=False,save_results=False):
+    def runScenarios(self,original_parset_name,original_progset_name=None,original_budget_options=None,scenario_set_name=None,include_bau=False,plot=False,save_results=False):
         """
         Runs scenarios that are contained in this project's collection of scenarios (i.e. self.scenarios). 
         For each scenario run, using original_parset_name, the results generated are saved and 
@@ -325,17 +325,24 @@ class Project(object):
         else:
             orig_progset = None
             
+        if original_budget_options is None:
+            original_budget_options = {}
+            
         results = odict()
         
         if include_bau:
-            results['BAU'] = self.runSim(parset_name = original_parset_name,plot=plot)
+            results['BAU'] = self.runSim(parset_name = original_parset_name,progset=orig_progset,options=original_budget_options,plot=plot)
 
         
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
 
-                results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(orig_parset), progset=self.scenarios[scen].getScenarioProgset(orig_progset), parset_name = scen_name, plot=plot)
+                progset, budget_options = self.scenarios[scen].getScenarioProgset(orig_progset,original_budget_options)
+                print budget_options
+             
+            
+                results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(orig_parset), progset=progset, options=budget_options, parset_name = scen_name, plot=plot)
                 
                 if scenario_set_name is None:
                     results[scen_name].name = '%s'%(scen_name)
