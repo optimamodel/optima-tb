@@ -9,13 +9,14 @@ from optima_tb.databook import getEmptyData
 
 class Scenario(object):
     
-    def __init__(self,name,run_scenario=False,overwrite=True):
+    def __init__(self,name,settings,run_scenario=False,overwrite=True):
         
         self.name = name
         self.uid  = uuid()
         self.run_scenario = run_scenario
         self.overwrite = overwrite
         self.scenario_parset= None # Placeholder for scenario values
+        self.settings = settings
     
     
     def makeScenarioParset(self):
@@ -26,8 +27,8 @@ class Scenario(object):
     
 class ParameterScenario(Scenario):
     
-    def __init__(self,name,run_scenario=False,overwrite=True,scenario_values=None,pop_labels=None,**kwargs):
-        super(ParameterScenario,self).__init__(name,run_scenario,overwrite)
+    def __init__(self,name,settings,run_scenario=False,overwrite=True,scenario_values=None,pop_labels=None,**kwargs):
+        super(ParameterScenario,self).__init__(name,settings,run_scenario,overwrite)
         self.makeScenarioParset(scenario_values,pop_labels=pop_labels)
         
         
@@ -67,7 +68,7 @@ class ParameterScenario(Scenario):
             scenario_values = odict()
         data['linkpars'] = scenario_values
         # values required when creating a parameter set
-        data['pops']['name_labels'] = pop_labels
+        data['pops']['labels_name'] = pop_labels
         
         ps = ParameterSet(self.name)
         ps.makePars(data)
@@ -81,6 +82,13 @@ class ParameterScenario(Scenario):
         The output depends on whether to overwrite (replace) or add values that appear in both the 
         parameterScenario's parameterSet to the baseline parameterSet. 
         """
+        import numpy as np
+        tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + self.settings.tvec_dt/2, self.settings.tvec_dt)
+        
+        # inflate both the two parameter sets first
+        parset.inflate(tvec)
+        self.scenario_parset.inflate(tvec)
+             
         if self.overwrite: # update values in parset with those in scenario_parset
             return parset << self.scenario_parset
         else: # add the two together
