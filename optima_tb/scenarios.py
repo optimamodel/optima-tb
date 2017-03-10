@@ -22,7 +22,7 @@ class Scenario(object):
     def makeScenarioParset(self):
         raise NotImplementedError
     
-    def getScenarioParset(self):
+    def getScenarioParset(self, parset):
         raise NotImplementedError
     
     def makeScenarioProgset(self):
@@ -176,7 +176,12 @@ class CoverageScenario(Scenario):
         """
         return parset
     
+    def getScenarioParset(self, parset):
+        raise NotImplementedError
     
+    
+    def getScenarioProgset(self, progset,options):
+        raise NotImplementedError
     
     
     

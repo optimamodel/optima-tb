@@ -339,8 +339,6 @@ class Project(object):
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
 
                 progset, budget_options = self.scenarios[scen].getScenarioProgset(orig_progset,original_budget_options)
-                print budget_options
-             
             
                 results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(orig_parset), progset=progset, options=budget_options, parset_name = scen_name, plot=plot)
                 
