@@ -263,16 +263,21 @@ class Project(object):
             proj.createScenarios(scen_values)
             
         Budget Scenario Example: 
-            scvalues = odict()
-            scvalues['Prog1'] = odict()
-            scvalues['Prog1']['t'] = [2010.,2015.,2020.,2025.]
-            scvalues['Prog1']['funding'] = [1e7, 2e7, 3e7, 5e7]
+            budget_options = {'HT-DS': 4e6,'SAT-DS':0,'HT-MDR': 3e4}
             scen_values = { 'test_scenario': {'type': 'Budget',
-                                  'run_scenario' : True,
-                                  'scenario_values': scvalues}
-               }
+                                      'overwrite' : True, # it will overwrite scenario to the parset
+                                      'run_scenario' : True,
+                                      'scenario_values': budget_options}
+                   }
             proj = Project(name = 'sampleProject', cascade_path = 'data/cascade-simple.xlsx')
+            proj.makeParset(name = 'default_parset')
+            proj.makeProgset(name = 'default_progset')
             proj.createScenarios(scen_values)
+            resultset = proj.runScenarios(original_parset_name = 'default_parset',
+                                  original_progset_name='default_progset',
+                                  original_budget_options=options,
+                                  include_bau=False)
+
   
         """
         logger.info("About to create scenarios")
@@ -287,9 +292,11 @@ class Project(object):
                 # TODO decide what to do if scenario with same name already exists. Update or ignore? SJ: prefer to ignore.
             
             if vals['type'].lower() == 'parameter':
-                self.scenarios[scenario_name] = ParameterScenario(name=scenario_name,pop_labels=pop_labels,**vals)
+                self.scenarios[scenario_name] = ParameterScenario(name=scenario_name,settings=self.settings,pop_labels=pop_labels,**vals)
+
             elif vals['type'].lower() == 'budget':
                 self.scenarios[scenario_name] = BudgetScenario(name=scenario_name,pop_labels=pop_labels,**vals)
+
             else:
                 raise NotImplementedError("ERROR: no corresponding Scenario type for scenario=%s"%scenario_name)
         
