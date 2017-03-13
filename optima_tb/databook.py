@@ -700,7 +700,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                 prog_row_id = row_id
                 progtype_name = str(ws_progval.cell_value(row_id, 1))
                 progtype_label = settings.progtype_name_labels[progtype_name]
-                data['progs'][prog_label]['prog_type'] = progtype_name
+                data['progs'][prog_label]['prog_type'] = progtype_label
                 data['progs'][prog_label]['attributes'] = odict()
                 temp[prog_label] = odict()
         
@@ -709,7 +709,7 @@ def loadSpreadsheetFunc(settings, databook_path):
             list_t = []
             list_cost = []
             list_cov = []
-            progtype_label = settings.progtype_name_labels[data['progs'][prog_label]['prog_type']]
+#            progtype_label = settings.progtype_name_labels[data['progs'][prog_label]['prog_type']]
             num_attribs = len(settings.progtype_specs[progtype_label]['attribute_name_labels'])
             list_attribs = [[] for x in xrange(num_attribs)]
             

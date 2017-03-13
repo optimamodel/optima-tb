@@ -701,12 +701,12 @@ class Model(object):
                 else:
                     new_val = pars[0].vals[ti]      # As links are duplicated for the same tag, can pull values from the zeroth one.
                 
-                # WARNING: HARD-CODED TEST OF PROGRAM OVERWRITES. CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
+                # WARNING: CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
                 if 'progs_start' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start']:
                     if par_label in progset.impacts.keys():
-#                        print pars[0].val_format
                         for prog_label in progset.impacts[par_label]:
                             prog = progset.getProg(prog_label)
+                            prog_type = prog.prog_type
                             
                             # Make sure the population in the loop is a target of this program.
                             if pop.label not in prog.target_pops:
@@ -725,6 +725,16 @@ class Model(object):
                             source_set_size = 0
                             for from_pop in prog.target_pops:
                                 source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
+                            
+                            # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
+                            # NOTE: This might be a place to improve performance.
+                            if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
+                                group_label = settings.progtype_specs[prog_type]['impact_pars'][par_label]['group']
+                                for alt_par_label in settings.progtype_specs[prog_type]['impact_par_groups'][group_label]:
+                                    if not alt_par_label == par_label:
+                                        alt_pars = pop.getLinks(settings.linkpar_specs[alt_par_label]['tag'])
+                                        for from_pop in prog.target_pops:
+                                            source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]                                        
                             
                             # Make sure each program impact is in the format of the parameter it affects.
                             if pars[0].val_format == 'fraction':

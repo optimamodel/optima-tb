@@ -32,9 +32,9 @@ class ProgramSet:
             cov_format = data['progs'][prog_label]['cov_format']
             attributes = data['progs'][prog_label]['attributes']
             target_pops = data['progs'][prog_label]['target_pops']
-            prog_type_name = data['progs'][prog_label]['prog_type']
-            prog_type_label = settings.progtype_name_labels[prog_type_name]
-            target_pars = settings.progtype_specs[prog_type_label]['impact_pars']
+#            prog_type_name = data['progs'][prog_label]['prog_type']
+#            prog_type_label = settings.progtype_name_labels[prog_type_name]
+            target_pars = settings.progtype_specs[prog_type]['impact_pars']
             for target_par in target_pars.keys():
                 if target_par not in self.impacts: self.impacts[target_par] = []
                 self.impacts[target_par].append(prog_label)
