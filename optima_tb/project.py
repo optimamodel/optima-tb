@@ -263,16 +263,21 @@ class Project(object):
             proj.createScenarios(scen_values)
             
         Budget Scenario Example: 
-            scvalues = odict()
-            scvalues['Prog1'] = odict()
-            scvalues['Prog1']['t'] = [2010.,2015.,2020.,2025.]
-            scvalues['Prog1']['funding'] = [1e7, 2e7, 3e7, 5e7]
+            budget_options = {'HT-DS': 4e6,'SAT-DS':0,'HT-MDR': 3e4}
             scen_values = { 'test_scenario': {'type': 'Budget',
-                                  'run_scenario' : True,
-                                  'scenario_values': scvalues}
-               }
+                                      'overwrite' : True, # it will overwrite scenario to the parset
+                                      'run_scenario' : True,
+                                      'scenario_values': budget_options}
+                   }
             proj = Project(name = 'sampleProject', cascade_path = 'data/cascade-simple.xlsx')
+            proj.makeParset(name = 'default_parset')
+            proj.makeProgset(name = 'default_progset')
             proj.createScenarios(scen_values)
+            resultset = proj.runScenarios(original_parset_name = 'default_parset',
+                                  original_progset_name='default_progset',
+                                  original_budget_options=options,
+                                  include_bau=False)
+
   
         """
         logger.info("About to create scenarios")
@@ -299,7 +304,7 @@ class Project(object):
         
         
 
-    def runScenarios(self,original_parset_name,scenario_set_name=None,include_bau=False,plot=False,save_results=False):
+    def runScenarios(self,original_parset_name,original_progset_name=None,original_budget_options=None,scenario_set_name=None,include_bau=False,plot=False,save_results=False):
         """
         Runs scenarios that are contained in this project's collection of scenarios (i.e. self.scenarios). 
         For each scenario run, using original_parset_name, the results generated are saved and 
@@ -320,19 +325,30 @@ class Project(object):
         Returns:
             results    dictionary of results obtained for each scenario, with key = scenario_name
         """
-        ops = self.parsets[original_parset_name]
+        orig_parset = self.parsets[original_parset_name]
+        
+        if original_progset_name is not None:
+            orig_progset = self.progsets[original_progset_name]
+        else:
+            orig_progset = None
+            
+        if original_budget_options is None:
+            original_budget_options = {}
+            
         results = odict()
         
         if include_bau:
-            results['BAU'] = self.runSim(parset_name = original_parset_name,plot=plot)
+            results['BAU'] = self.runSim(parset_name = original_parset_name,progset=orig_progset,options=original_budget_options,plot=plot)
 
         
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
 
-                results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(ops), parset_name = scen_name, plot=plot)
-
+                progset, budget_options = self.scenarios[scen].getScenarioProgset(orig_progset,original_budget_options)
+            
+                results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(orig_parset), progset=progset, options=budget_options, parset_name = scen_name, plot=plot)
+                
                 if scenario_set_name is None:
                     results[scen_name].name = '%s'%(scen_name)
                 else:

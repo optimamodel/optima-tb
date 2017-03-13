@@ -57,7 +57,8 @@ class ProgramSet:
             return self.progs[self.prog_ids[label]]
         raise OptimaException('ERROR: Label "%s" cannot be found in program set "%s".' % (label, self.name))
         
-        
+    def copy(self):
+        pass
 
 class Program:
     
