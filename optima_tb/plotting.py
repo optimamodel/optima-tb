@@ -784,7 +784,7 @@ def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles
     
     if link_legend is None: link_legend = dict()
     
-    if plot_pops is None:
+    if plot_pops is not None:
         plot_pids = getPIDs(results,pop_labels)
     else:
         plot_pids = range(len(results.m_pops))
@@ -828,7 +828,7 @@ def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles
             if pop_titles is not None:
                 title_pop = plot_pops[j]
             else:
-                title_pop = '\nPopulation: "%s"' % pop.label
+                title_pop = '\nPopulation: "%s"' % pop_labels[j]
         
             
             final_dict = {

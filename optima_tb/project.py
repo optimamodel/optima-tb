@@ -10,6 +10,7 @@ from optima_tb.utils import tic, toc, odict, OptimaException
 from optima_tb.model import runModel
 from optima_tb.settings import Settings 
 from optima_tb.parameters import ParameterSet, export_paramset, load_paramset
+from optima_tb.programs import ProgramSet
 from optima_tb.plotting import plotProjectResults
 from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
@@ -35,6 +36,7 @@ class Project(object):
         self.data = odict()
 
         self.parsets = odict()
+        self.progsets = odict()
         self.results = odict()
         
         self.scenarios = odict()
@@ -58,7 +60,7 @@ class Project(object):
             self.settings.tvec_end = yearRange[1]
     
     
-    def runSim(self, parset = None, parset_name = 'default', plot = False, debug = False):
+    def runSim(self, parset = None, parset_name = 'default', progset = None, progset_name = None, options = None, plot = False, debug = False):
         ''' Run model using a selected parset and store/return results. '''
         
         if parset is None:
@@ -67,9 +69,20 @@ class Project(object):
             else:
                 try: parset = self.parsets[parset_name]
                 except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
+                
+        if progset is None:
+            try: progset = self.progsets[progset_name]
+            except: logger.info('Initiating a standard run of project "%s" (i.e. without the influence of programs).' % self.name)
+        if progset is not None:
+            if options is None:
+                logger.info('Program set "%s" will be ignored while running project "%s" due to no options specified.' % (progset.name, self.name))
+                progset = None
 
         tm = tic()
-        results = runModel(settings = self.settings, parset = parset)
+
+        #results = runModel(settings = self.settings, parset = parset)
+        results = runModel(settings = self.settings, parset = parset, progset = progset, options = options)
+
         toc(tm, label = 'running %s model' % self.name)
         
         if plot:
@@ -83,23 +96,23 @@ class Project(object):
     def plotResults(self, results, colormappings=None, colorlabels=None, debug=False, pop_labels=None, plot_observed_data=True,savePlot=False,figName=None):
         ''' Plot all available results '''
 
-        plotProjectResults(results,settings=self.settings, data=self.data, title = self.name.title(), colormappings=colormappings, colorlabels=colorlabels, pop_labels=pop_labels, debug = debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
+        plotProjectResults(results, settings=self.settings, data=self.data, title = self.name.title(), colormappings=colormappings, colorlabels=colorlabels, pop_labels=pop_labels, debug = debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
             
     
     
-    def makeSpreadsheet(self, databook_path = None, num_pops = 5, num_migrations = 2):
+    def makeSpreadsheet(self, databook_path = None, num_pops = 5, num_migrations = 2, num_progs = 0):
         ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
         
         if databook_path is None: databook_path = '../data/' + self.name + '-data.xlsx'
-        logging.info("Attempting to create databook %s"%databook_path)
+        logger.info("Attempting to create databook %s"%databook_path)
         
-        makeSpreadsheetFunc(settings = self.settings, databook_path = databook_path, num_pops = num_pops, num_migrations = num_migrations)        
+        makeSpreadsheetFunc(settings = self.settings, databook_path = databook_path, num_pops = num_pops, num_migrations = num_migrations, num_progs = num_progs)        
         
     
     def loadSpreadsheet(self, databook_path = None):
         ''' Load data spreadsheet into Project data dictionary. '''
         if databook_path is None: databook_path = '../data/' + self.name + '-data.xlsx'
-        logging.info("Attempting to load databook %s"%databook_path)
+        logger.info("Attempting to load databook %s"%databook_path)
         
         self.data = loadSpreadsheetFunc(settings = self.settings, databook_path = databook_path) 
         
@@ -112,13 +125,20 @@ class Project(object):
         self.parsets[name] = ParameterSet(name = name)
         self.parsets[name].makePars(self.data)
         
-    def exportParset(self,parset_name):
+    def makeProgset(self, name = 'default'):
+        ''' Transform project data into a set of programs that can be used in budget scenarios and optimisations. '''
+
+        if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
+        self.progsets[name] = ProgramSet(name = name)
+        self.progsets[name].makeProgs(data = self.data, settings = self.settings)
+        
+    def exportParset(self, parset_name):
         ''' Exports parset to .csv file '''
         if not parset_name in self.parsets.keys():
             raise OptimaException("ERROR: no parameter set '%s' found"%parset_name)
         export_paramset(self.parsets[parset_name])
         
-    def importParset(self,parset_filename,new_name=None):
+    def importParset(self, parset_filename, new_name=None):
         ''' Imports parameter set from .csv file '''
         paramset = load_paramset(parset_filename)
         if new_name is None:
@@ -139,12 +159,12 @@ class Project(object):
         if not parset_name in self.parsets.keys():
             self.makeParset(name=parset_name)
         paramset = self.parsets[parset_name]
-        logging.info("Updating parameter values in parset=%s"%(parset_name))
+        logger.info("Updating parameter values in parset=%s"%(parset_name))
         
         makeManualCalibration(paramset,rate_dict)
     
     
-    def calculateFit(self,results,metric=None):
+    def calculateFit(self, results, metric=None):
         '''
         Calculates the score for the fit during manual calibration and prints to output. 
         
@@ -168,7 +188,7 @@ class Project(object):
         logger.info("Calculated scores for fit using %s: largest value=%.2f"%(metric,max(score)))
       
       
-    def runAutofitCalibration(self,new_parset_name = None, old_parset_name="default", target_characs=None):
+    def runAutofitCalibration(self, new_parset_name = None, old_parset_name="default", target_characs=None):
         """
         Runs the autofitting calibration routine, as according to the parameter settings in the 
         settings.autofit_params configuration.
@@ -192,7 +212,7 @@ class Project(object):
         self.parsets[new_parset_name] = new_parset
         
         
-    def createScenarios(self,scenario_dict):
+    def createScenarios(self, scenario_dict):
         """
         Creates the scenarios to be run, and adds them to this project's store
         of available scenarios to run. Each scenario is described as a (key, value)
@@ -226,7 +246,7 @@ class Project(object):
             none
             
         
-        Example: 
+        Parameter Scenario Example: 
             scvalues = odict()
             param = 'birth_transit'
             scvalues[param] = odict()
@@ -239,11 +259,21 @@ class Project(object):
                                   'run_scenario' : True,
                                   'scenario_values': scvalues}
                }
-            proj= Project(name = 'sampleProject', cascade_path = 'data/cascade-simple.xlsx')
+            proj = Project(name = 'sampleProject', cascade_path = 'data/cascade-simple.xlsx')
             proj.createScenarios(scen_values)
-
-        
-                 
+            
+        Budget Scenario Example: 
+            scvalues = odict()
+            scvalues['Prog1'] = odict()
+            scvalues['Prog1']['t'] = [2010.,2015.,2020.,2025.]
+            scvalues['Prog1']['funding'] = [1e7, 2e7, 3e7, 5e7]
+            scen_values = { 'test_scenario': {'type': 'Budget',
+                                  'run_scenario' : True,
+                                  'scenario_values': scvalues}
+               }
+            proj = Project(name = 'sampleProject', cascade_path = 'data/cascade-simple.xlsx')
+            proj.createScenarios(scen_values)
+  
         """
         logger.info("About to create scenarios")
         
@@ -258,6 +288,10 @@ class Project(object):
             
             if vals['type'].lower() == 'parameter':
                 self.scenarios[scenario_name] = ParameterScenario(name=scenario_name,settings=self.settings,pop_labels=pop_labels,**vals)
+
+            elif vals['type'].lower() == 'budget':
+                self.scenarios[scenario_name] = BudgetScenario(name=scenario_name,pop_labels=pop_labels,**vals)
+
             else:
                 raise NotImplementedError("ERROR: no corresponding Scenario type for scenario=%s"%scenario_name)
         
@@ -291,14 +325,14 @@ class Project(object):
         
         if include_bau:
             results['BAU'] = self.runSim(parset_name = original_parset_name,plot=plot)
-            
+
         
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
-                   
-                results[scen_name] = self.runSim(parset_name = scen_name, parset = self.scenarios[scen].getScenarioParset(ops),plot=plot)
-                
+
+                results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(ops), parset_name = scen_name, plot=plot)
+
                 if scenario_set_name is None:
                     results[scen_name].name = '%s'%(scen_name)
                 else:
@@ -312,7 +346,7 @@ class Project(object):
     
     
     
-    def exportProject(self,filename=None,format='json',compression='zlib'):
+    def exportProject(self, filename=None, format='json', compression='zlib'):
         """
         
         This currently saves everything within a project, including results.

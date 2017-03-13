@@ -41,6 +41,8 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     ws_pars =       workbook.sheet_by_name('Parameters')
     try: ws_sheetnames = workbook.sheet_by_name('Databook Sheet Names')
     except: ws_sheetnames = None
+    try: ws_progtypes = workbook.sheet_by_name('Program Types')
+    except: ws_progtypes = None
     
     
     #%% Optional sheet: Databook Sheet Names
@@ -373,8 +375,8 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
         if ws_pars.cell_value(0, col_id) == 'Function': cid_function = col_id
-        if ws_pars.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id
-        if ws_pars.cell_value(0, col_id) == 'Special Rules': cid_rules = col_id     # NOTE: Consider whether calibrate column is necessary. At least get rid of the punctuation.
+        if ws_pars.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id      # NOTE: Consider whether calibrate column is necessary. At least get rid of the punctuation.
+        if ws_pars.cell_value(0, col_id) == 'Special Rules': cid_rules = col_id
     if None in [cid_tag, cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
     
@@ -489,6 +491,81 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     test_names = settings.linkpar_name_labels.keys() + settings.charac_name_labels.keys()
     if len(test_names) != len(set(test_names)):
         raise OptimaException('ERROR: Cascade workbook appears to have duplicate characteristic/parameter full names.')
+    
+    
+    #%% Optional sheet: Program Types
+    # This worksheet, if it exists, defines definitional categories for programs that structures what the user enters in the project databook.
+    # If this sheet does not exist, coverage/budget scenarios and optimisations should be unavailable.
+    if ws_progtypes:
+        cid_label = None
+        cid_name = None
+        cid_attlabel = None
+        cid_attname = None
+        cid_pars = None
+        cid_function = None
+        cid_groups = None
+        for col_id in xrange(ws_progtypes.ncols):
+            if ws_progtypes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Attribute Labels': cid_attlabel = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Attribute Names': cid_attname = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Impact Parameters': cid_pars = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Impact Functions': cid_function = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Impact Groupings': cid_groups = col_id
+        if None in [cid_tag, cid_label]:
+            raise OptimaException('ERROR: Program type worksheet does not have correct column headers.')
+        
+        current_label = None    # A way to associate extra lines of details to one program.
+        for row_id in xrange(ws_progtypes.nrows):
+            if row_id > 0:
+                label = str(ws_progtypes.cell_value(row_id, cid_label))
+                name = str(ws_progtypes.cell_value(row_id, cid_name))
+                if not '' in [label, name]:
+                    current_label = label
+                    settings.progtype_specs[current_label] = {'name':name, 'impact_pars':odict(), 'impact_par_groups':{}, 'attribute_label_names':odict(), 'attribute_name_labels':odict()}
+                    settings.progtype_name_labels[name] = current_label
+                
+                if not current_label is None:
+                    if not None in [cid_attlabel, cid_attname]:
+                        attrib_label = str(ws_progtypes.cell_value(row_id, cid_attlabel))
+                        attrib_name = str(ws_progtypes.cell_value(row_id, cid_attname))
+                        if '' not in [attrib_label, attrib_name]:
+                            if attrib_label in ['unit_cost','t'] + [x+y for x in ['cov','cost'] for y in ['','_format']]: raise OptimaException('ERROR: Attribute label "%s" in cascade program sheet is restricted for internal use.' % attrib_label)
+                            settings.progtype_specs[current_label]['attribute_label_names'][attrib_label] = attrib_name
+                            settings.progtype_specs[current_label]['attribute_name_labels'][attrib_name] = attrib_label
+                    
+                    # Store impact parameters for program type, if they exist.
+                    if not cid_pars is None:
+                        impact_par = str(ws_progtypes.cell_value(row_id, cid_pars))
+                        if impact_par not in ['']:
+                            settings.progtype_specs[current_label]['impact_pars'][impact_par] = {}
+                    
+                            # If the impact parameter has a corresponding impact function, parse and store it.
+                            if not cid_function is None:
+                                val = str(ws_progtypes.cell_value(row_id, cid_function))
+                                if val not in ['']:
+        #                            if 'default' in settings.linkpar_specs[label]:
+        #                                raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Specifying a default is thus restricted, so as to avoid user confusion.' % label)
+        #                            settings.par_funcs[label] = True
+                                    expr_stack, attrib_dict = parser.produceStack(val)
+                                    settings.progtype_specs[current_label]['impact_pars'][impact_par]['f_stack'] = expr_stack
+                                    settings.progtype_specs[current_label]['impact_pars'][impact_par]['attribs'] = attrib_dict
+                                    for attrib in attrib_dict.keys():
+                                        if not attrib in settings.progtype_specs[current_label]['attribute_label_names'].keys():
+                                            raise OptimaException('ERROR: Attribute "%s" has not been defined for program type "%s" by the time it is loaded into settings.' % (attrib, current_label))
+
+                            # If the impact parameter has a corresponding label for its 'grouping', store it.
+                            # Grouped impact parameters effectively share coverage between them, scaled according to the size proportions of their source compartments.
+                            if not cid_groups is None:
+                                val = str(ws_progtypes.cell_value(row_id, cid_groups))
+                                if val not in ['']:
+                                    settings.progtype_specs[current_label]['impact_pars'][impact_par]['group'] = val
+                                    if val not in settings.progtype_specs[current_label]['impact_par_groups']:
+                                        settings.progtype_specs[current_label]['impact_par_groups'][val] = []
+                                    settings.progtype_specs[current_label]['impact_par_groups'][val].append(impact_par)
+                        
+        # Additional program-related settings ar established here.
+        settings.databook['format']['programs']['max_lines_impact'] = max([len(settings.progtype_specs[x]['attribute_name_labels'].keys()) for x in settings.progtype_specs.keys()])
     
     validation = cascadeValidation(settings=settings)
     if not validation: raise OptimaException('ERROR: Cascade workbook appears to have issues with births and deaths definition, please check log.')

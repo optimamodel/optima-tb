@@ -68,7 +68,7 @@ class ParameterScenario(Scenario):
             scenario_values = odict()
         data['linkpars'] = scenario_values
         # values required when creating a parameter set
-        data['pops']['labels_name'] = pop_labels
+        data['pops']['name_labels'] = pop_labels
         
         ps = ParameterSet(self.name)
         ps.makePars(data)
@@ -105,11 +105,26 @@ class BudgetScenario(Scenario):
         self.makeScenarioParset(scenario_values,pop_labels=pop_labels)
         
         
-    def makeScenarioParset(self, parset):
+    def makeScenarioParset(self,scenario_values,pop_labels):
         """
         Budget Scenarios do not make any changes to the ParameterScenario to be used
         """
-        return parset
+        data = getEmptyData()
+        data['linkpars'] = odict()
+        data['pops']['name_labels'] = pop_labels
+        
+        ps = ParameterSet(self.name)
+        ps.makePars(data)
+        self.scenario_parset = ps
+    
+    def getScenarioParset(self, parset):
+        """
+
+        """
+        if self.overwrite: # update values in parset with those in scenario_parset
+            return parset << self.scenario_parset
+        else: # add the two together
+            return parset + self.scenario_parset
 
 
 

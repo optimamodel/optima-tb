@@ -182,25 +182,6 @@ class ModelPopulation(Node):
             self.deps.append(Variable(label=label))
             self.dep_ids[label] = k
             k += 1
-                    
-            
-#    def printCompVars(self, full = False):
-#        ''' Loop through all compartments and print out current variable values. '''
-#        for comp in self.comps:
-#            if not full:
-#                print('[Pop: %s][Compartment: %5s][Popsize: %15.4f]' % (self.label, comp.label, comp.popsize[self.t_index]))
-#            else:
-#                print('[Pop: %s][Compartment: %5s][Popsize...]' % (self.label, comp.label))
-#                print(comp.popsize)
-
-#    def printLinkVars(self, full = False):
-#        ''' Loop through all links and print out current variable values. '''
-#        for link in self.links:
-#            if not full:
-#                print('[Pop: %s][%5s --> %-5s][Transit. Frac.: %5.4f]' % (self.label, link.label_from, link.label_to, link.vals[self.t_index]))
-#            else:
-#                print('[Pop: %s][%5s --> %-5s][Transit. Fraction...]' % (self.label, link.label_from, link.label_to))
-#                print(link.vals)
                 
     def preAllocate(self, sim_settings):
         '''
@@ -249,10 +230,30 @@ class Model(object):
         return self.pops[pop_index]
         
         
-    def build(self, settings, parset):
+    def build(self, settings, parset, progset = None, options = None):
         ''' Build the full model. '''
         
+        if options is None: options = dict()
+        
         self.sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt)
+        self.sim_settings['impact_pars_not_func'] = []      # Program impact parameters that are not functions of other parameters and thus already marked for dynamic updating.
+                                                            # This is only non-empty if a progset is being used in the model.
+        if 'progs_start' in options:
+            if progset is not None:
+                self.sim_settings['progs_start'] = options['progs_start']
+                
+                if 'init_alloc' in options:
+                    self.sim_settings['init_alloc'] = options['init_alloc']
+                if 'alloc_is_coverage' in options:
+                    self.sim_settings['alloc_is_coverage'] = options['alloc_is_coverage']
+                else: self.sim_settings['alloc_is_coverage'] = False
+                if 'saturate_with_default_budgets' in options:
+                    self.sim_settings['saturate_with_default_budgets'] = options['saturate_with_default_budgets']
+                for impact_label in progset.impacts.keys():
+                    if impact_label not in settings.par_funcs.keys():
+                        self.sim_settings['impact_pars_not_func'].append(impact_label)
+            else:
+                raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
         
         self.parser.debug = settings.parser_debug
         
@@ -401,11 +402,11 @@ class Model(object):
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
         
         # Make sure initially-filled junctions are processed and initial dependencies are calculated.
-        self.updateDependencies(settings = settings, do_special = False)    # Done first just in case junctions are dependent on characteristics.
-                                                                            # No special rules are applied at this stage, otherwise calculations would be iterated twice before the first step forward.
-                                                                            # NOTE: If junction outflows were to be tagged by special rules, initial calculations may be off. Return to this later and consider logic rigorously.
+        self.updateValues(settings = settings, progset = progset, do_special = False)     # Done first just in case junctions are dependent on characteristics.
+                                                                                                # No special rules are applied at this stage, otherwise calculations would be iterated twice before the first step forward.
+                                                                                                # NOTE: If junction outflows were to be tagged by special rules, initial calculations may be off. Return to this later and consider logic rigorously.
         self.processJunctions(settings = settings)
-        self.updateDependencies(settings = settings)
+        self.updateValues(settings = settings, progset = progset)
 
 
         # set up sim_settings for later use wrt population tags
@@ -418,19 +419,16 @@ class Model(object):
                     self.sim_settings[tag] = node_label
 
             
-    def process(self, settings):
+    def process(self, settings, progset = None):
         ''' 
-        Run the full model. 
-        
-        Note that updateBirths is called before stepForward: this can be set to be after the other interpopulation transitions, but requires
-        some care with how the values are set up. 
+        Run the full model.
         '''
         
         for t in self.sim_settings['tvec'][1:]:
 #            self.printModelState(self.t_index)
             self.stepForward(settings = settings, dt = settings.tvec_dt)
             self.processJunctions(settings = settings)
-            self.updateDependencies(settings = settings)
+            self.updateValues(settings = settings, progset = progset)
         
         return self.pops, self.sim_settings
 
@@ -631,7 +629,7 @@ class Model(object):
 
 
 
-    def updateDependencies(self, settings, do_special = True):
+    def updateValues(self, settings, progset = None, do_special = True):
         '''
         Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
         These dependencies must be calculated in the same order as defined in settings, characteristics before parameters, otherwise references may break.
@@ -677,10 +675,13 @@ class Model(object):
                             dep.vals[ti] = np.inf
                         else:
                             dep.vals[ti] /= val
-            
-        # Parameters that are functions of dependencies next...
+        
+        # Handle parameters now that require calculations between timestep-based updates.
+        # 1st:  Any parameter that is a function of others (i.e. of previously calculated dependencies).
+        # 2nd:  Any parameter that is overwritten by a program-based cost-coverage-impact transformation.
+        # 3rd:  Any parameter that is overwritten by a special rule, e.g. averaging across populations.
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
-        for par_label in settings.par_funcs.keys():
+        for par_label in (settings.par_funcs.keys() + self.sim_settings['impact_pars_not_func']):
             for pop in self.pops:
                 pars = []
                 if par_label in settings.par_deps:
@@ -702,6 +703,77 @@ class Model(object):
                     new_val = self.parser.evaluateStack(stack = f_stack, deps = deps)
                 else:
                     new_val = pars[0].vals[ti]      # As links are duplicated for the same tag, can pull values from the zeroth one.
+                
+                # WARNING: CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
+                if 'progs_start' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start']:
+                    if par_label in progset.impacts.keys():
+                        for prog_label in progset.impacts[par_label]:
+                            prog = progset.getProg(prog_label)
+                            prog_type = prog.prog_type
+                            
+                            # Make sure the population in the loop is a target of this program.
+                            if pop.label not in prog.target_pops:
+                                continue
+                            if 'init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']:
+                                prog_budget = self.sim_settings['init_alloc'][prog_label]
+                            else:
+                                if 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
+                                    prog_budget = prog.getDefaultBudget()
+                                else: 
+                                    continue
+                            new_val = 0
+                            
+                            # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
+                            source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
+                            source_set_size = 0
+                            for from_pop in prog.target_pops:
+                                source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
+                            
+                            # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
+                            # NOTE: This might be a place to improve performance.
+                            if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
+                                group_label = settings.progtype_specs[prog_type]['impact_pars'][par_label]['group']
+                                for alt_par_label in settings.progtype_specs[prog_type]['impact_par_groups'][group_label]:
+                                    if not alt_par_label == par_label:
+                                        alt_pars = pop.getLinks(settings.linkpar_specs[alt_par_label]['tag'])
+                                        for from_pop in prog.target_pops:
+                                            source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]                                        
+                            
+                            # Make sure each program impact is in the format of the parameter it affects.
+                            if pars[0].val_format == 'fraction':
+                                if prog.cov_format == 'fraction':
+                                    impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])
+                                elif prog.cov_format == 'number':
+                                    if source_element_size <= project_settings.TOLERANCE:
+                                        impact = 0.0
+                                    else:
+                                        impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])/source_set_size
+                                    if impact > 1.0: impact = 1.0   # Maximum fraction allowable due to timestep conversion.
+                            elif pars[0].val_format == 'number':
+                                if prog.cov_format == 'fraction':
+                                    impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_element_size
+                                elif prog.cov_format == 'number':
+                                    if source_element_size <= project_settings.TOLERANCE:
+                                        impact = 0.0
+                                    else:
+                                        impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_set_size/source_element_size
+                            
+                            year_check = 2020   # Hard-coded check.
+                            if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 1.5*settings.tvec_dt:
+                                print('Program Name: %s' % prog.name)
+                                print('Program %s: %f' % ('Coverage' if self.sim_settings['alloc_is_coverage'] else 'Budget', prog_budget))
+                                print('Target Population: %s' % pop.label)
+                                print('Target Parameter: %s' % par_label)
+                                print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
+                                print('Standard Program Impact: %f' % prog.getImpact(prog_budget, budget_is_coverage = self.sim_settings['alloc_is_coverage']))
+                                print('Rescaled Program Impact: %f' % prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage']))
+                                print('Program Impact Format: %s' % prog.cov_format)
+                                print('Source Compartment Size (Target Pop): %f' % source_element_size)
+                                print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
+                                print('Converted Impact: %f' % impact)
+                                print('Converted Impact Format: %s' % pars[0].val_format)
+                                print
+                            new_val += impact
                 
                 for par in pars:
                     par.vals[ti] = new_val
@@ -833,14 +905,19 @@ class Model(object):
         return False
         
 
-def runModel(settings, parset):
-    ''' Processes the TB epidemiological model. '''
+def runModel(settings, parset, progset = None, options = None):
+    '''
+    Processes the TB epidemiological model.
+    Parset-based overwrites are generally done externally, so the parset is only used for model-building.
+    Progset-based overwrites take place internally and must be part of the processing step.
+    The options dictionary is usually passed in with progset to specify when the overwrites take place.
+    '''
 
     m = Model()
-    m.build(settings = settings, parset = parset)
-    m.process(settings = settings)
+    m.build(settings = settings, parset = parset, progset = progset, options = options)
+    m.process(settings = settings, progset = progset) 
 
-    results = ResultSet(m,parset,settings)
+    results = ResultSet(m, parset, settings)    # NOTE: Progset may need to be passed to results. Depends on what results object stores.
    
     return results
 

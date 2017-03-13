@@ -86,7 +86,6 @@ class Settings(object):
                                                 # Key is a node label. Value is a dict including a 'dead' tag and networkx-related information.
         self.node_names = []                    # A corresponding list of full names for compartments.
         self.junction_labels = []               # A list of labels for compartments for which inflows must immediately propagated as outflows.
-#        self.num_transfer_nodes = 0.0           # The number of compartments that can be involved in inter-pop transfers (i.e. non-birth, non-death, non-junction).
         
         self.charac_specs = odict()             # Relates code-labels for defined characteristics (e.g. prevalence) with labels of compartments used in their definition.
                                                 # Key is a characteristic label. Value is a dict containing characteristic name, a list of 'inclusions' and a normalising characteristic or compartment.
@@ -105,6 +104,9 @@ class Settings(object):
         self.charac_deps = {}                   # An unordered dictionary of characteristics that must be calculated at each model timestep due to being dependencies for other variables.
                                                 # Should correspond to every item in charac_specs that has a 'par_dependency' tag.
         
+        self.progtype_specs = odict()           # Relates program type code-labels with impact parameters, etc.
+        self.progtype_name_labels = odict()     # Key is a program type name. Value is a program type label.
+        
         # Project-data workbook metadata.
         self.databook = odict()
         self.databook['sheet_names'] = odict()
@@ -112,6 +114,8 @@ class Settings(object):
         self.databook['sheet_names']['contact'] =   'Population Contacts'
         self.databook['sheet_names']['transmat'] =  'Transfer Definitions'
         self.databook['sheet_names']['transval'] =  'Transfer Details'
+        self.databook['sheet_names']['progmat'] =  'Program Definitions'
+        self.databook['sheet_names']['progval'] =  'Program Details'
         self.databook['sheet_names']['charac'] =    'Epidemic Characteristics'
         self.databook['sheet_names']['linkpars'] =  'Cascade Parameters'
         self.databook['custom_sheet_names'] = odict()
@@ -123,6 +127,8 @@ class Settings(object):
         self.databook['suffix']['seed'] =   ' [S]'  # Suffix for characteristics used as model seeds (i.e. for initialisation).
         self.databook['suffix']['output'] = ' [O]'  # Suffix for characteristics used solely as outputs for diagnostic and/or calibration purposes.
         self.databook['suffix']['par'] =    ' [P]'  # Suffix for parameters that are used at every step of model calculations.
+        
+        self.databook['format'] = {'programs':{'max_lines_impact':0}}
     
     def resetCalibrationParameters(self):
         """
