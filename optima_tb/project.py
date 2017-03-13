@@ -287,9 +287,7 @@ class Project(object):
                 # TODO decide what to do if scenario with same name already exists. Update or ignore? SJ: prefer to ignore.
             
             if vals['type'].lower() == 'parameter':
-                self.scenarios[scenario_name] = ParameterScenario(name=scenario_name,pop_labels=pop_labels,**vals)
-            elif vals['type'].lower() == 'budget':
-                self.scenarios[scenario_name] = BudgetScenario(name=scenario_name,pop_labels=pop_labels,**vals)
+                self.scenarios[scenario_name] = ParameterScenario(name=scenario_name,settings=self.settings,pop_labels=pop_labels,**vals)
             else:
                 raise NotImplementedError("ERROR: no corresponding Scenario type for scenario=%s"%scenario_name)
         
@@ -328,8 +326,8 @@ class Project(object):
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
-
-                results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(ops), parset_name = scen_name, plot=plot)
+                   
+                results[scen_name] = self.runSim(parset_name = scen_name, parset = self.scenarios[scen].getScenarioParset(ops),plot=plot)
                 
                 if scenario_set_name is None:
                     results[scen_name].name = '%s'%(scen_name)

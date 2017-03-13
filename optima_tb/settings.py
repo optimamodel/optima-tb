@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 import pylab as pl
 import numpy as np
+from matplotlib.ticker import FuncFormatter
 
 
 
@@ -318,8 +319,12 @@ class ValidationSettings():
 class PlottingSettings():
     
     
+    
     def __init__(self,output='dev'):
+        
         logging.info("Loading plotting settings")
+        
+        
         self.plotdict = {} # holder
         self.defaultSettings()
         try:
@@ -328,7 +333,17 @@ class PlottingSettings():
         except:
             logging.info("Could not load rcParams for plotting for output: %s"%output)
         
-        
+    def KMSuffixFormatter(self,x,pos):
+            'The two args are the value and tick position'
+            if x >= 1e7:
+                return '%1.1fM' % (x*1e-6)
+            elif x >= 1e6:
+                return '%1.fM' % (x*1e-6)
+            elif x >= 1e3:
+                return '%1.fK' % (x*1e-3) 
+            else:
+                return x
+            
     def defaultSettings(self):
         
         pl.rcParams['font.size'] = 12
@@ -370,8 +385,8 @@ class PlottingSettings():
                          # axes format
                          'year_inc':5,
                          # colormapping for category lists
-                         'colormapping_order':'alternate3'} # as we have triplets in undiagnosed --> diagnosed --> on treatment
-    
+                         'colormapping_order':'alternate3',# as we have triplets in undiagnosed --> diagnosed --> on treatment
+                         'formatter': FuncFormatter(self.KMSuffixFormatter) } 
 
 
     def devSettings(self):
