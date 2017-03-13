@@ -32,9 +32,9 @@ class ProgramSet:
             cov_format = data['progs'][prog_label]['cov_format']
             attributes = data['progs'][prog_label]['attributes']
             target_pops = data['progs'][prog_label]['target_pops']
-            prog_type_name = data['progs'][prog_label]['prog_type']
-            prog_type_label = settings.progtype_name_labels[prog_type_name]
-            target_pars = settings.progtype_specs[prog_type_label]['impact_pars']
+#            prog_type_name = data['progs'][prog_label]['prog_type']
+#            prog_type_label = settings.progtype_name_labels[prog_type_name]
+            target_pars = settings.progtype_specs[prog_type]['impact_pars']
             for target_par in target_pars.keys():
                 if target_par not in self.impacts: self.impacts[target_par] = []
                 self.impacts[target_par].append(prog_label)
@@ -160,13 +160,26 @@ class Program:
         budget = output['cost'][-1]
         return budget
         
-    def getImpact(self, budget, impact_label = None, parser = None, year = None):
+    def getCoverage(self, budget):
+        '''
+        Returns prospective coverage for a program. In simplest form, this is budget divided by unit cost.
+        Note that this coverage will be dynamically divided amongst populations/compartments in the model prior to scaling into an impact.
+        Excess coverage will also be ignored in the model.
+        '''
+        
+        if self.cov_format.lower() == 'fraction':
+            cov = float(budget)*0.01/self.func_specs['pars']['unit_cost']     # Unit cost is per percentage when format is a fraction.
+        else:
+            cov = float(budget)/self.func_specs['pars']['unit_cost']
+        return cov
+        
+    def getImpact(self, budget, impact_label = None, parser = None, year = None, budget_is_coverage = False):
         
         # Baseline impact is just coverage.
-        if self.cov_format.lower() == 'fraction':
-            imp = float(budget)*0.01/self.func_specs['pars']['unit_cost']*budget     # Unit cost is per percentage when format is a fraction.
+        if budget_is_coverage:
+            imp = budget
         else:
-            imp = float(budget)/self.func_specs['pars']['unit_cost']
+            imp = self.getCoverage(budget)
         
         # If impact parameter has an impact function, this is what coverage is scaled by.
         if not impact_label is None:

@@ -288,8 +288,10 @@ class Project(object):
             
             if vals['type'].lower() == 'parameter':
                 self.scenarios[scenario_name] = ParameterScenario(name=scenario_name,settings=self.settings,pop_labels=pop_labels,**vals)
+
             elif vals['type'].lower() == 'budget':
                 self.scenarios[scenario_name] = BudgetScenario(name=scenario_name,pop_labels=pop_labels,**vals)
+
             else:
                 raise NotImplementedError("ERROR: no corresponding Scenario type for scenario=%s"%scenario_name)
         
@@ -328,6 +330,7 @@ class Project(object):
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
+
                 results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(ops), parset_name = scen_name, plot=plot)
 
                 if scenario_set_name is None:

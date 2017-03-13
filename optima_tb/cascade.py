@@ -503,6 +503,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         cid_attname = None
         cid_pars = None
         cid_function = None
+        cid_groups = None
         for col_id in xrange(ws_progtypes.ncols):
             if ws_progtypes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
@@ -510,6 +511,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
             if ws_progtypes.cell_value(0, col_id) == 'Attribute Names': cid_attname = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Impact Parameters': cid_pars = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Impact Functions': cid_function = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Impact Groupings': cid_groups = col_id
         if None in [cid_tag, cid_label]:
             raise OptimaException('ERROR: Program type worksheet does not have correct column headers.')
         
@@ -520,7 +522,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 name = str(ws_progtypes.cell_value(row_id, cid_name))
                 if not '' in [label, name]:
                     current_label = label
-                    settings.progtype_specs[current_label] = {'name':name, 'impact_pars':odict(), 'attribute_label_names':odict(), 'attribute_name_labels':odict()}
+                    settings.progtype_specs[current_label] = {'name':name, 'impact_pars':odict(), 'impact_par_groups':{}, 'attribute_label_names':odict(), 'attribute_name_labels':odict()}
                     settings.progtype_name_labels[name] = current_label
                 
                 if not current_label is None:
@@ -551,6 +553,16 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                                     for attrib in attrib_dict.keys():
                                         if not attrib in settings.progtype_specs[current_label]['attribute_label_names'].keys():
                                             raise OptimaException('ERROR: Attribute "%s" has not been defined for program type "%s" by the time it is loaded into settings.' % (attrib, current_label))
+
+                            # If the impact parameter has a corresponding label for its 'grouping', store it.
+                            # Grouped impact parameters effectively share coverage between them, scaled according to the size proportions of their source compartments.
+                            if not cid_groups is None:
+                                val = str(ws_progtypes.cell_value(row_id, cid_groups))
+                                if val not in ['']:
+                                    settings.progtype_specs[current_label]['impact_pars'][impact_par]['group'] = val
+                                    if val not in settings.progtype_specs[current_label]['impact_par_groups']:
+                                        settings.progtype_specs[current_label]['impact_par_groups'][val] = []
+                                    settings.progtype_specs[current_label]['impact_par_groups'][val].append(impact_par)
                         
         # Additional program-related settings ar established here.
         settings.databook['format']['programs']['max_lines_impact'] = max([len(settings.progtype_specs[x]['attribute_name_labels'].keys()) for x in settings.progtype_specs.keys()])
