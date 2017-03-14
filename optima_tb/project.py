@@ -92,6 +92,19 @@ class Project(object):
         
         return results
         
+        
+    def optimize(self, parset = None, parset_name = 'default', progset = None, progset_name = 'default', options = None):
+        ''' Optimize model using a selected parset and store/return results. '''
+        
+        # Parset is checked in runSim, but progset is not. Thus checking required here.
+        if progset is None:
+            if len(self.progsets) < 1: 
+                raise OptimaException('ERROR: Project "%s" appears to have no program sets. Cannot optimize model.' % self.name)
+            else:
+                try: progset = self.progsets[progset_name]
+                except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot run model.' % (self.name, progset_name))
+        
+        
 
     def plotResults(self, results, colormappings=None, colorlabels=None, debug=False, pop_labels=None, plot_observed_data=True,savePlot=False,figName=None):
         ''' Plot all available results '''
