@@ -195,9 +195,9 @@ def calculateCumulativeDerivatives(results, settings, from_year, to_year,
     tvals = np.array(tvecs[0])[0]
     
     # extract years that we need
-    idx = (tvals>=from_year)*(tvals<=to_year)*(tvals%1.==0.0)
+    idx = (tvals>=from_year)*(tvals<=to_year)
     
-    summed_derivatives = yvals[idx].sum()
+    summed_derivatives = yvals[idx].sum()*settings.tvec_dt
     
     return summed_derivatives
     
