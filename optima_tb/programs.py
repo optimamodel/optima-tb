@@ -161,6 +161,18 @@ class Program:
         budget = output['cost'][-1]
         return budget
         
+    def getBudget(self, coverage):
+        '''
+        Returns a budget that corresponds to a program coverage. In simplest form, this is coverage times unit cost.
+        Note that this method is not typically used during model processing.
+        '''
+        
+        if self.cov_format.lower() == 'fraction':
+            bud = float(coverage)*self.func_specs['pars']['unit_cost']/0.01     # Unit cost is per percentage when format is a fraction.
+        else:
+            bud = float(coverage)*self.func_specs['pars']['unit_cost']
+        return bud        
+        
     def getCoverage(self, budget):
         '''
         Returns prospective coverage for a program. In simplest form, this is budget divided by unit cost.
