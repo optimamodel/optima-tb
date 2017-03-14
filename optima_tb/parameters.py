@@ -175,10 +175,15 @@ class ParameterSet(object):
         
         """
         for (id,par) in enumerate(self.pars['cascade']):
-            for j,pop_label in enumerate(self.pop_labels):        
-                self.pars['cascade'][id].y[j] = par.interpolate(tvec = tvec, pop_label = pop_label)
-                self.pars['cascade'][id].t[j] = tvec
-        
+            
+            try:
+                for j,pop_label in enumerate(self.pop_labels):        
+                    self.pars['cascade'][id].y[j] = par.interpolate(tvec = tvec, pop_label = pop_label)
+                    self.pars['cascade'][id].t[j] = tvec
+            except:
+                 for j,pop_label in enumerate(self.pop_names):        
+                    self.pars['cascade'][id].y[j] = par.interpolate(tvec = tvec, pop_label = pop_label)
+                    self.pars['cascade'][id].t[j] = tvec
     
     
     def __getMinMax(self,y_format):
