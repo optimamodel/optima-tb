@@ -184,6 +184,8 @@ class CoverageScenario(BudgetScenario):
         options['alloc_is_coverage'] = True
         return progset, options
 
-    
+    def __repr__(self, *args, **kwargs):
+        return "CoverageScenario: \n"+''.join('{}={}\n'.format(key, val) for key, val in sorted(self.budget_allocation.items()))
+
     
     
