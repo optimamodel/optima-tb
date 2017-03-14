@@ -475,6 +475,11 @@ def loadSpreadsheetFunc(settings, databook_path):
         ws_prog_exists = False
         logging.warning('One or two program-based sheets, "%s" and "%s", are excluded in the project data workbook.' % (settings.databook['sheet_names']['progmat'],settings.databook['sheet_names']['progval']))
     
+    # Extra validation. Even if there are program sheets in the databook, they cannot be used if no program type framework has been loaded from the cascade workbook.
+    if len(settings.progtype_specs.keys()) == 0:
+        ws_prog_exists = False
+        logging.warning('Any program-based sheets in the databook will be ignored, due to no program type framework being loaded in from the cascade workbook.')
+    
     # Regarding cascade parameters and characteristics, store sheets and corresponding row ids for further writing.
     ws_params = odict()
     for custom_label in settings.databook['custom_sheet_names'].keys():
