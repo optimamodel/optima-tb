@@ -283,6 +283,7 @@ class Project(object):
         logger.info("About to create scenarios")
         
         pop_labels = self.data['pops']['label_names']
+
         
         for scenario_name in scenario_dict.keys():
             vals = scenario_dict[scenario_name]
@@ -359,6 +360,7 @@ class Project(object):
                     
                 if save_results:
                     results[scen_name].export()
+                    export_paramset(self.scenarios[scen].getScenarioParset(orig_parset))
         
         return results
     
