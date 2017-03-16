@@ -117,7 +117,7 @@ results, proj = testProject()
 
 scen_labels = ['BAU','Test1']
 characs = ['at_treat','vaccin','lt_inf','ac_inf','alive','test_act_prev']
-plotScenarios(results,scen_labels,proj.settings,proj.data,plot_charac=characs,plot_pops=['Pop1'])
+plotScenarios(results,scen_labels,proj.settings,proj.data,plot_charac=characs,pop_labels=['Pop1'])
 pylab.show()
 
 
