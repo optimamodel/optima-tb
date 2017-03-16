@@ -267,7 +267,7 @@ class ResultSet(object):
         return all_rates, all_labels
         
                 
-    def export(self, filestem=None, sep=',', writetofile=True):
+    def export(self, filestem=None, sep=',', writetofile=True, use_alltimesteps=True):
         """
         Export method for characteristics results obtained from a simulation that should correspond 
         to times of the observed data (i.e. annually). This method is intended for use with runSim 
@@ -280,19 +280,29 @@ class ResultSet(object):
         filestem = os.path.abspath(filestem)
         filename = filestem + '.csv'
         
-        npts = len(self.t_observed_data)
+        
         keys = self.char_labels
         
-        output = sep.join(['Indicator','Population'] + ['%i'%t for t in self.t_observed_data]) # Create header and years
+        
+        if use_alltimesteps:
+            output = sep.join(['Indicator','Population'] + ['%g'%t for t in self.t_step]) # Create header and years 
+            npts = len(self.t_step)
+        else:
+            output = sep.join(['Indicator','Population'] + ['%g'%t for t in self.t_observed_data]) # Create header and years
+            npts = len(self.t_observed_data)
         for key in keys:
             output += '\n' # Add a line break between different indicators
             popkeys = self.pop_labels
             for pk, popkey in enumerate(popkeys):
                 output += '\n'
-                data = self.outputs[key][popkey][self.indices_observed_data]
+                if use_alltimesteps:
+                    data = self.outputs[key][popkey]
+                else:
+                    data = self.outputs[key][popkey][self.indices_observed_data]
+                
                 output += key+sep+popkey+sep
                 for t in range(npts):
-                    output += ('%i'+sep) % data[t]
+                    output += ('%g'+sep) % data[t]
             
         if writetofile: 
             with open(filename, 'w') as f: f.write(output)
