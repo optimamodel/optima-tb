@@ -714,7 +714,7 @@ def loadSpreadsheetFunc(settings, databook_path):
             list_t = []
             list_cost = []
             list_cov = []
-#            progtype_label = settings.progtype_name_labels[data['progs'][prog_label]['prog_type']]
+            progtype_label = data['progs'][prog_label]['prog_type']
             num_attribs = len(settings.progtype_specs[progtype_label]['attribute_name_labels'])
             list_attribs = [[] for x in xrange(num_attribs)]
             
