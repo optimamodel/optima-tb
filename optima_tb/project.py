@@ -296,6 +296,9 @@ class Project(object):
 
             elif vals['type'].lower() == 'budget':
                 self.scenarios[scenario_name] = BudgetScenario(name=scenario_name,pop_labels=pop_labels,**vals)
+            
+            elif vals['type'].lower() == 'coverage':
+                self.scenarios[scenario_name] = CoverageScenario(name=scenario_name,pop_labels=pop_labels,**vals)
 
             else:
                 raise NotImplementedError("ERROR: no corresponding Scenario type for scenario=%s"%scenario_name)
