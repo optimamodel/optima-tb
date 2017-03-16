@@ -92,13 +92,13 @@ class ParameterScenario(Scenario):
         import numpy as np
         tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + self.settings.tvec_dt/2, self.settings.tvec_dt)
         
-        # inflate both the two parameter sets first
-        parset.inflate(tvec)
-        self.scenario_parset.inflate(tvec)
-             
+        
         if self.overwrite: # update values in parset with those in scenario_parset
             return parset << self.scenario_parset
         else: # add the two together
+            # inflate both the two parameter sets first
+            parset.inflate(tvec)
+            self.scenario_parset.inflate(tvec)
             return parset + self.scenario_parset
     
     
