@@ -57,7 +57,8 @@ class ProgramSet:
             return self.progs[self.prog_ids[label]]
         raise OptimaException('ERROR: Label "%s" cannot be found in program set "%s".' % (label, self.name))
         
-        
+    def copy(self):
+        pass
 
 class Program:
     
@@ -159,6 +160,18 @@ class Program:
         output = self.interpolate(tvec=[year], attributes=['cost'])
         budget = output['cost'][-1]
         return budget
+        
+    def getBudget(self, coverage):
+        '''
+        Returns a budget that corresponds to a program coverage. In simplest form, this is coverage times unit cost.
+        Note that this method is not typically used during model processing.
+        '''
+        
+        if self.cov_format.lower() == 'fraction':
+            bud = float(coverage)*self.func_specs['pars']['unit_cost']/0.01     # Unit cost is per percentage when format is a fraction.
+        else:
+            bud = float(coverage)*self.func_specs['pars']['unit_cost']
+        return bud        
         
     def getCoverage(self, budget):
         '''
