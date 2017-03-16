@@ -75,7 +75,7 @@ class ParameterScenario(Scenario):
             scenario_values = odict()
         data['linkpars'] = scenario_values
         # values required when creating a parameter set
-        data['pops']['name_labels'] = pop_labels
+        data['pops']['label_names'] = pop_labels
         
         ps = ParameterSet(self.name)
         ps.makePars(data)

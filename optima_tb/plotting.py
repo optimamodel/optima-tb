@@ -352,7 +352,7 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
         plot_charac = [output_id for output_id in plot_charac if isPlottableCharac(output_id, charac_specs)]       
 
     
-    if pop_labels is None:
+    if pop_labels is not None:
         plot_pids = getPIDs(scen_results[0],pop_labels) #####
     else:
         plot_pids = range(len(scen_results[0].m_pops))
