@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 
 
 from uuid import uuid4 as uuid
@@ -75,7 +77,7 @@ class ParameterScenario(Scenario):
             scenario_values = odict()
         data['linkpars'] = scenario_values
         # values required when creating a parameter set
-        data['pops']['name_labels'] = pop_labels
+        data['pops']['label_names'] = pop_labels
         
         ps = ParameterSet(self.name)
         ps.makePars(data)
@@ -171,26 +173,19 @@ class BudgetScenario(Scenario):
 
 
 
-class CoverageScenario(Scenario):
+class CoverageScenario(BudgetScenario):
     
-    def __init__(self):
-        super(CoverageScenario,self).__init__()
+    def __init__(self,name,run_scenario=False,overwrite=True,scenario_values=None,pop_labels=None,**kwargs):
+        super(CoverageScenario,self).__init__(name,run_scenario=run_scenario,overwrite=overwrite,scenario_values=scenario_values,pop_labels=pop_labels,**kwargs)
         
-        
-    def makeScenarioParset(self, parset):
-        """
-        
-        Coverage Scenarios do not make any changes to the ParameterScenario to be used
-        """
-        return parset
-    
-    def getScenarioParset(self, parset):
-        raise NotImplementedError
-    
     
     def getScenarioProgset(self, progset,options):
-        raise NotImplementedError
-    
-    
+        progset, options = super(CoverageScenario,self).getScenarioProgset(progset,options)
+        options['alloc_is_coverage'] = True
+        return progset, options
+
+    def __repr__(self, *args, **kwargs):
+        return "CoverageScenario: \n"+''.join('{}={}\n'.format(key, val) for key, val in sorted(self.budget_allocation.items()))
+
     
     
