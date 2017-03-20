@@ -13,6 +13,7 @@ from optima_tb.parameters import ParameterSet, export_paramset, load_paramset
 from optima_tb.programs import ProgramSet
 from optima_tb.plotting import plotProjectResults
 from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
+from optima_tb.optimization import optimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
 from optima_tb.scenarios import ParameterScenario, BudgetScenario, CoverageScenario
 from optima_tb.dataio import exportObj, importObj
@@ -89,6 +90,28 @@ class Project(object):
             tp = tic()
             self.plotResults(results = results, debug = debug)
             toc(tp, label = 'plotting %s' % self.name)
+        
+        return results
+        
+        
+    def optimize(self, parset = None, parset_name = 'default', progset = None, progset_name = 'default', options = None):
+        ''' Optimize model using a selected parset and store/return results. '''
+        
+        if parset is None:
+            if len(self.parsets) < 1: 
+                raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot optimize model.' % self.name)
+            else:
+                try: parset = self.parsets[parset_name]
+                except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot optimize model.' % (self.name, parset_name))        
+        
+        if progset is None:
+            if len(self.progsets) < 1: 
+                raise OptimaException('ERROR: Project "%s" appears to have no program sets. Cannot optimize model.' % self.name)
+            else:
+                try: progset = self.progsets[progset_name]
+                except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot optimize model.' % (self.name, progset_name))
+                
+        results = optimizeFunc(settings = self.settings, parset = parset, progset = progset, options = options)
         
         return results
         
