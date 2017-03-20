@@ -6,6 +6,7 @@ from optima_tb.utils import OptimaException, odict, defaultrepr, objrepr
 import numpy as np
 from math import ceil, floor
 from uuid import uuid4 as uuid
+from copy import deepcopy as dcp
 
 #%% Resultset class that contains one set of results
 class ResultSet(object):
@@ -83,6 +84,7 @@ class ResultSet(object):
         self.comp_label_names = self.__generateLabelNames(self.comp_specs.keys(),self.comp_labels)
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
         self.link_labels = model.pops[0].link_ids.keys()
+        self.link_label_ids = model.pops[0].link_ids
         
         # /work-in-progress
     
@@ -130,7 +132,7 @@ class ResultSet(object):
         Return:
             value        a scalar
         """
-        dt = 0.25 #####
+        dt = self.dt
         
         if pop_labels is None:
             pop_labels = self.pop_labels
@@ -156,13 +158,18 @@ class ResultSet(object):
                 popvalues = values[pop]
                 val += popvalues[idx].sum() 
             
-            return val
             
         elif label in self.link_labels:
-            print "is Link"
+#             print "is Link"
             
-            pass
-        
+            values,_,_ = self.getFlow(link_label=label, pop_labels=pop_labels)
+            values = values[label]
+                    
+            for pop in values.keys():
+                popvalues = values[pop]
+                val += popvalues[idx].sum() 
+            
+            
         elif label in self.comp_label_names.keys():
 #             print "is Comp"
             
@@ -171,8 +178,7 @@ class ResultSet(object):
                 popvalues = values[pop]
                 pp = popvalues[label]
                 val += values[pop][label].popsize[idx].sum() 
-            
-        
+                
         else:
             logger.warn("Unable to find value for label='%s': no corresponding characteristic, link, or compartment found."%label)
         
@@ -292,54 +298,58 @@ class ResultSet(object):
         return datapoints, chars, pops
       
       
-    def getFlow(self, comp, inflows = True, outflows = True, invert = False, link_legend = None, exclude_transfers = False):
+    def getFlow(self, link_label, pop_labels=None):
+#                 (comp, inflows = True, outflows = True, invert = False, link_legend = None, exclude_transfers = False):
         """
         TODO finish method (moved across from plotting.py)
         
         """
-        all_labels = []
-        all_rates = []
-        all_tvecs = []
+
+        if pop_labels is not None:
+            if isinstance(pop_labels, list):
+                pops = pop_labels
+            else:
+                pops = [pop_labels]
+        else:
+            pops = self.pop_labels
+            
+        if link_label is not None:
+            if isinstance(link_label, list):
+                pass
+            else:
+                link_label = [link_label]
+        else:
+            link_label = self.link_label
         
-        for in_out in xrange(2): # in, then out
-            if (in_out == 0 and plot_inflows) or (in_out == 1 and plot_outflows):
-                comp_link_ids = [comp.inlink_ids, comp.outlink_ids][in_out]
-                label_tag = ['In: ','Out: '][in_out]
-                for link_tuple in comp_link_ids:
-                    link = self.m_pops[link_tuple[0]].links[link_tuple[1]]
-                    #print link.label, link_labels, include_link_not_exclude
-                    if link_labels is None or (invert and link.label in link_labels) or (not invert and link.label not in link_labels):
-                        try: 
-                            legend_label = label_tag + settings.linkpar_specs[link.label]['name']
-                        except: 
-                            if exclude_transfers: continue
-                            else: legend_label = label_tag + link.label
-                        if link.label in link_legend:
-                            legend_label = link_legend[link.label]    # Overwrite legend for a label.
-                        num_flow = dcp(link.vals)
-                        if in_out == 0:
-                            comp_source = self.m_pops[link.index_from[0]].comps[link.index_from[1]]
-                        else:
-                            comp_source = comp
-                        was_proportion = False
-                        if link.val_format == 'proportion':
-                            denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
-                            num_flow /= denom_val
-                            was_proportion = True
-                        if link.val_format == 'fraction' or was_proportion is True:
-                            if was_proportion is True:
-                                num_flow *= comp_source.popsize_old
-                            else:
-                                num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
-                                num_flow *= comp_source.popsize
-                            num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
-                            
-                        all_labels.append(legend_label)
-                        all_rates.append(num_flow)
-                        all_tvecs.append(tvec)
+        datapoints = odict() 
+      
+        for link_lab in link_label:
+              
+            datapoints[link_lab] = odict() 
+            for pi in pops:
+                
+                datapoints[link_lab] [pi] = odict() 
+                
+                p_index = self.pop_label_index[pi]
+                
+                link = self.m_pops[p_index].links[self.link_label_ids[link_lab][0]]
+                num_flow = dcp(link.vals)
+                comp_source = self.m_pops[p_index].comps[link.index_from[1]]
+                
+                if link.val_format == 'proportion':
+                    denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
+                    num_flow /= denom_val
+                   
+                if link.val_format == 'fraction':
+                    
+                    num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
+                    num_flow *= comp_source.popsize
+                    num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
+                    
+                datapoints[link_lab][pi] = num_flow
         
-        return all_rates, all_labels
-        
+        return datapoints, link_label, pops
+    
                 
     def export(self, filestem=None, sep=',', writetofile=True):
         """

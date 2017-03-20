@@ -25,5 +25,5 @@ results = proj.runSim()
 
 print results.getValueAt('alive',2017)
 print results.getValueAt('spdu',2017)
-results.getValueAt('nddiag',2017)
+print results.getValueAt('nddiag',2017)
 
