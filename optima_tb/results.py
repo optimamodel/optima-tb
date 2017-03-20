@@ -82,6 +82,8 @@ class ResultSet(object):
         self.comp_specs = settings.node_specs
         self.comp_label_names = self.__generateLabelNames(self.comp_specs.keys(),self.comp_labels)
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
+        self.link_labels = model.pops[0].link_ids.keys()
+        
         # /work-in-progress
     
     def __repr__(self):
@@ -110,7 +112,76 @@ class ResultSet(object):
             label_names[label] = names[i]
         return label_names
         
+    def getValueAt(self, label, year_init, year_end=None, pop_labels=None):
+        """
+        Returns scalar at or over a specific period for the value of a label corresponding to either a:
+            * characteristic
+            * flow
+            * compartment
+        If over a time period, the values are summed to form the cumulative. The scalar of this value is 
+        then returned.
         
+        Params:
+            label        string value of label
+            year_init    time period at which to return the value, or if year_end is specified, the beginning of the time period
+            year_end     (optional) 
+            pop_labels   (optional) list of populations to evaluate over. Default: None, which evaluates over all
+        
+        Return:
+            value        a scalar
+        """
+        dt = 0.25 #####
+        
+        if pop_labels is None:
+            pop_labels = self.pop_labels
+        
+        values = []
+            
+        tvals = np.array(self.sim_settings['tvec'])
+        if year_end is not None: # including the dt/2 window to guard against float comparison
+            idx = (tvals>=year_init-dt/2)*(tvals<=year_end+dt/2)
+        else:
+            idx = (tvals>=year_init-dt/2)*(tvals<=year_init+dt/2)
+        
+        val = 0
+            
+        
+        if label in self.char_labels:
+#             print "is Char"
+            
+            values,_,_ = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)
+            values = values[label]
+                    
+            for pop in values.keys():
+                popvalues = values[pop]
+                val += popvalues[idx].sum() 
+            
+            return val
+            
+        elif label in self.link_labels:
+            print "is Link"
+            
+            pass
+        
+        elif label in self.comp_label_names.keys():
+#             print "is Comp"
+            
+            values,_,_ = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)
+            for pop in values.keys():
+                popvalues = values[pop]
+                pp = popvalues[label]
+                val += values[pop][label].popsize[idx].sum() 
+            
+        
+        else:
+            logger.warn("Unable to find value for label='%s': no corresponding characteristic, link, or compartment found."%label)
+        
+        return val
+            
+        
+
+    
+    
         
     def getCompartmentSizes(self, pop_labels = None, comp_label = None, use_observed_times=False):
         """
@@ -186,8 +257,11 @@ class ResultSet(object):
         just those populations or compartments.
         Otherwise, the simulated data points for all popuations and compartments are returned.
         
-        @param pop_id: population id, either as single id or as list
-        @param char_id: characteristic id, either as single label or as list of labels
+        Param:
+             pop_label                          population labels, either as single id or as list
+             char_label                         characteristic id, either as single label or as list of labels
+             use_observed_times                 boolean flag. If True, returns only datapoints for which there was a corresponding data observation; 
+                                                else, returns all characteristic data points
         
         """
         if pop_label is not None:
