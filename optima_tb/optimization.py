@@ -1,6 +1,6 @@
 from optima_tb.asd import asd
 from optima_tb.model import runModel
-from optima_tb.utils import odict, OptimaException
+from optima_tb.utils import odict, OptimaException, tic, toc
 
 import logging
 import logging.config
@@ -62,7 +62,9 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
         options_iter = dcp(options)
         for k in xrange(len(alloc)):
             options_iter['init_alloc'][k] = alloc[k]
+        t = tic()
         results = runModel(settings = settings, parset = parset, progset = progset, options = options_iter)
+        print toc(t)
 
     if 'previous_results' in algorithm_refs:
         algorithm_refs['previous_results'] = dcp(results)   # Store the new results for the next iteration.
@@ -76,8 +78,17 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
 #        charac_label = options['objective_weight'].keys()[0]
         weight = 1.0
         if 'weight' in options['objectives'][objective_label]: weight = options['objectives'][objective_label]['weight']
-        for pop_label in results.outputs[objective_label].keys():
-            objective += sum(results.outputs[objective_label][pop_label][index_start:]) * results.dt * weight
+        
+        # Handle an objective that wants to know the value in a particular year, e.g. a snapshot of a characteristic.
+        if 'year' in options['objectives'][objective_label]:
+            index_start = np.where(results.sim_settings['tvec'] >= options['objectives'][objective_label]['year'])[0][0]
+            for pop_label in results.outputs[objective_label].keys():
+                objective += results.outputs[objective_label][pop_label][index_start] * weight
+            index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
+        # Handle the default objective that wants to know a cumulative value. Timestep scaling required.
+        else:
+            for pop_label in results.outputs[objective_label].keys():
+                objective += sum(results.outputs[objective_label][pop_label][index_start:]) * results.dt * weight
 #    print objective
     
     return objective
@@ -110,7 +121,7 @@ def optimizeFunc(settings, parset, progset, options = None):
         options['constraints']['total'] = sum(options['init_alloc'].values())
         
     if 'objectives' not in options:
-        options['objectives'] = {settings.charac_pop_count : {'weight':-1}}
+        options['objectives'] = {settings.charac_pop_count : {'weight':-1,'year':2030.0}}
             
 #    print options
 #    print total_budget
