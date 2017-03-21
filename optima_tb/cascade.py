@@ -499,6 +499,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     if ws_progtypes:
         cid_label = None
         cid_name = None
+        cid_special = None
         cid_attlabel = None
         cid_attname = None
         cid_pars = None
@@ -507,6 +508,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         for col_id in xrange(ws_progtypes.ncols):
             if ws_progtypes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Special Tag': cid_special = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Attribute Labels': cid_attlabel = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Attribute Names': cid_attname = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Impact Parameters': cid_pars = col_id
@@ -524,6 +526,11 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     current_label = label
                     settings.progtype_specs[current_label] = {'name':name, 'impact_pars':odict(), 'impact_par_groups':{}, 'attribute_label_names':odict(), 'attribute_name_labels':odict()}
                     settings.progtype_name_labels[name] = current_label
+                    
+                    if not cid_special is None:
+                        special_tag = str(ws_progtypes.cell_value(row_id, cid_special))
+                        if special_tag not in ['']:
+                            settings.progtype_specs[current_label]['special'] = special_tag
                 
                 if not current_label is None:
                     if not None in [cid_attlabel, cid_attname]:
