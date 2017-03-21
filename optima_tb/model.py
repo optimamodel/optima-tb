@@ -926,7 +926,7 @@ def runModel(settings, parset, progset = None, options = None):
     m.build(settings = settings, parset = parset, progset = progset, options = options)
     m.process(settings = settings, progset = progset) 
 
-    results = ResultSet(m, parset, settings)    # NOTE: Progset may need to be passed to results. Depends on what results object stores.
+    results = ResultSet(m, parset, settings, progset, options)    # NOTE: Progset may need to be passed to results. Depends on what results object stores.
    
     return results
 
