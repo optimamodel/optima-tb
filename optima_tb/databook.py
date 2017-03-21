@@ -350,8 +350,27 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
         rows_imp = settings.databook['format']['programs']['max_lines_impact']
         num_progtypes = len(settings.progtype_name_labels.keys())
         
+#        prog_cost_estimate = '=CONCATENATE("Unit Cost Estimate",IF(%s="Fraction"," (Per 1%%)",""))' % rc(row_id+2,2)
+        
         row_id = 0
         for prid in xrange(num_progs):
+            
+            print_conditions = []
+            prog_cov_header = '"Program Coverage"'
+            prog_cov_prefix = ''
+            for k in xrange(num_progtypes):
+                progtype_name = settings.progtype_name_labels.keys()[k]
+                progtype_label = settings.progtype_name_labels[k]
+                if 'special' in settings.progtype_specs[progtype_label]:
+                    prog_cov_prefix = '='
+                    progtype_special = settings.progtype_specs[progtype_label]['special']
+                    if progtype_special == 'cost_only':
+    #            try: attrib_name = settings.progtype_specs[progtype_label]['attribute_name_labels'].keys()[row_imp]
+    #            except: attrib_name = '...'
+    #            if k == 0:
+    #                assumption_attname = attrib_name
+                        prog_cov_header = 'IF(%s="%s","%s",%s)' % (rc(row_id,1), progtype_name, '...', prog_cov_header)            
+            
             ws_progval.write(row_id, 0, prog_names_formula[prid], None, prog_names_default[prid])
             ws_progval.write(row_id, 1, settings.progtype_name_labels.keys()[0])
             ws_progval.data_validation('%s' % rc(row_id,1), {'validate': 'list', 'source': settings.progtype_name_labels.keys(), 'ignore_blank': False})
@@ -359,10 +378,10 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops = 5, num_migrations = 
             ws_progval.write(row_id + 2, 0, 'Cost-Coverage Details')
             ws_progval.write(row_id + 3, 0, '...')
             ws_progval.write(row_id + 4, 0, '...')
-            ws_progval.write(row_id + 2, 1, 'Program Coverage')
+            ws_progval.write(row_id + 2, 1, prog_cov_prefix + prog_cov_header)
             ws_progval.write(row_id + 3, 1, 'Program Funding')
             ws_progval.write(row_id + 4, 1, '=CONCATENATE("Unit Cost Estimate",IF(%s="Fraction"," (Per 1%%)",""))' % rc(row_id+2,2), None, 'Unit Cost Estimate')
-            makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 1, at_col = 2, num_arrays = 1, tvec = data_tvec, data_formats = ['Number','Fraction'])
+            makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 1, at_col = 2, num_arrays = 1, tvec = data_tvec, data_formats = ['Number','Fraction'], print_conditions = ['%s<>"..."' % rc(row_id+2,1)])
             makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 3, at_col = 2, num_arrays = 1, tvec = data_tvec, data_formats = ['USD'], no_header = True)
             makeValueEntryArrayBlock(worksheet = ws_progval, at_row = row_id + 4, at_col = 2, num_arrays = 1, tvec = data_tvec, assumption = '1.0E+300', data_formats = ['=CONCATENATE(%s)' % (rc(row_id+3,2))], no_header = True, only_assumption = True)
             
