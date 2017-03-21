@@ -56,6 +56,36 @@ class ProgramSet:
         if label in self.prog_ids.keys():
             return self.progs[self.prog_ids[label]]
         raise OptimaException('ERROR: Label "%s" cannot be found in program set "%s".' % (label, self.name))
+    
+    def getBudgets(self,coverages):
+        """
+        Returns the budgets for each of the programs in this program set
+        
+        Params:
+            coverages   dict of prog.label,coverage pairs
+            
+        Returns
+                        dict of prog.label, budget pairs
+        """
+        budgets = {}
+        for prog in self.progs:
+            budgets[prog.label] = prog.getBudget(coverages[prog.label])
+        return budgets
+    
+    def getCoverages(self,budgets):
+        """
+        Returns the coverage for each of the programs in this program set
+        
+        Params:
+            budgets     dict of prog.label, budget pairs
+            
+        Returns
+                        dict of prog.label, coverage pairs
+        """
+        coverage = {}
+        for prog in self.progs:
+            coverage[prog.label] = prog.getCoverage(budgets[prog.label])
+        return coverage
         
     def copy(self):
         pass
