@@ -754,7 +754,23 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         
         _plotLine(y_values[output_id][:], np.tile(tvec,(len(labels),1)), labels, legendsettings=None, save_fig=save_fig, colors=colors, **final_dict)
 
-
+def plotBudgets(budgets, title="", labels=None, xlabels=None, currency="USD", colors=None, 
+                save_fig=False, fig_name=None, plotdict=None, legendsettings=None):
+    """
+    
+    Params:
+        budgets     list of dicts, with key:val of program:budget
+        title       string, with plot title
+        labels      list of programs
+    """
+    if labels is None:
+        labels = budgets[0].keys()
+    
+    # unfortunately we have to do it this way to ensure that the programs are all extracted in the same order
+    values = [[b[k] for k in labels] for b in budgets] 
+    
+    _plotBars(values, labels, colors=colors, title=title, xlabels=xlabels, legendsettings=legendsettings,
+              ylabel="Budget (%s)"%currency, save_fig=save_fig, save_figname=fig_name, **plotdict)
 
 
 def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
@@ -1332,7 +1348,75 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         
     return fig
     
+def _plotBars(values, labels=None, colors=None, title="", orientation='v', legendsettings=None,
+              xlabel="", ylabel="", xlabels=None, yticks=None, barwidth=0.5, bar_offset=0.25, xlim=3,
+              save_fig=False,save_figname=None,legend_off=False,**kwargs):
+    """
+    Plots bar graphs. Intended for budgets. 
+    
+    These plots can be used for multiple budgets, but given the plot formatting, it is only practical to be used 
+    for a 3 bars max.
+    
+    Params:
+        values    list 
+    """
+    # setup 
+    num_bars = len(values)
+    num_cats = len(values[0]) # label categories
+    inds = np.arange(num_bars) + bar_offset
+    xinds = np.arange(num_bars) + bar_offset + barwidth/2.
+    
+    
+    if xlabels is None:
+        x_ticks = (xinds, range(num_bars))
+    else:
+        x_ticks = (xinds, xlabels)
+    
+    if colors is None:
+        colors = gridColorMap(num_cats)
+        logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
+    
+    if legendsettings is None: 
+        legendsettings = {'loc':'center right', 'ncol':1}    
 
+    
+    # preprocessing to make our lives easier:
+    cat_values = map(list, zip(*values))
+    cumulative = np.zeros(num_bars)
+    
+    # and plot:
+    fig, ax = pl.subplots()
+    
+    for k in range(num_cats):
+        
+        if k == 0:
+            ax.bar(inds, cat_values[k], color=colors[k], width=barwidth, lw=0)
+        else:
+            ax.bar(inds, cat_values[k], color=colors[k], width=barwidth, bottom=cumulative, lw=0)
+            
+        cumulative += cat_values[k]
+    
+    _turnOffBorder()
+    
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    
+    if not legend_off:
+        print labels
+        ax.legend(labels, **legendsettings)
+    
+    if x_ticks is not None:
+        ax.set_xticks(x_ticks[0])
+        ax.set_xticklabels(x_ticks[1])
+    
+    ax.set_xlim(xmin=0,xmax=xlim)
+    
+    if save_fig:
+        fig.savefig('%s' % (save_figname))                    
+        logger.info("Saved figure: '%s'"%save_figname)
+        
+    return fig
         
               
 def plotAllOutflows(results, num_subplots = 5):
