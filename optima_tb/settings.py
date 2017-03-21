@@ -386,17 +386,22 @@ class PlottingSettings():
                          'year_inc':5,
                          # colormapping for category lists
                          'colormapping_order':'alternate3',# as we have triplets in undiagnosed --> diagnosed --> on treatment
-                         'formatter': FuncFormatter(self.KMSuffixFormatter) } 
+                         'formatter': FuncFormatter(self.KMSuffixFormatter) , 
+                         'barwidth': 0.8, 
+                         'bar_offset': 0.2} 
 
 
     def devSettings(self):
         pl.rcParams['figure.figsize'] = (10, 8)
         pl.rcParams['savefig.dpi'] = 100
+        pl.rcParams['savefig.transparent'] =  'False' # relax
         
     def printSettings(self):
         
         pl.rcParams['figure.figsize'] = (15, 10)
         pl.rcParams['savefig.dpi'] = 300
+        pl.rcParams['savefig.transparent'] =  'True' # enforce
+        self.plotdict['legend_off'] = True
         
     def presentationSettings(self):
         pl.rcParams['font.size'] = 16
@@ -420,6 +425,8 @@ class PlottingSettings():
         pl.rcParams['ytick.minor.size'] = 0
         pl.rcParams['ytick.major.width'] = 2
         pl.rcParams['ytick.minor.width'] = 0
+        
+        pl.rcParams['savefig.transparent'] =  'True' # enforce
         
         self.plotdict['legend_off'] = True
         
