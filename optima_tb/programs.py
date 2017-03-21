@@ -25,15 +25,18 @@ class ProgramSet:
         for l, prog_label in enumerate(data['progs']):
             prog_name = data['progs'][prog_label]['name']
             prog_type = data['progs'][prog_label]['prog_type']
+            
+            special = None
+            if 'special' in settings.progtype_specs[prog_type]:
+                special = settings.progtype_specs[prog_type]['special']
+            
             t = data['progs'][prog_label]['t']
             cost = data['progs'][prog_label]['cost']
-            cov = data['progs'][prog_label]['cov']
             cost_format = data['progs'][prog_label]['cost_format']
+            cov = data['progs'][prog_label]['cov']
             cov_format = data['progs'][prog_label]['cov_format']
             attributes = data['progs'][prog_label]['attributes']
             target_pops = data['progs'][prog_label]['target_pops']
-#            prog_type_name = data['progs'][prog_label]['prog_type']
-#            prog_type_label = settings.progtype_name_labels[prog_type_name]
             target_pars = settings.progtype_specs[prog_type]['impact_pars']
             for target_par in target_pars.keys():
                 if target_par not in self.impacts: self.impacts[target_par] = []
@@ -45,9 +48,14 @@ class ProgramSet:
                                attributes = attributes,
                                target_pops = target_pops, target_pars = target_pars)
             
+            
             func_pars = dict()
-            func_pars['unit_cost'] = data['progs'][prog_label]['unit_cost']
-            new_prog.genFunctionSpecs(func_pars = func_pars)
+            if special == 'cost_only':
+                func_type = 'cost_only'
+            else:
+                func_type = 'linear'
+                func_pars['unit_cost'] = data['progs'][prog_label]['unit_cost']
+            new_prog.genFunctionSpecs(func_pars = func_pars, func_type = func_type)
             
             self.progs.append(new_prog)
             self.prog_ids[prog_label] = l
@@ -176,9 +184,9 @@ class Program:
         
 #        # WARNING: HARD-CODED AND SIMPLISTIC UNIT-COST GENERATION METHOD. IMAGINE IF THERE IS ZERO SPENDING FOR A PROGRAM IN THE LAST YEAR. AMEND ASAP.
 #        output = self.interpolate(tvec=[max(self.t)])    # Use the latest year stored in the program to inform unit costs.
-        self.func_specs['pars'] = dict()
+        self.func_specs['pars'] = dcp(func_pars)
 #        self.func_specs['pars']['unit_cost'] = output['cov'][-1]/output['cost'][-1]
-        self.func_specs['pars']['unit_cost'] = func_pars['unit_cost']
+#        self.func_specs['pars']['unit_cost'] = func_pars['unit_cost']
         
     def getDefaultBudget(self, year = None):
         '''
@@ -197,10 +205,13 @@ class Program:
         Note that this method is not typically used during model processing.
         '''
         
-        if self.cov_format.lower() == 'fraction':
-            bud = float(coverage)*self.func_specs['pars']['unit_cost']/0.01     # Unit cost is per percentage when format is a fraction.
+        if self.cov_format is None:
+            raise OptimaException('ERROR: Attempted to convert coverage to budget for a program that does not have coverage.')
         else:
-            bud = float(coverage)*self.func_specs['pars']['unit_cost']
+            if self.cov_format.lower() == 'fraction':
+                bud = float(coverage)*self.func_specs['pars']['unit_cost']/0.01     # Unit cost is per percentage when format is a fraction.
+            else:
+                bud = float(coverage)*self.func_specs['pars']['unit_cost']
         return bud        
         
     def getCoverage(self, budget):
@@ -210,13 +221,19 @@ class Program:
         Excess coverage will also be ignored in the model.
         '''
         
-        if self.cov_format.lower() == 'fraction':
-            cov = float(budget)*0.01/self.func_specs['pars']['unit_cost']     # Unit cost is per percentage when format is a fraction.
+        if self.cov_format is None:
+            cov = np.nan    # Fixed cost programs have no coverage.
         else:
-            cov = float(budget)/self.func_specs['pars']['unit_cost']
+            if self.cov_format.lower() == 'fraction':
+                cov = float(budget)*0.01/self.func_specs['pars']['unit_cost']     # Unit cost is per percentage when format is a fraction.
+            else:
+                cov = float(budget)/self.func_specs['pars']['unit_cost']
         return cov
         
     def getImpact(self, budget, impact_label = None, parser = None, year = None, budget_is_coverage = False):
+        
+        if self.func_specs['type'] == 'cost_only':
+            return 0.0
         
         # Baseline impact is just coverage.
         if budget_is_coverage:
