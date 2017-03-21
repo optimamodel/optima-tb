@@ -241,7 +241,9 @@ class Model(object):
         if 'progs_start' in options:
             if progset is not None:
                 self.sim_settings['progs_start'] = options['progs_start']
-                
+
+                if 'progs_end' in options:
+                    self.sim_settings['progs_end'] = options['progs_end']
                 if 'init_alloc' in options:
                     self.sim_settings['init_alloc'] = options['init_alloc']
                 if 'alloc_is_coverage' in options:
@@ -709,80 +711,81 @@ class Model(object):
                 
                 # WARNING: CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
                 if 'progs_start' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start']:
-                    if par_label in progset.impacts.keys():
-                        first_prog = True   # True if program in prog_label loop is the first one in the impact dict list.
-                        for prog_label in progset.impacts[par_label]:
-                            prog = progset.getProg(prog_label)
-                            prog_type = prog.prog_type
-                            
-                            # Make sure the population in the loop is a target of this program.
-                            if pop.label not in prog.target_pops:
-                                continue
-                            if 'init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']:
-                                prog_budget = self.sim_settings['init_alloc'][prog_label]
-                            else:
-                                if 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
-                                    prog_budget = prog.getDefaultBudget()
-                                else: 
+                    if not ('progs_end' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_end']):
+                        if par_label in progset.impacts.keys():
+                            first_prog = True   # True if program in prog_label loop is the first one in the impact dict list.
+                            for prog_label in progset.impacts[par_label]:
+                                prog = progset.getProg(prog_label)
+                                prog_type = prog.prog_type
+                                
+                                # Make sure the population in the loop is a target of this program.
+                                if pop.label not in prog.target_pops:
                                     continue
-                            
-                            # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
-                            source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
-                            source_set_size = 0
-                            for from_pop in prog.target_pops:
-                                source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
-                            
-                            # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
-                            # NOTE: This might be a place to improve performance.
-                            if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
-                                group_label = settings.progtype_specs[prog_type]['impact_pars'][par_label]['group']
-                                for alt_par_label in settings.progtype_specs[prog_type]['impact_par_groups'][group_label]:
-                                    if not alt_par_label == par_label:
-                                        alt_pars = pop.getLinks(settings.linkpar_specs[alt_par_label]['tag'])
-                                        for from_pop in prog.target_pops:
-                                            source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]                                        
-                            
-                            # Make sure each program impact is in the format of the parameter it affects.
-                            if pars[0].val_format == 'fraction':
-                                if prog.cov_format == 'fraction':
-                                    impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])
-                                elif prog.cov_format == 'number':
-                                    if source_element_size <= project_settings.TOLERANCE:
-                                        impact = 0.0
-                                    else:
-                                        impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])/source_set_size
-#                                    if impact > 1.0: impact = 1.0   # Maximum fraction allowable due to timestep conversion.
-                            elif pars[0].val_format == 'number':
-                                if prog.cov_format == 'fraction':
-                                    impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_element_size
-                                elif prog.cov_format == 'number':
-                                    if source_element_size <= project_settings.TOLERANCE:
-                                        impact = 0.0
-                                    else:
-                                        impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_set_size/source_element_size
-                            
-#                            year_check = 2020   # Hard-coded check.
-#                            if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 1.5*settings.tvec_dt:
-#                                print('Program Name: %s' % prog.name)
-#                                print('Program %s: %f' % ('Coverage' if self.sim_settings['alloc_is_coverage'] else 'Budget', prog_budget))
-#                                print('Target Population: %s' % pop.label)
-#                                print('Target Parameter: %s' % par_label)
-#                                print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
-#                                print('Standard Program Impact: %f' % prog.getImpact(prog_budget, budget_is_coverage = self.sim_settings['alloc_is_coverage']))
-#                                print('Rescaled Program Impact: %f' % prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage']))
-#                                print('Program Impact Format: %s' % prog.cov_format)
-#                                print('Source Compartment Size (Target Pop): %f' % source_element_size)
-#                                print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
-#                                print('Converted Impact: %f' % impact)
-#                                print('Converted Impact Format: %s' % pars[0].val_format)
-#                                print
-                            if first_prog: new_val = 0
-                            new_val += impact
-                            first_prog = False
-                            
-#                            if par_label == 'spmyes_rate':
-#                                print prog_label
-#                                print new_val
+                                if 'init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']:
+                                    prog_budget = self.sim_settings['init_alloc'][prog_label]
+                                else:
+                                    if 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
+                                        prog_budget = prog.getDefaultBudget()
+                                    else: 
+                                        continue
+                                
+                                # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
+                                source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
+                                source_set_size = 0
+                                for from_pop in prog.target_pops:
+                                    source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
+                                
+                                # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
+                                # NOTE: This might be a place to improve performance.
+                                if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
+                                    group_label = settings.progtype_specs[prog_type]['impact_pars'][par_label]['group']
+                                    for alt_par_label in settings.progtype_specs[prog_type]['impact_par_groups'][group_label]:
+                                        if not alt_par_label == par_label:
+                                            alt_pars = pop.getLinks(settings.linkpar_specs[alt_par_label]['tag'])
+                                            for from_pop in prog.target_pops:
+                                                source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]                                        
+                                
+                                # Make sure each program impact is in the format of the parameter it affects.
+                                if pars[0].val_format == 'fraction':
+                                    if prog.cov_format == 'fraction':
+                                        impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])
+                                    elif prog.cov_format == 'number':
+                                        if source_element_size <= project_settings.TOLERANCE:
+                                            impact = 0.0
+                                        else:
+                                            impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])/source_set_size
+    #                                    if impact > 1.0: impact = 1.0   # Maximum fraction allowable due to timestep conversion.
+                                elif pars[0].val_format == 'number':
+                                    if prog.cov_format == 'fraction':
+                                        impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_element_size
+                                    elif prog.cov_format == 'number':
+                                        if source_element_size <= project_settings.TOLERANCE:
+                                            impact = 0.0
+                                        else:
+                                            impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_set_size/source_element_size
+                                
+    #                            year_check = 2020   # Hard-coded check.
+    #                            if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 1.5*settings.tvec_dt:
+    #                                print('Program Name: %s' % prog.name)
+    #                                print('Program %s: %f' % ('Coverage' if self.sim_settings['alloc_is_coverage'] else 'Budget', prog_budget))
+    #                                print('Target Population: %s' % pop.label)
+    #                                print('Target Parameter: %s' % par_label)
+    #                                print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
+    #                                print('Standard Program Impact: %f' % prog.getImpact(prog_budget, budget_is_coverage = self.sim_settings['alloc_is_coverage']))
+    #                                print('Rescaled Program Impact: %f' % prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage']))
+    #                                print('Program Impact Format: %s' % prog.cov_format)
+    #                                print('Source Compartment Size (Target Pop): %f' % source_element_size)
+    #                                print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
+    #                                print('Converted Impact: %f' % impact)
+    #                                print('Converted Impact Format: %s' % pars[0].val_format)
+    #                                print
+                                if first_prog: new_val = 0
+                                new_val += impact
+                                first_prog = False
+                                
+    #                            if par_label == 'spmyes_rate':
+    #                                print prog_label
+    #                                print new_val
                 
                 for par in pars:
                     par.vals[ti] = new_val
