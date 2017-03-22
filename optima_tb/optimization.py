@@ -187,12 +187,17 @@ def optimizeFunc(settings, parset, progset, options = None):
             'options':options,
             'algorithm_refs':algorithm_refs}
     
-    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=7)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
+    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=50)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
+    alloc_new = dcp(constrainAllocation(alloc = alloc_new, options = options))
     
-#    print alloc_new
-#    print obj_vals
-#    print exit_reason
+    alloc_opt = {}
     
-    results = (alloc_new, obj_vals, exit_reason)
+    if 'alloc_ids' in algorithm_refs and 'id_progs' in algorithm_refs['alloc_ids']:
+        for k in xrange(len(alloc_new)):
+            alloc_opt[algorithm_refs['alloc_ids']['id_progs'][k]] = alloc_new[k]
+    else:
+        raise OptimaException('ERROR: No allocation-id program-label conversion dictionary can be found during optimization. Cannot convert alloc back into options dictionary format.')
+    
+    results = (alloc_opt, obj_vals, exit_reason)
     
     return results
