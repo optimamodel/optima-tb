@@ -2,6 +2,7 @@ from optima_tb.asd import asd
 from optima_tb.model import runModel
 from optima_tb.utils import odict, OptimaException, tic, toc
 from optima_tb.defaults import defaultOptimOptions
+import optima_tb.settings as project_settings
 
 import logging
 import logging.config
@@ -11,22 +12,65 @@ logger = logging.getLogger()
 import numpy as np
 from copy import deepcopy as dcp
 
-def constrainAllocation(alloc, options):
+def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
+    
+    print('Launching attempt %i to constrain allocation.' % attempt)
 
     alloc = np.array(alloc)     # Converting to np array just in case.
 
     # Convert negative allocation values to zeros.
     alloc[alloc < 0.0] = 0.0
+        
+    # Handle values that go beyond limits.
+    hit_lower = (alloc == np.nan)  # Track the indices of programs that hit the lower limit. Pre-allocate as False.
+    hit_upper = (alloc == np.nan)  # Track the indices of programs that hit the upper limit. Pre-allocate as False.
+    for k in xrange(len(alloc)):
+        prog_key = algorithm_refs['alloc_ids']['id_progs'][k]
+        if options['constraints']['limits'][prog_key]['rel']:
+            # If new budget is less than the relative lower limit times original budget...
+            if alloc[k] < options['constraints']['limits'][prog_key]['vals'][0] * algorithm_refs['orig_alloc'][k]:
+                alloc[k] = options['constraints']['limits'][prog_key]['vals'][0] * algorithm_refs['orig_alloc'][k]
+                hit_lower[k] = True
+            # If new budget is more than the relative lower limit times original budget...
+            check = options['constraints']['limits'][prog_key]['vals'][1] * algorithm_refs['orig_alloc'][k]
+            if check is np.nan: check = options['constraints']['limits'][prog_key]['vals'][1]   # Avoids infinity times zero case.
+            elif alloc[k] > check:
+                alloc[k] = check
+                hit_upper[k] = True
+        else:
+            # If new budget is less than the absolute lower limit...
+            if alloc[k] < options['constraints']['limits'][prog_key]['vals'][0]:
+                alloc[k] = options['constraints']['limits'][prog_key]['vals'][0]
+                hit_lower[k] = True
+            # If new budget is more than the absolute upper limit...
+            elif alloc[k] > options['constraints']['limits'][prog_key]['vals'][1]:
+                alloc[k] = options['constraints']['limits'][prog_key]['vals'][1]
+                hit_upper[k] = True
+            
+        k += 1
     
     if 'total' in options['constraints']:
         sum_current = sum(alloc)
-        if sum_current == 0: raise OptimaException('ERROR: Allocation was constrained to have a sum of zero during optimization.')
-        alloc *= options['constraints']['total']/sum_current
+        cannot_change = dcp(hit_upper)  # Just to define it as something.
+        if options['constraints']['total'] > sum_current:       # Need to scale up.
+            cannot_change = dcp(hit_upper)                          # Cannot change values that have already hit upper limit.
+        elif options['constraints']['total'] < sum_current:     # Need to scale down.
+            cannot_change = dcp(hit_lower)                          # Cannot change values that have already hit lower limit.
+        sum_stuck = sum(alloc[cannot_change])   # The total budget amount that is stuck at its limit.
+#        if sum_current == 0: raise OptimaException('ERROR: Allocation was constrained to have a sum of zero during optimization.')
+        alloc[~cannot_change] *= (options['constraints']['total']-sum_stuck)/(sum_current-sum_stuck)
         
+        # Recursively constrain until the budget total rescale does nothing, or the recursive limit gets hit.
+        if not abs(sum(alloc) - sum_current) < project_settings.TOLERANCE:
+            if attempt < settings.recursion_limit:
+                alloc = constrainAllocation(alloc = alloc, settings = settings, options = options, algorithm_refs = algorithm_refs, attempt = attempt + 1)
+            else:
+                logger.warn("Tried to constrain an allocation but failed before recursion limit. Reverting to previous iteration allocation.")
+                alloc = dcp(algorithm_refs['previous_alloc'])
     
     return dcp(alloc)
 
-def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs = None):
+def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs):
     '''
     Calculates the objective function value for a certain allocation.
     The algorithm_refs dictionary is for storing algorithm-useful values during the process, e.g. the previous allocation tested.
@@ -36,7 +80,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
     print alloc
     print sum(alloc)
     
-    alloc = constrainAllocation(alloc = alloc, options = options)   
+    alloc = constrainAllocation(alloc = alloc, settings = settings, options = options, algorithm_refs = algorithm_refs)   
     
     print 'Constrained alloc...'
     print alloc
@@ -182,6 +226,7 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500):
         algorithm_refs['alloc_ids']['prog_ids'][prog_key] = k
         k += 1
     alloc = dcp(np.array(alloc))
+    algorithm_refs['orig_alloc'] = dcp(alloc)
     
     print alloc
     print algorithm_refs
@@ -193,7 +238,7 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500):
             'algorithm_refs':algorithm_refs}
     
     alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter, reltol=None)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
-    alloc_new = dcp(constrainAllocation(alloc = alloc_new, options = options))
+    alloc_new = dcp(constrainAllocation(alloc = alloc_new, settings = settings, options = options, algorithm_refs = algorithm_refs))
     
     alloc_opt = {}
     
