@@ -725,7 +725,10 @@ class Model(object):
                                     prog_budget = self.sim_settings['init_alloc'][prog_label]
                                 else:
                                     if 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
-                                        prog_budget = prog.getDefaultBudget()
+                                        if self.sim_settings['alloc_is_coverage']:
+                                            prog_budget = prog.getCoverage(budget = prog.getDefaultBudget())
+                                        else:
+                                            prog_budget = prog.getDefaultBudget()
                                     else: 
                                         continue
                                 
