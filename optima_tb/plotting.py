@@ -755,8 +755,8 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         
         _plotLine(y_values[output_id][:], np.tile(tvec,(len(labels),1)), labels, legendsettings=None, save_fig=save_fig, colors=colors, **final_dict)
 
-def plotBudgets(budgets, title="", labels=None, xlabels=None, currency="USD", colors=None, 
-                save_fig=False, fig_name=None, plotdict=None, legendsettings=None):
+def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency="USD", colors=None, 
+                save_fig=False, fig_name=None, legendsettings=None):
     """
     
     Params:
@@ -764,14 +764,33 @@ def plotBudgets(budgets, title="", labels=None, xlabels=None, currency="USD", co
         title       string, with plot title
         labels      list of programs
     """
+    print xlabels
+    
+    
+    plotdict = settings.plot_settings
+    
     if labels is None:
-        labels = budgets[0].keys()
+        # create super set of all programs. We could use itertools, but we'll use maps
+        progkeys = [b.keys() for b in budgets]
+        labels = list(set.union(*map(set, progkeys)))
+        labels.sort()
+        
+    if plotdict is None:
+        plotdict = {}
     
     # unfortunately we have to do it this way to ensure that the programs are all extracted in the same order
-    values = [[b[k] for k in labels] for b in budgets] 
+    values = [[b[k] if b.has_key(k) else 0 for k in labels ] for b in budgets] 
     
-    _plotBars(values, labels, colors=colors, title=title, xlabels=xlabels, legendsettings=legendsettings,
-              ylabel="Budget (%s)"%currency, save_fig=save_fig, save_figname=fig_name, **plotdict)
+    
+    final_dict = {'xlim': (0,3),
+                  'title': 'Budgets for %s' % (title),
+                  'ylabel': "Budget (%s)"%currency,
+                  'save_figname': '%s_budget'%fig_name}
+    plotdict.update(final_dict)
+    
+    
+    _plotBars(values, labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings,
+              save_fig=save_fig, **plotdict)
 
 
 def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
@@ -1351,8 +1370,8 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     return fig
     
 def _plotBars(values, labels=None, colors=None, title="", orientation='v', legendsettings=None,
-              xlabel="", ylabel="", xlabels=None, yticks=None, barwidth=0.5, bar_offset=0.25, xlim=3,
-              save_fig=False,save_figname=None,legend_off=False,**kwargs):
+              xlabel="", ylabel="", xlabels=None, yticks=None, barwidth=0.5, bar_offset=0.25, xlim=(0,3),
+              save_fig=False,save_figname=None,legend_off=False,formatter=None,**kwargs):
     """
     Plots bar graphs. Intended for budgets. 
     
@@ -1404,6 +1423,10 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     
+    if formatter is not None:
+        ax.yaxis.set_major_formatter(formatter)
+        ax.xaxis.set_major_formatter(formatter)
+    
     if not legend_off:
         print labels
         ax.legend(labels, **legendsettings)
@@ -1412,7 +1435,8 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         ax.set_xticks(x_ticks[0])
         ax.set_xticklabels(x_ticks[1])
     
-    ax.set_xlim(xmin=0,xmax=xlim)
+    print xlim
+    ax.set_xlim(xlim)
     
     if save_fig:
         fig.savefig('%s' % (save_figname))                    
