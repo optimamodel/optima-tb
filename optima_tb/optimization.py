@@ -111,7 +111,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
     return objective
 
 
-def optimizeFunc(settings, parset, progset, options = None):
+def optimizeFunc(settings, parset, progset, options = None, max_iter = 500):
     
     if options is None:
         logger.warn("An options dictionary was not supplied for optimisation. A default one will be constructed.")
@@ -187,7 +187,7 @@ def optimizeFunc(settings, parset, progset, options = None):
             'options':options,
             'algorithm_refs':algorithm_refs}
     
-    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=50)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
+    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
     alloc_new = dcp(constrainAllocation(alloc = alloc_new, options = options))
     
     alloc_opt = {}

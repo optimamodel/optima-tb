@@ -94,7 +94,7 @@ class Project(object):
         return results
         
         
-    def optimize(self, parset = None, parset_name = 'default', progset = None, progset_name = 'default', options = None):
+    def optimize(self, parset = None, parset_name = 'default', progset = None, progset_name = 'default', options = None, max_iter = 500):
         ''' Optimize model using a selected parset and store/return results. '''
         
         if parset is None:
@@ -111,7 +111,7 @@ class Project(object):
                 try: progset = self.progsets[progset_name]
                 except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot optimize model.' % (self.name, progset_name))
                 
-        results = optimizeFunc(settings = self.settings, parset = parset, progset = progset, options = options)
+        results = optimizeFunc(settings = self.settings, parset = parset, progset = progset, options = options, max_iter = max_iter)
         
         return results
         
