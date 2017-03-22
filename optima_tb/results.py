@@ -41,7 +41,7 @@ class ResultSet(object):
                 t_observed_data       = [2000.,2001.,2002., ...]
     """
     
-    def __init__(self, model, parset, settings, name=None):
+    def __init__(self, model, parset, settings, progset=None, budget_options=None, name=None):
         
         self.uuid = uuid()
         if name is None:
@@ -85,6 +85,18 @@ class ResultSet(object):
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
         self.link_labels = model.pops[0].link_ids.keys()
         self.link_label_ids = model.pops[0].link_ids
+        
+        self.budgets = {} # placeholders
+        self.coverages = {}
+        if progset is not None and budget_options is not None:
+            print [p.label for p in progset.progs]
+            # we have results for progsets and budget_options
+            if budget_options.has_key('alloc_is_coverage') and budget_options['alloc_is_coverage']: # TODO update post-Belarus
+                self.coverages = budget_options['init_alloc']
+                self.budgets = progset.getBudgets(self.coverages)
+            else:
+                self.budgets = budget_options['init_alloc']
+                self.coverages = progset.getCoverages(self.budgets)
         
         # /work-in-progress
     

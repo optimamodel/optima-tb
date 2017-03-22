@@ -76,8 +76,9 @@ class ProgramSet:
                         dict of prog.label, budget pairs
         """
         budgets = {}
-        for prog in self.progs:
-            budgets[prog.label] = prog.getBudget(coverages[prog.label])
+        for prog_label in coverages.keys():
+            prog = self.progs[self.prog_ids[prog_label]]
+            budgets[prog.label] = prog.getBudget(coverages[prog_label])
         return budgets
     
     def getCoverages(self,budgets):
@@ -91,8 +92,9 @@ class ProgramSet:
                         dict of prog.label, coverage pairs
         """
         coverage = {}
-        for prog in self.progs:
-            coverage[prog.label] = prog.getCoverage(budgets[prog.label])
+        for prog_label in budgets.keys():
+            prog = self.progs[self.prog_ids[prog_label]]
+            coverage[prog.label] = prog.getCoverage(budgets[prog_label])
         return coverage
         
     def copy(self):

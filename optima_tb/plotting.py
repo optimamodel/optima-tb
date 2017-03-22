@@ -353,6 +353,7 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
 
     
     if pop_labels is not None:
+        
         plot_pids = getPIDs(scen_results[0],pop_labels) #####
     else:
         plot_pids = range(len(scen_results[0].m_pops))
@@ -1166,6 +1167,7 @@ def extractFlows(pop_labels, comp_label, results, settings, tvec, link_labels = 
                             if was_proportion is True:
                                 num_flow *= comp_source.popsize_old
                             else:
+                                num_flow[num_flow>1.] = 1.
                                 num_flow = 1 - (1 - num_flow) ** results.dt     # Fractions must be converted to effective timestep rates.
                                 num_flow *= comp_source.popsize
                             num_flow /= results.dt      # All timestep-based effective fractional rates must be annualised.
