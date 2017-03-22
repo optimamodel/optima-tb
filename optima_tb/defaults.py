@@ -27,5 +27,6 @@ def defaultOptimOptions(settings, progset = None):
 
     options['constraints']['total'] = sum(options['init_alloc'].values())
     options['objectives'] = {settings.charac_pop_count : {'weight':-1,'year':2030.0}}
+    options['saturate_with_default_budgets'] = True     # Set True so that optimization redistributes funds across entire progset.
     
     return options

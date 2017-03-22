@@ -16,7 +16,7 @@ def constrainAllocation(alloc, options):
     alloc = np.array(alloc)     # Converting to np array just in case.
 
     # Convert negative allocation values to zeros.
-    alloc[alloc < 0.0] = 0.0    
+    alloc[alloc < 0.0] = 0.0
     
     if 'total' in options['constraints']:
         sum_current = sum(alloc)
@@ -128,19 +128,24 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500):
         
     for prog in progset.progs:
         if prog.label not in options['init_alloc']:
-            options['init_alloc'][prog.label] = prog.getDefaultBudget()
-        if prog.label not in options['constraints']['limits']:
-            options['constraints']['limits'][prog.label] = {'vals':[0.0,np.inf],'rel':True}
-            if prog.func_specs['type'] == 'cost_only':
-                options['constraints']['limits'][prog.label]['vals'] = [1.0,1.0]
-        else:
-            if 'vals' not in options['constraints']['limits'][prog.label]:
-                raise OptimaException('ERROR: Limit constraints specified for program "%s", but with no vals defined.' % prog.label)
-            elif len(options['constraints']['limits'][prog.label]['vals']) != 2:
-                raise OptimaException('ERROR: Limit constraints for program "%s" must contain a two-element list keyed by "vals", specifying min and max limits.' % prog.label)
+            # If this options is off, only a limited subset will be optimized.
+            if 'saturate_with_default_budgets' in options and options['saturate_with_default_budgets'] is True:
+                options['init_alloc'][prog.label] = prog.getDefaultBudget()
+        
+        # For programs chosen to be optimised, make sure proper constraints exist.
+        if prog.label in options['init_alloc']:
+            if prog.label not in options['constraints']['limits']:
+                    options['constraints']['limits'][prog.label] = {'vals':[0.0,np.inf],'rel':True}
+                    if prog.func_specs['type'] == 'cost_only':
+                        options['constraints']['limits'][prog.label]['vals'] = [1.0,1.0]
+            else:
+                if 'vals' not in options['constraints']['limits'][prog.label]:
+                    raise OptimaException('ERROR: Limit constraints specified for program "%s", but with no vals defined.' % prog.label)
+                elif len(options['constraints']['limits'][prog.label]['vals']) != 2:
+                    raise OptimaException('ERROR: Limit constraints for program "%s" must contain a two-element list keyed by "vals", specifying min and max limits.' % prog.label)
     
-    # Convert alloc into an ordered dictionary so that keys and values are ordered during optimisation.
-    options['init_alloc'] = odict(options['init_alloc'])
+#    # Convert alloc into an ordered dictionary so that keys and values are ordered during optimisation.
+#    options['init_alloc'] = odict(options['init_alloc'])
     
     # If user has not supplied constraints, then make the optimisation a redistribution of default budgets.
     if 'total' not in options:
@@ -187,7 +192,7 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500):
             'options':options,
             'algorithm_refs':algorithm_refs}
     
-    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
+    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter, reltol=None)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
     alloc_new = dcp(constrainAllocation(alloc = alloc_new, options = options))
     
     alloc_opt = {}
