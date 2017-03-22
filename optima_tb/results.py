@@ -181,6 +181,12 @@ class ResultSet(object):
                 popvalues = values[pop]
                 val += popvalues[idx].sum() 
             
+            if year_end is not None:
+                # getFlow returns an annualised rate, which is correct if we're looking at a  value
+                # for a point in time. If we're looking at the value over a range, then we should multiply by 
+                # dt in order to give the correct value over that period.
+                val *= dt 
+            
             
         elif label in self.comp_label_names.keys():
 #             print "is Comp"
