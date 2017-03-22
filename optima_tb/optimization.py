@@ -42,6 +42,8 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
     print alloc
     print sum(alloc)
     
+    if algorithm_refs is None: algorithm_refs = {}    
+    
     # Makes sure that time is not wasted on an allocation that was run in the previous step.
     # Avoids useless iteration tests where a program is given negative funding, then constrained to be zero once more.
     # This paragraph is for checking identical allocations.    
@@ -61,8 +63,16 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
         logger.warn("Optimization iteration is testing the same allocation. Skipping model run.")
     else:
         options_iter = dcp(options)
-        for k in xrange(len(alloc)):
-            options_iter['init_alloc'][k] = alloc[k]
+        
+        if 'alloc_ids' in algorithm_refs and 'id_progs' in algorithm_refs['alloc_ids']:
+            for k in xrange(len(alloc)):
+                options_iter['init_alloc'][algorithm_refs['alloc_ids']['id_progs'][k]] = alloc[k]
+        else:
+#            logger.warn("No allocation-id program-label conversion dictionary can be found during optimization. \nMaking a potentially dangerous assumption that optimization alloc is in the same order as init alloc in the options dictionary.")
+#            for k in xrange(len(alloc)):
+#                options_iter['init_alloc'][k] = alloc[k]
+            raise OptimaException('ERROR: No allocation-id program-label conversion dictionary can be found during optimization. Cannot push alloc back into an options dictionary.')
+                
         t = tic()
         results = runModel(settings = settings, parset = parset, progset = progset, options = options_iter)
         print toc(t)
@@ -149,15 +159,16 @@ def optimizeFunc(settings, parset, progset, options = None):
 #        objective += sum(results.outputs[charac_label][pop_label][index_start:])*results.dt*options['outcome_weight'][charac_label]
 #    print objective
     
-    algorithm_refs = {'previous_alloc':None, 'previous_results':None, 'alloc_ids':{}}        
+    algorithm_refs = {'previous_alloc':None, 'previous_results':None, 'alloc_ids':{'id_progs':{},'prog_ids':{}}}        
     
     # Flattens out the initial allocation into a list, but makes sure to note which program labels link to which allocation indices.
     alloc = []
-    algorithm_refs['alloc_ids'] = {}
+#    algorithm_refs['alloc_ids'] = {}
     k = 0
     for prog_key in options['init_alloc'].keys():
         alloc.append(options['init_alloc'][prog_key])
-        algorithm_refs['alloc_ids'][k] = prog_key
+        algorithm_refs['alloc_ids']['id_progs'][k] = prog_key
+        algorithm_refs['alloc_ids']['prog_ids'][prog_key] = k
         k += 1
     alloc = dcp(np.array(alloc))
     
@@ -179,4 +190,3 @@ def optimizeFunc(settings, parset, progset, options = None):
     results = (alloc_new, obj_vals, exit_reason)
     
     return results
-    
