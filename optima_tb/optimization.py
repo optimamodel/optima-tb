@@ -80,7 +80,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
     if 'previous_results' in algorithm_refs:
         algorithm_refs['previous_results'] = dcp(results)   # Store the new results for the next iteration.
     
-    index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
+#    index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
 #    print index_start
 #    print results.sim_settings['tvec'][index_start:]
     objective = 0.0
@@ -90,16 +90,22 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
         weight = 1.0
         if 'weight' in options['objectives'][objective_label]: weight = options['objectives'][objective_label]['weight']
         
+        
+#        objective = results.getValueAt(label = objective_label, year_init = options['progs_start'])        
+        
         # Handle an objective that wants to know the value in a particular year, e.g. a snapshot of a characteristic.
         if 'year' in options['objectives'][objective_label]:
-            index_start = np.where(results.sim_settings['tvec'] >= options['objectives'][objective_label]['year'])[0][0]
-            for pop_label in results.outputs[objective_label].keys():
-                objective += results.outputs[objective_label][pop_label][index_start] * weight
-            index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
-        # Handle the default objective that wants to know a cumulative value. Timestep scaling required.
+#            index_start = np.where(results.sim_settings['tvec'] >= options['objectives'][objective_label]['year'])[0][0]
+#            for pop_label in results.outputs[objective_label].keys():
+#                objective += results.outputs[objective_label][pop_label][index_start] * weight
+#            index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
+            objective += results.getValueAt(label = objective_label, year_init = options['objectives'][objective_label]['year']) * weight
+        # Handle the default objective that wants to know a cumulative value. Timestep scaling is done inside Results.getValueAt().
         else:
-            for pop_label in results.outputs[objective_label].keys():
-                objective += sum(results.outputs[objective_label][pop_label][index_start:]) * results.dt * weight
+#            for pop_label in results.outputs[objective_label].keys():
+#                objective += sum(results.outputs[objective_label][pop_label][index_start:]) * results.dt * weight
+            objective += results.getValueAt(label = objective_label, year_init = options['progs_start'], year_end = settings.tvec_end) * weight
+            
 #    print objective
     
     return objective
