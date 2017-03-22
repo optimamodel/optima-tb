@@ -1,6 +1,7 @@
 from optima_tb.asd import asd
 from optima_tb.model import runModel
 from optima_tb.utils import odict, OptimaException, tic, toc
+from optima_tb.defaults import defaultOptimOptions
 
 import logging
 import logging.config
@@ -98,7 +99,7 @@ def optimizeFunc(settings, parset, progset, options = None):
     
     if options is None:
         logger.warn("An options dictionary was not supplied for optimisation. A default one will be constructed.")
-        options = dict()
+        options = defaultOptimOptions(settings = settings, progset = progset)
         
     if 'progs_start' not in options:
         options['progs_start'] = 2015.0
@@ -106,22 +107,33 @@ def optimizeFunc(settings, parset, progset, options = None):
 
     if 'init_alloc' not in options:
         options['init_alloc'] = {}
+    if 'constraints' not in options:
+        options['constraints'] = {'limits':odict()}
         
     for prog in progset.progs:
         if prog.label not in options['init_alloc']:
             options['init_alloc'][prog.label] = prog.getDefaultBudget()
+        if prog.label not in options['constraints']['limits']:
+            options['constraints']['limits'][prog.label] = {'vals':[0.0,np.inf],'rel':True}
+            if prog.func_specs['type'] == 'cost_only':
+                options['constraints']['limits'][prog.label]['vals'] = [1.0,1.0]
+        else:
+            if 'vals' not in options['constraints']['limits'][prog.label]:
+                raise OptimaException('ERROR: Limit constraints specified for program "%s", but with no vals defined.' % prog.label)
+            elif len(options['constraints']['limits'][prog.label]['vals']) != 2:
+                raise OptimaException('ERROR: Limit constraints for program "%s" must contain a two-element list keyed by "vals", specifying min and max limits.' % prog.label)
     
     # Convert alloc into an ordered dictionary so that keys and values are ordered during optimisation.
     options['init_alloc'] = odict(options['init_alloc'])
     
     # If user has not supplied constraints, then make the optimisation a redistribution of default budgets.
-    if 'constraints' not in options:
-        options['constraints'] = {}
     if 'total' not in options:
         options['constraints']['total'] = sum(options['init_alloc'].values())
         
     if 'objectives' not in options:
         options['objectives'] = {settings.charac_pop_count : {'weight':-1,'year':2030.0}}
+        
+    print options
             
 #    print options
 #    print total_budget
@@ -137,13 +149,27 @@ def optimizeFunc(settings, parset, progset, options = None):
 #        objective += sum(results.outputs[charac_label][pop_label][index_start:])*results.dt*options['outcome_weight'][charac_label]
 #    print objective
     
+    algorithm_refs = {'previous_alloc':None, 'previous_results':None, 'alloc_ids':{}}        
+    
+    # Flattens out the initial allocation into a list, but makes sure to note which program labels link to which allocation indices.
+    alloc = []
+    algorithm_refs['alloc_ids'] = {}
+    k = 0
+    for prog_key in options['init_alloc'].keys():
+        alloc.append(options['init_alloc'][prog_key])
+        algorithm_refs['alloc_ids'][k] = prog_key
+        k += 1
+    alloc = dcp(np.array(alloc))
+    
+    print alloc
+    print algorithm_refs
+    
     args = {'settings':settings,
             'parset':parset, 
             'progset':progset,
             'options':options,
-            'algorithm_refs':{'previous_alloc':None, 'previous_results':None}}
+            'algorithm_refs':algorithm_refs}
     
-    alloc = dcp(np.array(options['init_alloc'].values()))
     alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=7)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
     
 #    print alloc_new
