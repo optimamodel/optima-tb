@@ -764,8 +764,9 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
         title       string, with plot title
         labels      list of programs
     """
-    print xlabels
-    
+    xlim = 3
+    if len(xlabels)>3:
+        xlim = len(xlabels)
     
     plotdict = settings.plot_settings
     
@@ -782,7 +783,7 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
     values = [[b[k] if b.has_key(k) else 0 for k in labels ] for b in budgets] 
     
     
-    final_dict = {'xlim': (0,3),
+    final_dict = {'xlim': (0,xlim),
                   'title': 'Budgets for %s' % (title),
                   'ylabel': "Budget (%s)"%currency,
                   'save_figname': '%s_budget'%fig_name}
