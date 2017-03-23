@@ -267,9 +267,6 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
         from pylab import figure, plot, clf
         figure()
     
-#    print('TEMP')
-#    settings.tvec_end = 2020.0 # Faster but breaks it
-    
     if options is None: options = defaultOptimOptions(settings = settings, progset = progset)
     total_iters = block_iter*max_blocks
     fvalarray = np.zeros((num_threads,total_iters)) + np.nan

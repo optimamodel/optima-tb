@@ -53,6 +53,11 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     from time import time
     if randseed is not None: seed(randseed) # Don't reset it if not supplied
     
+    
+    print('HIIIIIIIIIIIII welcome to ASD, I am random %f' % random())
+
+
+
     def consistentshape(userinput):
         """
         Make sure inputs have the right shape and data type.
