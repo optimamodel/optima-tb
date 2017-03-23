@@ -257,9 +257,9 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
     return results
 
 
-def parallelOptimizeFunc(settings, parset, progset, options = None, max_iter = 500, num_threads = 4, num_iter = 10):
+def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads = 4, block_iter = 10, max_blocks = 10, doplot=True):
     ''' Same as optimizeFunc, excepts runs in multiple threads in small blocks '''
-    msg = "Starting a parallel optimization with %i threads for %i iterations each" % (num_threads, num_iter)
+    msg = "Starting a parallel optimization with %i threads for %i iterations each for %i blocks" % (num_threads, block_iter, max_blocks)
     logger.info(msg)
     
     from multiprocessing import Process, Queue
@@ -274,7 +274,7 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, max_iter = 5
     outputlist = np.empty(num_threads, dtype=object)
     processes = []
         
-    args = (settings, parset, progset, options, max_iter, outputqueue)
+    args = (settings, parset, progset, options, block_iter, outputqueue)
     
     for thread in range(num_threads):
         prc = Process(target=optimizeFunc, args=args)
@@ -286,6 +286,6 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, max_iter = 5
     for prc in processes:
         prc.join() # Wait for them to finish
     
-    results = optimizeFunc
+    import traceback; traceback.print_exc(); import pdb; pdb.set_trace()
     
     return results
