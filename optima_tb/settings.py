@@ -335,10 +335,8 @@ class PlottingSettings():
         
     def KMSuffixFormatter(self,x,pos):
             'The two args are the value and tick position'
-            if x >= 1e7:
+            if x >= 1e6:
                 return '%1.1fM' % (x*1e-6)
-            elif x >= 1e6:
-                return '%1.fM' % (x*1e-6)
             elif x >= 1e3:
                 return '%1.fK' % (x*1e-3) 
             else:
