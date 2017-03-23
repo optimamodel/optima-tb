@@ -251,3 +251,15 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500):
     results = (alloc_opt, obj_vals, exit_reason)
     
     return results
+
+
+def parallelOptimizeFunc(settings, parset, progset, options = None, max_iter = 500, num_threads = 4, num_iter = 10):
+    ''' Same as optimizeFunc, excepts runs in multiple threads in small blocks '''
+    msg = "Starting a parallel optimization with %i threads for %i iterations each" % (num_threads, num_iter)
+    logger.info(msg)
+
+    
+    
+    results = optimizeFunc(settings, parset, progset, options = options, max_iter = max_iter)
+    
+    return results
