@@ -192,7 +192,7 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
 #    options['init_alloc'] = odict(options['init_alloc'])
     
     # If user has not supplied constraints, then make the optimisation a redistribution of default budgets.
-    if 'total' not in options:
+    if 'total' not in options['constraints']:
         options['constraints']['total'] = sum(options['init_alloc'].values())
         
     if 'objectives' not in options:
