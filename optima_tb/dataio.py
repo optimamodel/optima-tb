@@ -12,7 +12,6 @@ import zlib
 import math
 
 from dateutil import parser, tz
-from twisted.python.reflect import qual, namedAny
 
 import logging
 logger = logging.getLogger(__name__)
@@ -113,7 +112,8 @@ def dumps(obj):
     @author: ?
     
     """
-
+    from twisted.python.reflect import qual
+    
     obj_registry = {}
     id_number = [0]
     saved_types = set()
@@ -208,6 +208,9 @@ def loads(input):
     @author: ?
     
     """
+    from twisted.python.reflect import namedAny
+
+    
     a = ast.literal_eval(input)
 
     registry = a["registry"]
