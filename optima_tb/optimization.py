@@ -155,7 +155,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
     return objective
 
 
-def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outputqueue = None):
+def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outputqueue = None, thread = None):
     
     if options is None:
         logger.warn("An options dictionary was not supplied for optimisation. A default one will be constructed.")
@@ -252,7 +252,7 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
     
     # For batch, we add this to the output queue
     if outputqueue is not None:
-        outputqueue.put(results)
+        outputqueue.put([thread, results])
     
     return results
 
@@ -263,29 +263,51 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
     logger.info(msg)
     
     from multiprocessing import Process, Queue
+    if doplot:
+        from pylab import figure, plot, clf
+        figure()
     
 #    print('TEMP')
 #    settings.tvec_end = 2020.0 # Faster but breaks it
     
     if options is None: options = defaultOptimOptions(settings = settings, progset = progset)
-    init_init_alloc = dcp(options['init_alloc'])
+    total_iters = block_iter*max_blocks
+    fvalarray = np.zeros((num_threads,total_iters)) + np.nan
+    
+    # Loop over the optimization blocks
+    for block in range(max_blocks):
         
-    outputqueue = Queue()
-    outputlist = np.empty(num_threads, dtype=object)
-    processes = []
+        outputqueue = Queue()
+        outputlist = np.empty(num_threads, dtype=object)
+        processes = []
+            
+        for thread in range(num_threads):
+            args = (settings, parset, progset, options, block_iter, outputqueue, thread)
+            prc = Process(target=optimizeFunc, args=args)
+            prc.start()
+            processes.append(prc)
         
-    args = (settings, parset, progset, options, block_iter, outputqueue)
+        for i in range(num_threads):
+            thread, result = outputqueue.get()  # This is needed or else the process never finishes
+            outputlist[thread] = result
+        for prc in processes:
+            prc.join() # Wait for them to finish
+        
+        bestfvalval = np.inf
+        bestfvalind = None
+        for i in range(num_threads):
+            fvalarray[i,block*block_iter:(block+1)*block_iter] = outputlist[i][1]
+            thisbestval = outputlist[i][1][-1]
+            if thisbestval<bestfvalval:
+                bestfvalval = thisbestval
+                bestfvalind = i
+        
+        options['init_alloc'] = outputlist[bestfvalind][0] # Update the budget -- this is key!
+        
+        if doplot:
+            clf()
+            plot(np.transpose(fvalarray))
     
-    for thread in range(num_threads):
-        prc = Process(target=optimizeFunc, args=args)
-        prc.start()
-        processes.append(prc)
-    
-    for i in range(num_threads):
-            outputlist[i] = outputqueue.get()  # This is needed or else the process never finishes
-    for prc in processes:
-        prc.join() # Wait for them to finish
-    
-    import traceback; traceback.print_exc(); import pdb; pdb.set_trace()
-    
+    results = (options['init_alloc'], fvalarray[bestfvalind,:], 'Parallel optimization')
+        
     return results
