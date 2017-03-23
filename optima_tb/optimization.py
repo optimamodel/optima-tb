@@ -257,7 +257,7 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
     return results
 
 
-def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads = 4, block_iter = 10, max_blocks = 10, doplot=True):
+def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads = 4, block_iter = 10, max_blocks = 10, doplot = False, fullfval = False):
     ''' Same as optimizeFunc, excepts runs in multiple threads in small blocks '''
     msg = "Starting a parallel optimization with %i threads for %i iterations each for %i blocks" % (num_threads, block_iter, max_blocks)
     logger.info(msg)
@@ -310,5 +310,8 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
             plot(np.transpose(fvalarray))
     
     results = (options['init_alloc'], fvalarray[bestfvalind,:], 'Parallel optimization')
-        
-    return results
+    
+    if fullfval:
+        return results, fvalarray
+    else:
+        return results
