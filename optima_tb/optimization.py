@@ -14,7 +14,7 @@ from copy import deepcopy as dcp
 
 def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
     
-    print('Launching attempt %i to constrain allocation.' % attempt)
+    logging.info('Launching attempt %i to constrain allocation.' % attempt)
 
     alloc = np.array(alloc)     # Converting to np array just in case.
 
@@ -76,15 +76,15 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
     The algorithm_refs dictionary is for storing algorithm-useful values during the process, e.g. the previous allocation tested.
     '''
     
-    print 'Unconstrained alloc...'
-    print alloc
-    print sum(alloc)
+    logging.debug( 'Unconstrained alloc...')
+    logging.debug( alloc)
+    logging.debug( sum(alloc))
     
     alloc = constrainAllocation(alloc = alloc, settings = settings, options = options, algorithm_refs = algorithm_refs)   
     
-    print 'Constrained alloc...'
-    print alloc
-    print sum(alloc)
+    logging.debug( 'Constrained alloc...')
+    logging.debug( alloc)
+    logging.debug( sum(alloc))
     
     if algorithm_refs is None: algorithm_refs = {}    
     
@@ -119,14 +119,14 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
                 
         t = tic()
         results = runModel(settings = settings, parset = parset, progset = progset, options = options_iter)
-        print toc(t)
+        logging.info( toc(t))
 
     if 'previous_results' in algorithm_refs:
         algorithm_refs['previous_results'] = dcp(results)   # Store the new results for the next iteration.
     
 #    index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
-#    print index_start
-#    print results.sim_settings['tvec'][index_start:]
+#    logging.debug( index_start)
+#    logging.debug( results.sim_settings['tvec'][index_start:])
     objective = 0.0
     
     for objective_label in options['objectives']:
@@ -150,7 +150,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
 #                objective += sum(results.outputs[objective_label][pop_label][index_start:]) * results.dt * weight
             objective += results.getValueAt(label = objective_label, year_init = options['progs_start'], year_end = settings.tvec_end) * weight
             
-#    print objective
+#    logging.debug( objective)
     
     return objective
 
@@ -198,21 +198,21 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
     if 'objectives' not in options:
         options['objectives'] = {settings.charac_pop_count : {'weight':-1,'year':2030.0}}
         
-    print options
+#     logging.debug( options)
             
-#    print options
-#    print total_budget
+#    logging.debug( options)
+#    logging.debug( total_budget)
 
 #    results = runModel(settings = settings, parset = parset, progset = progset, options = options)
 #    
 #    index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
-#    print index_start
-#    print results.sim_settings['tvec'][index_start:]
+#    logging.debug( index_start)
+#    logging.debug( results.sim_settings['tvec'][index_start:])
 #    charac_label = options['objective_weight'].keys()[0]
 #    objective = 0
 #    for pop_label in results.outputs[charac_label].keys():
 #        objective += sum(results.outputs[charac_label][pop_label][index_start:])*results.dt*options['outcome_weight'][charac_label]
-#    print objective
+#    logging.debug( objective)
     
     algorithm_refs = {'previous_alloc':None, 'previous_results':None, 'alloc_ids':{'id_progs':{},'prog_ids':{}}}        
     
@@ -228,8 +228,8 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
     alloc = dcp(np.array(alloc))
     algorithm_refs['orig_alloc'] = dcp(alloc)
     
-    print alloc
-    print algorithm_refs
+#     logging.debug( alloc )
+#     logging.debug( algorithm_refs )
     
     args = {'settings':settings,
             'parset':parset, 
