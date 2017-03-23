@@ -278,9 +278,12 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
     num_threads = 4, block_iter = 10, max_blocks = 10, you can run 400 iterations in
     the time it would take 100 to run normally.
     
-    NOTE: this switching between blocks eliminates the learning that happens during ASD,
+    NOTE 1: this switching between blocks eliminates the learning that happens during ASD,
     which will slow things down. However, it would be a fair bit of work to have these
     outputted and then passed back in as well. For another day :)
+    
+    NOTE 2: If you set max_blocks = 1 and block_iter = max_iter, then this will just run 
+    a bunch of ASD instances in parallel, which might also be useful!
         
     
     Usage: you can run it exactly the same way as proj.optimize():
