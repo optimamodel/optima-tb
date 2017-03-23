@@ -237,6 +237,8 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500):
             'options':options,
             'algorithm_refs':algorithm_refs}
     
+    algorithm_refs['previous_alloc'] = dcp(alloc)
+    
     alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter, reltol=None)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
     alloc_new = dcp(constrainAllocation(alloc = alloc_new, settings = settings, options = options, algorithm_refs = algorithm_refs))
     
