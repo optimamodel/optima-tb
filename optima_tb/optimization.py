@@ -155,7 +155,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
     return objective
 
 
-def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outputqueue = None, thread = None):
+def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outputqueue = None, thread = None, randseed = None):
     
     if options is None:
         logger.warn("An options dictionary was not supplied for optimisation. A default one will be constructed.")
@@ -237,7 +237,7 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
             'options':options,
             'algorithm_refs':algorithm_refs}
     
-    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter, reltol=None)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
+    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter, reltol=None, randseed=randseed)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
     alloc_new = dcp(constrainAllocation(alloc = alloc_new, settings = settings, options = options, algorithm_refs = algorithm_refs))
     
     alloc_opt = {}
@@ -263,6 +263,9 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
     logger.info(msg)
     
     from multiprocessing import Process, Queue
+    from time import time
+    
+    
     if doplot:
         from pylab import figure, plot, clf
         figure()
@@ -279,7 +282,8 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
         processes = []
             
         for thread in range(num_threads):
-            args = (settings, parset, progset, options, block_iter, outputqueue, thread)
+            randseed = (block+1)*int((time()-np.floor(time()))*1e9) # Get a random number based on both the time and the thread
+            args = (settings, parset, progset, options, block_iter, outputqueue, thread, randseed)
             prc = Process(target=optimizeFunc, args=args)
             prc.start()
             processes.append(prc)
