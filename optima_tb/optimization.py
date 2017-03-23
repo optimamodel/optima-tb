@@ -155,7 +155,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
     return objective
 
 
-def optimizeFunc(settings, parset, progset, options = None, max_iter = 500):
+def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outputqueue = None):
     
     if options is None:
         logger.warn("An options dictionary was not supplied for optimisation. A default one will be constructed.")
@@ -250,6 +250,10 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500):
     
     results = (alloc_opt, obj_vals, exit_reason)
     
+    # For batch, we add this to the output queue
+    if outputqueue is not None:
+        outputqueue.put(results)
+    
     return results
 
 
@@ -257,9 +261,31 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, max_iter = 5
     ''' Same as optimizeFunc, excepts runs in multiple threads in small blocks '''
     msg = "Starting a parallel optimization with %i threads for %i iterations each" % (num_threads, num_iter)
     logger.info(msg)
-
     
+    from multiprocessing import Process, Queue
     
-    results = optimizeFunc(settings, parset, progset, options = options, max_iter = max_iter)
+    print('TEMP')
+    settings.tvec_end = 2012.0 # Faster
+    
+    if options is None: options = defaultOptimOptions(settings = settings, progset = progset)
+    init_init_alloc = dcp(options['init_alloc'])
+        
+    outputqueue = Queue()
+    outputlist = np.empty(num_threads, dtype=object)
+    processes = []
+        
+    args = (settings, parset, progset, options, max_iter, outputqueue)
+    
+    for thread in range(num_threads):
+        prc = Process(target=optimizeFunc, args=args)
+        prc.start()
+        processes.append(prc)
+    
+    for i in range(num_threads):
+            outputlist[i] = outputqueue.get()  # This is needed or else the process never finishes
+    for prc in processes:
+        prc.join() # Wait for them to finish
+    
+    results = optimizeFunc
     
     return results
