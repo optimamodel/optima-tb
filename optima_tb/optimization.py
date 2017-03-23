@@ -257,30 +257,67 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
     return results
 
 
-def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads = 4, block_iter = 10, max_blocks = 10, doplot = False, fullfval = False):
-    ''' Same as optimizeFunc, excepts runs in multiple threads in small blocks '''
-    msg = "Starting a parallel optimization with %i threads for %i iterations each for %i blocks" % (num_threads, block_iter, max_blocks)
-    logger.info(msg)
+def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads = 4, block_iter = 10, max_blocks = 10, max_iter = None, doplot = False, fullfval = False):
+    '''
+    Same as optimizeFunc, excepts runs in multiple threads in small blocks.
     
+    Inputs:
+        settings, parset, progset, options = standard optimizeFunc() inputs
+        num_threads = the number of parallel threads to run
+        block_iter = the number of iterations per block
+        max_iter = optional alternate way of specifying the number of iterations
+        max_blocks = the total number of blocks to run
+        doplot = whether or not to plot the function values (fvals) at every iteration
+        fullfval = whether or not to return the full array of fvals
+        
+    
+    In total,this function will run num_threads*block_iter*max_blocks iterations,
+    but in block_iter*max_blocks time. What happens is it runs a block of <block_iter>
+    iterations on each core, and at the end of the block, picks the best one, and uses
+    that as the starting point for the next block. For example, with default values of
+    num_threads = 4, block_iter = 10, max_blocks = 10, you can run 400 iterations in
+    the time it would take 100 to run normally.
+    
+    NOTE: this switching between blocks eliminates the learning that happens during ASD,
+    which will slow things down. However, it would be a fair bit of work to have these
+    outputted and then passed back in as well. For another day :)
+        
+    
+    Usage: you can run it exactly the same way as proj.optimize():
+        
+        
+    
+    '''
+    # Import dependencies here so no biggiei if they fail
     from multiprocessing import Process, Queue
     from time import time
     
-    
+    # Optionally plot
     if doplot:
         from pylab import figure, plot, clf
         figure()
     
-    if options is None: options = defaultOptimOptions(settings = settings, progset = progset)
+    # Handle inputs
+    if options is None: 
+        options = defaultOptimOptions(settings = settings, progset = progset)
+    if max_iter is not None:
+        block_iter = np.floor(max_iter/float(max_blocks)) # Calculate block_iter from max_iter, if supplied
+    
     total_iters = block_iter*max_blocks
     fvalarray = np.zeros((num_threads,total_iters)) + np.nan
+    
+    msg = "Starting a parallel optimization with %i threads for %i iterations each for %i blocks" % (num_threads, block_iter, max_blocks)
+    logger.info(msg)
     
     # Loop over the optimization blocks
     for block in range(max_blocks):
         
+        # Set up the parallel process
         outputqueue = Queue()
         outputlist = np.empty(num_threads, dtype=object)
         processes = []
             
+        # Loop over the threads, starting the processes
         for thread in range(num_threads):
             randseed = (block+1)*int((time()-np.floor(time()))*1e9) # Get a random number based on both the time and the thread
             args = (settings, parset, progset, options, block_iter, outputqueue, thread, randseed)
@@ -288,12 +325,14 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
             prc.start()
             processes.append(prc)
         
+        # Tidy up: close the threads and gather the results
         for i in range(num_threads):
             thread, result = outputqueue.get()  # This is needed or else the process never finishes
             outputlist[thread] = result
         for prc in processes:
             prc.join() # Wait for them to finish
         
+        # Figure out which one did best
         bestfvalval = np.inf
         bestfvalind = None
         for i in range(num_threads):
@@ -303,7 +342,7 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
                 bestfvalval = thisbestval
                 bestfvalind = i
         
-        options['init_alloc'] = outputlist[bestfvalind][0] # Update the budget -- this is key!
+        options['init_alloc'] = outputlist[bestfvalind][0] # Update the budget and use it as the input for the next block -- this is key!
         
         if doplot:
             clf()
@@ -311,7 +350,6 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
     
     results = (options['init_alloc'], fvalarray[bestfvalind,:], 'Parallel optimization')
     
-    if fullfval:
-        return results, fvalarray
-    else:
-        return results
+    if fullfval: results[1] = fvalarray # Use the full fvalarray instead of just the best one
+    
+    return results
