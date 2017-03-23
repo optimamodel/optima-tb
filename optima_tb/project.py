@@ -116,7 +116,7 @@ class Project(object):
         return results
     
     
-    def parallelOptimize(self, parset = None, parset_name = 'default', progset = None, progset_name = 'default', options = None, max_iter = 500, num_threads = 4, num_iter = 10):
+    def parallelOptimize(self, parset = None, parset_name = 'default', progset = None, progset_name = 'default', options = None, num_threads = 4, block_iter = 10, max_blocks = 5):
         ''' Like optimize, but parallel '''
         
         if parset is None:
@@ -134,7 +134,7 @@ class Project(object):
                 except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot optimize model.' % (self.name, progset_name))
 
         
-        results = parallelOptimizeFunc(settings = self.settings, parset = parset, progset = progset, options = options, max_iter = max_iter, num_threads = num_threads, num_iter = num_iter)
+        results = parallelOptimizeFunc(settings = self.settings, parset = parset, progset = progset, options = options, block_iter = block_iter, num_threads = num_threads, max_blocks = max_blocks)
 
         return results
         

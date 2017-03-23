@@ -264,8 +264,8 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
     
     from multiprocessing import Process, Queue
     
-    print('TEMP')
-    settings.tvec_end = 2012.0 # Faster
+#    print('TEMP')
+#    settings.tvec_end = 2020.0 # Faster but breaks it
     
     if options is None: options = defaultOptimOptions(settings = settings, progset = progset)
     init_init_alloc = dcp(options['init_alloc'])
