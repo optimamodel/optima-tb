@@ -157,8 +157,9 @@ def _getColormapRange(cmap,ncols=10,order='alternate'):
         order_map[::3] = a 
         order_map[1::3] = b 
         order_map[2::3] = c
-    else: # order == 'sequential', so leave in order 
-        pass
+    else: # order == 'sequential', so leave in order but add buffer at beginning and end of colormap
+        order_map = range(ncols+2)
+        return [scalar_map.to_rgba(index) for index in order_map[1:-1]]
     
     return [scalar_map.to_rgba(index) for index in order_map]
 
@@ -755,7 +756,8 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         
         _plotLine(y_values[output_id][:], np.tile(tvec,(len(labels),1)), labels, legendsettings=None, save_fig=save_fig, colors=colors, **final_dict)
 
-def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency="USD", colors=None, 
+def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency="USD", 
+                colormappings=None, cat_labels=None,
                 save_fig=False, fig_name=None, legendsettings=None):
     """
     
@@ -769,6 +771,15 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
         xlim = len(xlabels)
     
     plotdict = settings.plot_settings
+    
+    # setup: determine colors to be used
+    colors = []
+    if colormappings is not None:
+        colors_dict, cat_colors = getCategoryColors(colormappings,'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for (j,prog_label) in enumerate(labels):
+            colors.append(colors_dict[prog_label])
+    
     
     if labels is None:
         # create super set of all programs. We could use itertools, but we'll use maps
@@ -790,9 +801,15 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
     plotdict.update(final_dict)
     
     
-    _plotBars(values, labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings,
+    _plotBars(values, labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings, 
               save_fig=save_fig, **plotdict)
 
+
+    if plotdict.has_key('legend_off') and plotdict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it represents 
+        # classes of compartments
+        separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name)
 
 def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
               link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False,
@@ -1030,6 +1047,20 @@ def plotPopulationFlows(results, settings, comp_labels = None, comp_titles = Non
             
     # TODO: plot separate legend
 
+
+def _calculateDatapoints(data, data_labels, pop):
+    yvals = None
+    for (i,label) in enumerate(data_labels):
+        ys = data['characs'][label][pop]['y']
+        ts = data['characs'][label][pop]['t']
+        print label, pop, ys
+        if i==0:
+            yvals = ys
+        else:
+            yvals += ys
+    return yvals, ts
+
+
 def extractCompartment(results, data, pop_labels=None, comp_labels=None, 
                        plot_observed_data=True, plot_observed_label="alive", use_full_labels=False):
     """
@@ -1053,10 +1084,20 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
         labels = comp_labels
        
     if plot_observed_data:
-        
         for pop in pop_labels:
-            ys = data['characs'][plot_observed_label][pop]['y']
-            ts = data['characs'][plot_observed_label][pop]['t']
+            
+            if isinstance(plot_observed_label, basestring):
+                ys, ts = _calculateDatapoints(data, [plot_observed_label], pop)
+            elif isinstance(plot_observed_label, list):
+                ys, ts = _calculateDatapoints(data, plot_observed_label, pop)
+            else:
+                logger.warn("Unknown data characteristic: ")
+                logger.warn(plot_observed_label)
+            
+                    
+            print ys
+            print ts
+            print len(ys), len(ts)
             yhat.append(ys)
             that.append(ts)
     
