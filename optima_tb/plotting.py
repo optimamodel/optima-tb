@@ -347,6 +347,10 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
         start_year, end_year = tvec[0], tvec[1]
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
     
+    if colors is None or len(colors) < len(scen_labels):        
+        colors = gridColorMap(len(scen_labels))
+        logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
+   
     
     if plot_charac is None:
         plot_charac = results.outputs.keys()
@@ -405,7 +409,9 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it represents 
         # classes of compartments
-        separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_ScenarioComparison")
+        print colors
+        print labels
+        separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendScenarioComparison")
         
          
     
@@ -729,6 +735,10 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         start_year, end_year = tvec[0], tvec[-1]
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
       
+    if colors is None or len(colors) < len(pop_labels):        
+        colors = gridColorMap(len(pop_labels))
+        logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
+   
         
     # now only select characteristics which are plottable
     outputIDs = [output_id for output_id in outputIDs if isPlottableCharac(output_id, charac_specs)]       
@@ -755,6 +765,14 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         final_dict.update(plotdict)
         
         _plotLine(y_values[output_id][:], np.tile(tvec,(len(labels),1)), labels, legendsettings=None, save_fig=save_fig, colors=colors, **final_dict)
+    
+    if final_dict.has_key('legend_off') and final_dict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it represents 
+        # classes of compartments
+        
+        separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendCharac")
+       
 
 def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency="USD", 
                 colormappings=None, cat_labels=None,
