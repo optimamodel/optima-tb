@@ -638,7 +638,8 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
                                                      plot_observed_label=plot_observed_label, 
                                                      use_full_labels=True)
     
-    that, yhat = dataobs
+    if dataobs is not None:
+        that, yhat = dataobs
     
     # iterate for each key population group
     for (i,poplabel) in enumerate(pop_labels):
@@ -655,13 +656,17 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
                   'x_ticks' : (yr_range,yr_range),
                   'colors': colors
                   }
+        
+        if dataobs is not None:
+            pdict['datapoints'] = (that[i],yhat[i])
+        
         pdict.update(plotdict)
     
         legendsettings =  {'loc':'center left', 
                            'bbox_to_anchor':(1.05, 0.5), 
                            'ncol':ncol}
    
-        _plotStackedCompartments(tvec, y_values[i][:], labels, datapoints=(that[i],yhat[i]),
+        _plotStackedCompartments(tvec, y_values[i][:], labels,
                                  title=pl_title,legendsettings=legendsettings, catlabels=cat_labels,catcolors=colors,
                                  save_fig=save_fig,save_figname=save_figname,**pdict)
         
@@ -747,20 +752,24 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
     # extract all characteristics we're interested in, all at once
     y_values, labels, unit_tags, dataobs = extractCharacteristic(results, data, charac_specs, charac_labels=outputIDs, pop_labels=pop_labels, plot_observed_data=plot_observed_data, plot_total=plot_total)
     
-    that, yhat = dataobs
+    if dataobs is not None:
+        that, yhat = dataobs
     
     # now plot through each characteristic
     for i,output_id in enumerate(outputIDs):
         
         
-        final_dict = {'y_hat': yhat[i],
-                  't_hat': that[i],
+        final_dict = {
                   'unit_tag': unit_tags[i],
                   'xlabel':'Year',
                   'ylabel': charac_specs[output_id]['name'] + unit_tags[i],
                   'x_ticks' : (yr_range,yr_range),
                   'title': '%s\n%s' % (title, charac_specs[output_id]['name']),
                   'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
+        
+        if dataobs is not None: # this can be improved
+            final_dic['y_hat'] = yhat[i]
+            final_dic['t_hat'] = that[i]
         
         final_dict.update(plotdict)
         
@@ -1119,7 +1128,9 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
             yhat.append(ys)
             that.append(ts)
     
-    dataobs = (that,yhat)
+        dataobs = (that,yhat)
+    else:
+        dataobs = None
 
     return datapoints, pop_labels, comp_labels, dataobs
  
