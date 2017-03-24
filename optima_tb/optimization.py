@@ -328,7 +328,7 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
             
         # Loop over the threads, starting the processes
         for thread in range(num_threads):
-            randseed = (block+1)*int((time()-np.floor(time()))*1e9) # Get a random number based on both the time and the thread
+            randseed = (block+1)*int((time()-np.floor(time()))*1e7) # Get a random number based on both the time and the thread
             args = (settings, parset, progset, options, block_iter, outputqueue, thread, randseed)
             prc = Process(target=optimizeFunc, args=args)
             prc.start()
