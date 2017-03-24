@@ -27,13 +27,13 @@ def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
     for k in xrange(len(alloc)):
         prog_key = algorithm_refs['alloc_ids']['id_progs'][k]
         if options['constraints']['limits'][prog_key]['rel']:
+            check = options['constraints']['limits'][prog_key]['vals'][1] * algorithm_refs['orig_alloc'][k]
+            if check is np.nan: check = options['constraints']['limits'][prog_key]['vals'][1]   # Avoids infinity times zero case.
             # If new budget is less than the relative lower limit times original budget...
             if alloc[k] < options['constraints']['limits'][prog_key]['vals'][0] * algorithm_refs['orig_alloc'][k]:
                 alloc[k] = options['constraints']['limits'][prog_key]['vals'][0] * algorithm_refs['orig_alloc'][k]
                 hit_lower[k] = True
-            # If new budget is more than the relative lower limit times original budget...
-            check = options['constraints']['limits'][prog_key]['vals'][1] * algorithm_refs['orig_alloc'][k]
-            if check is np.nan: check = options['constraints']['limits'][prog_key]['vals'][1]   # Avoids infinity times zero case.
+            # If new budget is more than the relative upper limit times original budget...
             elif alloc[k] > check:
                 alloc[k] = check
                 hit_upper[k] = True
@@ -192,7 +192,7 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
 #    options['init_alloc'] = odict(options['init_alloc'])
     
     # If user has not supplied constraints, then make the optimisation a redistribution of default budgets.
-    if 'total' not in options:
+    if 'total' not in options['constraints']:
         options['constraints']['total'] = sum(options['init_alloc'].values())
         
     if 'objectives' not in options:
