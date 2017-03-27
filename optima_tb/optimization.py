@@ -27,11 +27,11 @@ def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
     for k in xrange(len(alloc)):
         prog_key = algorithm_refs['alloc_ids']['id_progs'][k]
         if options['constraints']['limits'][prog_key]['rel']:
-            check = options['constraints']['limits'][prog_key]['vals'][1] * algorithm_refs['orig_alloc'][k]
+            check = options['constraints']['limits'][prog_key]['vals'][1] * options['orig_alloc'][prog_key]
             if check is np.nan: check = options['constraints']['limits'][prog_key]['vals'][1]   # Avoids infinity times zero case.
             # If new budget is less than the relative lower limit times original budget...
-            if alloc[k] < options['constraints']['limits'][prog_key]['vals'][0] * algorithm_refs['orig_alloc'][k]:
-                alloc[k] = options['constraints']['limits'][prog_key]['vals'][0] * algorithm_refs['orig_alloc'][k]
+            if alloc[k] < options['constraints']['limits'][prog_key]['vals'][0] * options['orig_alloc'][prog_key]:
+                alloc[k] = options['constraints']['limits'][prog_key]['vals'][0] * options['orig_alloc'][prog_key]
                 hit_lower[k] = True
             # If new budget is more than the relative upper limit times original budget...
             elif alloc[k] > check:
@@ -180,6 +180,13 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
             if 'saturate_with_default_budgets' in options and options['saturate_with_default_budgets'] is True:
                 options['init_alloc'][prog.label] = prog.getDefaultBudget()
         
+        # If saturation is on, make sure the original allocation is also saturated appropriately.
+        # Assumes saturation tag does not change between optimisations.
+        if 'orig_alloc' in options:
+            if prog.label not in options['orig_alloc']:
+                if 'saturate_with_default_budgets' in options and options['saturate_with_default_budgets'] is True:
+                    options['orig_alloc'][prog.label] = prog.getDefaultBudget()
+        
         # For programs chosen to be optimised, make sure proper constraints exist.
         if prog.label in options['init_alloc']:
             if prog.label not in options['constraints']['limits']:
@@ -230,7 +237,12 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
         algorithm_refs['alloc_ids']['prog_ids'][prog_key] = k
         k += 1
     alloc = dcp(np.array(alloc))
-    algorithm_refs['orig_alloc'] = dcp(alloc)
+    
+    # Create an original allocation backup of initial allocation if it does not exist.
+    # For standard runs 'orig_alloc' should be identical to 'init_alloc', particularly as optimisation iterations work on duplicated options dictionaries, not the original.
+    # For block-optimisations, where options dicts are passed back in with an updated 'init_alloc', 'orig_alloc' should remain fixed and reference the allocation at the very start of the process.
+    if 'orig_alloc' not in options:
+        options['orig_alloc'] = dcp(options['init_alloc'])
     
 #     logging.debug( alloc )
 #     logging.debug( algorithm_refs )
@@ -246,8 +258,8 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
     alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter, reltol=None, randseed=randseed)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
     alloc_new = dcp(constrainAllocation(alloc = alloc_new, settings = settings, options = options, algorithm_refs = algorithm_refs))
     
+    # Makes sure allocation is returned in dictionary format.
     alloc_opt = {}
-    
     if 'alloc_ids' in algorithm_refs and 'id_progs' in algorithm_refs['alloc_ids']:
         for k in xrange(len(alloc_new)):
             alloc_opt[algorithm_refs['alloc_ids']['id_progs'][k]] = alloc_new[k]
@@ -311,6 +323,10 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
         options = defaultOptimOptions(settings = settings, progset = progset)
     if max_iter is not None:
         block_iter = np.floor(max_iter/float(max_blocks)) # Calculate block_iter from max_iter, if supplied
+    
+    # Crucial step that ensures an original allocation is always stored, regardless of initial allocation changes per block.
+    if 'orig_alloc' not in options:
+        options['orig_alloc'] = dcp(options['init_alloc'])
     
     total_iters = block_iter*max_blocks
     fvalarray = np.zeros((num_threads,total_iters)) + np.nan
