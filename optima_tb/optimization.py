@@ -58,7 +58,11 @@ def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
             cannot_change = dcp(hit_lower)                          # Cannot change values that have already hit lower limit.
         sum_stuck = sum(alloc[cannot_change])   # The total budget amount that is stuck at its limit.
 #        if sum_current == 0: raise OptimaException('ERROR: Allocation was constrained to have a sum of zero during optimization.')
-        alloc[~cannot_change] *= (options['constraints']['total']-sum_stuck)/(sum_current-sum_stuck)
+#        
+        if sum_current-sum_stuck == 0.0:
+            logger.warn("An optimization iteration has pushed an allocation entirely to its constraint limits. Not rescaling.")
+        else:
+            alloc[~cannot_change] *= (options['constraints']['total']-sum_stuck)/(sum_current-sum_stuck)
         
         # Recursively constrain until the budget total rescale does nothing, or the recursive limit gets hit.
         if not abs(sum(alloc) - sum_current) < project_settings.TOLERANCE:
@@ -324,7 +328,7 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
             
         # Loop over the threads, starting the processes
         for thread in range(num_threads):
-            randseed = (block+1)*int((time()-np.floor(time()))*1e9) # Get a random number based on both the time and the thread
+            randseed = (block+1)*int((time()-np.floor(time()))*1e7) # Get a random number based on both the time and the thread
             args = (settings, parset, progset, options, block_iter, outputqueue, thread, randseed)
             prc = Process(target=optimizeFunc, args=args)
             prc.start()
