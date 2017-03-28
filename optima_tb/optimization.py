@@ -61,14 +61,27 @@ def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
 #        print hit_upper
 #        print hit_lower
         sum_current = sum(alloc)
+        
+        # Ensure that there is never a situation where no budget at all is rescalable.
+        if sum_current == 0:
+            logger.warn('Allocation had a sum of zero prior to rescaling during the optimization process. All budgets incremented by 1.')
+            alloc += 1
+            sum_current = sum(alloc)
+            
 #        print alloc
         cannot_change = dcp(hit_upper)  # Just to define it as something.
         if options['constraints']['total'] > sum_current:       # Need to scale up.
             cannot_change = dcp(hit_upper)                          # Cannot change values that have already hit upper limit.
         elif options['constraints']['total'] < sum_current:     # Need to scale down.
             cannot_change = dcp(hit_lower)                          # Cannot change values that have already hit lower limit.
+        
+        # Ensure that there is never a situation where no modifiable budget is rescalable.
+        if sum(alloc[~cannot_change]) == 0:
+            logger.warn('Modifiable components of allocation had a sum of zero prior to rescaling during the optimization process. All modifiable budgets incremented by 1.')
+            alloc[~cannot_change] += 1
+            sum_current = sum(alloc)
+        
         sum_stuck = sum(alloc[cannot_change])   # The total budget amount that is stuck at its limit.
-#        if sum_current == 0: raise OptimaException('ERROR: Allocation was constrained to have a sum of zero during optimization.')
 #        print cannot_change
 #        print alloc[cannot_change] 
         if sum_current-sum_stuck == 0.0:
@@ -76,7 +89,7 @@ def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
         else:
             alloc[~cannot_change] *= (options['constraints']['total']-sum_stuck)/(sum_current-sum_stuck)
 #        print (options['constraints']['total']-sum_stuck)/(sum_current-sum_stuck)
-#        print alloc
+        print alloc
         # Recursively constrain until the budget total rescale does nothing, or the recursive limit gets hit.
         if not abs(sum(alloc) - sum_current) < project_settings.TOLERANCE:
 #            logger.info('Allocation not constrained on attempt %i: %f > %s' % (attempt, abs(sum(alloc) - sum_current), project_settings.TOLERANCE))
