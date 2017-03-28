@@ -16,7 +16,7 @@ def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
     
 #    logging.info('Launching attempt %i to constrain allocation.' % attempt)
 
-    alloc = dcp(np.array(alloc))    # Converting to np array just in case.
+    alloc = dcp(np.array(alloc, dtype=np.float64))    # Converting to np array just in case.
 
     # Convert negative allocation values to zeros.
     alloc[alloc < 0.0] = 0.0
@@ -89,7 +89,7 @@ def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
         else:
             alloc[~cannot_change] *= (options['constraints']['total']-sum_stuck)/(sum_current-sum_stuck)
 #        print (options['constraints']['total']-sum_stuck)/(sum_current-sum_stuck)
-        print alloc
+#        print alloc
         # Recursively constrain until the budget total rescale does nothing, or the recursive limit gets hit.
         if not abs(sum(alloc) - sum_current) < project_settings.TOLERANCE:
 #            logger.info('Allocation not constrained on attempt %i: %f > %s' % (attempt, abs(sum(alloc) - sum_current), project_settings.TOLERANCE))
@@ -285,6 +285,7 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
     
     algorithm_refs['previous_alloc'] = dcp(alloc)
 
+    alloc = dcp(constrainAllocation(alloc = alloc, settings = settings, options = options, algorithm_refs = algorithm_refs))
     alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter, reltol=None, randseed=randseed)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
     alloc_new = dcp(constrainAllocation(alloc = alloc_new, settings = settings, options = options, algorithm_refs = algorithm_refs))
     
