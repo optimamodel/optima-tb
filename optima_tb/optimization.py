@@ -14,7 +14,7 @@ from copy import deepcopy as dcp
 
 def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
     
-    logging.info('Launching attempt %i to constrain allocation.' % attempt)
+#    logging.info('Launching attempt %i to constrain allocation.' % attempt)
 
     alloc = dcp(np.array(alloc))    # Converting to np array just in case.
 
@@ -79,11 +79,15 @@ def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
 #        print alloc
         # Recursively constrain until the budget total rescale does nothing, or the recursive limit gets hit.
         if not abs(sum(alloc) - sum_current) < project_settings.TOLERANCE:
+#            logger.info('Allocation not constrained on attempt %i: %f > %s' % (attempt, abs(sum(alloc) - sum_current), project_settings.TOLERANCE))
             if attempt < settings.recursion_limit:
                 alloc = constrainAllocation(alloc = alloc, settings = settings, options = options, algorithm_refs = algorithm_refs, attempt = attempt + 1)
             else:
                 logger.warn("Tried to constrain an allocation but failed before recursion limit. Reverting to previous iteration allocation.")
                 alloc = dcp(algorithm_refs['previous_alloc'])
+#        else:
+#            logger.info('Budget successfully constrained after %i attempts' % attempt)
+            
     
     return dcp(alloc)
 
