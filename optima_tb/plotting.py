@@ -398,7 +398,7 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
                   'xlabel':'Year',
                   'ylabel': charac_specs[charac]['name'] + unit_tag,
                   'x_ticks' : (yr_range,yr_range),
-                  'title': '',#'Scenario comparison:\n%s [%s]' % (charac_specs[charac]['name'],pop_label),
+                  'title': 'Scenario comparison:\n%s [%s]' % (charac_specs[charac]['name'],pop_label),
                   'save_figname': '%s_ScenarioComparision_%s_%s'%(fig_name, pop_label, charac_specs[charac]['name'])}
             final_dict.update(plotdict)
             
@@ -653,6 +653,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
                   'year_inc' :  5.,
                   'ylabel': 'People',
                   'mec' : 'k',
+                  'title' : pl_title,
                   'x_ticks' : (yr_range,yr_range),
                   'colors': colors
                   }
@@ -667,7 +668,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
                            'ncol':ncol}
    
         _plotStackedCompartments(tvec, y_values[i][:], labels,
-                                 title=pl_title,legendsettings=legendsettings, catlabels=cat_labels,catcolors=colors,
+                                 legendsettings=legendsettings, catlabels=cat_labels,catcolors=colors,
                                  save_fig=save_fig,save_figname=save_figname,**pdict)
         
         
