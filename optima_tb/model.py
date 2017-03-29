@@ -246,6 +246,8 @@ class Model(object):
                     self.sim_settings['progs_end'] = options['progs_end']
                 if 'init_alloc' in options:
                     self.sim_settings['init_alloc'] = options['init_alloc']
+                if 'constraints' in options:
+                    self.sim_settings['constraints'] = options['constraints']
                 if 'alloc_is_coverage' in options:
                     self.sim_settings['alloc_is_coverage'] = options['alloc_is_coverage']
                 else: self.sim_settings['alloc_is_coverage'] = False
@@ -723,12 +725,40 @@ class Model(object):
                                     continue
                                 if 'init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']:
                                     prog_budget = self.sim_settings['init_alloc'][prog_label]
+                                    
+                                    # Allow for effective budgets to be constrained to a maximum change rate, with respect to the default budget.
+                                    if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog_label in self.sim_settings['constraints']['max_yearly_change']:
+                                        default_budget = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
+                                        d_years = self.sim_settings['tvec'][ti] - self.sim_settings['progs_start']
+                                        try: eps = self.sim_settings['constraints']['max_yearly_change'][prog_label]['val']
+                                        except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog_label)
+                                        relative_yearly_change = False
+                                        if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog_label] and self.sim_settings['constraints']['max_yearly_change'][prog_label]['rel'] is True:
+                                            relative_yearly_change = True
+                                        direction = np.sign(prog_budget - default_budget)
+                                        
+                                        # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
+                                        if eps <= np.abs(prog_budget - default_budget)*d_years:
+                                            if relative_yearly_change is True:
+                                                if abs(default_budget) < project_settings.TOLERANCE:
+    #                                                logger.warn('Default budget for "%s" is effectively zero and max yearly change is flagged as relative. Change in program funding will be negligible.' % prog_label)
+                                                    raise OptimaException('ERROR: Default budget for "%s" is effectively zero (with desired budget aim greater than zero) and finite maximum-yearly-change factor is flagged as relative. Model will not continue running; change in program funding would be negligible.' % prog_label)
+                                                if direction > 0:       # Effective budget is increasing from and relative to the default.
+                                                    prog_budget = np.min([default_budget*(1.0+eps*d_years), prog_budget])
+                                                elif direction < 0:     # Effective budget is decreasing from the relative to the default.
+                                                    prog_budget = np.max([default_budget*(1.0-eps*d_years), prog_budget])
+                                            else:
+                                                if direction > 0:       # Effective budget is increasing from the default in an absolute manner.
+                                                    prog_budget = np.min([default_budget+eps*d_years, prog_budget])
+                                                elif direction < 0:     # Effective budget is decreasing from the default in an absolute manner..
+                                                    prog_budget = np.max([default_budget-eps*d_years, prog_budget])
+                                            
                                 else:
                                     if 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
                                         if self.sim_settings['alloc_is_coverage']:
-                                            prog_budget = prog.getCoverage(budget = prog.getDefaultBudget())
+                                            prog_budget = prog.getCoverage(budget = prog.getDefaultBudget(year = self.sim_settings['progs_start']))
                                         else:
-                                            prog_budget = prog.getDefaultBudget()
+                                            prog_budget = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
                                     else: 
                                         continue
                                 
@@ -785,10 +815,6 @@ class Model(object):
                                 if first_prog: new_val = 0
                                 new_val += impact
                                 first_prog = False
-                                
-    #                            if par_label == 'spmyes_rate':
-    #                                print prog_label
-    #                                print new_val
                 
                 for par in pars:
                     par.vals[ti] = new_val

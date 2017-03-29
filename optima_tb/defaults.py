@@ -17,12 +17,13 @@ def defaultOptimOptions(settings, progset = None):
     
     options['progs_start'] = 2015.0
     options['init_alloc'] = odict()
-    options['constraints'] = {'limits':odict()}
+    options['constraints'] = {'limits':odict(), 'max_yearly_change':odict()}
     
     if not progset is None:
         for prog in progset.progs:
             options['init_alloc'][prog.label] = prog.getDefaultBudget()
             options['constraints']['limits'][prog.label] = {'vals':[0.0,np.inf],'rel':True}
+            options['constraints']['max_yearly_change'][prog.label] = {'val':np.inf, 'rel':True}
             if prog.func_specs['type'] == 'cost_only':
                 options['constraints']['limits'][prog.label]['vals'] = [1.0,1.0]
     options['orig_alloc'] = dcp(options['init_alloc'])
