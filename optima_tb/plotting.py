@@ -224,13 +224,13 @@ def separateLegend(labels,colors,fig_name,reverse_order=False,**legendsettings):
         labels = labels[::-1]
         colors = colors[::-1]
     
-    fig = plt.figure()
+    fig = plt.figure(figsize=(15,15)) # silly big
     patches = [  mpatches.Patch(color=color, label=label) for label, color in zip(labels, colors)]
     legendsettings['loc'] = 'center'
     legendsettings['frameon'] = False
     legendsettings['bbox_to_anchor'] = None
     fig.legend(patches, labels, **legendsettings)
-    plt.savefig("%s_legend"%fig_name)
+    plt.savefig("%s_legend"%fig_name)#,bbox_inches='tight')
 
 
 def _turnOffBorder():
@@ -409,7 +409,8 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
             final_dict.update(plotdict)
             
             
-            figure = _plotLine(ys = yvals, ts = np.tile(tvec,(len(labels),1)), labels = labels, legendsettings=None, save_fig=save_fig, fig_name=fig_name, colors=colors, **final_dict)#, y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
+            figure = _plotLine(ys = yvals, ts = np.tile(tvec,(len(labels),1)), labels = labels, reverse_order=True,
+                               legendsettings=None, save_fig=save_fig, fig_name=fig_name, colors=colors, **final_dict)#, y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
             
     if final_dict.has_key('legend_off') and final_dict['legend_off']:
         # Do this separately to main iteration so that previous figure are not corrupted
@@ -669,7 +670,6 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
     
         legendsettings =  {'loc':'center left', 
                            'bbox_to_anchor':(1.05, 0.5), 
-                           'reverse_order': True,
                            'ncol':ncol}
    
         _plotStackedCompartments(tvec, y_values[i][:], labels,
@@ -681,7 +681,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it represents 
         # classes of compartments
-        separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name,**legendsettings)
+        separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name, reverse_order=True, **legendsettings)
         
          
 
@@ -829,9 +829,7 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
                   'title':  title,
                   'ylabel': "",
                   'save_figname': fig_name}
-    
-    legendsettings['reverse_order'] = True
-    
+
     plotdict.update(final_dict)
     
     
@@ -843,7 +841,7 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it can represent 
         # classes of budgets
-        separateLegend(labels=output_labels,colors=cat_colors,fig_name=fig_name,**legendsettings)
+        separateLegend(labels=output_labels,colors=cat_colors,fig_name=fig_name, reverse_order = True,**legendsettings)
             
             
 
@@ -892,7 +890,6 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
                   'title': 'Budgets for %s' % (title),
                   'ylabel': "Budget (%s)"%currency,
                   'save_figname': '%s_budget'%fig_name}
-    legendsettings['reverse_order'] = True # reverse legend order so that it matches top<->bottom of stacked bars
     plotdict.update(final_dict)
     
     
@@ -904,12 +901,13 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it can represent 
         # classes of budgets
-        
+        # reverse legend order so that it matches top<->bottom of stacked bars
         if use_full_labels:
             legendsettings =  {'ncol':2}
-            separateLegend(labels=full_labels,colors=colors,fig_name=fig_name,**legendsettings)
+            separateLegend(labels=full_labels,colors=colors,fig_name=fig_name, reverse_order=True,**legendsettings)
         else:
-            separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name)
+            separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name,reverse_order=True,)
+
 
 def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
               link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False,
@@ -1436,7 +1434,7 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
  
     
 def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
-             legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None,
+             legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None, reverse_order=False,
              marker='o',s=40,facecolors='none',linewidth=3,zorder=10,save_fig=False,save_figname=None,legend_off=False,**kwargs):
     """
     Plots multiple lines, with additional option of overlaying observed datapoints
@@ -1459,8 +1457,12 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         
     fig, ax = pl.subplots()
     
-    #plot ys, but reversed (useful for scenarios, and optimizations):
-    order_ys = reversed(range(len(ys))) # surely there are more elegant ways to do this ... 
+    #plot ys, but reversed - and also reverse the labels (useful for scenarios, and optimizations):
+    order_ys = range(len(ys))
+    if reverse_order:
+        order_ys = order_ys[::-1] # surely there are more elegant ways to do this ... 
+        labels = labels[::-1]
+    
     for k in order_ys: 
         
         yval = ys[k]
