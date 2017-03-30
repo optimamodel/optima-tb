@@ -398,6 +398,7 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
                   'xlabel':'Year',
                   'ylabel': charac_specs[charac]['name'] + unit_tag,
                   'x_ticks' : (yr_range,yr_range),
+                  'smooth' : True, # smooth plots for scenarios
                   'title': 'Scenario comparison:\n%s [%s]' % (charac_specs[charac]['name'],pop_label),
                   'save_figname': '%s_ScenarioComparision_%s_%s'%(fig_name, pop_label, charac_specs[charac]['name'])}
             final_dict.update(plotdict)
@@ -1283,7 +1284,7 @@ def extractFlows(pop_labels, comp_label, results, settings, tvec, link_labels = 
         
     return all_rates, all_tvecs, all_labels
     
-     
+      
 def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',ylabel=None,xlabel=None,xlim=None,ymin=None,ylim=None,save_figname=None,legend_off=False,
                             save_fig=False,colors=None,catlabels=None,catcolors=None, year_inc=5,
                             marker='o',edgecolors='k',facecolors='none',s=40,zorder=10,linewidth=3,x_ticks=None,legendsettings={},**kwargs):  
@@ -1367,7 +1368,8 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
  
     
 def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
-             legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None,
+             legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None, 
+             smooth = False, smooth_over = (2017.5,2035.),  smooth_params=None, # TODO: remove hard coded years
              marker='o',s=40,facecolors='none',linewidth=3,zorder=10,save_fig=False,save_figname=None,legend_off=False,**kwargs):
     """
     Plots multiple lines, with additional option of overlaying observed datapoints
@@ -1381,6 +1383,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     """
     
     if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
+    if smooth_params is None: smooth_params = {'function' : 'exponential', 'signma': 1.5}
     
     ymin_val = np.min(ys[0])
     
@@ -1391,6 +1394,10 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     fig, ax = pl.subplots()
     
     for k,yval in enumerate(ys):
+        
+        if smooth:
+            yval = smooth(yval,ts[k],smooth_over,**smooth_params)
+        
         
         ax.plot(ts[k], yval, c=colors[k])
         if np.min(yval) < ymin_val:
@@ -1514,6 +1521,32 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         logger.info("Saved figure: '%s'"%save_figname)
         
     return fig
+       
+       
+       
+    
+def smooth(ys, ts, smooth_over, function='exponential', **smooth_params):
+    """
+    
+    Params:
+        ys    
+        ts
+        smooth_over:     tuple for (start, end) time to smooth over
+        function:        function
+        **smooth_params  parameters for smoothing function i.e. sigma
+        
+    Returns:
+        smoothed version of ys
+    """
+    
+        
+    # Insert smoothing magic here
+    print smooth_params
+
+
+
+    return ys
+
         
               
 def plotAllOutflows(results, num_subplots = 5):
