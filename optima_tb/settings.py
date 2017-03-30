@@ -337,7 +337,7 @@ class PlottingSettings():
             if x >= 1e6:
                 return '%1.1fM' % (x*1e-6)
             elif x >= 1e3:
-                return '%1.fK' % (x*1e-3) 
+                return '%1.1fK' % (x*1e-3) 
             else:
                 return x
             

@@ -729,9 +729,13 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
     
         
     """
-    # setup:
+    # setup:    
     if outputIDs is None:
         outputIDs = results.outputs.keys()
+        # now only select characteristics which are plottable
+        outputIDs = [output_id for output_id in outputIDs if isPlottableCharac(output_id, charac_specs)]       
+    # else we already know which characteristics to plot
+    
     
     if pop_labels is None:
         pop_labels = [pop.label for pop in results.m_pops]
@@ -767,11 +771,7 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         colors = gridColorMap(len(pop_labels))
         logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
     
-        
-    # now only select characteristics which are plottable
-    outputIDs = [output_id for output_id in outputIDs if isPlottableCharac(output_id, charac_specs)]       
-
-
+    
     # extract all characteristics we're interested in, all at once
     y_values, labels, unit_tags, dataobs = extractCharacteristic(results, data, charac_specs, charac_labels=outputIDs, pop_labels=pop_labels, plot_observed_data=plot_observed_data, plot_total=plot_total)
     
@@ -812,6 +812,7 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
     
     
     """
+    print "000000000", fig_name
     xlim = 3
     if len(xlabels)>3:
         xlim = len(xlabels)
@@ -838,20 +839,25 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
     
     # unfortunately we have to do it this way to ensure that the programs are all extracted in the same order
     values = [[results.getValueAt(output_label,year) for output_label in output_list ] for year in year_list] 
+    print values
     
-    final_dict = {'xlim': (0,xlim),
+    final_dict = dcp(plotdict)
+    
+    final_dict2 = {'xlim': (0,xlim),
+                   'ylim': (0,1.6e3),
                   'title':  title,
                   'ylabel': "",
                   'save_figname': fig_name}
-
-    final_dict.update(plotdict)
+    print final_dict
+    final_dict.update(final_dict2)
+    print final_dict
     
     
     _plotBars(values, labels=output_labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings, 
-              save_fig=save_fig, **plotdict)
+              save_fig=save_fig, **final_dict)
 
 
-    if plotdict.has_key('legend_off') and plotdict['legend_off']:
+    if final_dict.has_key('legend_off') and final_dict['legend_off']:
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it can represent 
         # classes of budgets
@@ -1018,10 +1024,10 @@ def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles
                 logger.warn("No flows selected for plotting")
             
 
-def plotPopulationFlows(results, settings, comp_labels = None, comp_titles = None, pop_labels = None, 
+def plotPopulationFlows(results, settings, comp_labels = None, comp_titles = None, pop_labels = None,
               link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False, sum_population=False,
               plot_inflows = True, plot_outflows = True, exclude_transfers = False, observed_data = None,
-              save_fig=False, fig_name=None, colors=None):
+              save_fig=False, fig_name=None, colors=None, colormappings=None):
     """
     Plot flows rates in and out of a compartment, across populations. Intended usage is 
     for plots such as total new infections, deaths, etc. where the net flow is required. 
@@ -1108,6 +1114,20 @@ def plotPopulationFlows(results, settings, comp_labels = None, comp_titles = Non
         
     if comp_titles is not None and len(comp_titles) != len(comp_labels):
         logger.error("Flow-plot failure due to the number of compartment plot titles not matching the number of compartments to analyse.")
+    
+    if colors is not None and len(colors) >= len(pop_labels):
+        pass # colors as defined in the args should be used as is  
+    elif colormappings is not None and colors is None:
+        colors = []
+        colors_dict, cat_colors = getCategoryColors(colormappings,'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for (j,pop_label) in enumerate(pop_labels):
+            colors.append(colors_dict[pop_label])
+    else:        
+        colors = gridColorMap(len(pop_labels))
+        logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
+    
+   
     
     
     for (i,comp_label) in enumerate(comp_labels):
@@ -1476,6 +1496,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     #plot ys, but reversed - and also reverse the labels (useful for scenarios, and optimizations):
     order_ys = range(len(ys))
     if reverse_order:
+        print("Reversed order -----------------")
         order_ys = order_ys[::-1] # surely there are more elegant ways to do this ... 
         labels = labels[::-1]
     
@@ -1532,7 +1553,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     return fig
     
 def _plotBars(values, labels=None, colors=None, title="", orientation='v', legendsettings=None,
-              xlabel="", ylabel="", xlabels=None, yticks=None, barwidth=0.5, bar_offset=0.25, xlim=(0,3),
+              xlabel="", ylabel="", xlabels=None, yticks=None, barwidth=0.5, bar_offset=0.25, xlim=(0,3),ylim=None,
               save_fig=False,save_figname=None,legend_off=False,formatter=None,reverse_order=True,**kwargs):
     """
     Plots bar graphs. Intended for budgets. 
@@ -1597,6 +1618,8 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         ax.set_xticklabels(x_ticks[1])
     
     ax.set_xlim(xlim)
+    if ylim is not None:
+        ax.set_ylim(ylim)
     
     if save_fig:
         fig.savefig('%s' % (save_figname))                    
