@@ -14,54 +14,82 @@ from copy import deepcopy as dcp
 
 def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
     
-    alloc = np.array(alloc)     # Converting to np array just in case.
+#    logging.info('Launching attempt %i to constrain allocation.' % attempt)
+
+    alloc = dcp(np.array(alloc, dtype=np.float64))    # Converting to np array just in case.
 
     # Convert negative allocation values to zeros.
     alloc[alloc < 0.0] = 0.0
-        
+    
+#    print('Attempt: %i' % attempt)
+         
     # Handle values that go beyond limits.
     hit_lower = (alloc == np.nan)  # Track the indices of programs that hit the lower limit. Pre-allocate as False.
     hit_upper = (alloc == np.nan)  # Track the indices of programs that hit the upper limit. Pre-allocate as False.
     for k in xrange(len(alloc)):
+#        print 'Old'
+#        print alloc[k]
         prog_key = algorithm_refs['alloc_ids']['id_progs'][k]
+#        print options['constraints']['limits'][prog_key]['vals']
+#        print options['orig_alloc'][prog_key]
         if options['constraints']['limits'][prog_key]['rel']:
-            check = options['constraints']['limits'][prog_key]['vals'][1] * algorithm_refs['orig_alloc'][k]
+            check = options['constraints']['limits'][prog_key]['vals'][1] * options['orig_alloc'][prog_key]
             if check is np.nan: check = options['constraints']['limits'][prog_key]['vals'][1]   # Avoids infinity times zero case.
             # If new budget is less than the relative lower limit times original budget...
-            if alloc[k] < options['constraints']['limits'][prog_key]['vals'][0] * algorithm_refs['orig_alloc'][k]:
-                alloc[k] = options['constraints']['limits'][prog_key]['vals'][0] * algorithm_refs['orig_alloc'][k]
+            if alloc[k] <= options['constraints']['limits'][prog_key]['vals'][0] * options['orig_alloc'][prog_key]:
+                alloc[k] = options['constraints']['limits'][prog_key]['vals'][0] * options['orig_alloc'][prog_key]
                 hit_lower[k] = True
+#                print options['constraints']['limits'][prog_key]['vals'][0] * options['orig_alloc'][prog_key]
             # If new budget is more than the relative upper limit times original budget...
-            elif alloc[k] > check:
+            elif alloc[k] >= check:
                 alloc[k] = check
                 hit_upper[k] = True
+#                print check
         else:
             # If new budget is less than the absolute lower limit...
-            if alloc[k] < options['constraints']['limits'][prog_key]['vals'][0]:
+            if alloc[k] <= options['constraints']['limits'][prog_key]['vals'][0]:
                 alloc[k] = options['constraints']['limits'][prog_key]['vals'][0]
                 hit_lower[k] = True
             # If new budget is more than the absolute upper limit...
-            elif alloc[k] > options['constraints']['limits'][prog_key]['vals'][1]:
+            elif alloc[k] >= options['constraints']['limits'][prog_key]['vals'][1]:
                 alloc[k] = options['constraints']['limits'][prog_key]['vals'][1]
                 hit_upper[k] = True
-            
-        k += 1
+#        print 'New'
+#        print alloc[k]
     
     if 'total' in options['constraints']:
+#        print hit_upper
+#        print hit_lower
         sum_current = sum(alloc)
+        
+        # Ensure that there is never a situation where no budget at all is rescalable.
+        if sum_current == 0:
+            logger.warn('Allocation had a sum of zero prior to rescaling during the optimization process. All budgets incremented by 1.')
+            alloc += 1
+            sum_current = sum(alloc)
+            
+#        print alloc
         cannot_change = dcp(hit_upper)  # Just to define it as something.
         if options['constraints']['total'] > sum_current:       # Need to scale up.
             cannot_change = dcp(hit_upper)                          # Cannot change values that have already hit upper limit.
         elif options['constraints']['total'] < sum_current:     # Need to scale down.
             cannot_change = dcp(hit_lower)                          # Cannot change values that have already hit lower limit.
+        
+        # Ensure that there is never a situation where no modifiable budget is rescalable.
+        if sum(alloc[~cannot_change]) == 0:
+            logger.warn('Modifiable components of allocation had a sum of zero prior to rescaling during the optimization process. All modifiable budgets incremented by 1.')
+            alloc[~cannot_change] += 1
+            sum_current = sum(alloc)
+        
         sum_stuck = sum(alloc[cannot_change])   # The total budget amount that is stuck at its limit.
-#        if sum_current == 0: raise OptimaException('ERROR: Allocation was constrained to have a sum of zero during optimization.')
-#        
+#        print cannot_change
+#        print alloc[cannot_change] 
         if sum_current-sum_stuck == 0.0:
             logger.warn("An optimization iteration has pushed an allocation entirely to its constraint limits. Not rescaling.")
         else:
             alloc[~cannot_change] *= (options['constraints']['total']-sum_stuck)/(sum_current-sum_stuck)
-        
+#        print (options['constraints']['total']-sum_stuck)/(sum_current-sum_stuck)
+#        print alloc
         # Recursively constrain until the budget total rescale does nothing, or the recursive limit gets hit.
         if not abs(sum(alloc) - sum_current) < project_settings.TOLERANCE:
 #            logger.info('Allocation not constrained on attempt %i: %f > %s' % (attempt, abs(sum(alloc) - sum_current), project_settings.TOLERANCE))
@@ -182,6 +210,13 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
             if 'saturate_with_default_budgets' in options and options['saturate_with_default_budgets'] is True:
                 options['init_alloc'][prog.label] = prog.getDefaultBudget()
         
+        # If saturation is on, make sure the original allocation is also saturated appropriately.
+        # Assumes saturation tag does not change between optimisations.
+        if 'orig_alloc' in options:
+            if prog.label not in options['orig_alloc']:
+                if 'saturate_with_default_budgets' in options and options['saturate_with_default_budgets'] is True:
+                    options['orig_alloc'][prog.label] = prog.getDefaultBudget()
+        
         # For programs chosen to be optimised, make sure proper constraints exist.
         if prog.label in options['init_alloc']:
             if prog.label not in options['constraints']['limits']:
@@ -232,7 +267,12 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
         algorithm_refs['alloc_ids']['prog_ids'][prog_key] = k
         k += 1
     alloc = dcp(np.array(alloc))
-    algorithm_refs['orig_alloc'] = dcp(alloc)
+    
+    # Create an original allocation backup of initial allocation if it does not exist.
+    # For standard runs 'orig_alloc' should be identical to 'init_alloc', particularly as optimisation iterations work on duplicated options dictionaries, not the original.
+    # For block-optimisations, where options dicts are passed back in with an updated 'init_alloc', 'orig_alloc' should remain fixed and reference the allocation at the very start of the process.
+    if 'orig_alloc' not in options:
+        options['orig_alloc'] = dcp(options['init_alloc'])
     
 #     logging.debug( alloc )
 #     logging.debug( algorithm_refs )
@@ -245,11 +285,12 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
     
     algorithm_refs['previous_alloc'] = dcp(alloc)
 
+    alloc = dcp(constrainAllocation(alloc = alloc, settings = settings, options = options, algorithm_refs = algorithm_refs))
     alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter, reltol=None, randseed=randseed)#, xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
     alloc_new = dcp(constrainAllocation(alloc = alloc_new, settings = settings, options = options, algorithm_refs = algorithm_refs))
     
+    # Makes sure allocation is returned in dictionary format.
     alloc_opt = {}
-    
     if 'alloc_ids' in algorithm_refs and 'id_progs' in algorithm_refs['alloc_ids']:
         for k in xrange(len(alloc_new)):
             alloc_opt[algorithm_refs['alloc_ids']['id_progs'][k]] = alloc_new[k]
@@ -265,7 +306,7 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
     return results
 
 
-def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads = 4, block_iter = 10, max_blocks = 10, max_iter = None, doplot = False, fullfval = False):
+def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads = 4, block_iter = 10, max_blocks = 10, max_iter = None, doplot = False, fullfval = False, randseed = None):
     '''
     Same as optimizeFunc, excepts runs in multiple threads in small blocks.
     
@@ -314,6 +355,10 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
     if max_iter is not None:
         block_iter = np.floor(max_iter/float(max_blocks)) # Calculate block_iter from max_iter, if supplied
     
+    # Crucial step that ensures an original allocation is always stored, regardless of initial allocation changes per block.
+    if 'orig_alloc' not in options:
+        options['orig_alloc'] = dcp(options['init_alloc'])
+    
     total_iters = block_iter*max_blocks
     fvalarray = np.zeros((num_threads,total_iters)) + np.nan
     
@@ -330,7 +375,8 @@ def parallelOptimizeFunc(settings, parset, progset, options = None, num_threads 
             
         # Loop over the threads, starting the processes
         for thread in range(num_threads):
-            randseed = (block+1)*int((time()-np.floor(time()))*1e7) # Get a random number based on both the time and the thread
+            if randseed is None:
+                randseed = (block+1)*int((time()-np.floor(time()))*1e7) # Get a random number based on both the time and the thread
             args = (settings, parset, progset, options, block_iter, outputqueue, thread, randseed)
             prc = Process(target=optimizeFunc, args=args)
             prc.start()
