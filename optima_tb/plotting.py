@@ -1508,7 +1508,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         yval = ys[k]
 
         if smooth:
-            yval = smooth(yval,ts[k],smooth_over,**smooth_params)
+            yval = smoothfunc(yval,ts[k],smooth_over,**smooth_params)
         
         ax.plot(ts[k], yval, c=colors[k])
         if np.min(yval) < ymin_val:
@@ -1636,7 +1636,7 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
        
        
     
-def smooth(ys, ts, smooth_over, function='exponential', **smooth_params):
+def smoothfunc(ys, ts, smooth_over, function='exponential', **smooth_params):
     """
     
     Params:
@@ -1649,6 +1649,8 @@ def smooth(ys, ts, smooth_over, function='exponential', **smooth_params):
     Returns:
         smoothed version of ys
     """
+    
+    print 'SMOOOOTHING'
     
         
     # Insert smoothing magic here
