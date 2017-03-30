@@ -280,7 +280,9 @@ def getPIDs(results,poplabels):
     return pids
     
 
-def plotProjectResults(results,settings, data, title='', colormappings=None, colorlabels=None, pop_labels=None, plot_comp_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
+def plotProjectResults(results,settings, data, title='', 
+                       colormappings=None, colorlabels=None, pop_colormappings=None, 
+                       pop_labels=None, plot_comp_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
     """
     Plot all results associated with a project. By default, this is a disease cascade for 
     each population, as well as characteristics of interest. 
@@ -304,11 +306,12 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, col
     plotdict = settings.plot_settings
     
     # plot each disease cascade for every population
-    plotPopulation(results=results, data=data, title=title, colormappings=colormappings, cat_labels=colorlabels, pop_labels=pop_labels, plot_observed_data=plot_observed_data, \
-                   save_fig=save_fig, fig_name=fig_name, plotdict=plotdict, comp_labels=plot_comp_labels)
-     
+#     plotPopulation(results=results, data=data, title=title, colormappings=colormappings, cat_labels=colorlabels, pop_labels=pop_labels, plot_observed_data=plot_observed_data, \
+#                    save_fig=save_fig, fig_name=fig_name, plotdict=plotdict, comp_labels=plot_comp_labels)
+#      
     # plot characteristics
-    plotCharacteristic(results=results, settings=settings, pop_labels=pop_labels, data=data, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
+    plotCharacteristic(results=results, settings=settings, pop_labels=pop_labels, data=data, colormappings=pop_colormappings,
+                       plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # internal plotting
     if debug:
         plotAllOutflows(results)
@@ -681,7 +684,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
 
 def plotCharacteristic(results, settings, data, title='', outputIDs=None, 
                        pop_labels = None, plot_total = False,
-                       plot_observed_data=True, save_fig=False, fig_name=None, 
+                       plot_observed_data=True, save_fig=False, fig_name=None, colormappings=None, 
                        colors=None, plotdict=None):
     """
     Plot a characteristic across all populations
@@ -740,10 +743,19 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         start_year, end_year = tvec[0], tvec[-1]
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
       
-    if colors is None or len(colors) < len(pop_labels):        
+    
+    if colors is not None and len(colors) >= len(pop_labels):
+        pass # colors as defined in the args should be used as is  
+    if colormappings is not None and colors is None:
+        colors = []
+        colors_dict, cat_colors = getCategoryColors(colormappings,'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for (j,pop_label) in enumerate(pop_labels):
+            colors.append(colors_dict[pop_label])
+    else:        
         colors = gridColorMap(len(pop_labels))
         logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
-   
+    
         
     # now only select characteristics which are plottable
     outputIDs = [output_id for output_id in outputIDs if isPlottableCharac(output_id, charac_specs)]       
@@ -768,8 +780,8 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
                   'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
         
         if dataobs is not None: # this can be improved
-            final_dic['y_hat'] = yhat[i]
-            final_dic['t_hat'] = that[i]
+            final_dict['y_hat'] = yhat[i]
+            final_dict['t_hat'] = that[i]
         
         final_dict.update(plotdict)
         
@@ -1314,8 +1326,8 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
         lw = 0
         if save_fig:
             lw = 0.1
-        ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=lw) # for some reason, lw=0 leads to no plot if we then use fig.savefig()
-        reg, = ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
+        ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=lw, edgecolor=colors[k]) # for some reason, lw=0 leads to no plot if we then use fig.savefig()
+        reg, = ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10) # TODO fix this by using xlims and ylims appropriately
         bottom = dcp(top)
         
     max_val = max(top)
