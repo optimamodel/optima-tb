@@ -629,6 +629,10 @@ def _create_populations(ws,ws_name,num_populations,formats, headers):
     
     poplabels = ['%s!$B$%g'%(ws_name,i+3) for i in range(num_populations)]
     return poplabels
+
+def _create_smear_status(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
+    _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels)
+
         
 def _create_other_epidemiology(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels):
     _create_multivalue_sheet(ws,ws_name,cb_settings,formats,start_year,end_year,pop_labels)

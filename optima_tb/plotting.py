@@ -214,16 +214,22 @@ def getCategoryColors(category_list,order='alternate'):
     return col_list,cat_colors
     
     
-def separateLegend(labels,colors,fig_name):
+def separateLegend(labels,colors,fig_name,reverse_order=False,**legendsettings):
     
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
     
+    
+    if reverse_order:
+        labels = labels[::-1]
+        colors = colors[::-1]
+    
     fig = plt.figure()
-    patches = [
-        mpatches.Patch(color=color, label=label)
-        for label, color in zip(labels, colors)]
-    fig.legend(patches, labels, loc='center', frameon=False)
+    patches = [  mpatches.Patch(color=color, label=label) for label, color in zip(labels, colors)]
+    legendsettings['loc'] = 'center'
+    legendsettings['frameon'] = False
+    legendsettings['bbox_to_anchor'] = None
+    fig.legend(patches, labels, **legendsettings)
     plt.savefig("%s_legend"%fig_name)
 
 
@@ -409,8 +415,6 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it represents 
         # classes of compartments
-        print colors
-        print labels
         separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendScenarioComparison")
         
          
@@ -638,7 +642,8 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
                                                      plot_observed_label=plot_observed_label, 
                                                      use_full_labels=True)
     
-    that, yhat = dataobs
+    if dataobs is not None:
+        that, yhat = dataobs
     
     # iterate for each key population group
     for (i,poplabel) in enumerate(pop_labels):
@@ -652,17 +657,23 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
                   'year_inc' :  5.,
                   'ylabel': 'People',
                   'mec' : 'k',
+                  'title' : pl_title,
                   'x_ticks' : (yr_range,yr_range),
                   'colors': colors
                   }
+        
+        if dataobs is not None:
+            pdict['datapoints'] = (that[i],yhat[i])
+        
         pdict.update(plotdict)
     
         legendsettings =  {'loc':'center left', 
                            'bbox_to_anchor':(1.05, 0.5), 
+                           'reverse_order': True,
                            'ncol':ncol}
    
-        _plotStackedCompartments(tvec, y_values[i][:], labels, datapoints=(that[i],yhat[i]),
-                                 title=pl_title,legendsettings=legendsettings, catlabels=cat_labels,catcolors=colors,
+        _plotStackedCompartments(tvec, y_values[i][:], labels,
+                                 legendsettings=legendsettings, catlabels=cat_labels,catcolors=colors,
                                  save_fig=save_fig,save_figname=save_figname,**pdict)
         
         
@@ -670,14 +681,14 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it represents 
         # classes of compartments
-        separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name)
+        separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name,**legendsettings)
         
          
 
 def plotCharacteristic(results, settings, data, title='', outputIDs=None, 
                        pop_labels = None, plot_total = False,
                        plot_observed_data=True, save_fig=False, fig_name=None, 
-                       colors=None, plotdict=None):
+                       colors=None, plotdict=None, legendsettings=None):
     """
     Plot a characteristic across all populations
     
@@ -724,6 +735,9 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
     if plotdict is None: 
         plotdict = {}
         
+    if legendsettings is None:
+        legendsettings = {}
+        
     tvec = results.sim_settings['tvec']
     charac_specs = settings.charac_specs
     
@@ -747,20 +761,24 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
     # extract all characteristics we're interested in, all at once
     y_values, labels, unit_tags, dataobs = extractCharacteristic(results, data, charac_specs, charac_labels=outputIDs, pop_labels=pop_labels, plot_observed_data=plot_observed_data, plot_total=plot_total)
     
-    that, yhat = dataobs
+    if dataobs is not None:
+        that, yhat = dataobs
     
     # now plot through each characteristic
     for i,output_id in enumerate(outputIDs):
         
         
-        final_dict = {'y_hat': yhat[i],
-                  't_hat': that[i],
+        final_dict = {
                   'unit_tag': unit_tags[i],
                   'xlabel':'Year',
                   'ylabel': charac_specs[output_id]['name'] + unit_tags[i],
                   'x_ticks' : (yr_range,yr_range),
                   'title': '%s\n%s' % (title, charac_specs[output_id]['name']),
                   'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
+        
+        if dataobs is not None: # this can be improved
+            final_dict['y_hat'] = yhat[i]
+            final_dict['t_hat'] = that[i]
         
         final_dict.update(plotdict)
         
@@ -771,11 +789,67 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         # Note that colorlist may be different to colors, as it represents 
         # classes of compartments
         
-        separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendCharac")
-       
+        separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendCharac",**legendsettings)
+
+
+def plotStackedBarOutputs(results, settings, year_list, output_list, output_labels=None, xlabels=None,
+                          title="", colormappings=None, save_fig=False, fig_name=None, legendsettings=None):
+    """
+    
+    
+    """
+    xlim = 3
+    if len(xlabels)>3:
+        xlim = len(xlabels)
+    
+    plotdict = settings.plot_settings
+    if plotdict is None:
+        plotdict = {}
+    
+    if legendsettings is None:
+        legendsettings = {}
+    
+    
+    # setup: determine colors to be used
+    colors = []
+    if colormappings is not None:
+        colors_dict, cat_colors = getCategoryColors(colormappings,'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for olabel in output_list:
+            colors.append(colors_dict[olabel])
+    
+    if output_labels is None:
+        output_labels = output_list 
+    
+    
+    # unfortunately we have to do it this way to ensure that the programs are all extracted in the same order
+    values = [[results.getValueAt(output_label,year) for output_label in output_list ] for year in year_list] 
+    
+    final_dict = {'xlim': (0,xlim),
+                  'title':  title,
+                  'ylabel': "",
+                  'save_figname': fig_name}
+    
+    legendsettings['reverse_order'] = True
+    
+    plotdict.update(final_dict)
+    
+    
+    _plotBars(values, labels=output_labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings, 
+              save_fig=save_fig, **plotdict)
+
+
+    if plotdict.has_key('legend_off') and plotdict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it can represent 
+        # classes of budgets
+        separateLegend(labels=output_labels,colors=cat_colors,fig_name=fig_name,**legendsettings)
+            
+            
+
 
 def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency="USD", 
-                colormappings=None, cat_labels=None,
+                colormappings=None, cat_labels=None, use_full_labels=False, full_labels=None,
                 save_fig=False, fig_name=None, legendsettings=None):
     """
     
@@ -789,7 +863,9 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
         xlim = len(xlabels)
     
     plotdict = settings.plot_settings
-    
+    if plotdict is None:
+        plotdict = {}
+        
     # setup: determine colors to be used
     colors = []
     if colormappings is not None:
@@ -805,8 +881,8 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
         labels = list(set.union(*map(set, progkeys)))
         labels.sort()
         
-    if plotdict is None:
-        plotdict = {}
+    if legendsettings is None:
+        legendsettings = {}
     
     # unfortunately we have to do it this way to ensure that the programs are all extracted in the same order
     values = [[b[k] if b.has_key(k) else 0 for k in labels ] for b in budgets] 
@@ -816,6 +892,7 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
                   'title': 'Budgets for %s' % (title),
                   'ylabel': "Budget (%s)"%currency,
                   'save_figname': '%s_budget'%fig_name}
+    legendsettings['reverse_order'] = True # reverse legend order so that it matches top<->bottom of stacked bars
     plotdict.update(final_dict)
     
     
@@ -825,9 +902,14 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
 
     if plotdict.has_key('legend_off') and plotdict['legend_off']:
         # Do this separately to main iteration so that previous figure are not corrupted
-        # Note that colorlist may be different to colors, as it represents 
-        # classes of compartments
-        separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name)
+        # Note that colorlist may be different to colors, as it can represent 
+        # classes of budgets
+        
+        if use_full_labels:
+            legendsettings =  {'ncol':2}
+            separateLegend(labels=full_labels,colors=colors,fig_name=fig_name,**legendsettings)
+        else:
+            separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name)
 
 def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
               link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False,
@@ -1071,7 +1153,7 @@ def _calculateDatapoints(data, data_labels, pop):
     for (i,label) in enumerate(data_labels):
         ys = data['characs'][label][pop]['y']
         ts = data['characs'][label][pop]['t']
-        print label, pop, ys
+        
         if i==0:
             yvals = ys
         else:
@@ -1112,14 +1194,12 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
                 logger.warn("Unknown data characteristic: ")
                 logger.warn(plot_observed_label)
             
-                    
-            print ys
-            print ts
-            print len(ys), len(ts)
             yhat.append(ys)
             that.append(ts)
     
-    dataobs = (that,yhat)
+        dataobs = (that,yhat)
+    else:
+        dataobs = None
 
     return datapoints, pop_labels, comp_labels, dataobs
  
@@ -1379,7 +1459,11 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         
     fig, ax = pl.subplots()
     
-    for k,yval in enumerate(ys):
+    #plot ys, but reversed (useful for scenarios, and optimizations):
+    order_ys = reversed(range(len(ys))) # surely there are more elegant ways to do this ... 
+    for k in order_ys: 
+        
+        yval = ys[k]
         
         ax.plot(ts[k], yval, c=colors[k])
         if np.min(yval) < ymin_val:
@@ -1431,7 +1515,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     
 def _plotBars(values, labels=None, colors=None, title="", orientation='v', legendsettings=None,
               xlabel="", ylabel="", xlabels=None, yticks=None, barwidth=0.5, bar_offset=0.25, xlim=(0,3),
-              save_fig=False,save_figname=None,legend_off=False,formatter=None,**kwargs):
+              save_fig=False,save_figname=None,legend_off=False,formatter=None,reverse_order=True,**kwargs):
     """
     Plots bar graphs. Intended for budgets. 
     
@@ -1488,14 +1572,12 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         ax.xaxis.set_major_formatter(formatter)
     
     if not legend_off:
-        print labels
         ax.legend(labels, **legendsettings)
     
     if x_ticks is not None:
         ax.set_xticks(x_ticks[0])
         ax.set_xticklabels(x_ticks[1])
     
-    print xlim
     ax.set_xlim(xlim)
     
     if save_fig:
