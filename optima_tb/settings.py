@@ -7,7 +7,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 import pylab as pl
-import numpy as np
 from matplotlib.ticker import FuncFormatter
 
 
