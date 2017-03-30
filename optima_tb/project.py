@@ -145,6 +145,7 @@ class Project(object):
         plotProjectResults(results, settings=self.settings, data=self.data, title = self.name.title(), 
                            colormappings=colormappings, colorlabels=colorlabels, pop_colormappings=pop_colormappings,
                            pop_labels=pop_labels, debug = debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
+
             
     
     
