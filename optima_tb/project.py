@@ -116,7 +116,7 @@ class Project(object):
         return results
     
     
-    def parallelOptimize(self, parset = None, parset_name = 'default', progset = None, progset_name = 'default', options = None, num_threads = 4, block_iter = 10, max_blocks = 10, max_iter = None, doplot = False, fullfval = False):
+    def parallelOptimize(self, parset = None, parset_name = 'default', progset = None, progset_name = 'default', options = None, num_threads = 4, block_iter = 10, max_blocks = 10, max_iter = None, doplot = False, fullfval = False, randseed = None):
         ''' Like optimize, but parallel '''
         
         if parset is None:
@@ -134,15 +134,18 @@ class Project(object):
                 except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot optimize model.' % (self.name, progset_name))
 
         
-        results = parallelOptimizeFunc(settings = self.settings, parset = parset, progset = progset, options = options, num_threads = num_threads, block_iter = block_iter, max_blocks = max_blocks, max_iter = max_iter, doplot = doplot, fullfval = fullfval)
+        results = parallelOptimizeFunc(settings = self.settings, parset = parset, progset = progset, options = options, num_threads = num_threads, block_iter = block_iter, max_blocks = max_blocks, max_iter = max_iter, doplot = doplot, fullfval = fullfval, randseed = randseed)
 
         return results
         
 
-    def plotResults(self, results, colormappings=None, colorlabels=None, debug=False, pop_labels=None, plot_observed_data=True,savePlot=False,figName=None):
+    def plotResults(self, results, colormappings=None, colorlabels=None, debug=False, pop_labels=None, plot_observed_data=True,savePlot=False,figName=None,pop_colormappings=None):
         ''' Plot all available results '''
 
-        plotProjectResults(results, settings=self.settings, data=self.data, title = self.name.title(), colormappings=colormappings, colorlabels=colorlabels, pop_labels=pop_labels, debug = debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
+        plotProjectResults(results, settings=self.settings, data=self.data, title = self.name.title(), 
+                           colormappings=colormappings, colorlabels=colorlabels, pop_colormappings=pop_colormappings,
+                           pop_labels=pop_labels, debug = debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
+
             
     
     

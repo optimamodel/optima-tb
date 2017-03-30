@@ -354,14 +354,30 @@ class ResultSet(object):
                 num_flow = dcp(link.vals)
                 comp_source = self.m_pops[p_index].comps[link.index_from[1]]
                 
+#                if link.val_format == 'proportion':
+#                    denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
+#                    num_flow /= denom_val
+#                    
+#                    print num_flow
+#                   
+#                if link.val_format == 'fraction':
+#                    
+#                    num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
+#                    num_flow *= comp_source.popsize
+#                    num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
+                    
+                was_proportion = False
                 if link.val_format == 'proportion':
                     denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
                     num_flow /= denom_val
-                   
-                if link.val_format == 'fraction':
-                    
-                    num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
-                    num_flow *= comp_source.popsize
+                    was_proportion = True
+                if link.val_format == 'fraction' or was_proportion is True:
+                    if was_proportion is True:
+                        num_flow *= comp_source.popsize_old
+                    else:
+#                        num_flow[num_flow>1.] = 1.
+                        num_flow = 1 - (1 - num_flow) * self.dt     # Fractions must be converted to effective timestep rates.
+                        num_flow *= comp_source.popsize
                     num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
                     
                 datapoints[link_lab][pi] = num_flow

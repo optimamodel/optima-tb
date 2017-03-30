@@ -52,8 +52,9 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     from copy import deepcopy # For arrays, even y = x[:] doesn't copy properly
     from time import time
     if randseed is not None: 
-        seed(randseed) # Don't reset it if not supplied
-        print('asd(): random seed reset; sample random number: %f' % random())
+        validseed = int(randseed % 2**30) # Leave a tiny bit of leeway
+        seed(validseed) # Don't reset it if not supplied
+        print('asd(): random seed reset to %i; sample random number: %f' % (validseed, random()))
 
 
 

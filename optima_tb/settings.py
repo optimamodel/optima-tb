@@ -7,7 +7,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 import pylab as pl
-import numpy as np
 from matplotlib.ticker import FuncFormatter
 
 
@@ -338,7 +337,7 @@ class PlottingSettings():
             if x >= 1e6:
                 return '%1.1fM' % (x*1e-6)
             elif x >= 1e3:
-                return '%1.fK' % (x*1e-3) 
+                return '%1.1fK' % (x*1e-3) 
             else:
                 return x
             
@@ -429,6 +428,7 @@ class PlottingSettings():
         pl.rcParams['savefig.transparent'] =  'True' # enforce
         
         self.plotdict['legend_off'] = True
+        self.plotdict['title'] = '' # No title when we have presentation quality
         
         
         
