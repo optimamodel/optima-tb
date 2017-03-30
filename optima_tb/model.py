@@ -737,23 +737,25 @@ class Model(object):
                                             relative_yearly_change = True
                                         direction = np.sign(prog_budget - default_budget)
                                         
-                                        # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
-                                        if eps <= np.abs(prog_budget - default_budget)/(d_years + project_settings.TOLERANCE):  # Tolerance to avoid the divide by zero case.
-                                            if relative_yearly_change is True:
-                                                if abs(default_budget) < project_settings.TOLERANCE:
-    #                                                logger.warn('Default budget for "%s" is effectively zero and max yearly change is flagged as relative. Change in program funding will be negligible.' % prog_label)
-                                                    raise OptimaException('ERROR: Default budget for "%s" is effectively zero (with desired budget aim greater than zero) and finite maximum-yearly-change factor is flagged as relative. Model will not continue running; change in program funding would be negligible.' % prog_label)
+                                        if relative_yearly_change is True:
+                                            if abs(default_budget) < project_settings.TOLERANCE:
+#                                                logger.warn('Default budget for "%s" is effectively zero and max yearly change is flagged as relative. Change in program funding will be negligible.' % prog_label)
+                                                raise OptimaException('ERROR: Default budget for "%s" is effectively zero (with desired budget aim greater than zero) and finite maximum-yearly-change factor is flagged as relative. Model will not continue running; change in program funding would be negligible.' % prog_label)
+                                            # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
+                                            if eps*d_years*default_budget <= np.abs(prog_budget - default_budget):
                                                 if direction > 0:       # Effective budget is increasing from and relative to the default.
                                                     prog_budget = np.min([default_budget*(1.0+eps*d_years), prog_budget])
                                                 elif direction < 0:     # Effective budget is decreasing from the relative to the default.
                                                     prog_budget = np.max([default_budget*(1.0-eps*d_years), prog_budget])
-                                            else:
+                                        else:
+                                            # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
+                                            if eps*d_years <= np.abs(prog_budget - default_budget):
                                                 if direction > 0:       # Effective budget is increasing from the default in an absolute manner.
                                                     prog_budget = np.min([default_budget+eps*d_years, prog_budget])
                                                 elif direction < 0:     # Effective budget is decreasing from the default in an absolute manner..
                                                     prog_budget = np.max([default_budget-eps*d_years, prog_budget])
                                         
-                                        year_check = 2015   # Hard-coded check.
+#                                        year_check = 2015   # Hard-coded check.
 #                                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
 #                                            print prog_label
 #                                            print prog_budget
