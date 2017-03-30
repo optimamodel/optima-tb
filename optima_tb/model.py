@@ -738,7 +738,7 @@ class Model(object):
                                         direction = np.sign(prog_budget - default_budget)
                                         
                                         if relative_yearly_change is True:
-                                            if eps != np.inf and abs(default_budget) < project_settings.TOLERANCE:
+                                            if eps != np.inf and np.abs(default_budget) < project_settings.TOLERANCE:
 #                                                logger.warn('Default budget for "%s" is effectively zero and max yearly change is flagged as relative. Change in program funding will be negligible.' % prog_label)
                                                 raise OptimaException('ERROR: Default budget for "%s" is effectively zero (with desired budget aim greater than zero) and finite maximum-yearly-change factor is flagged as relative. Model will not continue running; change in program funding would be negligible.' % prog_label)
                                             # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
