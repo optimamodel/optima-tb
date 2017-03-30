@@ -286,7 +286,7 @@ def getPIDs(results,poplabels):
     return pids
     
 
-def plotProjectResults(results,settings, data, title='', colormappings=None, colorlabels=None, pop_labels=None, plot_comp_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
+def plotProjectResults(results,settings, data, title='', colormappings=None, colorlabels=None, pop_colormappings=None, pop_labels=None, plot_comp_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
     """
     Plot all results associated with a project. By default, this is a disease cascade for 
     each population, as well as characteristics of interest. 
@@ -314,7 +314,7 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, col
                    save_fig=save_fig, fig_name=fig_name, plotdict=plotdict, comp_labels=plot_comp_labels)
      
     # plot characteristics
-    plotCharacteristic(results=results, settings=settings, pop_labels=pop_labels, data=data, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
+    plotCharacteristic(results=results, settings=settings, colormappings=pop_colormappings, pop_labels=pop_labels, data=data, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
     # internal plotting
     if debug:
         plotAllOutflows(results)
@@ -649,7 +649,6 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
     # iterate for each key population group
     for (i,poplabel) in enumerate(pop_labels):
         
-        
         pl_title = title+' Population: %s' % (poplabel)
         if save_fig:
             save_figname = fig_name + "_compartments_%s"%poplabel
@@ -671,7 +670,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
         legendsettings =  {'loc':'center left', 
                            'bbox_to_anchor':(1.05, 0.5), 
                            'ncol':ncol}
-   
+        
         _plotStackedCompartments(tvec, y_values[i][:], labels,
                                  legendsettings=legendsettings, catlabels=cat_labels,catcolors=colors,
                                  save_fig=save_fig,save_figname=save_figname,**pdict)
@@ -686,9 +685,9 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
          
 
 def plotCharacteristic(results, settings, data, title='', outputIDs=None, 
-                       pop_labels = None, plot_total = False,
+                       pop_labels = None, plot_total = False, 
                        plot_observed_data=True, save_fig=False, fig_name=None, 
-                       colors=None, plotdict=None, legendsettings=None):
+                       colormappings=None, colors=None, plotdict=None, legendsettings=None):
     """
     Plot a characteristic across all populations
     
@@ -749,7 +748,16 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         start_year, end_year = tvec[0], tvec[-1]
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
       
-    if colors is None or len(colors) < len(pop_labels):        
+    if colors is not None and len(colors) >= len(pop_labels):
+        pass # has highest priority 
+    elif colormappings is not None:
+        
+        colors_dict, cat_colors = getCategoryColors(colormappings,'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        colors = []
+        for (j,pop_label) in enumerate(pop_labels):
+            colors.append(colors_dict[pop_label])
+    else:    
         colors = gridColorMap(len(pop_labels))
         logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
    
@@ -830,7 +838,7 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
                   'ylabel': "",
                   'save_figname': fig_name}
 
-    plotdict.update(final_dict)
+    final_dict.update(plotdict)
     
     
     _plotBars(values, labels=output_labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings, 
