@@ -220,9 +220,7 @@ def separateLegend(labels,colors,fig_name,**legendsettings):
     import matplotlib.patches as mpatches
     
     fig = plt.figure()
-    patches = [
-        mpatches.Patch(color=color, label=label)
-        for label, color in zip(labels, colors)]
+    patches = [  mpatches.Patch(color=color, label=label) for label, color in zip(labels, colors)]
     fig.legend(patches, labels, loc='center', frameon=False,**legendsettings)
     plt.savefig("%s_legend"%fig_name)
 
@@ -409,8 +407,6 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it represents 
         # classes of compartments
-        print colors
-        print labels
         separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendScenarioComparison")
         
          
@@ -1447,7 +1443,11 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         
     fig, ax = pl.subplots()
     
-    for k,yval in enumerate(ys):
+    #plot ys, but reversed (useful for scenarios, and optimizations):
+    order_ys = reversed(range(len(ys))) # surely there are more elegant ways to do this ... 
+    for k in order_ys: 
+        
+        yval = ys[k]
         
         ax.plot(ts[k], yval, c=colors[k])
         if np.min(yval) < ymin_val:
@@ -1556,14 +1556,12 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         ax.xaxis.set_major_formatter(formatter)
     
     if not legend_off:
-        print labels
         ax.legend(labels, **legendsettings)
     
     if x_ticks is not None:
         ax.set_xticks(x_ticks[0])
         ax.set_xticklabels(x_ticks[1])
     
-    print xlim
     ax.set_xlim(xlim)
     
     if save_fig:
