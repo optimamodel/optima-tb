@@ -409,6 +409,7 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
                   'xlabel':'Year',
                   'ylabel': charac_specs[charac]['name'] + unit_tag,
                   'x_ticks' : (yr_range,yr_range),
+                  'smooth' : True, # smooth plots for scenarios
                   'title': 'Scenario comparison:\n%s [%s]' % (charac_specs[charac]['name'],pop_label),
                   'save_figname': '%s_ScenarioComparision_%s_%s'%(fig_name, pop_label, charac_specs[charac]['name'])}
             final_dict.update(plotdict)
@@ -1470,7 +1471,8 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
  
     
 def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
-             legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None, reverse_order=False,
+             legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None, 
+             reverse_order=False, smooth=True, symmetric=False, repeats=5, 
              marker='o',s=40,facecolors='none',linewidth=3,zorder=10,save_fig=False,save_figname=None,legend_off=False,**kwargs):
     """
     Plots multiple lines, with additional option of overlaying observed datapoints
@@ -1503,6 +1505,9 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     for k in order_ys: 
         
         yval = ys[k]
+
+        if smooth:
+            yval = smoothfunc(yval, symmetric, repeats)
         
         ax.plot(ts[k], yval, c=colors[k])
         if np.min(yval) < ymin_val:
@@ -1626,6 +1631,55 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         logger.info("Saved figure: '%s'"%save_figname)
         
     return fig
+       
+       
+       
+    
+def smoothfunc(ys, symmetric=False, repeats=3):
+    """
+    Params:
+        ys = y values to smooth 
+        symmetric = whether or not to use a symmetric convolution kernel
+        repeats = the number of times to apply the kernel
+        
+    Returns:
+        smoothed version of ys (as an array)
+    
+    Notes:
+        A symmetric kernel produces less "distortion" for the plot, but
+        could exacerbate unphysical effects (e.g., an intervention having
+        an impact before it begins). The function pads the ends of the
+        time series, so the first and last point shouldn't be affected
+        by the smoothing.
+        
+        The smoothness is directly proportional to the number of repeats.
+        In general, 1 repeat will smooth out time point pairs, 2 repeats
+        will smooth out time point triplets, etc.
+    
+    Example:
+        import pylab as pl
+        y = pl.rand(50)
+        ys = smoothfunc(y, symmetric=True, repeats=10)
+        pl.plot(y)
+        pl.plot(ys)
+    """
+    ys = np.array(ys) # Convert to an array
+    
+    # Choose the kernel
+    if symmetric:
+        kernel = np.array([0.25, 0.5, 0.25]) # The tiniest imaginable Gaussian
+    else:
+        kernel = np.array([0.125, 0.25, 0.5, 0.125]) # The tiniest imaginable asymmetric Gaussian
+    
+    npad = repeats*len(kernel) # Figure out how big the padding on each end needs to be
+    yspad = np.concatenate([np.ones(npad)*ys[0], ys, np.ones(npad)*ys[-1]]) # Pad the ends
+    for repeat in range(repeats): # Do the convolution
+        yspad = np.convolve(yspad, kernel, 'same')
+    
+    ys = yspad[npad:-npad] # Trim off the padding we added
+    
+    return ys
+
         
               
 def plotAllOutflows(results, num_subplots = 5):
