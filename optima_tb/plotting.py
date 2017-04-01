@@ -324,7 +324,8 @@ def plotProjectResults(results,settings, data, title='',
     if debug:
         plotAllOutflows(results)
     
-def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_labels=None,
+def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_labels=None, 
+                  percentage_relative_to=None, y_intercept=None, ylabel=None, 
                   colormappings=None,colors=None,plot_observed_data=False,save_fig=False,fig_name=None):
     """
     Line plots of characteristics across scenarios, including alive, total infected population, etc.
@@ -341,7 +342,8 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
         plot_observed_data
         save_fig
         fig_name
-        
+        percentage_relative_to    scalar (float) that results should be rescaled to, and shown as 100% of. 
+        y_bar                scalar that plots a dashed grey line at value at. 
     """
     
     # close all remaining windows
@@ -391,7 +393,13 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
                 result = scen_results[result_name] 
                 y_values_cur, _, _, _ = extractCharacteristic(results=result, charac_labels=[charac], charac_specs=charac_specs, data=data, pop_labels=[pop_label])
 
-                yvals.append(y_values_cur[charac][:][0])
+                ys = y_values_cur[charac][:][0]
+                
+                if percentage_relative_to is not None:
+                    # normalize, and also change ylabel 
+                    ys /= percentage_relative_to
+
+                yvals.append(ys)
                 labels.append(scen_labels[ri])
             
             if plot_observed_data:
@@ -408,10 +416,13 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
                   'unit_tag': unit_tag,
                   'xlabel':'Year',
                   'ylabel': charac_specs[charac]['name'] + unit_tag,
+                  'y_intercept': y_intercept,
                   'x_ticks' : (yr_range,yr_range),
                   'smooth' : True, # smooth plots for scenarios
                   'title': 'Scenario comparison:\n%s [%s]' % (charac_specs[charac]['name'],pop_label),
                   'save_figname': '%s_ScenarioComparision_%s_%s'%(fig_name, pop_label, charac_specs[charac]['name'])}
+            if percentage_relative_to is not None:
+                final_dict['ylabel'] = ylabel
             final_dict.update(plotdict)
             
             
@@ -424,10 +435,67 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
         # classes of compartments
         separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendScenarioComparison")
         
-         
+        
+def plotScenarioBar (scen_results,scen_labels,settings,data,output_list=None,year=None, pop_labels=None, legendsettings=None,
+                  colormappings=None,colors=None,plot_observed_data=False,save_fig=False,fig_name=None) :
+    """
     
+    
+    """
+    print "received outputlist", output_list
+    print colormappings
+    
+    xlim = 3
+    if len(scen_labels)>3:
+        xlim = len(scen_labels)
+    
+    plotdict = settings.plot_settings
+    if plotdict is None:
+        plotdict = {}
+    
+    if legendsettings is None:
+        legendsettings = {}
+    
+    if year is None:
+        pass # set it to be the last year in the simulation
+        
+    # setup: determine colors to be used
+    colors = []
+    if colormappings is not None:
+        colors_dict, cat_colors = getCategoryColors(colormappings,'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for olabel in output_list:
+            colors.append(colors_dict[olabel])
+    
+    print colors
+    
+    values = [ [scen_results[rname].getValueAt(output,year) for output in output_list] for rname in scen_results.keys()] 
+    print values
+    
+    final_dict = dcp(plotdict)
+    
+    final_dict2 = {'xlim': (0,xlim),
+#                       'title':  title,
+                  'ylabel': "",
+                  'save_figname': fig_name+"_%s"%output}
+    final_dict.update(final_dict2)
+    
+    
+    _plotBars(values, labels=output, colors=colors, xlabels=scen_results.keys(), legendsettings=legendsettings, 
+              save_fig=save_fig, **final_dict)
+    
+
+    if final_dict.has_key('legend_off') and final_dict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it can represent 
+        # classes of budgets
+        separateLegend(labels=output,colors=cat_colors,fig_name=fig_name, reverse_order = True, **legendsettings)
+            
+  
+
     
 def plotScenarioFlows(scen_results,scen_labels,settings,data,
+                      percentage_relative_to=None, y_intercept=None, ylabel=None, 
                       comp_labels = None, comp_titles = None, pop_labels = None, 
                       link_labels = None, include_link_not_exclude = True, link_legend = None, 
                       plot_inflows = True, plot_outflows = True, exclude_transfers = False, sum_total=False, sum_population=False,
@@ -465,7 +533,7 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
         
   
     if pop_labels is not None:
-        plot_pids = getPIDs(scen_results[0],plot_pops)
+        plot_pids = getPIDs(scen_results[0],pop_labels)
     else:
         pop_labels = scen_results[0].pop_labels
         plot_pids = range(len(scen_results[0].m_pops))
@@ -481,8 +549,72 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
     if comp_titles is not None and len(comp_titles) != len(comp_labels):
         logger.error("Flow-plot failure due to the number of compartment plot titles not matching the number of compartments to analyse.")
     
-          
+    """
+    
+    for (i,comp_label) in enumerate(comp_labels):
+        
+        rates, tvecs, all_labels = extractFlows(pop_labels=plot_pids,
+    """
+           
+    for (i,comp_label) in enumerate(comp_labels):
+        
             
+        yvals = []
+        tvals = []
+        labels= []
+        
+        for (k,result_name) in enumerate(scen_results.keys()):
+            
+            result = scen_results[result_name]  
+            all_rates, all_tvecs, all_labels = extractFlows(pop_labels=plot_pids,
+                                                            comp_label=comp_label,
+                                                            results=result, 
+                                                            settings=settings,
+                                                            tvec=tvec,
+                                                            link_labels=link_labels,
+                                                            include_link_not_exclude=include_link_not_exclude,
+                                                            link_legend=link_legend,
+                                                            plot_inflows=plot_inflows,
+                                                            plot_outflows=plot_outflows,
+                                                            sum_total=sum_total,
+                                                            sum_population=sum_population,
+                                                            exclude_transfers=exclude_transfers)
+                            
+                            
+            yv = all_rates[0]
+            print np.max(yv)
+            if percentage_relative_to is not None:
+                yv /= percentage_relative_to
+                yv *= 100.
+            
+            yvals.append(yv)
+            tvals.append(all_tvecs[0])
+            labels.append(scen_labels[k])
+    
+        if comp_titles is not None:
+            title_comp = comp_titles[i]
+        else:
+            title_comp = 'Compartment: "%s"' % settings.node_specs[comp_label]['name']
+        
+        
+        #title_pop = '\nPopulation: "%s"' % pop_label
+        
+        final_dict = {'ylim' : 0,
+          'xlabel':'Year',
+          'ylabel': 'Number of People',
+          'y_intercept': y_intercept,
+          'x_ticks' : (yr_range,yr_range),
+          'title': '', #%s %s' % (title_comp,title_pop),
+          'save_figname': '%s_ScenarioFlowComparision_%s_%s'%(fig_name,comp_label,all_labels[0])
+          }
+        if percentage_relative_to is not None:
+            final_dict['ylabel'] = ylabel
+            final_dict['ylim'] = [0,105.]
+        final_dict.update(plotdict)
+    
+        _plotLine(ys=yvals, ts=tvals, labels=labels, colors=colors, save_fig=save_fig, reverse_order=True, **final_dict)
+    
+    """"
     for (i,comp_label) in enumerate(comp_labels):
         
         for (j, pid) in enumerate(plot_pids):
@@ -496,7 +628,7 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
             for (k,result_name) in enumerate(scen_results.keys()):
                 
                 result = scen_results[result_name]  
-                
+                print "AB = ", sum_population
                 all_rates, all_tvecs, all_labels = extractFlows(pop_labels=[pid],
                                                                 comp_label=comp_label,
                                                                 results=result, 
@@ -512,8 +644,12 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
                                                                 exclude_transfers=exclude_transfers)
                                 
                                 
+                yv = all_rates[0]
                 
-                yvals.append(all_rates[0])
+                if percentage_relative_to is not None:
+                    yv /= percentage_relative_to
+                
+                yvals.append(yv)
                 tvals.append(all_tvecs[0])
                 labels.append(scen_labels[k])
         
@@ -528,14 +664,18 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
             final_dict = {'ylim' : 0,
               'xlabel':'Year',
               'ylabel': 'Number of People',
+              'y_intercept': y_intercept,
               'x_ticks' : (yr_range,yr_range),
               'title': '%s %s' % (title_comp,title_pop),
               'save_figname': '%s_ScenarioFlowComparision_%s_%s'%(fig_name,comp_label,pop_label)
               }
+            if percentage_relative_to is not None:
+                final_dict['ylabel'] = ylabel
             final_dict.update(plotdict)
         
-            _plotLine(ys=yvals, ts=tvals, labels=labels, colors=colors, save_fig=save_fig, **final_dict)
+            _plotLine(ys=yvals, ts=tvals, labels=labels, colors=colors, save_fig=save_fig, reverse_order=True, **final_dict)
     
+        """
         
                
 def plotPopulation(results, data, pop_labels, title='',colormappings=None, 
@@ -813,7 +953,6 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
     
     
     """
-    print "000000000", fig_name
     xlim = 3
     if len(xlabels)>3:
         xlim = len(xlabels)
@@ -840,7 +979,6 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
     
     # unfortunately we have to do it this way to ensure that the programs are all extracted in the same order
     values = [[results.getValueAt(output_label,year) for output_label in output_list ] for year in year_list] 
-    print values
     
     final_dict = dcp(plotdict)
     
@@ -849,9 +987,7 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
                   'title':  title,
                   'ylabel': "",
                   'save_figname': fig_name}
-    print final_dict
     final_dict.update(final_dict2)
-    print final_dict
     
     
     _plotBars(values, labels=output_labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings, 
@@ -1377,6 +1513,8 @@ def extractFlows(pop_labels, comp_label, results, settings, tvec, link_labels = 
         all_rates.append(pop_rates[0])
         all_tvecs.append(pop_tvecs[0])
         
+        
+    
     if sum_population:
         all_tvecs = all_tvecs[:1]
         all_labels = ['Total']
@@ -1472,7 +1610,8 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
     
 def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
              legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None, 
-             reverse_order=False, smooth=True, symmetric=False, repeats=5, 
+             y_intercept=None, reverse_order=False, 
+             smooth=True, symmetric=False, repeats=5, 
              marker='o',s=40,facecolors='none',linewidth=3,zorder=10,save_fig=False,save_figname=None,legend_off=False,**kwargs):
     """
     Plots multiple lines, with additional option of overlaying observed datapoints
@@ -1494,6 +1633,10 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
         
     fig, ax = pl.subplots()
+    
+    if y_intercept is not None:
+        ax.hlines([y_intercept], np.min(ts[0]), np.max(ts[0]), colors='#AAAAAA', linewidth=0.75*linewidth, linestyle='--')
+    
     
     #plot ys, but reversed - and also reverse the labels (useful for scenarios, and optimizations):
     order_ys = range(len(ys))
@@ -1536,10 +1679,11 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     # This seems to get rid of the worst of bad choices for ylabels[0] = -5 when the real ymin=0
     tmp_val = (ymin+ymin_val)/2.
     ax.set_ylim(ymin=tmp_val)
+    
     if ylim is not None:
+        print ylim
         ax.set_ylim(ylim)
-    
-    
+
     if xlim is not None:
         ax.set_xlim(xlim)
     
