@@ -180,6 +180,33 @@ class Project(object):
         if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
         self.progsets[name] = ProgramSet(name = name)
         self.progsets[name].makeProgs(data = self.data, settings = self.settings)
+    
+    def reconcile(self, parset_name=None, progset_name = None, reconcile_for_year=2017, unitcost_sigma=0.05, attribute_sigma=0.20, impact_pars=None, overwrite=True):
+        '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible'''
+        if parset_name is None: 
+            try: 
+                parset_name = self.parsets.keys()[0]
+                logger.info('Parameter set was not identified for reconciliation, using parameter set: "%s"' %parset_name)
+            except:
+                raise OptimaException('No valid parameter sets exist within the project')
+            
+        if progset_name is None: 
+            try:
+                progset_name = self.parsets.keys()[0]
+                logger.info('Program set was not identified for reconciliation, using program set: "%s"' %progset_name)
+            except:
+                raise OptimaException('No valid program sets exist within the project')
+        
+        if not parset_name in self.parsets.keys(): raise OptimaException("ERROR: no parameter set '%s' found"%parset_name)
+        if not progset_name in self.progsets.keys(): raise OptimaException("ERROR: no program set '%s' found"%progset_name)
+        #Set years for Simulation runs
+        self.setYear([2000, reconcile_for_year], False)
+        self.progsets[progset_name].reconcile(proj=self, parset_name=parset_name, reconcile_for_year=reconcile_for_year, 
+                                              unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
+                                              impact_pars=impact_pars, overwrite=overwrite)
+        #Reset back to original runSim durations
+        self.setYear([2000, self.settings.tvec_end], False)
+        
         
     def exportParset(self, parset_name):
         ''' Exports parset to .csv file '''
