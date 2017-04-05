@@ -376,7 +376,7 @@ class ResultSet(object):
                         num_flow *= comp_source.popsize_old
                     else:
 #                        num_flow[num_flow>1.] = 1.
-                        num_flow = 1 - (1 - num_flow) * self.dt     # Fractions must be converted to effective timestep rates.
+                        num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
                         num_flow *= comp_source.popsize
                     num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
                     
