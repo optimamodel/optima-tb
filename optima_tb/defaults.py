@@ -17,7 +17,7 @@ def defaultOptimOptions(settings, progset = None):
     
     options['progs_start'] = 2015.0
     options['init_alloc'] = odict()
-    options['constraints'] = {'limits':odict(), 'max_yearly_change':odict()}
+    options['constraints'] = {'limits':odict(), 'max_yearly_change':odict(), 'impacts':odict()}
     
     if not progset is None:
         for prog in progset.progs:
@@ -26,6 +26,8 @@ def defaultOptimOptions(settings, progset = None):
             options['constraints']['max_yearly_change'][prog.label] = {'val':np.inf, 'rel':True}
             if prog.func_specs['type'] == 'cost_only':
                 options['constraints']['limits'][prog.label]['vals'] = [1.0,1.0]
+        for impact in progset.impacts.keys():
+            options['constraints']['impacts'][impact] = {'vals':[0.0,np.inf]}
     options['orig_alloc'] = dcp(options['init_alloc'])
     
     options['constraints']['total'] = sum(options['init_alloc'].values())
