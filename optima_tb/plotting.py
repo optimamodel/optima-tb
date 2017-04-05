@@ -983,7 +983,7 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
     final_dict = dcp(plotdict)
     
     final_dict2 = {'xlim': (0,xlim),
-                   'ylim': (0,1.6e3),
+                #   'ylim': (0,1.6e3),
                   'title':  title,
                   'ylabel': "",
                   'save_figname': fig_name}
