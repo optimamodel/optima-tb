@@ -17,7 +17,7 @@ from optima_tb.optimization import optimizeFunc, parallelOptimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
 from optima_tb.scenarios import ParameterScenario, BudgetScenario, CoverageScenario
 from optima_tb.dataio import exportObj, importObj
-from optima_tb.reconciliation import reconcile
+import optima_tb.reconciliation as reconciliation
 
 from uuid import uuid4 as uuid
 from numpy import max
@@ -213,12 +213,42 @@ class Project(object):
         
         #Set years for Simulation runs
         self.setYear([2000, reconcile_for_year], False)
-        self.progsets[progset_name], impact = reconcile(proj=self, reconcile_for_year=reconcile_for_year, 
-                                                        parset_name=parset_name, progset_name= progset_name,
-                                                        unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
-                                                        impact_pars=impact_pars)
+        self.progsets[progset_name], impact = reconciliation.reconcile(proj=self, reconcile_for_year=reconcile_for_year, 
+                                                                       parset_name=parset_name, progset_name= progset_name,
+                                                                       unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
+                                                                       impact_pars=impact_pars)
         #Reset back to original runSim durations
         self.setYear([2000, orig_tvec_end], False)
+    
+    def compareOutcomes(self, parset_name=None, progset_name=None, year=2017):
+        '''Display how parameters for a progset and parset match up
+        '''
+#        #Make a copy of the original simulation end date
+#        orig_tvec_end = self.settings.tvec_end
+#        #Checks and settings for reconcile
+#        if parset_name is None: 
+#            try: 
+#                parset_name = self.parsets.keys()[0]
+#                logger.info('Parameter set was not identified for reconciliation, using parameter set: "%s"' %parset_name)
+#            except:
+#                raise OptimaException('No valid parameter sets exist within the project')
+#            
+#        if progset_name is None: 
+#            try:
+#                progset_name = self.parsets.keys()[0]
+#                logger.info('Program set was not identified for reconciliation, using program set: "%s"' %progset_name)
+#            except:
+#                raise OptimaException('No valid program sets exist within the project')
+#        
+#        if not parset_name in self.parsets.keys(): raise OptimaException("ERROR: no parameter set '%s' found"%parset_name)
+#        if not progset_name in self.progsets.keys(): raise OptimaException("ERROR: no program set '%s' found"%progset_name)
+#        
+#        #Set years for Simulation runs
+#        self.setYear([2000, year], False)
+#        reconciliation.objectiveFunction(newAttributes, proj, parset, progset, impact_pars, results, attributeDict, reconcile_for_year, compareoutcome)
+#        #Reset back to original runSim durations
+#        self.setYear([2000, orig_tvec_end], False)
+        pass
         
     def exportParset(self, parset_name):
         ''' Exports parset to .csv file '''
