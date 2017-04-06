@@ -824,6 +824,12 @@ class Model(object):
                                         
                                 if first_prog: new_val = 0
                                 new_val += impact
+                                if 'constraints' in self.sim_settings and 'impacts' in self.sim_settings['constraints'] and par_label in self.sim_settings['constraints']['impacts']:
+                                    try: vals = self.sim_settings['constraints']['impacts'][par_label]['vals']
+                                    except: raise OptimaException('ERROR: An impact constraint was passed to the model for "%s" but had no values associated with it.' % par_label)
+                                    if not len(vals) == 2: raise OptimaException('ERROR: Constraints for impact "%s" must be provided as a list or tuple of two values, i.e. a lower and an upper constraint.' % par_label)
+                                    if new_val < vals[0]: new_val = vals[0]
+                                    if new_val > vals[1]: new_val = vals[1]
                                 first_prog = False
                 
                 for par in pars:
