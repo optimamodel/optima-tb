@@ -1,7 +1,7 @@
 import pylab
 pylab.close('all')
 from optima_tb.project import Project
-from optima_tb.reconciliation import reconcile
+from optima_tb.reconciliation import reconcileFunc
 import os
 
 #Initialise conditions
@@ -22,7 +22,7 @@ proj.makeProgset(name=progset_name)
 
 #Set years for Simulation runs
 proj.setYear([2000, reconcile_for_year], False)
-progset, impact  = reconcile(proj=proj, reconcile_for_year=reconcile_for_year, 
+progset, impact  = reconcileFunc(proj=proj, reconcile_for_year=reconcile_for_year, 
                              parset_name=parset_name, progset_name= progset_name,
                              unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
                              impact_pars=None)

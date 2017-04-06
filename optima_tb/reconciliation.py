@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def reconcile(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma, attribute_sigma, impact_pars):
+def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma, attribute_sigma, impact_pars):
         """
         Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standard deviation sigma
         
