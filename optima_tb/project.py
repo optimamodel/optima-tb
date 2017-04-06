@@ -255,7 +255,7 @@ class Project(object):
         #Set years for Simulation runs
         impact_pars = progset.impacts.keys()
         #compare all parameters
-        impact = reconciliation.objectiveFunction([], self, parset, progset, parset_name, impact_pars, results, {}, year, compareoutcome)
+        impact = reconciliation.objectiveFunction(None, self, parset, progset, parset_name, impact_pars, results, None, year, compareoutcome)
         #Reset back to original runSim durations
         self.setYear([2000, orig_tvec_end], False)
         #display output
