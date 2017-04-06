@@ -65,9 +65,9 @@ def reconcile(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigm
             if xmin[index] <= 0.: xmin[index] = settings.TOLERANCE
         
         #Run optimisation
-        args = {'proj': proj, 'parset': parset, 'progset': progset, 'impact_pars': impact_pars, 
-                'results': results, 'attributeDict': attributeDict, 'reconcile_for_year': reconcile_for_year,
-                'compareoutcome': False}
+        args = {'proj': proj, 'parset': parset, 'progset': progset, 'parset_name': parset_name,
+                'impact_pars': impact_pars, 'results': results, 'attributeDict': attributeDict, 
+                'reconcile_for_year': reconcile_for_year, 'compareoutcome': False}
         optim_args = {
                      'stepsize': proj.settings.autofit_params['stepsize'], 
                      'maxiters': 300,#proj.settings.autofit_params['MaxIter'],
@@ -180,7 +180,7 @@ def updateProgset(newParsDict, progset):
             progset.progs[index].func_specs['pars']['unit_cost'] = newParsDict[prog_label]['unit_cost']
     return progset
 
-def objectiveFunction(newAttributes, proj, parset, progset, impact_pars, results, attributeDict, reconcile_for_year, compareoutcome):
+def objectiveFunction(newAttributes, proj, parset, progset, parset_name, impact_pars, results, attributeDict, reconcile_for_year, compareoutcome):
     '''Objective function for reconciliation process, is used to compare outcomes as well as they use the same logic
        Uses functionality from model.py
         
@@ -281,9 +281,9 @@ def objectiveFunction(newAttributes, proj, parset, progset, impact_pars, results
                     if 'f_stack' in proj.settings.linkpar_specs[par_label].keys():
                         f_stack = dcp(proj.settings.linkpar_specs[par_label]['f_stack'])
                         for dependency in proj.settings.linkpar_specs[par_label]['deps']:
-                            if dependency in proj.parsets[-1].par_ids['cascade'].keys():
-                                val = proj.parsets[-1].par_ids['cascade'][dependency]
-                                attribs = dcp(proj.parsets[-1].pars['cascade'][val])
+                            if dependency in proj.parsets[parset_name].par_ids['cascade'].keys():
+                                val = proj.parsets[parset_name].par_ids['cascade'][dependency]
+                                attribs = dcp(proj.parsets[parset_name].pars['cascade'][val])
                         newattrib = odict()
                         newattrib[attribs.label] = odict()
                         for key in attribs.y:
