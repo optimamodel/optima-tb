@@ -1,0 +1,327 @@
+from optima_tb.utils import odict
+import optima_tb.settings as settings
+from copy import deepcopy as dcp
+from optima_tb.asd import asd
+import numpy as np
+from optima_tb.parsing import FunctionParser
+
+import logging
+logger = logging.getLogger(__name__)
+
+
+
+
+def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma, attribute_sigma, impact_pars):
+        """
+        Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standard deviation sigma
+        
+        Params:
+            proj                    Project object to run simulations for reconciliation process (type: Python object)
+            reconcile_for_year      Year for which reconciliation needs to be done to ensure continuity of parset/progset (type: int)
+            parset_name             Parameter set name to match/reconcile  (type: string)
+            progset_name            Program set name to match/reconcile  (type: string)
+            unitcost_sigma          Standard deviation allowable for Unit Cost (type: float)
+            attribute_sigma         Standard deviation allowable for attributes identified in impact_pars (type: float)
+            impact_pars             Impact pars to be reconciled (type: list or None)
+            
+        Returns:
+            progset                 Updated progset with reconciled values
+            impact                  dictionary of original and reconciled parset/progset impact comparison
+            
+        """
+        parset  = proj.parsets[parset_name].pars['cascade']
+        progset = proj.progsets[progset_name]
+        impact = {}
+        logger.info('Reconciling for year: %i' %reconcile_for_year)
+        if impact_pars is None: 
+            logger.info('No impact pars defined for reconciliation, using all impact parameters')
+            impact_pars = progset.impacts.keys()
+        else:
+            new_pars = [z for z in impact_pars if z in progset.impacts.keys()]
+            impact_pars = dcp(new_pars)
+        
+        results = proj.runSim(parset_name=parset_name)
+        
+        #Get original comparison between progset and parset
+        #impact['original'] = compareOutcomes(proj, parset, progset, all_parameters, results, reconcile_for_year)
+        
+        #Convert into an optimisable list
+        attributeDict = createAttributeDict(settings = proj.settings, progset=progset)
+        attributesList, unitcost_index = createAttributeList(attributeDict)
+        
+        #Setup min-max bounds for optimisation
+        xmin, xmax = dcp(attributesList), dcp(attributesList)
+        
+        #Setup xmin and xmax conditions, unit_cost indexes are used in case unit_costs have a difference standard deviation value
+        for index in range(len(attributesList)):
+            if index in unitcost_index:
+                xmin[index] *= (1-unitcost_sigma)
+                xmax[index] *= (1+unitcost_sigma)
+            else:
+                xmin[index] *= (1-attribute_sigma)
+                xmax[index] *= (1+attribute_sigma)
+                if xmax[index] > 1.: xmax[index] = 1.
+            
+            if xmin[index] <= 0.: xmin[index] = settings.TOLERANCE
+        
+        #Run optimisation
+        args = {'proj': proj, 'parset': parset, 'progset': progset, 'parset_name': parset_name,
+                'impact_pars': impact_pars, 'results': results, 'attributeDict': attributeDict, 
+                'reconcile_for_year': reconcile_for_year, 'compareoutcome': False}
+        optim_args = {
+                     'stepsize': proj.settings.autofit_params['stepsize'], 
+                     'maxiters': 300,#proj.settings.autofit_params['MaxIter'],
+                     'maxtime': proj.settings.autofit_params['timelimit'],
+                     'sinc': proj.settings.autofit_params['sinc'],
+                     'sdec': proj.settings.autofit_params['sdec'], 
+                     'fulloutput': False,
+                     'reltol': None
+                     }
+      
+        
+        bestAttributeList = asd(objectiveFunction, attributesList, args, xmin = xmin, xmax = xmax, **optim_args)
+        bestAttributeDict = regenerateAttributesDict(bestAttributeList, attributeDict)
+        progset = updateProgset(bestAttributeDict, progset) 
+        
+        return progset, impact
+
+def createAttributeDict(settings, progset):
+    '''Creates an attribute dictionary on a per program basis from the identified progset 
+       for all parameters/impact labels that can be reconciled
+       
+       Params:
+            settings                Project settings to identify year range for interpolation of progset
+            progset                 progset on which interpolation needs to be conducted
+            
+        Returns:
+            attributesDict          A dictionary of all program_labels and respective attributes that are to be reconciled
+    '''
+    attributesDict = odict()
+    for prog_label in progset.prog_ids.keys():
+        mark_for_delete = False
+        if prog_label not in attributesDict.keys(): attributesDict[prog_label] = odict()
+        index = progset.prog_ids[prog_label]
+        try:    
+            attributesDict[prog_label]['unit_cost'] = progset.progs[index].func_specs['pars']['unit_cost']
+            interpolated_attributes = progset.progs[index].interpolate(tvec=np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt))
+            #TODO : generalise key
+            for key in interpolated_attributes:
+                if key == 'cov' or key == 'dur' or key == 'time': continue
+                elif interpolated_attributes[key][-1] <= 0: 
+                    mark_for_delete = True
+                    break
+                elif key == 'cost': continue
+                else: attributesDict[prog_label][key] = interpolated_attributes[key][-1]
+        except: mark_for_delete = True
+        
+        if mark_for_delete:
+            del attributesDict[prog_label]
+    return attributesDict
+
+def createAttributeList(attributeDict):
+    '''Converts the attribute dictionary into a list so that it can be passed into the asd function for reconciliation/optimization
+       
+       Params:
+            attributeDict           A dictionary of all program_labels and respective attributes that are to be reconciled
+            
+        Returns:
+            attributesList          A list form of the attributes dictionary
+            unitcost_index          Index of locations where unit_costs exist in the list
+    '''
+    attributesList = []
+    unitcost_index = []
+    index = 0
+    for prog_label in attributeDict.keys():
+        for par in attributeDict[prog_label]:
+            attributesList.append(attributeDict[prog_label][par])
+            if par == 'unit_cost':
+                unitcost_index.append(index)
+                index += 1
+            else: index += 1
+    return attributesList, unitcost_index
+
+def regenerateAttributesDict(attributesList, origAttributeDict):
+    '''Reverse process, where the attributes list is converted back into the attributes dictionary after optimization/reconciliation
+       
+       Params:
+            attributesList         A list of reconciled/optimized parameters that are to be used to update progset with new values
+            origAttributeDict      Reference dictionary to map the list back onto the dictionary
+            
+       Returns:
+            attributeDict          Dictionary form of the optimized list which is used to update progset
+    '''
+    attributeDict = dcp(origAttributeDict)
+    index = 0
+    for prog_label in attributeDict.keys():
+        for par in attributeDict[prog_label]:
+            attributeDict[prog_label][par] = attributesList[index]
+            index += 1
+    return attributeDict
+
+def updateProgset(newParsDict, progset):
+    '''Update the progset with the new values as obtained from reconciliation process, only updates the last known value
+    
+       Params:
+            newParsDict            Dictionary form of the optimized list which is used to update progset
+            progset                Program set that is to be updated with the new values
+            
+       Returns:
+            attributeDict          Dictionary form of the optimized list which is used to update progset
+    '''
+    for prog_label in progset.prog_ids.keys():
+        if prog_label not in newParsDict.keys(): continue
+        else:
+            index = progset.prog_ids[prog_label]
+            for attribute in newParsDict[prog_label].keys():
+                if attribute in progset.progs[index].attributes.keys():
+                    progset.progs[index].attributes[attribute][-1] = newParsDict[prog_label][attribute]
+                else:
+                    continue
+            progset.progs[index].func_specs['pars']['unit_cost'] = newParsDict[prog_label]['unit_cost']
+    return progset
+
+def objectiveFunction(newAttributes, proj, parset, progset, parset_name, impact_pars, results, attributeDict, reconcile_for_year, compareoutcome):
+    '''Objective function for reconciliation process, is used to compare outcomes as well as they use the same logic
+       Uses functionality from model.py
+        
+        Params:
+            newAttributes           Project object to run simulations for reconciliation process (type: Python object)
+            proj                    Pyhton object, i.e. the country project under consideration           
+            parset                  Parameter set to match/reconcile  (type: python object)
+            progset                 Program set to match/reconcile  (type: python object)
+            impact_pars             Impact pars to test (type: odict)
+            results                 result set to access population compartment sizes (from model runs)
+            attributeDict           attribute dictionary for comparison purposes i.e. to convert optimization proposed list into a readable dictionary
+            reconcile_for_year      Reconciliation year
+            compareoutcome          Flag to identify which parameter to return
+            
+        Returns:
+            impact['net difference'] Return difference in progset and parset for reconciliation to minimise
+            impact                  Dictionary of original and reconciled parset/progset impact comparison
+    '''
+    #Options
+    if compareoutcome == False:
+        newDict = regenerateAttributesDict(newAttributes, attributeDict)
+        progset = updateProgset(newDict, progset)
+    par_attributes = odict()
+    prog_attributes = odict()
+    parser = FunctionParser(debug=False)
+    
+    for par_label in (impact_pars):
+        for popkey in results.pop_label_index.keys():
+            if popkey not in prog_attributes.keys(): prog_attributes[popkey] = odict()
+            if par_label in progset.impacts.keys():
+                first_prog = True   # True if program in prog_label loop is the first one in the impact dict list.
+                if par_label not in prog_attributes[popkey].keys(): prog_attributes[popkey][par_label] = odict()
+                for prog_label in progset.impacts[par_label]:
+                    prog = progset.getProg(prog_label)
+                    prog_type = prog.prog_type
+                    if popkey not in prog.target_pops:
+                        continue
+                    # Make sure the population in the loop is a target of this program.
+                    prog_budget = prog.getDefaultBudget()
+                    pop = results.m_pops[results.pop_label_index[popkey]]
+                    tag = proj.settings.linkpar_specs[par_label]['tag']
+                    par = pop.getLinks(tag)[0]
+                    source_element_size = pop.comps[par.index_from[1]].popsize[-1]
+                    source_set_size = 0
+                    for from_pop_label in prog.target_pops:
+                        from_pop = results.m_pops[results.pop_label_index[from_pop_label]]
+                        alt_par = from_pop.getLinks(tag)[0]
+                        source_set_size += from_pop.comps[alt_par.index_from[1]].popsize[-1]
+                    # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
+                    if 'group' in proj.settings.progtype_specs[prog_type]['impact_pars'][par_label]:
+                        group_label = proj.settings.progtype_specs[prog_type]['impact_pars'][par_label]['group']
+                        for alt_par_label in proj.settings.progtype_specs[prog_type]['impact_par_groups'][group_label]:
+                            if not alt_par_label == par_label:
+                                alt_pars = pop.getLinks(proj.settings.linkpar_specs[alt_par_label]['tag'])
+                                for from_pop_label in prog.target_pops:
+                                    from_pop = results.m_pops[results.pop_label_index[from_pop_label]]
+                                    source_set_size += from_pop.comps[alt_pars[0].index_from[1]].popsize[-1]   
+                    #print('Program Label: %s, Parameter: %s, Source set size: %f, source_element_size: %f' % (prog_label, par_label, source_set_size, source_element_size))
+                    if par.val_format == 'fraction':
+                        if prog.cov_format == 'fraction':
+                            impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, year = reconcile_for_year)
+                        elif prog.cov_format == 'number':
+                            if source_element_size <= settings.TOLERANCE:
+                                impact = 0.0
+                            else:
+                                impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, year = reconcile_for_year)/source_set_size
+                    elif par.val_format == 'number':
+                        if prog.cov_format == 'fraction':
+                            impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, year = reconcile_for_year)*source_element_size
+                        elif prog.cov_format == 'number':
+                            if source_element_size <= settings.TOLERANCE:
+                                impact = 0.0
+                            else:
+                                impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, year = reconcile_for_year)*source_set_size/source_element_size
+                    if first_prog: new_val = 0
+                    new_val += impact
+                    first_prog = False
+                    #prog_attributes[popkey][par_label][prog_label] = {'Impact Value': new_val}
+                    prog_attributes[popkey][par_label] = {'Impact Value': new_val}
+    ###############################################################################
+    ##Cleanup prog_attributes dictionary if empty odicts exist
+    for popkey in prog_attributes.keys():
+        for par_label in prog_attributes[popkey]:
+            if (type(prog_attributes[popkey][par_label]) == odict) and (bool(prog_attributes[popkey][par_label]) == False):
+                del prog_attributes[popkey][par_label]
+    ###############################################################################
+    ##Calculate Impact of parset
+    for par_label in (impact_pars):
+        for popkey in results.pop_label_index.keys():     
+            if popkey not in par_attributes.keys(): par_attributes[popkey] = odict()      
+            for index in range((len(parset))):
+                if (par_label == parset[index].label) and (par_label not in proj.settings.par_funcs.keys()):
+                    if par_label not in par_attributes[popkey].keys(): par_attributes[popkey][par_label] = odict()      
+                    par_attributes[popkey][par_label] = {'Impact Value': dcp(parset[index].interpolate(tvec=np.arange(proj.settings.tvec_start, proj.settings.tvec_end + proj.settings.tvec_dt/2, proj.settings.tvec_dt), pop_label=popkey))}
+                    par_attributes[popkey][par_label]['Impact Value'] = par_attributes[popkey][par_label]['Impact Value'][-1]                
+                elif (par_label == parset[index].label) and (par_label in proj.settings.linkpar_specs.keys()):
+                    if par_label not in par_attributes[popkey].keys(): par_attributes[popkey][par_label] = odict()                
+                    if 'f_stack' in proj.settings.linkpar_specs[par_label].keys():
+                        f_stack = dcp(proj.settings.linkpar_specs[par_label]['f_stack'])
+                        for dependency in proj.settings.linkpar_specs[par_label]['deps']:
+                            if dependency in proj.parsets[parset_name].par_ids['cascade'].keys():
+                                val = proj.parsets[parset_name].par_ids['cascade'][dependency]
+                                attribs = dcp(proj.parsets[parset_name].pars['cascade'][val])
+                        newattrib = odict()
+                        newattrib[attribs.label] = odict()
+                        for key in attribs.y:
+                            if key == popkey: newattrib[attribs.label][key] = attribs.y[key][-1]
+                        finalattrib = odict()
+                        for i, pop_label in enumerate(newattrib[attribs.label].keys()):
+                                finalattrib[attribs.label] = newattrib[attribs.label][pop_label]
+                        par_attributes[popkey][par_label] = {'Impact Value': parser.evaluateStack(stack = f_stack, deps = finalattrib)}
+    ###############################################################################
+    ##Cleanup par_attributes dictionary to match prog_attributes
+    for popkey in prog_attributes.keys():
+        for par_label in prog_attributes[popkey]:
+            if par_label in par_attributes[popkey].keys():
+                continue
+            else: del par_attributes[popkey[par_label]]
+    ###############################################################################
+    ##Create a single comparison dictionary
+    impact = odict()
+    
+    #return sum of the difference squared to avoid negative numbers
+    impact['net_difference'] = 0.0
+    for popkey in prog_attributes.keys():
+        for par_label in prog_attributes[popkey].keys():
+            if par_label not in impact.keys(): impact[par_label] = odict()
+            if popkey not in impact[par_label].keys(): impact[par_label][popkey] = odict()
+            temp_parset_impact = par_attributes[popkey][par_label]['Impact Value']
+            temp_progset_impact = prog_attributes[popkey][par_label]['Impact Value']
+            difference = (temp_parset_impact - temp_progset_impact)**2
+            impact[par_label][popkey] = {'Impact Difference': difference}
+            impact['net_difference'] += difference    
+    if compareoutcome == False: 
+        return impact['net_difference']
+    else:
+        #return comparison between progset and parset
+        for popkey in prog_attributes.keys():
+            for par_label in prog_attributes[popkey].keys():
+                if popkey not in impact.keys(): impact[popkey] = odict()
+                if par_label not in impact[popkey].keys(): impact[popkey][par_label] = odict()
+                impact[popkey][par_label]['parset_impact_value'] = par_attributes[popkey][par_label]['Impact Value']
+                impact[popkey][par_label]['progset_impact_value'] = prog_attributes[popkey][par_label]['Impact Value']
+        return impact

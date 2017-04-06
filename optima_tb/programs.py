@@ -98,7 +98,8 @@ class ProgramSet:
         return coverage
         
     def copy(self):
-        pass
+        pass        
+
 
 class Program:
     
@@ -261,21 +262,3 @@ class Program:
                 imp *= new_val      # Scale coverage.
                 
         return imp
-        
-        
-#class TreatmentProgram(Program):
-#    
-#    def __init__(self,efficacy,adherence,*args):
-#        
-#        super(TreatmentProgram,self).init(*args)
-#        self.efficacy = efficacy
-#        self.adherence = adherence
-#        
-#class TestingProgram(Program):
-#    
-#    def __init__(self,specificity,sensitivity,*args):
-#        
-#        super(TreatmentProgram,self).init(*args)
-#        self.specificity = specificity
-#        self.sensitivity = sensitivity
-        
