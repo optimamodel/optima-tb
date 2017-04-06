@@ -86,6 +86,16 @@ def reconcile(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigm
         return progset, impact
 
 def createAttributeDict(settings, progset):
+    '''Creates an attribute dictionary on a per program basis from the identified progset 
+       for all parameters/impact labels that can be reconciled
+       
+       Params:
+            settings                Project settings to identify year range for interpolation of progset
+            progset                 progset on which interpolation needs to be conducted
+            
+        Returns:
+            attributesDict          A dictionary of all program_labels and respective attributes that are to be reconciled
+    '''
     attributesDict = odict()
     for prog_label in progset.prog_ids.keys():
         mark_for_delete = False
@@ -107,6 +117,15 @@ def createAttributeDict(settings, progset):
     return attributesDict
 
 def createAttributeList(attributeDict):
+    '''Converts the attribute dictionary into a list so that it can be passed into the asd function for reconciliation/optimization
+       
+       Params:
+            attributeDict           A dictionary of all program_labels and respective attributes that are to be reconciled
+            
+        Returns:
+            attributesList          A list form of the attributes dictionary
+            unitcost_index          Index of locations where unit_costs exist in the list
+    '''
     attributesList = []
     unitcost_index = []
     index = 0
@@ -120,6 +139,15 @@ def createAttributeList(attributeDict):
     return attributesList, unitcost_index
 
 def regenerateAttributesDict(attributesList, origAttributeDict):
+    '''Reverse process, where the attributes list is converted back into the attributes dictionary after optimization/reconciliation
+       
+       Params:
+            attributesList         A list of reconciled/optimized parameters that are to be used to update progset with new values
+            origAttributeDict      Reference dictionary to map the list back onto the dictionary
+            
+       Returns:
+            attributeDict          Dictionary form of the optimized list which is used to update progset
+    '''
     attributeDict = dcp(origAttributeDict)
     index = 0
     for prog_label in attributeDict.keys():
@@ -129,6 +157,15 @@ def regenerateAttributesDict(attributesList, origAttributeDict):
     return attributeDict
 
 def updateProgset(newParsDict, progset):
+    '''Update the progset with the new values as obtained from reconciliation process, only updates the last known value
+    
+       Params:
+            newParsDict            Dictionary form of the optimized list which is used to update progset
+            progset                Program set that is to be updated with the new values
+            
+       Returns:
+            attributeDict          Dictionary form of the optimized list which is used to update progset
+    '''
     for prog_label in progset.prog_ids.keys():
         if prog_label not in newParsDict.keys(): continue
         else:
@@ -142,6 +179,24 @@ def updateProgset(newParsDict, progset):
     return progset
 
 def objectiveFunction(newAttributes, proj, parset, progset, impact_pars, results, attributeDict, reconcile_for_year, compareoutcome):
+    '''Objective function for reconciliation process, is used to compare outcomes as well as they use the same logic
+       Uses functionality from model.py
+        
+        Params:
+            newAttributes           Project object to run simulations for reconciliation process (type: Python object)
+            proj                    Pyhton object, i.e. the country project under consideration           
+            parset                  Parameter set to match/reconcile  (type: python object)
+            progset                 Program set to match/reconcile  (type: python object)
+            impact_pars             Impact pars to test (type: odict)
+            results                 result set to access population compartment sizes (from model runs)
+            attributeDict           attribute dictionary for comparison purposes i.e. to convert optimization proposed list into a readable dictionary
+            reconcile_for_year      Reconciliation year
+            compareoutcome          Flag to identify which parameter to return
+            
+        Returns:
+            impact['net difference'] Return difference in progset and parset for reconciliation to minimise
+            impact                  Dictionary of original and reconciled parset/progset impact comparison
+    '''
     #Options
     if compareoutcome == False:
         newDict = regenerateAttributesDict(newAttributes, attributeDict)
@@ -243,21 +298,24 @@ def objectiveFunction(newAttributes, proj, parset, progset, impact_pars, results
                 continue
             else: del par_attributes[popkey[par_label]]
     ###############################################################################
-    ##Create a single omparison dictionary
+    ##Create a single comparison dictionary
     impact = odict()
-    if compareoutcome == False:
-        impact['net_difference'] = 0.0
-        for popkey in prog_attributes.keys():
-            for par_label in prog_attributes[popkey].keys():
-                if par_label not in impact.keys(): impact[par_label] = odict()
-                if popkey not in impact[par_label].keys(): impact[par_label][popkey] = odict()
-                temp_parset_impact = par_attributes[popkey][par_label]['Impact Value']
-                temp_progset_impact = prog_attributes[popkey][par_label]['Impact Value']
-                difference = (temp_parset_impact - temp_progset_impact)**2
-                impact[par_label][popkey] = {'Impact Difference': difference}
-                impact['net_difference'] += difference    
+    
+    #return sum of the difference squared to avoid negative numbers
+    impact['net_difference'] = 0.0
+    for popkey in prog_attributes.keys():
+        for par_label in prog_attributes[popkey].keys():
+            if par_label not in impact.keys(): impact[par_label] = odict()
+            if popkey not in impact[par_label].keys(): impact[par_label][popkey] = odict()
+            temp_parset_impact = par_attributes[popkey][par_label]['Impact Value']
+            temp_progset_impact = prog_attributes[popkey][par_label]['Impact Value']
+            difference = (temp_parset_impact - temp_progset_impact)**2
+            impact[par_label][popkey] = {'Impact Difference': difference}
+            impact['net_difference'] += difference    
+    if compareoutcome == False: 
         return impact['net_difference']
     else:
+        #return comparison between progset and parset
         for popkey in prog_attributes.keys():
             for par_label in prog_attributes[popkey].keys():
                 if popkey not in impact.keys(): impact[popkey] = odict()

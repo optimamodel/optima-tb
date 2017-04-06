@@ -183,7 +183,9 @@ class Project(object):
         self.progsets[name].makeProgs(data = self.data, settings = self.settings)
     
     def reconcile(self, parset_name=None, progset_name = None, reconcile_for_year=2017, unitcost_sigma=0.05, attribute_sigma=0.20, impact_pars=None, overwrite=True):
-        '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible'''
+        '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible
+           Default behaviour is to overwrite existing progset
+        '''
         #Make a copy of the original simulation end date
         orig_tvec_end = self.settings.tvec_end
         #Checks and settings for reconcile
