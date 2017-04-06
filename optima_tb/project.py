@@ -232,14 +232,14 @@ class Project(object):
         if parset_name is None: 
             try: 
                 parset_name = self.parsets.keys()[0]
-                logger.info('Parameter set was not identified for reconciliation, using parameter set: "%s"' %parset_name)
+                logger.info('Parameter set was not identified for impact parameter comparison, using parameter set: "%s"' %parset_name)
             except:
                 raise OptimaException('No valid parameter sets exist within the project')
             
         if progset_name is None: 
             try:
                 progset_name = self.progsets.keys()[0]
-                logger.info('Program set was not identified for reconciliation, using program set: "%s"' %progset_name)
+                logger.info('Program set was not identified for impact parameter comparison, using program set: "%s"' %progset_name)
             except:
                 raise OptimaException('No valid program sets exist within the project')
         
