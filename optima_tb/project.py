@@ -209,15 +209,16 @@ class Project(object):
         if not overwrite:
             progset_name += '_reconciled'
             self.makeProgset(name=progset_name)
+        logger.info('Reconciling progset "%s" as overwrite is set as "%s"' %(progset_name, overwrite))
+        
         #Set years for Simulation runs
         self.setYear([2000, reconcile_for_year], False)
-        self.progsets[progset_name], _ = reconcile(proj=self, reconcile_for_year=reconcile_for_year, 
-                                         parset_name=parset_name, progset_name= progset_name,
-                                         unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
-                                         impact_pars=impact_pars)
+        self.progsets[progset_name], impact = reconcile(proj=self, reconcile_for_year=reconcile_for_year, 
+                                                        parset_name=parset_name, progset_name= progset_name,
+                                                        unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
+                                                        impact_pars=impact_pars)
         #Reset back to original runSim durations
         self.setYear([2000, orig_tvec_end], False)
-        
         
     def exportParset(self, parset_name):
         ''' Exports parset to .csv file '''

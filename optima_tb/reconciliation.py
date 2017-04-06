@@ -52,7 +52,7 @@ def reconcile(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigm
         #Setup min-max bounds for optimisation
         xmin, xmax = dcp(attributesList), dcp(attributesList)
         
-        #Setup xmin conditions
+        #Setup xmin and xmax conditions, unit_cost indexes are used in case unit_costs have a difference standard deviation value
         for index in range(len(attributesList)):
             if index in unitcost_index:
                 xmin[index] *= (1-unitcost_sigma)
@@ -103,13 +103,15 @@ def createAttributeDict(settings, progset):
         index = progset.prog_ids[prog_label]
         try:    
             attributesDict[prog_label]['unit_cost'] = progset.progs[index].func_specs['pars']['unit_cost']
-            x = progset.progs[index].interpolate(tvec=np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt))
+            interpolated_attributes = progset.progs[index].interpolate(tvec=np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt))
             #TODO : generalise key
-            for key in x:
-                if key == 'adher' or key == 'cost' or key == 'effic' or key == 'effect' or key == 'sens':
-                    if x[key][-1] <= 0: mark_for_delete = True
-                    elif key == 'cost': continue
-                    else: attributesDict[prog_label][key] = x[key][-1]
+            for key in interpolated_attributes:
+                if key == 'cov' or key == 'dur' or key == 'time': continue
+                elif interpolated_attributes[key][-1] <= 0: 
+                    mark_for_delete = True
+                    break
+                elif key == 'cost': continue
+                else: attributesDict[prog_label][key] = interpolated_attributes[key][-1]
         except: mark_for_delete = True
         
         if mark_for_delete:
