@@ -1,6 +1,5 @@
 from optima_tb.utils import OptimaException, odict
 from optima_tb.interpolation import interpolateFunc
-import optima_tb.settings as settings
 
 import logging
 logger = logging.getLogger(__name__)
@@ -99,82 +98,7 @@ class ProgramSet:
         return coverage
         
     def copy(self):
-        pass
-    
-    def reconcile(self, proj, parset_name, reconcile_for_year, unitcost_sigma, attribute_sigma, impact_pars, overwrite):
-        """
-        Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standard deviation sigma
-        
-        Params:
-            proj                    Project object to run simulations for reconciliation process (type: Python object)
-            parset_name             Parameter set name to match/reconcile  (type: string)
-            reconcile_for_year      Year for which reconciliation needs to be done to ensure continuity of parset/progset (type: int)
-            unitcost_sigma          Standard deviation allowable for Unit Cost (type: float)
-            attribute_sigma         Standard deviation allowable for attributes identified in impact_pars (type: float)
-            impact_pars             Impact pars to be reconciled (type: list or None)
-            overwrite               bool flag indicating whether to overwrite existing progset or create a new progset (type: bool)
-            
-        Returns:
-            results    dictionary of results obtained for each scenario, with key = scenario_name
-        """
-        from optima_tb.asd import asd
-        impact = {}
-        logger.info('Reconciling for year: %i' %reconcile_for_year)
-        if impact_pars is None: 
-            logger.info('No impact pars defined for reconciliation, using all impact parameters')
-            impact_pars = self.impacts.keys()
-        else:
-            new_pars = [z for z in impact_pars if z in self.impacts.keys()]
-            impact_pars = dcp(new_pars)
-        
-        parset = proj.parsets[parset_name].pars['cascade']
-        results = proj.runSim(parset_name=parset_name)
-        
-        #Get original comparison between progset and parset
-        #impact['original'] = compareOutcomes(proj, parset, progset, all_parameters, results, reconcile_for_year)
-        
-        #Convert into an optimisable list
-        origAttributeDict = actualAttributeDict(proj = proj, progset=progset)
-        attributesList, unitcost_index = generateAttributesList(actualAttributeDict=origAttributeDict)
-        
-        #Setup min-max bounds for optimisation
-        xmin, xmax = dcp(attributesList), dcp(attributesList)
-        
-        #Setup xmin conditions
-        for index in range(len(attributesList)):
-            if index in unitcost_index:
-                xmin[index] *= (1-unitcost_sigma)
-                xmax[index] *= (1+unitcost_sigma)
-            else:
-                xmin[index] *= (1-attribute_sigma)
-                xmax[index] *= (1+attribute_sigma)
-                if xmax[index] > 1.: xmax[index] = 1.
-            
-            if xmin[index] <= 0.: xmin[index] = settings.TOLERANCE
-            
-        #Run optimisation
-        args = {'proj': proj, 'parset': parset, 'progset': self, 'impact_pars': impact_pars, 
-                'results': results, 'origAttributeDict': origAttributeDict, 'reconcile_for_year': reconcile_for_year,
-                'compareoutcome': False}
-        optim_args = {
-                     'stepsize': proj.settings.optimization_params['stepsize'], 
-                     'maxiters': proj.settings.optimization_params['MaxIter'],
-                     'maxtime': proj.settings.optimization_params['timelimit'],
-                     'sinc': proj.settings.optimization_params['sinc'],
-                     'sdec': proj.settings.optimization_params['sdec'], 
-                     'fulloutput': False,
-                     'reltol': None
-                     }
-      
-        
-        attributeBest = asd(objectiveFunction, attributesList, args, xmin = xmin, xmax = xmax, **optim_args)
-        
-        return attributeBest, impact
-    
-    #def compareOutcomes(proj, parset, progset, all_parameters, results, reconcile_for_year):
-        
-    
-        
+        pass        
 
 
 class Program:
@@ -338,21 +262,3 @@ class Program:
                 imp *= new_val      # Scale coverage.
                 
         return imp
-        
-        
-#class TreatmentProgram(Program):
-#    
-#    def __init__(self,efficacy,adherence,*args):
-#        
-#        super(TreatmentProgram,self).init(*args)
-#        self.efficacy = efficacy
-#        self.adherence = adherence
-#        
-#class TestingProgram(Program):
-#    
-#    def __init__(self,specificity,sensitivity,*args):
-#        
-#        super(TreatmentProgram,self).init(*args)
-#        self.specificity = specificity
-#        self.sensitivity = sensitivity
-        

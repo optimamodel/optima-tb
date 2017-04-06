@@ -17,6 +17,7 @@ from optima_tb.optimization import optimizeFunc, parallelOptimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
 from optima_tb.scenarios import ParameterScenario, BudgetScenario, CoverageScenario
 from optima_tb.dataio import exportObj, importObj
+from optima_tb.reconciliation import reconcile
 
 from uuid import uuid4 as uuid
 from numpy import max
@@ -183,6 +184,9 @@ class Project(object):
     
     def reconcile(self, parset_name=None, progset_name = None, reconcile_for_year=2017, unitcost_sigma=0.05, attribute_sigma=0.20, impact_pars=None, overwrite=True):
         '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible'''
+        #Make a copy of the original simulation end date
+        orig_tvec_end = self.settings.tvec_end
+        #Checks and settings for reconcile
         if parset_name is None: 
             try: 
                 parset_name = self.parsets.keys()[0]
@@ -199,13 +203,18 @@ class Project(object):
         
         if not parset_name in self.parsets.keys(): raise OptimaException("ERROR: no parameter set '%s' found"%parset_name)
         if not progset_name in self.progsets.keys(): raise OptimaException("ERROR: no program set '%s' found"%progset_name)
+        #If overwrite selected, reconcile will overwrite the progset, otherwise a new progset is created
+        if not overwrite:
+            progset_name += '_reconciled'
+            self.makeProgset(name=progset_name)
         #Set years for Simulation runs
         self.setYear([2000, reconcile_for_year], False)
-        self.progsets[progset_name].reconcile(proj=self, parset_name=parset_name, reconcile_for_year=reconcile_for_year, 
-                                              unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
-                                              impact_pars=impact_pars, overwrite=overwrite)
+        self.progsets[progset_name], _ = reconcile(proj=self, reconcile_for_year=reconcile_for_year, 
+                                         parset_name=parset_name, progset_name= progset_name,
+                                         unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
+                                         impact_pars=impact_pars)
         #Reset back to original runSim durations
-        self.setYear([2000, self.settings.tvec_end], False)
+        self.setYear([2000, orig_tvec_end], False)
         
         
     def exportParset(self, parset_name):
