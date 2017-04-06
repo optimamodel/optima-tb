@@ -320,8 +320,12 @@ def objectiveFunction(newAttributes, proj, parset, progset, parset_name, impact_
         #return comparison between progset and parset
         for popkey in prog_attributes.keys():
             for par_label in prog_attributes[popkey].keys():
-                if popkey not in impact.keys(): impact[popkey] = odict()
-                if par_label not in impact[popkey].keys(): impact[popkey][par_label] = odict()
-                impact[popkey][par_label]['parset_impact_value'] = par_attributes[popkey][par_label]['Impact Value']
-                impact[popkey][par_label]['progset_impact_value'] = prog_attributes[popkey][par_label]['Impact Value']
+                #if popkey not in impact.keys(): impact[popkey] = odict()
+                #if par_label not in impact[popkey].keys(): impact[popkey][par_label] = odict()
+                #impact[popkey][par_label]['parset_impact_value'] = par_attributes[popkey][par_label]['Impact Value']
+                #impact[popkey][par_label]['progset_impact_value'] = prog_attributes[popkey][par_label]['Impact Value']
+                if par_label not in impact.keys(): impact[par_label] = odict()
+                if popkey not in impact[par_label].keys(): impact[par_label][popkey] = odict()
+                impact[par_label][popkey]['parset_impact_value'] = par_attributes[popkey][par_label]['Impact Value']
+                impact[par_label][popkey]['progset_impact_value'] = prog_attributes[popkey][par_label]['Impact Value']
         return impact

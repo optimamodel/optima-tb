@@ -220,35 +220,54 @@ class Project(object):
         #Reset back to original runSim durations
         self.setYear([2000, orig_tvec_end], False)
     
-    def compareOutcomes(self, parset_name=None, progset_name=None, year=2017):
+    def compareOutcomes(self, parset_name=None, progset_name=None, year=2017, compareoutcome=True):
         '''Display how parameters for a progset and parset match up
         '''
-#        #Make a copy of the original simulation end date
-#        orig_tvec_end = self.settings.tvec_end
-#        #Checks and settings for reconcile
-#        if parset_name is None: 
-#            try: 
-#                parset_name = self.parsets.keys()[0]
-#                logger.info('Parameter set was not identified for reconciliation, using parameter set: "%s"' %parset_name)
-#            except:
-#                raise OptimaException('No valid parameter sets exist within the project')
-#            
-#        if progset_name is None: 
-#            try:
-#                progset_name = self.parsets.keys()[0]
-#                logger.info('Program set was not identified for reconciliation, using program set: "%s"' %progset_name)
-#            except:
-#                raise OptimaException('No valid program sets exist within the project')
-#        
-#        if not parset_name in self.parsets.keys(): raise OptimaException("ERROR: no parameter set '%s' found"%parset_name)
-#        if not progset_name in self.progsets.keys(): raise OptimaException("ERROR: no program set '%s' found"%progset_name)
-#        
-#        #Set years for Simulation runs
-#        self.setYear([2000, year], False)
-#        reconciliation.objectiveFunction(newAttributes, proj, parset, progset, impact_pars, results, attributeDict, reconcile_for_year, compareoutcome)
-#        #Reset back to original runSim durations
-#        self.setYear([2000, orig_tvec_end], False)
-        pass
+        #Make a copy of the original simulation end date
+        orig_tvec_end = self.settings.tvec_end
+        #Checks and settings for reconcile
+        if parset_name is None: 
+            try: 
+                parset_name = self.parsets.keys()[0]
+                logger.info('Parameter set was not identified for reconciliation, using parameter set: "%s"' %parset_name)
+            except:
+                raise OptimaException('No valid parameter sets exist within the project')
+            
+        if progset_name is None: 
+            try:
+                progset_name = self.parsets.keys()[0]
+                logger.info('Program set was not identified for reconciliation, using program set: "%s"' %progset_name)
+            except:
+                raise OptimaException('No valid program sets exist within the project')
+        
+        if not parset_name in self.parsets.keys(): raise OptimaException("ERROR: no parameter set '%s' found"%parset_name)
+        if not progset_name in self.progsets.keys(): raise OptimaException("ERROR: no program set '%s' found"%progset_name)
+        
+        #Set years for Simulation runs
+        self.setYear([2000, year], False)
+        parset  = self.parsets[parset_name].pars['cascade']
+        progset = self.progsets[progset_name]
+        results = self.runSim(parset_name=parset_name)
+        
+        #Set years for Simulation runs
+        impact_pars = progset.impacts.keys()
+        #compare all parameters
+        impact = reconciliation.objectiveFunction([], self, parset, progset, parset_name, impact_pars, results, {}, year, compareoutcome)
+        #Reset back to original runSim durations
+        self.setYear([2000, orig_tvec_end], False)
+        #display output
+        parset_value  = 'parset_impact_value'
+        progset_value = 'progset_impact_value'
+        outcome = '\n\t\t\t%s\t%s\n' %(parset_value, progset_value)
+        for par_label in impact.keys():
+            if par_label == 'net_difference': continue
+            else:
+                outcome += '%s\n' %(par_label)
+                for popkey in impact[par_label]:
+                    #outcome += '{%10s}\t\t\t%0.2f\t\t\t%0.2f\n' %(popkey, impact[par_label][popkey]['parset_impact_value'], impact[par_label][popkey]['progset_impact_value'])
+                    outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact[par_label][popkey]['parset_impact_value'], impact[par_label][popkey]['progset_impact_value'])
+                outcome += '\n'
+        print outcome
         
     def exportParset(self, parset_name):
         ''' Exports parset to .csv file '''
