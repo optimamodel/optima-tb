@@ -221,9 +221,11 @@ class Project(object):
         #Reset back to original runSim durations
         self.setYear([2000, orig_tvec_end], False)
     
-    def compareOutcomes(self, parset_name=None, progset_name=None, year=2017, compareoutcome=True):
+    def compareOutcomes(self, parset_name=None, progset_name=None, year=2017):
         '''Display how parameters for a progset and parset match up
         '''
+        #Ensure that compare outcome functionality is used
+        compareoutcome=True
         #Make a copy of the original simulation end date
         orig_tvec_end = self.settings.tvec_end
         #Checks and settings for reconcile
