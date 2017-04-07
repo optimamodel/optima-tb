@@ -16,5 +16,5 @@ proj.makeParset(name=parset_name)
 proj.makeProgset(name=progset_name)
 
 #Set years for Simulation runs
-proj.compareOutcomes()
+proj.compareOutcomes(parset_name=parset_name, progset_name=progset_name, year=2017)
     
