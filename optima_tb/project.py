@@ -203,8 +203,8 @@ class Project(object):
             except:
                 raise OptimaException('No valid program sets exist within the project')
         
-        if not parset_name in self.parsets.keys(): raise OptimaException("ERROR: no parameter set '%s' found"%parset_name)
-        if not progset_name in self.progsets.keys(): raise OptimaException("ERROR: no program set '%s' found"%progset_name)
+        if not parset_name in self.parsets.keys(): raise OptimaException("ERROR: No parameter set '%s' found"%parset_name)
+        if not progset_name in self.progsets.keys(): raise OptimaException("ERROR: No program set '%s' found"%progset_name)
         #If overwrite selected, reconcile will overwrite the progset, otherwise a new progset is created
         if not overwrite:
             progset_name += '_reconciled'
@@ -213,8 +213,8 @@ class Project(object):
         
         #Set years for Simulation runs
         self.setYear([2000, reconcile_for_year], False)
-        self.progsets[progset_name], impact = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year, 
-                                                                       parset_name=parset_name, progset_name= progset_name,
+        self.progsets[progset_name], impact = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
+                                                                       parset_name=parset_name, progset_name=progset_name,
                                                                        unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
                                                                        impact_pars=impact_pars)
         #Reset back to original runSim durations
