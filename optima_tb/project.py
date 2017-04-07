@@ -17,10 +17,10 @@ from optima_tb.optimization import optimizeFunc, parallelOptimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
 from optima_tb.scenarios import ParameterScenario, BudgetScenario, CoverageScenario
 from optima_tb.dataio import exportObj, importObj
-from optima_tb.reconciliation import reconcileFunc
+from optima_tb.reconciliation import reconcileFunc, reconciliationMetric
 
 from uuid import uuid4 as uuid
-from numpy import max
+import numpy as np
 
 
 #%% Project class (i.e. one self-contained geographical unit)
@@ -213,12 +213,63 @@ class Project(object):
         
         #Set years for Simulation runs
         self.setYear([2000, reconcile_for_year], False)
-        self.progsets[progset_name], impact = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year, 
-                                                        parset_name=parset_name, progset_name= progset_name,
-                                                        unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
-                                                        impact_pars=impact_pars)
+        self.progsets[progset_name], impact = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
+                                                                       parset_name=parset_name, progset_name=progset_name,
+                                                                       unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
+                                                                       impact_pars=impact_pars)
+
         #Reset back to original runSim durations
         self.setYear([2000, orig_tvec_end], False)
+    
+    def compareOutcomes(self, parset_name=None, progset_name=None, year=2017):
+        '''Display how parameters for a progset and parset match up
+        '''
+        #Ensure that compare outcome functionality is used
+        compareoutcome=True
+        #Make a copy of the original simulation end date
+        orig_tvec_end = self.settings.tvec_end
+        #Checks and settings for reconcile
+        if parset_name is None: 
+            try: 
+                parset_name = self.parsets.keys()[0]
+                logger.info('Parameter set was not identified for impact parameter comparison, using parameter set: "%s"' %parset_name)
+            except:
+                raise OptimaException('No valid parameter sets exist within the project')
+            
+        if progset_name is None: 
+            try:
+                progset_name = self.progsets.keys()[0]
+                logger.info('Program set was not identified for impact parameter comparison, using program set: "%s"' %progset_name)
+            except:
+                raise OptimaException('No valid program sets exist within the project')
+        
+        if not parset_name in self.parsets.keys(): raise OptimaException("ERROR: No parameter set '%s' found"%parset_name)
+        if not progset_name in self.progsets.keys(): raise OptimaException("ERROR: No program set '%s' found"%progset_name)
+        
+        #Set years for Simulation runs
+        self.setYear([2000, year], False)
+        parset  = self.parsets[parset_name].pars['cascade']
+        progset = self.progsets[progset_name]
+        results = self.runSim(parset_name=parset_name)
+        
+        #Set years for Simulation runs
+        impact_pars = progset.impacts.keys()
+        #compare all parameters
+        impact = reconciliationMetric([], self, parset, progset, parset_name, impact_pars, results, {}, year, compareoutcome)
+        #Reset back to original runSim durations
+        self.setYear([2000, orig_tvec_end], False)
+        #display output
+        parset_value  = 'parset_impact_value'
+        progset_value = 'progset_impact_value'
+        outcome = '\n\t\t\t%s\t%s\n' %(parset_value, progset_value)
+        for par_label in impact.keys():
+            if par_label == 'net_difference': continue
+            else:
+                outcome += '%s\n' %(par_label)
+                for popkey in impact[par_label]:
+                    outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact[par_label][popkey]['parset_impact_value'], impact[par_label][popkey]['progset_impact_value'])
+                outcome += '\n'
+        print outcome
         
     def exportParset(self, parset_name):
         ''' Exports parset to .csv file '''
@@ -273,7 +324,7 @@ class Project(object):
         
         datapoints, _, _ = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,self.data['characs'],metric)
-        logger.info("Calculated scores for fit using %s: largest value=%.2f"%(metric,max(score)))
+        logger.info("Calculated scores for fit using %s: largest value=%.2f"%(metric,np.max(score)))
         return score
       
       
