@@ -385,7 +385,9 @@ class PlottingSettings():
                          'colormapping_order':'alternate3',# as we have triplets in undiagnosed --> diagnosed --> on treatment
                          'formatter': FuncFormatter(self.KMSuffixFormatter) , 
                          'barwidth': 0.8, 
-                         'bar_offset': 0.2} 
+                         'bar_offset': 0.2,
+                         # alpha for fill-between 
+                         'alpha': 0.3} 
 
 
     def devSettings(self):
