@@ -17,7 +17,7 @@ from optima_tb.optimization import optimizeFunc, parallelOptimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
 from optima_tb.scenarios import ParameterScenario, BudgetScenario, CoverageScenario
 from optima_tb.dataio import exportObj, importObj
-import optima_tb.reconciliation as reconciliation
+from optima_tb.reconciliation import reconcileFunc, reconciliationMetric
 
 from uuid import uuid4 as uuid
 from numpy import max
@@ -198,7 +198,7 @@ class Project(object):
             
         if progset_name is None: 
             try:
-                progset_name = self.parsets.keys()[0]
+                progset_name = self.progsets.keys()[0]
                 logger.info('Program set was not identified for reconciliation, using program set: "%s"' %progset_name)
             except:
                 raise OptimaException('No valid program sets exist within the project')
@@ -213,7 +213,7 @@ class Project(object):
         
         #Set years for Simulation runs
         self.setYear([2000, reconcile_for_year], False)
-        self.progsets[progset_name], impact = reconciliation.reconcile(proj=self, reconcile_for_year=reconcile_for_year, 
+        self.progsets[progset_name], impact = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year, 
                                                                        parset_name=parset_name, progset_name= progset_name,
                                                                        unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
                                                                        impact_pars=impact_pars)
@@ -235,7 +235,7 @@ class Project(object):
             
         if progset_name is None: 
             try:
-                progset_name = self.parsets.keys()[0]
+                progset_name = self.progsets.keys()[0]
                 logger.info('Program set was not identified for reconciliation, using program set: "%s"' %progset_name)
             except:
                 raise OptimaException('No valid program sets exist within the project')
@@ -252,7 +252,7 @@ class Project(object):
         #Set years for Simulation runs
         impact_pars = progset.impacts.keys()
         #compare all parameters
-        impact = reconciliation.objectiveFunction([], self, parset, progset, parset_name, impact_pars, results, {}, year, compareoutcome)
+        impact = reconciliationMetric([], self, parset, progset, parset_name, impact_pars, results, {}, year, compareoutcome)
         #Reset back to original runSim durations
         self.setYear([2000, orig_tvec_end], False)
         #display output

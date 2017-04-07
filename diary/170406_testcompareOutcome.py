@@ -1,7 +1,6 @@
 import pylab
 pylab.close('all')
 from optima_tb.project import Project
-from optima_tb.reconciliation import reconcile
 import os
 
 #Initialise conditions
