@@ -809,6 +809,7 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
     
         
     """
+    charac_specs = settings.charac_specs
     # setup:    
     if outputIDs is None:
         outputIDs = results.outputs.keys()
@@ -827,7 +828,6 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
         legendsettings = {}
         
     tvec = results.sim_settings['tvec']
-    charac_specs = settings.charac_specs
     
     year_inc = 5.  # TODO: move this to setting
     if 'xlim' in plotdict.keys():
