@@ -221,7 +221,7 @@ class Project(object):
         #Reset back to original runSim durations
         self.setYear([2000, orig_tvec_end], False)
     
-    def compareOutcomes(self, parset_name=None, progset_name=None, year=2017):
+    def compareOutcomes(self, parset_name=None, progset_name=None, budget_allocation= None, year=2017):
         '''Display how parameters for a progset and parset match up
         '''
         #Ensure that compare outcome functionality is used
@@ -255,7 +255,7 @@ class Project(object):
         #Set years for Simulation runs
         impact_pars = progset.impacts.keys()
         #compare all parameters
-        impact = reconciliationMetric([], self, parset, progset, parset_name, impact_pars, results, {}, year, compareoutcome)
+        impact = reconciliationMetric([], self, parset, progset, parset_name, impact_pars, results, {}, year, compareoutcome, prog_budget_alloc=budget_allocation)
         #Reset back to original runSim durations
         self.setYear([2000, orig_tvec_end], False)
         #display output

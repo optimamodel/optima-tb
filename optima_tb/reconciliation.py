@@ -180,7 +180,7 @@ def updateProgset(new_pars_dict, progset):
             progset.progs[index].func_specs['pars']['unit_cost'] = new_pars_dict[prog_label]['unit_cost']
     return progset
 
-def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, impact_pars, results, attribute_dict, reconcile_for_year, compareoutcome):
+def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, impact_pars, results, attribute_dict, reconcile_for_year, compareoutcome, prog_budget_alloc=None):
     '''Objective function for reconciliation process, is used to compare outcomes as well as they use the same logic
        Uses functionality from model.py
         
@@ -219,7 +219,10 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                     if popkey not in prog.target_pops:
                         continue
                     # Make sure the population in the loop is a target of this program.
-                    prog_budget = prog.getDefaultBudget()
+                    if prog_budget_alloc is None:
+                        prog_budget = prog.getDefaultBudget()
+                    else:
+                        prog_budget = prog_budget_alloc[prog_label]
                     pop = results.m_pops[results.pop_label_index[popkey]]
                     tag = proj.settings.linkpar_specs[par_label]['tag']
                     par = pop.getLinks(tag)[0]
