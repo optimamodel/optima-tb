@@ -1387,6 +1387,7 @@ def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_l
         plot_total            flag indicating whether to sum across populations
         
     """
+    
     datapoints, _, _ = results.getCharacteristicDatapoints(pop_label=pop_labels,char_label=charac_labels,use_observed_times=False)
     
     unit_tags = []
@@ -1428,7 +1429,8 @@ def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_l
         # 3) plot as total for a characteristic across populations. Note that we shouldn't plot
         #    totals for percentages, but we won't enforce this (for the moment)     
         if plot_total:
-            y_values = [datapoints[output_id][pop] for pop in pop_labels]
+            
+            y_values = [datapoints[output_id][i] for i,p in enumerate(pop_labels)]
             y_values = np.array(y_values)
             y_values = [y_values.sum(axis=0)]
             datapoints[output_id] = y_values
