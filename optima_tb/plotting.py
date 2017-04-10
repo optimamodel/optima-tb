@@ -837,7 +837,8 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
         start_year, end_year = tvec[0], tvec[-1]
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
       
-
+    # placeholder for y_bounds:
+    yb = None
     
     if colors is not None and len(colors) >= len(pop_labels):
         pass # colors as defined in the args should be used as is  
@@ -877,7 +878,11 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
         
         final_dict.update(plotdict)
         
-        _plotLine(y_values[output_id][:], np.tile(tvec,(len(labels),1)), labels, y_bounds=y_bounds[i], legendsettings=None, save_fig=save_fig, colors=colors, **final_dict)
+        
+        if y_bounds is not None:
+            yb = y_bounds[i]
+        
+        _plotLine(y_values[output_id][:], np.tile(tvec,(len(labels),1)), labels, y_bounds=yb, legendsettings=None, save_fig=save_fig, colors=colors, **final_dict)
     
     if final_dict.has_key('legend_off') and final_dict['legend_off']:
         # Do this separately to main iteration so that previous figure are not corrupted
