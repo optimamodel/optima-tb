@@ -1596,8 +1596,8 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         
         # if there are confidence bounds, plot using fill_between 
         if y_bounds is not None:
-            t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2] 
-            ax.fill_between(t_bound, y_min_bound, y_max_bound, facecolor=colors[k], alpha = alpha, linewidth=0)
+            t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2]
+            ax.fill_between(t_bound, y_min_bound, y_max_bound, facecolor=colors[k], alpha = alpha, linewidth=0.1, edgecolor=colors[k])
         
         # smooth line 
         if smooth:
@@ -1632,6 +1632,8 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     # This seems to get rid of the worst of bad choices for ylabels[0] = -5 when the real ymin=0
     tmp_val = (ymin+ymin_val)/2.
     ax.set_ylim(ymin=tmp_val)
+    
+    ax.set_ylim(ymin=0) ##### TMP
     
     if ylim is not None:
         print ylim
