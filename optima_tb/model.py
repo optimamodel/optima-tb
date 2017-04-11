@@ -316,10 +316,6 @@ class Model(object):
                     for pop_label in parset.pop_labels:
                         val = par.interpolate(tvec = t_init, pop_label = pop_label)[0]
                         seed_dict[ep_label][pop_label] *= val
-
-#        print include_dict
-#        print calc_done
-#        print [(key,seed_dict[key][0]) for key in calc_done.keys()]
         
         # Now loop through all 'uncalculated entry-points'.
         # If any of their remaining inclusions have been calculated in previous loops, stop tracking the included compartment and subtract its value from the entry-point.
@@ -348,11 +344,6 @@ class Model(object):
             review_count += 1
             if review_count > len(settings.node_specs.keys()):
                 raise OptimaException('ERROR: Calculation phase for initial compartment values has looped more times than the number of compartments. Something is likely wrong with characteristic definitions.')
-
-#        print include_dict
-#        print calc_done
-#        print [(key,seed_dict[key][0]) for key in calc_done.keys()]
-#        print sum([seed_dict[key][0] for key in calc_done.keys()])
         
         # Now initialise all model compartments with these calculated values.
         for seed_label in seed_dict.keys():
