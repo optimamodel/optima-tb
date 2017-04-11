@@ -212,10 +212,10 @@ class Project(object):
         logger.info('Reconciling progset "%s" as overwrite is set as "%s"' %(progset_name, overwrite))
         
         #Run reconcile functionality
-        self.progsets[progset_name], impact = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
-                                                                       parset_name=parset_name, progset_name=progset_name,
-                                                                       unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
-                                                                       impact_pars=impact_pars,orig_tvec_end=orig_tvec_end)
+        self.progsets[progset_name] = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
+                                                    parset_name=parset_name, progset_name=progset_name,
+                                                    unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
+                                                    impact_pars=impact_pars,orig_tvec_end=orig_tvec_end)
 
     
     def compareOutcomes(self, parset_name=None, progset_name=None, year=2017):

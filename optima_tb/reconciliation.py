@@ -48,7 +48,7 @@ def reconcileFunc(proj=None, reconcile_for_year=None, parset_name=None, progset_
         results = proj.runSim(parset_name=parset_name)
         
         #Get original comparison between progset and parset
-        #impact['original'] = compareOutcomes(proj, parset, progset, all_parameters, results, reconcile_for_year)
+        impact['original'] = compareOutcomesFunc(proj=proj, parset_name=parset_name, progset_name=progset_name, year=reconcile_for_year, compareoutcome=True, display=False)
         
         #Convert into an optimisable list
         attribute_dict = createAttributeDict(settings=proj.settings, progset=progset)
@@ -86,13 +86,28 @@ def reconcileFunc(proj=None, reconcile_for_year=None, parset_name=None, progset_
         best_attribute_list = asd(reconciliationMetric, attribute_list, args, xmin = xmin, xmax = xmax, **optim_args)
         best_attribute_dict = regenerateAttributesDict(attribute_list = best_attribute_list, orig_attribute_dict = attribute_dict)
         progset = updateProgset(new_pars_dict=best_attribute_dict, progset=progset)
-        
+        impact['reconciled'] = compareOutcomesFunc(proj=proj, parset_name=parset_name, progset_name=progset_name, year=reconcile_for_year, compareoutcome=True, display=False)
+        print impact['original']['snmno_rate']
+        print impact['reconciled'].keys()
+        #Display comparison between old progset and new reconciled progset
+        parset_value = 'Parset Impact'
+        origprogset_value = 'Original Impact'
+        reconcileprogset_value = 'Reconciled Impact'
+        print('Comparing outcomes for year: %i' %reconcile_for_year)
+        outcome = '\n\t\t\t%s\t\t%s\t\t%s\n' %(parset_value, origprogset_value, reconcileprogset_value)
+        for par_label in impact['original'].keys():
+            if par_label == 'net_difference': continue
+            else:
+                outcome += '%s\n' %(par_label)
+                for popkey in impact['original'][par_label]:
+                    outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact['original'][par_label][popkey]['parset_impact_value'], impact['original'][par_label][popkey]['progset_impact_value'], impact['reconciled'][par_label][popkey]['progset_impact_value'])
+                outcome += '\n'
+        print outcome
         #Reset back to original runSim durations
         proj.setYear([2000, orig_tvec_end], False)
-        
-        return progset, impact
+        return progset
 
-def compareOutcomesFunc(proj=None, parset_name=None, progset_name=None, year=None, compareoutcome=None):
+def compareOutcomesFunc(proj=None, parset_name=None, progset_name=None, year=None, compareoutcome=None, display=True):
     #Make a copy of the original simulation end date
     orig_tvec_end = proj.settings.tvec_end
     #Checks and settings for reconcile
@@ -125,20 +140,22 @@ def compareOutcomesFunc(proj=None, parset_name=None, progset_name=None, year=Non
                                   results=results, attribute_dict={}, reconcile_for_year=year, 
                                   compareoutcome=compareoutcome)
     #display output
-    print('Comparing outcomes for year: %i' %year)
-    parset_value  = 'parset_impact_value'
-    progset_value = 'progset_impact_value'
-    outcome = '\n\t\t\t%s\t%s\n' %(parset_value, progset_value)
-    for par_label in impact.keys():
-        if par_label == 'net_difference': continue
-        else:
-            outcome += '%s\n' %(par_label)
-            for popkey in impact[par_label]:
-                outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact[par_label][popkey]['parset_impact_value'], impact[par_label][popkey]['progset_impact_value'])
-            outcome += '\n'
-    print outcome
+    if display:
+        print('Comparing outcomes for year: %i' %year)
+        parset_value  = 'parset_impact_value'
+        progset_value = 'progset_impact_value'
+        outcome = '\n\t\t\t%s\t%s\n' %(parset_value, progset_value)
+        for par_label in impact.keys():
+            if par_label == 'net_difference': continue
+            else:
+                outcome += '%s\n' %(par_label)
+                for popkey in impact[par_label]:
+                    outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact[par_label][popkey]['parset_impact_value'], impact[par_label][popkey]['progset_impact_value'])
+                outcome += '\n'
+        print outcome
     #Reset back to original runSim durations
     proj.setYear([2000, orig_tvec_end], False)
+    return impact
 
 def createAttributeDict(settings=None, progset=None):
     '''Creates an attribute dictionary on a per program basis from the identified progset 
