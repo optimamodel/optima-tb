@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def reconcileFunc(proj=None, reconcile_for_year=None, parset_name=None, progset_name=None, unitcost_sigma=None, attribute_sigma=None, impact_pars=None, orig_tvec_end=None):
+def reconcileFunc(proj=None, reconcile_for_year=None, parset_name=None, progset_name=None, unitcost_sigma=None, attribute_sigma=None, impact_pars=None, budget_allocation=None, orig_tvec_end=None):
         """
         Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standard deviation sigma
         
@@ -71,7 +71,8 @@ def reconcileFunc(proj=None, reconcile_for_year=None, parset_name=None, progset_
         #Run optimisation
         args = {'proj': proj, 'parset': parset, 'progset': progset, 'parset_name': parset_name,
                 'impact_pars': impact_pars, 'results': results, 'attribute_dict': attribute_dict, 
-                'reconcile_for_year': reconcile_for_year, 'compareoutcome': False}
+                'reconcile_for_year': reconcile_for_year, 'compareoutcome': False, 'prog_budget_alloc': budget_allocation}
+        
         optim_args = {
                      'stepsize': proj.settings.autofit_params['stepsize'], 
                      'maxiters': 300,#proj.settings.autofit_params['MaxIter'],
