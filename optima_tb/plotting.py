@@ -612,70 +612,9 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
             final_dict['ylim'] = [0,105.]
         final_dict.update(plotdict)
     
-        _plotLine(ys=yvals, ts=tvals, labels=labels, colors=colors, save_fig=save_fig, reverse_order=True, **final_dict)
+        _plotLine(ys=yvals, ts=tvals, labels=labels, colors=colors, save_fig=save_fig, reverse_order=True, smooth=True, **final_dict)
     
-    """"
-    for (i,comp_label) in enumerate(comp_labels):
-        
-        for (j, pid) in enumerate(plot_pids):
-            
-            pop_label = pop_labels[j]
-            
-            yvals = []
-            tvals = []
-            labels= []
-            
-            for (k,result_name) in enumerate(scen_results.keys()):
-                
-                result = scen_results[result_name]  
-                print "AB = ", sum_population
-                all_rates, all_tvecs, all_labels = extractFlows(pop_labels=[pid],
-                                                                comp_label=comp_label,
-                                                                results=result, 
-                                                                settings=settings,
-                                                                tvec=tvec,
-                                                                link_labels=link_labels,
-                                                                include_link_not_exclude=include_link_not_exclude,
-                                                                link_legend=link_legend,
-                                                                plot_inflows=plot_inflows,
-                                                                plot_outflows=plot_outflows,
-                                                                sum_total=sum_total,
-                                                                sum_population=sum_population,
-                                                                exclude_transfers=exclude_transfers)
-                                
-                                
-                yv = all_rates[0]
-                
-                if percentage_relative_to is not None:
-                    yv /= percentage_relative_to
-                
-                yvals.append(yv)
-                tvals.append(all_tvecs[0])
-                labels.append(scen_labels[k])
-        
-            if comp_titles is not None:
-                title_comp = comp_titles[i]
-            else:
-                title_comp = 'Compartment: "%s"' % settings.node_specs[comp_label]['name']
-            
-            
-            title_pop = '\nPopulation: "%s"' % pop_label
-            
-            final_dict = {'ylim' : 0,
-              'xlabel':'Year',
-              'ylabel': 'Number of People',
-              'y_intercept': y_intercept,
-              'x_ticks' : (yr_range,yr_range),
-              'title': '%s %s' % (title_comp,title_pop),
-              'save_figname': '%s_ScenarioFlowComparision_%s_%s'%(fig_name,comp_label,pop_label)
-              }
-            if percentage_relative_to is not None:
-                final_dict['ylabel'] = ylabel
-            final_dict.update(plotdict)
-        
-            _plotLine(ys=yvals, ts=tvals, labels=labels, colors=colors, save_fig=save_fig, reverse_order=True, **final_dict)
     
-        """
         
                
 def plotPopulation(results, data, pop_labels, title='',colormappings=None, 
@@ -830,7 +769,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
         
          
 
-def plotCharacteristic(results, settings, data, title='', outputIDs=None, 
+def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_bounds = None, 
                        pop_labels = None, plot_total = False, 
                        plot_observed_data=True, save_fig=False, fig_name=None, 
                        colormappings=None, colors=None, plotdict=None, legendsettings=None):
@@ -870,6 +809,7 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
     
         
     """
+    charac_specs = settings.charac_specs
     # setup:    
     if outputIDs is None:
         outputIDs = results.outputs.keys()
@@ -888,7 +828,6 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         legendsettings = {}
         
     tvec = results.sim_settings['tvec']
-    charac_specs = settings.charac_specs
     
     year_inc = 5.  # TODO: move this to setting
     if 'xlim' in plotdict.keys():
@@ -898,7 +837,8 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         start_year, end_year = tvec[0], tvec[-1]
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
       
-
+    # placeholder for y_bounds:
+    yb = None
     
     if colors is not None and len(colors) >= len(pop_labels):
         pass # colors as defined in the args should be used as is  
@@ -935,9 +875,14 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
             final_dict['y_hat'] = yhat[i]
             final_dict['t_hat'] = that[i]
         
+        
         final_dict.update(plotdict)
         
-        _plotLine(y_values[output_id][:], np.tile(tvec,(len(labels),1)), labels, legendsettings=None, save_fig=save_fig, colors=colors, **final_dict)
+        
+        if y_bounds is not None:
+            yb = y_bounds[i]
+        
+        _plotLine(y_values[output_id][:], np.tile(tvec,(len(labels),1)), labels, y_bounds=yb, legendsettings=None, save_fig=save_fig, colors=colors, **final_dict)
     
     if final_dict.has_key('legend_off') and final_dict['legend_off']:
         # Do this separately to main iteration so that previous figure are not corrupted
@@ -1387,6 +1332,7 @@ def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_l
         plot_total            flag indicating whether to sum across populations
         
     """
+    
     datapoints, _, _ = results.getCharacteristicDatapoints(pop_label=pop_labels,char_label=charac_labels,use_observed_times=False)
     
     unit_tags = []
@@ -1428,7 +1374,8 @@ def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_l
         # 3) plot as total for a characteristic across populations. Note that we shouldn't plot
         #    totals for percentages, but we won't enforce this (for the moment)     
         if plot_total:
-            y_values = [datapoints[output_id][pop] for pop in pop_labels]
+            
+            y_values = [datapoints[output_id][i] for i,p in enumerate(pop_labels)]
             y_values = np.array(y_values)
             y_values = [y_values.sum(axis=0)]
             datapoints[output_id] = y_values
@@ -1610,8 +1557,8 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
     
 def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
              legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None, 
-             y_intercept=None, reverse_order=False, 
-             smooth=True, symmetric=False, repeats=5, 
+             y_intercept=None, reverse_order=False, y_bounds=None,
+             smooth=False, symmetric=False, repeats=5, alpha=0.3, 
              marker='o',s=40,facecolors='none',linewidth=3,zorder=10,save_fig=False,save_figname=None,legend_off=False,**kwargs):
     """
     Plots multiple lines, with additional option of overlaying observed datapoints
@@ -1621,6 +1568,9 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         ts        list of values for xs, with each entry corresponding to a line
         labels    list of labels for each line
         colors    list of colors for each line
+        y_intercept
+        reverse_order
+        y_bounds    list of array for each ys entry, with format of (tbound, ybound_min, ybound_ymax), thus can be specified independently of ts
         **kwargs    further keyword arguments, such as ylims, legend_off, edgecolors, etc.
     """
     
@@ -1641,21 +1591,29 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     #plot ys, but reversed - and also reverse the labels (useful for scenarios, and optimizations):
     order_ys = range(len(ys))
     if reverse_order:
-        print("Reversed order -----------------")
+#         print("Reversed order -----------------")
         order_ys = order_ys[::-1] # surely there are more elegant ways to do this ... 
         labels = labels[::-1]
     
     for k in order_ys: 
         
         yval = ys[k]
-
+        
+        # if there are confidence bounds, plot using fill_between 
+        if y_bounds is not None:
+            t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2]
+            ax.fill_between(t_bound, y_min_bound, y_max_bound, facecolor=colors[k], alpha = alpha, linewidth=0.1, edgecolor=colors[k])
+        
+        # smooth line 
         if smooth:
             yval = smoothfunc(yval, symmetric, repeats)
-        
+    
+        # plot line
         ax.plot(ts[k], yval, c=colors[k])
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
             
+        # scatter data points
         if len(y_hat) > 0 and len(y_hat[k]) > 0: # i.e. we've seen observable data
             
             ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
@@ -1679,6 +1637,8 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     # This seems to get rid of the worst of bad choices for ylabels[0] = -5 when the real ymin=0
     tmp_val = (ymin+ymin_val)/2.
     ax.set_ylim(ymin=tmp_val)
+    
+    ax.set_ylim(ymin=0) ##### TMP
     
     if ylim is not None:
         print ylim
