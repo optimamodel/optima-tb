@@ -21,11 +21,7 @@ proj.makeParset(name=parset_name)
 proj.makeProgset(name=progset_name)
 
 #Set years for Simulation runs
-proj.setYear([2000, reconcile_for_year], False)
-progset, impact  = reconcileFunc(proj=proj, reconcile_for_year=reconcile_for_year, 
+progset      = reconcileFunc(proj=proj, reconcile_for_year=reconcile_for_year, 
                              parset_name=parset_name, progset_name= progset_name,
                              unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
-                             impact_pars=None)
-#Reset back to original runSim durations
-proj.setYear([2000, proj.settings.tvec_end], False)
-    
+                             impact_pars=None,orig_tvec_end=proj.settings.tvec_end)

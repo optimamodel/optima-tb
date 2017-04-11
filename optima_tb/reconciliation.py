@@ -1,4 +1,4 @@
-from optima_tb.utils import odict
+from optima_tb.utils import odict, OptimaException
 import optima_tb.settings as settings
 from copy import deepcopy as dcp
 from optima_tb.asd import asd
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma, attribute_sigma, impact_pars):
+def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma = 0.05, attribute_sigma = 0.20, impact_pars = None, orig_tvec_end = None):
         """
         Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standard deviation sigma
         
@@ -29,6 +29,11 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
             impact                  dictionary of original and reconciled parset/progset impact comparison
             
         """
+
+        #Set years for Simulation runs
+        proj.setYear([2000, reconcile_for_year], False)
+        
+        #Setup parameters for reconciliation
         parset  = proj.parsets[parset_name].pars['cascade']
         progset = proj.progsets[progset_name]
         impact = {}
@@ -43,12 +48,11 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
         results = proj.runSim(parset_name=parset_name)
         
         #Get original comparison between progset and parset
-        #impact['original'] = compareOutcomes(proj, parset, progset, all_parameters, results, reconcile_for_year)
+        impact['original'] = compareOutcomesFunc(proj=proj, parset_name=parset_name, progset_name=progset_name, year=reconcile_for_year, compareoutcome=True, display=False)
         
         #Convert into an optimisable list
-        attribute_dict = createAttributeDict(settings = proj.settings, progset=progset)
-        attribute_list, unitcost_index = createAttributeList(attribute_dict)
-        
+        attribute_dict = createAttributeDict(settings=proj.settings, progset=progset)
+        attribute_list, unitcost_index = createAttributeList(attribute_dict=attribute_dict)
         #Setup min-max bounds for optimisation
         xmin, xmax = dcp(attribute_list), dcp(attribute_list)
         
@@ -80,10 +84,78 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
       
         
         best_attribute_list = asd(reconciliationMetric, attribute_list, args, xmin = xmin, xmax = xmax, **optim_args)
-        best_attribute_dict = regenerateAttributesDict(best_attribute_list, attribute_dict)
-        progset = updateProgset(best_attribute_dict, progset) 
+        best_attribute_dict = regenerateAttributesDict(attribute_list = best_attribute_list, orig_attribute_dict = attribute_dict)
+        progset = updateProgset(new_pars_dict=best_attribute_dict, progset=progset)
+        impact['reconciled'] = compareOutcomesFunc(proj=proj, parset_name=parset_name, progset_name=progset_name, year=reconcile_for_year, compareoutcome=True, display=False)
+        print impact['original']['snmno_rate']
+        print impact['reconciled'].keys()
+        #Display comparison between old progset and new reconciled progset
+        parset_value = 'Parset Impact'
+        origprogset_value = 'Original Impact'
+        reconcileprogset_value = 'Reconciled Impact'
+        print('Comparing outcomes for year: %i' %reconcile_for_year)
+        outcome = '\n\t\t\t%s\t\t%s\t\t%s\n' %(parset_value, origprogset_value, reconcileprogset_value)
+        for par_label in impact['original'].keys():
+            if par_label == 'net_difference': continue
+            else:
+                outcome += '%s\n' %(par_label)
+                for popkey in impact['original'][par_label]:
+                    outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact['original'][par_label][popkey]['parset_impact_value'], impact['original'][par_label][popkey]['progset_impact_value'], impact['reconciled'][par_label][popkey]['progset_impact_value'])
+                outcome += '\n'
+        print outcome
+        #Reset back to original runSim durations
+        proj.setYear([2000, orig_tvec_end], False)
+        return progset
+
+def compareOutcomesFunc(proj, year, parset_name=None, progset_name=None, compareoutcome=None, display=True):
+    #Make a copy of the original simulation end date
+    orig_tvec_end = proj.settings.tvec_end
+    #Checks and settings for reconcile
+    if parset_name is None: 
+        try: 
+            parset_name = proj.parsets.keys()[0]
+            logger.info('Parameter set was not identified for impact parameter comparison, using parameter set: "%s"' %parset_name)
+        except: raise OptimaException('No valid parameter sets exist within the project')
         
-        return progset, impact
+    if progset_name is None: 
+        try:
+            progset_name = proj.progsets.keys()[0]
+            logger.info('Program set was not identified for impact parameter comparison, using program set: "%s"' %progset_name)
+        except: raise OptimaException('No valid program sets exist within the project')
+    
+    if not parset_name in proj.parsets.keys(): raise OptimaException("ERROR: No parameter set '%s' found"%parset_name)
+    if not progset_name in proj.progsets.keys(): raise OptimaException("ERROR: No program set '%s' found"%progset_name)
+    
+    #Set years for Simulation runs
+    proj.setYear([2000, year], False)
+    #Setup compareOutcomes kwargs
+    parset  = proj.parsets[parset_name].pars['cascade']
+    progset = proj.progsets[progset_name]
+    results = proj.runSim(parset_name=parset_name)
+    #Declare impact parameters to use for display (use all)
+    impact_pars = progset.impacts.keys()
+    #use reconcilemetric to get desired result
+    impact = reconciliationMetric(new_attributes=[], proj=proj, parset=parset, progset=progset, 
+                                  parset_name=parset_name, impact_pars=impact_pars, 
+                                  results=results, attribute_dict={}, reconcile_for_year=year, 
+                                  compareoutcome=compareoutcome)
+    #display output
+    if display:
+        print('Comparing outcomes for year: %i' %year)
+        parset_value  = 'parset_impact_value'
+        progset_value = 'progset_impact_value'
+        outcome = '\n\t\t\t%s\t%s\n' %(parset_value, progset_value)
+        for par_label in impact.keys():
+            if par_label == 'net_difference': continue
+            else:
+                outcome += '%s\n' %(par_label)
+                for popkey in impact[par_label]:
+                    outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact[par_label][popkey]['parset_impact_value'], impact[par_label][popkey]['progset_impact_value'])
+                outcome += '\n'
+        print outcome
+    #Reset back to original runSim durations
+    proj.setYear([2000, orig_tvec_end], False)
+    return impact
 
 def createAttributeDict(settings, progset):
     '''Creates an attribute dictionary on a per program basis from the identified progset 
