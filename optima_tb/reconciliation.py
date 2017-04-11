@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def reconcileFunc(proj=None, reconcile_for_year=None, parset_name=None, progset_name=None, unitcost_sigma=None, attribute_sigma=None, impact_pars=None, orig_tvec_end=None):
+def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma = 0.05, attribute_sigma = 0.20, impact_pars = None, orig_tvec_end = None):
         """
         Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standard deviation sigma
         
@@ -107,7 +107,7 @@ def reconcileFunc(proj=None, reconcile_for_year=None, parset_name=None, progset_
         proj.setYear([2000, orig_tvec_end], False)
         return progset
 
-def compareOutcomesFunc(proj=None, parset_name=None, progset_name=None, year=None, compareoutcome=None, display=True):
+def compareOutcomesFunc(proj, year, parset_name=None, progset_name=None, compareoutcome=None, display=True):
     #Make a copy of the original simulation end date
     orig_tvec_end = proj.settings.tvec_end
     #Checks and settings for reconcile
@@ -157,7 +157,7 @@ def compareOutcomesFunc(proj=None, parset_name=None, progset_name=None, year=Non
     proj.setYear([2000, orig_tvec_end], False)
     return impact
 
-def createAttributeDict(settings=None, progset=None):
+def createAttributeDict(settings, progset):
     '''Creates an attribute dictionary on a per program basis from the identified progset 
        for all parameters/impact labels that can be reconciled
        
@@ -190,7 +190,7 @@ def createAttributeDict(settings=None, progset=None):
             del attributes_dict[prog_label]
     return attributes_dict
 
-def createAttributeList(attribute_dict = None):
+def createAttributeList(attribute_dict):
     '''Converts the attribute dictionary into a list so that it can be passed into the asd function for reconciliation/optimization
        
        Params:
@@ -212,7 +212,7 @@ def createAttributeList(attribute_dict = None):
             else: index += 1
     return attribute_list, unitcost_index
 
-def regenerateAttributesDict(attribute_list = None, orig_attribute_dict = None):
+def regenerateAttributesDict(attribute_list, orig_attribute_dict):
     '''Reverse process, where the attributes list is converted back into the attributes dictionary after optimization/reconciliation
        
        Params:
@@ -230,7 +230,7 @@ def regenerateAttributesDict(attribute_list = None, orig_attribute_dict = None):
             index += 1
     return attribute_dict
 
-def updateProgset(new_pars_dict=None, progset=None):
+def updateProgset(new_pars_dict, progset):
     '''Update the progset with the new values as obtained from reconciliation process, only updates the last known value
     
        Params:
@@ -252,7 +252,7 @@ def updateProgset(new_pars_dict=None, progset=None):
             progset.progs[index].func_specs['pars']['unit_cost'] = new_pars_dict[prog_label]['unit_cost']
     return progset
 
-def reconciliationMetric(new_attributes=None, proj=None, parset=None, progset=None, parset_name=None, impact_pars=None, results=None, attribute_dict=None, reconcile_for_year=None, compareoutcome=None):
+def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, impact_pars, results, attribute_dict, reconcile_for_year, compareoutcome):
     '''Objective function for reconciliation process, is used to compare outcomes as well as they use the same logic
        Uses functionality from model.py
         
