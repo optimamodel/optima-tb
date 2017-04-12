@@ -442,8 +442,6 @@ def plotScenarioBar (scen_results,scen_labels,settings,data,output_list=None,yea
     
     
     """
-    print "received outputlist", output_list
-    print colormappings
     
     xlim = 3
     if len(scen_labels)>3:
@@ -467,10 +465,7 @@ def plotScenarioBar (scen_results,scen_labels,settings,data,output_list=None,yea
         for olabel in output_list:
             colors.append(colors_dict[olabel])
     
-    print colors
-    
     values = [ [scen_results[rname].getValueAt(output,year) for output in output_list] for rname in scen_results.keys()] 
-    print values
     
     final_dict = dcp(plotdict)
     
@@ -582,7 +577,7 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
                             
                             
             yv = all_rates[0]
-            print np.max(yv)
+            
             if percentage_relative_to is not None:
                 yv /= percentage_relative_to
                 yv *= 100.
@@ -1573,10 +1568,14 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         y_bounds    list of array for each ys entry, with format of (tbound, ybound_min, ybound_ymax), thus can be specified independently of ts
         **kwargs    further keyword arguments, such as ylims, legend_off, edgecolors, etc.
     """
+    import operator
+    
     
     if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
     
     ymin_val = np.min(ys[0])
+    indices = (ts[0]>=xlim[0])*(ts[0]<=xlim[1]) 
+    ymax_val = np.max(ys[0][indices])    
     
     if colors is None or len(colors) < len(ys):        
         colors = gridColorMap(len(ys))
@@ -1604,6 +1603,8 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
             t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2]
             ax.fill_between(t_bound, y_min_bound, y_max_bound, facecolor=colors[k], alpha = alpha, linewidth=0.1, edgecolor=colors[k])
         
+        index, value = max(enumerate(yval), key=operator.itemgetter(1))
+        
         # smooth line 
         if smooth:
             yval = smoothfunc(yval, symmetric, repeats)
@@ -1612,6 +1613,8 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         ax.plot(ts[k], yval, c=colors[k])
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
+        if np.max(yval[indices]) > ymax_val:
+            ymax_val = np.max(yval[indices])
             
         # scatter data points
         if len(y_hat) > 0 and len(y_hat[k]) > 0: # i.e. we've seen observable data
@@ -1619,7 +1622,9 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
             ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
             if np.min(y_hat[k]) < ymin_val:
                 ymin_val = np.min(y_hat[k])
-        
+            
+
+    
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
     
@@ -1636,14 +1641,14 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     # Set the ymin to be halfway between the ymin_val and current ymin. 
     # This seems to get rid of the worst of bad choices for ylabels[0] = -5 when the real ymin=0
     tmp_val = (ymin+ymin_val)/2.
-    ax.set_ylim(ymin=tmp_val)
+    
+    ax.set_ylim(ymin=tmp_val,ymax=ymax_val)
     
     ax.set_ylim(ymin=0) ##### TMP
     
     if ylim is not None:
-        print ylim
         ax.set_ylim(ylim)
-
+    
     if xlim is not None:
         ax.set_xlim(xlim)
     
