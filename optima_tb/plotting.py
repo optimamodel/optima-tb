@@ -494,7 +494,7 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
                       comp_labels = None, comp_titles = None, pop_labels = None, 
                       link_labels = None, include_link_not_exclude = True, link_legend = None, 
                       plot_inflows = True, plot_outflows = True, exclude_transfers = False, sum_total=False, sum_population=False,
-                      colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, colors=None):
+                      colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, colors=None, legendsettings=None):
     """
     Line plots of flows across scenarios. Should be used for flows (instantaneous rates) only, such
     as incidence, deaths, notifications, etc.
@@ -517,6 +517,9 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
     plotdict = settings.plot_settings
     year_inc = 5.  # TODO: move this to setting
     tvec = scen_results[0].sim_settings['tvec'] # TODO
+    
+    if legendsettings is None:
+        legendsettings = {}
     
     if 'xlim' in plotdict.keys():
         xlim = plotdict['xlim']
@@ -606,10 +609,16 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
             final_dict['ylabel'] = ylabel
             final_dict['ylim'] = [0,105.]
         final_dict.update(plotdict)
-    
+        print colors
         _plotLine(ys=yvals, ts=tvals, labels=labels, colors=colors, save_fig=save_fig, reverse_order=True, smooth=True, **final_dict)
     
-    
+        if final_dict.has_key('legend_off') and final_dict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it represents 
+        # classes of compartments
+        
+            separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendScenFlow",**legendsettings)
+        
         
                
 def plotPopulation(results, data, pop_labels, title='',colormappings=None, 
@@ -923,8 +932,8 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
     final_dict = dcp(plotdict)
     
     final_dict2 = {'xlim': (0,xlim),
-                #   'ylim': (0,1.6e3),
-                  'title':  title,
+#                    'ylim': (0,1.4e4),
+                  'title':  '',
                   'ylabel': "",
                   'save_figname': fig_name}
     final_dict.update(final_dict2)
