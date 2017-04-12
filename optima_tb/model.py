@@ -214,7 +214,7 @@ class Model(object):
         self.pops = list()              # List of population groups that this model subdivides into.
         self.pop_ids = dict()           # Maps label of a population to its position index within populations list.
         
-        self.contacts = dict()         # Maps interactions 'from' (i.e. a->b for [a][b]) and 'into' (i.e. a<-b for [a][b]) ModelPopulations, marking them with a weight.
+        self.contacts = dict()          # Maps interactions 'from' (i.e. a->b for [a][b]) and 'into' (i.e. a<-b for [a][b]) ModelPopulations, marking them with a weight.
         
         self.sim_settings = odict()
         
@@ -222,6 +222,8 @@ class Model(object):
         
         self.parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
+        self.prog_vals = dict()         # Stores coverage and impact values for programs, given budget info passed into model.
+                                        # Intended to avoid constant getImpact() calls during parameter value overwrites. 
             
         
     def getPop(self, pop_label):
