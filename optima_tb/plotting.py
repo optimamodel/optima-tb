@@ -442,8 +442,6 @@ def plotScenarioBar (scen_results,scen_labels,settings,data,output_list=None,yea
     
     
     """
-    print "received outputlist", output_list
-    print colormappings
     
     xlim = 3
     if len(scen_labels)>3:
@@ -467,10 +465,7 @@ def plotScenarioBar (scen_results,scen_labels,settings,data,output_list=None,yea
         for olabel in output_list:
             colors.append(colors_dict[olabel])
     
-    print colors
-    
     values = [ [scen_results[rname].getValueAt(output,year) for output in output_list] for rname in scen_results.keys()] 
-    print values
     
     final_dict = dcp(plotdict)
     
@@ -499,7 +494,7 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
                       comp_labels = None, comp_titles = None, pop_labels = None, 
                       link_labels = None, include_link_not_exclude = True, link_legend = None, 
                       plot_inflows = True, plot_outflows = True, exclude_transfers = False, sum_total=False, sum_population=False,
-                      colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, colors=None):
+                      colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, colors=None, legendsettings=None):
     """
     Line plots of flows across scenarios. Should be used for flows (instantaneous rates) only, such
     as incidence, deaths, notifications, etc.
@@ -523,6 +518,9 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
     year_inc = 5.  # TODO: move this to setting
     tvec = scen_results[0].sim_settings['tvec'] # TODO
     
+    if legendsettings is None:
+        legendsettings = {}
+    
     if 'xlim' in plotdict.keys():
         xlim = plotdict['xlim']
         start_year, end_year = xlim[0], xlim[1]
@@ -537,7 +535,6 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
     else:
         pop_labels = scen_results[0].pop_labels
         plot_pids = range(len(scen_results[0].m_pops))
-
     
     if link_legend is None: link_legend = dict()
     
@@ -580,9 +577,9 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
                                                             sum_population=sum_population,
                                                             exclude_transfers=exclude_transfers)
                             
-                            
-            yv = all_rates[0]
-            print np.max(yv)
+            # WARNING: Summing across rates so that multiple populations are combined. Not sure if this is fine for all intended cases.
+            yv = sum(all_rates) #all_rates[0]
+            
             if percentage_relative_to is not None:
                 yv /= percentage_relative_to
                 yv *= 100.
@@ -611,10 +608,16 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
             final_dict['ylabel'] = ylabel
             final_dict['ylim'] = [0,105.]
         final_dict.update(plotdict)
-    
+        print colors
         _plotLine(ys=yvals, ts=tvals, labels=labels, colors=colors, save_fig=save_fig, reverse_order=True, smooth=True, **final_dict)
     
-    
+        if final_dict.has_key('legend_off') and final_dict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it represents 
+        # classes of compartments
+        
+            separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendScenFlow",**legendsettings)
+        
         
                
 def plotPopulation(results, data, pop_labels, title='',colormappings=None, 
@@ -928,8 +931,8 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
     final_dict = dcp(plotdict)
     
     final_dict2 = {'xlim': (0,xlim),
-                #   'ylim': (0,1.6e3),
-                  'title':  title,
+#                    'ylim': (0,1.4e4),
+                  'title':  '',
                   'ylabel': "",
                   'save_figname': fig_name}
     final_dict.update(final_dict2)
@@ -1574,9 +1577,12 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         **kwargs    further keyword arguments, such as ylims, legend_off, edgecolors, etc.
     """
     
+    
     if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
     
     ymin_val = np.min(ys[0])
+    indices = (ts[0]>=xlim[0])*(ts[0]<=xlim[1]) 
+    ymax_val = np.max(ys[0][indices])    
     
     if colors is None or len(colors) < len(ys):        
         colors = gridColorMap(len(ys))
@@ -1604,14 +1610,18 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
             t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2]
             ax.fill_between(t_bound, y_min_bound, y_max_bound, facecolor=colors[k], alpha = alpha, linewidth=0.1, edgecolor=colors[k])
         
+        
         # smooth line 
         if smooth:
             yval = smoothfunc(yval, symmetric, repeats)
     
         # plot line
         ax.plot(ts[k], yval, c=colors[k])
+        
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
+        if np.max(yval[indices]) > ymax_val:
+            ymax_val = np.max(yval[indices])
             
         # scatter data points
         if len(y_hat) > 0 and len(y_hat[k]) > 0: # i.e. we've seen observable data
@@ -1619,7 +1629,9 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
             ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
             if np.min(y_hat[k]) < ymin_val:
                 ymin_val = np.min(y_hat[k])
-        
+            
+
+    
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
     
@@ -1636,14 +1648,14 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     # Set the ymin to be halfway between the ymin_val and current ymin. 
     # This seems to get rid of the worst of bad choices for ylabels[0] = -5 when the real ymin=0
     tmp_val = (ymin+ymin_val)/2.
-    ax.set_ylim(ymin=tmp_val)
+    
+    ax.set_ylim(ymin=tmp_val,ymax=ymax_val)
     
     ax.set_ylim(ymin=0) ##### TMP
     
     if ylim is not None:
-        print ylim
         ax.set_ylim(ylim)
-
+    
     if xlim is not None:
         ax.set_xlim(xlim)
     
