@@ -793,51 +793,52 @@ class Model(object):
                                 # Make sure the population in the loop is a target of this program.
                                 if pop.label not in prog.target_pops:
                                     continue
-                                if 'init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']:
-                                    prog_budget = self.sim_settings['init_alloc'][prog_label]
-                                    
-                                    # Allow for effective budgets to be constrained to a maximum change rate, with respect to the default budget.
-                                    if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog_label in self.sim_settings['constraints']['max_yearly_change']:
-                                        default_budget = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
-                                        d_years = self.sim_settings['tvec'][ti] - self.sim_settings['progs_start']
-                                        try: eps = self.sim_settings['constraints']['max_yearly_change'][prog_label]['val']
-                                        except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog_label)
-                                        relative_yearly_change = False
-                                        if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog_label] and self.sim_settings['constraints']['max_yearly_change'][prog_label]['rel'] is True:
-                                            relative_yearly_change = True
-                                        direction = np.sign(prog_budget - default_budget)
-                                        
-                                        if relative_yearly_change is True:
-                                            if eps != np.inf and np.abs(default_budget) < project_settings.TOLERANCE:
-#                                                logger.warn('Default budget for "%s" is effectively zero and max yearly change is flagged as relative. Change in program funding will be negligible.' % prog_label)
-                                                raise OptimaException('ERROR: Default budget for "%s" is effectively zero (with desired budget aim greater than zero) and finite maximum-yearly-change factor is flagged as relative. Model will not continue running; change in program funding would be negligible.' % prog_label)
-                                            # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
-                                            if eps*d_years*default_budget <= np.abs(prog_budget - default_budget):
-                                                if direction > 0:       # Effective budget is increasing from and relative to the default.
-                                                    prog_budget = np.min([default_budget*(1.0+eps*d_years), prog_budget])
-                                                elif direction < 0:     # Effective budget is decreasing from the relative to the default.
-                                                    prog_budget = np.max([default_budget*(1.0-eps*d_years), prog_budget])
-                                        else:
-                                            # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
-                                            if eps*d_years <= np.abs(prog_budget - default_budget):
-                                                if direction > 0:       # Effective budget is increasing from the default in an absolute manner.
-                                                    prog_budget = np.min([default_budget+eps*d_years, prog_budget])
-                                                elif direction < 0:     # Effective budget is decreasing from the default in an absolute manner..
-                                                    prog_budget = np.max([default_budget-eps*d_years, prog_budget])
-                                        
-#                                        year_check = 2015   # Hard-coded check.
-#                                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
-#                                            print prog_label
-#                                            print prog_budget
-                                            
-                                else:
-                                    if 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
-                                        if self.sim_settings['alloc_is_coverage']:
-                                            prog_budget = prog.getCoverage(budget = prog.getDefaultBudget(year = self.sim_settings['progs_start']))
-                                        else:
-                                            prog_budget = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
-                                    else: 
-                                        continue
+                                if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']):
+                                    continue
+#                                    prog_budget = self.sim_settings['init_alloc'][prog_label]
+#                                    
+#                                    # Allow for effective budgets to be constrained to a maximum change rate, with respect to the default budget.
+#                                    if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog_label in self.sim_settings['constraints']['max_yearly_change']:
+#                                        default_budget = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
+#                                        d_years = self.sim_settings['tvec'][ti] - self.sim_settings['progs_start']
+#                                        try: eps = self.sim_settings['constraints']['max_yearly_change'][prog_label]['val']
+#                                        except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog_label)
+#                                        relative_yearly_change = False
+#                                        if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog_label] and self.sim_settings['constraints']['max_yearly_change'][prog_label]['rel'] is True:
+#                                            relative_yearly_change = True
+#                                        direction = np.sign(prog_budget - default_budget)
+#                                        
+#                                        if relative_yearly_change is True:
+#                                            if eps != np.inf and np.abs(default_budget) < project_settings.TOLERANCE:
+##                                                logger.warn('Default budget for "%s" is effectively zero and max yearly change is flagged as relative. Change in program funding will be negligible.' % prog_label)
+#                                                raise OptimaException('ERROR: Default budget for "%s" is effectively zero (with desired budget aim greater than zero) and finite maximum-yearly-change factor is flagged as relative. Model will not continue running; change in program funding would be negligible.' % prog_label)
+#                                            # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
+#                                            if eps*d_years*default_budget <= np.abs(prog_budget - default_budget):
+#                                                if direction > 0:       # Effective budget is increasing from and relative to the default.
+#                                                    prog_budget = np.min([default_budget*(1.0+eps*d_years), prog_budget])
+#                                                elif direction < 0:     # Effective budget is decreasing from the relative to the default.
+#                                                    prog_budget = np.max([default_budget*(1.0-eps*d_years), prog_budget])
+#                                        else:
+#                                            # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
+#                                            if eps*d_years <= np.abs(prog_budget - default_budget):
+#                                                if direction > 0:       # Effective budget is increasing from the default in an absolute manner.
+#                                                    prog_budget = np.min([default_budget+eps*d_years, prog_budget])
+#                                                elif direction < 0:     # Effective budget is decreasing from the default in an absolute manner..
+#                                                    prog_budget = np.max([default_budget-eps*d_years, prog_budget])
+#                                        
+##                                        year_check = 2015   # Hard-coded check.
+##                                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
+##                                            print prog_label
+##                                            print prog_budget
+#                                            
+#                                else:
+#                                    if 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
+#                                        if self.sim_settings['alloc_is_coverage']:
+#                                            prog_budget = prog.getCoverage(budget = prog.getDefaultBudget(year = self.sim_settings['progs_start']))
+#                                        else:
+#                                            prog_budget = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
+#                                    else: 
+#                                        continue
                                 
                                 # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
                                 source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
@@ -858,21 +859,21 @@ class Model(object):
                                 # Make sure each program impact is in the format of the parameter it affects.
                                 if pars[0].val_format == 'fraction':
                                     if prog.cov_format == 'fraction':
-                                        impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])
+                                        impact = self.prog_vals[prog_label]['impact'][par_label]#prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])
                                     elif prog.cov_format == 'number':
                                         if source_element_size <= project_settings.TOLERANCE:
                                             impact = 0.0
                                         else:
-                                            impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])/source_set_size
+                                            impact = self.prog_vals[prog_label]['impact'][par_label]/source_set_size#prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])/source_set_size
     #                                    if impact > 1.0: impact = 1.0   # Maximum fraction allowable due to timestep conversion.
                                 elif pars[0].val_format == 'number':
                                     if prog.cov_format == 'fraction':
-                                        impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_element_size
+                                        impact = self.prog_vals[prog_label]['impact'][par_label]*source_element_size#prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_element_size
                                     elif prog.cov_format == 'number':
                                         if source_element_size <= project_settings.TOLERANCE:
                                             impact = 0.0
                                         else:
-                                            impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_set_size/source_element_size
+                                            impact = self.prog_vals[prog_label]['impact'][par_label]*source_element_size/source_set_size#prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_set_size/source_element_size
                                 
 #                                year_check = 2015   # Hard-coded check.
 #                                if par_label == 'spmyes_rate':
