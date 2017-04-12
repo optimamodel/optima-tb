@@ -16,6 +16,7 @@ def defaultOptimOptions(settings, progset = None):
     options = dict()
     
     options['progs_start'] = 2015.0
+    options['progs_end'] = np.inf
     options['init_alloc'] = odict()
     options['constraints'] = {'limits':odict(), 'max_yearly_change':odict(), 'impacts':odict()}
     

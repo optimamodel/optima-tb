@@ -1581,6 +1581,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
     
     ymin_val = np.min(ys[0])
+    if xlim is None: xlim = (ts[0][0],ts[0][-1])
     indices = (ts[0]>=xlim[0])*(ts[0]<=xlim[1]) 
     ymax_val = np.max(ys[0][indices])    
     
