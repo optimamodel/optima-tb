@@ -233,7 +233,7 @@ class Program:
                 cov = float(budget)/self.func_specs['pars']['unit_cost']
         return cov
         
-    def getImpact(self, budget, impact_label = None, parser = None, year = None, budget_is_coverage = False):
+    def getImpact(self, budget, impact_label = None, parser = None, years = None, budget_is_coverage = False):
         
         if self.func_specs['type'] == 'cost_only':
             return 0.0
@@ -253,11 +253,13 @@ class Program:
                 attribs = dcp(self.target_pars[impact_label]['attribs'])
                 for attrib_label in attribs.keys():
                     if attrib_label in self.attributes.keys():
-                        if year is None: year = max(self.t)
-                        output = self.interpolate(tvec=[year], attributes=[attrib_label])
+                        if years is None: years = [max(self.t)]
+                        output = self.interpolate(tvec=years, attributes=[attrib_label])
                     else:
                         raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" due to a missing reference "%s".' % (self.label,impact_label,attrib_label))
-                    attribs[attrib_label] = output[attrib_label][-1]
+                    attribs[attrib_label] = output[attrib_label]#[-1]
+#                    if len(output[attrib_label]) > 1:
+#                        print attribs
                 new_val = parser.evaluateStack(stack = f_stack, deps = attribs)
                 imp *= new_val      # Scale coverage.
                 

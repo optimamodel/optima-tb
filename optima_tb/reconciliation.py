@@ -313,20 +313,20 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                     #print('Program Label: %s, Parameter: %s, Source set size: %f, source_element_size: %f' % (prog_label, par_label, source_set_size, source_element_size))
                     if par.val_format == 'fraction':
                         if prog.cov_format == 'fraction':
-                            impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, year = reconcile_for_year)
+                            impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, years = [reconcile_for_year])
                         elif prog.cov_format == 'number':
                             if source_element_size <= settings.TOLERANCE:
                                 impact = 0.0
                             else:
-                                impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, year = reconcile_for_year)/source_set_size
+                                impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, years = [reconcile_for_year])/source_set_size
                     elif par.val_format == 'number':
                         if prog.cov_format == 'fraction':
-                            impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, year = reconcile_for_year)*source_element_size
+                            impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, years = [reconcile_for_year])*source_element_size
                         elif prog.cov_format == 'number':
                             if source_element_size <= settings.TOLERANCE:
                                 impact = 0.0
                             else:
-                                impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, year = reconcile_for_year)*source_set_size/source_element_size
+                                impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, years = [reconcile_for_year])*source_element_size/source_set_size
                     if first_prog: new_val = 0
                     new_val += impact
                     first_prog = False

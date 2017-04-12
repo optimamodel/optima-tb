@@ -260,8 +260,32 @@ class Model(object):
             # Convert coverage into impact for programs.
             if 'cov' in self.prog_vals[prog.label]:
                 cov = self.prog_vals[prog.label]['cov']
+                
+                # Check if program attributes have multiple distinct values across time.
+                do_full_tvec_check = {}
+                for att_label in prog.attributes.keys():
+                    att_vals = prog.attributes[att_label]
+                    if len(set(att_vals[~np.isnan(att_vals)])) <= 1:
+#                        print att_vals
+#                        print set(att_vals[~np.isnan(att_vals)])
+                        do_full_tvec_check[att_label] = False
+                    else:
+                        do_full_tvec_check[att_label] = True
+                
+                # If attributes change over time, impact functions based on them need to be interpolated across all time.
+                # Otherwise interpolating for the very last timestep alone should be sufficient.
+                # This means impact values can be stored as full arrays, single-element arrays or scalars in the case that an impact function has no attributes.
                 for par_label in prog.target_pars:
-                    self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][-1], budget_is_coverage = True)
+                    do_full_tvec = False
+                    if 'attribs' in prog.target_pars[par_label] and cov > project_settings.TOLERANCE:
+                        for att_label in prog.target_pars[par_label]['attribs'].keys():
+                            if att_label in do_full_tvec_check and do_full_tvec_check[att_label] is True:
+                                do_full_tvec = True
+                    if do_full_tvec is True:
+                        years = self.sim_settings['tvec']
+                    else:
+                        years = [self.sim_settings['tvec'][-1]]
+                    self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label = par_label, parser = self.parser, years = years, budget_is_coverage = True)
         
         print self.prog_vals
         
@@ -856,24 +880,30 @@ class Model(object):
                                             for from_pop in prog.target_pops:
                                                 source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]                                        
                                 
+                                # Impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
+                                # Makes sure that the right value is selected.
+                                try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
+                                except: net_impact = self.prog_vals[prog_label]['impact'][par_label]
+                                
                                 # Make sure each program impact is in the format of the parameter it affects.
+                                # NOTE: Can be compressed. Currently left explicit.
                                 if pars[0].val_format == 'fraction':
                                     if prog.cov_format == 'fraction':
-                                        impact = self.prog_vals[prog_label]['impact'][par_label]#prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])
+                                        impact = net_impact
                                     elif prog.cov_format == 'number':
                                         if source_element_size <= project_settings.TOLERANCE:
                                             impact = 0.0
                                         else:
-                                            impact = self.prog_vals[prog_label]['impact'][par_label]/source_set_size#prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])/source_set_size
+                                            impact = net_impact/source_set_size
     #                                    if impact > 1.0: impact = 1.0   # Maximum fraction allowable due to timestep conversion.
                                 elif pars[0].val_format == 'number':
                                     if prog.cov_format == 'fraction':
-                                        impact = self.prog_vals[prog_label]['impact'][par_label]*source_element_size#prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_element_size
+                                        impact = net_impact*source_element_size
                                     elif prog.cov_format == 'number':
                                         if source_element_size <= project_settings.TOLERANCE:
                                             impact = 0.0
                                         else:
-                                            impact = self.prog_vals[prog_label]['impact'][par_label]*source_element_size/source_set_size#prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_set_size/source_element_size
+                                            impact = net_impact*source_element_size/source_set_size
                                 
 #                                year_check = 2015   # Hard-coded check.
 #                                if par_label == 'spmyes_rate':
@@ -884,15 +914,15 @@ class Model(object):
 #                                        print('Target Population: %s' % pop.label)
 #                                        print('Target Parameter: %s' % par_label)
 #                                        print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
-#                                        print('Standard Program Impact: %f' % prog.getImpact(prog_budget, budget_is_coverage = self.sim_settings['alloc_is_coverage']))
-#                                        print('Rescaled Program Impact: %f' % prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage']))
+#                                        print('Program Coverage: %f' % self.prog_vals[prog_label]['cov'])#prog.getImpact(prog_budget, budget_is_coverage = self.sim_settings['alloc_is_coverage']))
+#                                        print('Program Impact: %f' % self.prog_vals[prog_label]['impact'][par_label])#prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage']))
 #                                        print('Program Impact Format: %s' % prog.cov_format)
 #                                        print('Source Compartment Size (Target Pop): %f' % source_element_size)
 #                                        print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
 #                                        print('Converted Impact: %f' % impact)
 #                                        print('Converted Impact Format: %s' % pars[0].val_format)
 #                                        print
-                                        
+
                                 if first_prog: new_val = 0
                                 new_val += impact
                                 if 'constraints' in self.sim_settings and 'impacts' in self.sim_settings['constraints'] and par_label in self.sim_settings['constraints']['impacts']:
@@ -905,6 +935,10 @@ class Model(object):
                 
                 for par in pars:
                     par.vals[ti] = new_val
+#                    print new_val
+#                    print type(new_val)
+#                    print par.vals[ti]
+#                    print type(par.vals[ti])
                     
                     # Backup the values of parameters that are tagged with special rules.
                     if 'rules' in settings.linkpar_specs[par_label].keys():
