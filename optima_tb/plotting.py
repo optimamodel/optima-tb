@@ -535,7 +535,6 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
     else:
         pop_labels = scen_results[0].pop_labels
         plot_pids = range(len(scen_results[0].m_pops))
-
     
     if link_legend is None: link_legend = dict()
     
@@ -578,8 +577,8 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
                                                             sum_population=sum_population,
                                                             exclude_transfers=exclude_transfers)
                             
-                            
-            yv = all_rates[0]
+            # WARNING: Summing across rates so that multiple populations are combined. Not sure if this is fine for all intended cases.
+            yv = sum(all_rates) #all_rates[0]
             
             if percentage_relative_to is not None:
                 yv /= percentage_relative_to
