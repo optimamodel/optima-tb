@@ -231,7 +231,81 @@ class Model(object):
         pop_index = self.pop_ids[pop_label]
         return self.pops[pop_index]
         
+    def preCalculateProgsetVals(self, progset):
+        ''' Work out program coverages and impacts ahead of the model run. '''
         
+        try: start_year = self.sim_settings['progs_start']
+        except: raise OptimaException('ERROR: Pre-calculation of program set values has been initiated without specifying a start year.')
+        
+        try: init_alloc = self.sim_settings['init_alloc']
+        except: raise OptimaException('ERROR: Pre-calculation of program set values has been initiated without specifying a starting allocation, empty or otherwise.')
+        
+        try: alloc_is_coverage = self.sim_settings['alloc_is_coverage']
+        except: raise OptimaException('ERROR: Pre-calculation of program set values has been initiated without specifying whether starting allocation is in money or coverage.')
+        
+        for prog in progset.progs:
+            
+            # Store budgets/coverages for programs that are initially allocated.
+            if prog.label in init_alloc:
+                alloc = init_alloc[prog.label]
+                if alloc_is_coverage:
+                    self.prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc), 'cov':alloc, 'impact':{}}
+                else:
+                    self.prog_vals[prog.label] = {'cost':alloc, 'cov':prog.getCoverage(budget=alloc), 'impact':{}}
+            
+            # Store default budgets/coverages for all other programs if saturation is selected.
+            elif 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
+                self.prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year)), 'impact':{}}
+            
+            # Convert coverage into impact for programs.
+            if 'cov' in self.prog_vals[prog.label]:
+                cov = self.prog_vals[prog.label]['cov']
+                for par_label in prog.target_pars:
+                    self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][-1], budget_is_coverage = True)
+        
+        print self.prog_vals
+        
+#        if 'init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']:
+#            prog_budget = self.sim_settings['init_alloc'][prog_label]
+#            
+#            # Allow for effective budgets to be constrained to a maximum change rate, with respect to the default budget.
+#            if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog_label in self.sim_settings['constraints']['max_yearly_change']:
+#                default_budget = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
+#                d_years = self.sim_settings['tvec'][ti] - self.sim_settings['progs_start']
+#                try: eps = self.sim_settings['constraints']['max_yearly_change'][prog_label]['val']
+#                except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog_label)
+#                relative_yearly_change = False
+#                if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog_label] and self.sim_settings['constraints']['max_yearly_change'][prog_label]['rel'] is True:
+#                    relative_yearly_change = True
+#                direction = np.sign(prog_budget - default_budget)
+#                
+#                if relative_yearly_change is True:
+#                    if eps != np.inf and np.abs(default_budget) < project_settings.TOLERANCE:
+##                                                logger.warn('Default budget for "%s" is effectively zero and max yearly change is flagged as relative. Change in program funding will be negligible.' % prog_label)
+#                        raise OptimaException('ERROR: Default budget for "%s" is effectively zero (with desired budget aim greater than zero) and finite maximum-yearly-change factor is flagged as relative. Model will not continue running; change in program funding would be negligible.' % prog_label)
+#                    # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
+#                    if eps*d_years*default_budget <= np.abs(prog_budget - default_budget):
+#                        if direction > 0:       # Effective budget is increasing from and relative to the default.
+#                            prog_budget = np.min([default_budget*(1.0+eps*d_years), prog_budget])
+#                        elif direction < 0:     # Effective budget is decreasing from the relative to the default.
+#                            prog_budget = np.max([default_budget*(1.0-eps*d_years), prog_budget])
+#                else:
+#                    # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
+#                    if eps*d_years <= np.abs(prog_budget - default_budget):
+#                        if direction > 0:       # Effective budget is increasing from the default in an absolute manner.
+#                            prog_budget = np.min([default_budget+eps*d_years, prog_budget])
+#                        elif direction < 0:     # Effective budget is decreasing from the default in an absolute manner..
+#                            prog_budget = np.max([default_budget-eps*d_years, prog_budget])
+#                    
+#        else:
+#            if 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
+#                if self.sim_settings['alloc_is_coverage']:
+#                    prog_budget = prog.getCoverage(budget = prog.getDefaultBudget(year = self.sim_settings['progs_start']))
+#                else:
+#                    prog_budget = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
+#            else: 
+#                continue
+    
     def build(self, settings, parset, progset = None, options = None):
         ''' Build the full model. '''
         
@@ -248,6 +322,7 @@ class Model(object):
                     self.sim_settings['progs_end'] = options['progs_end']
                 if 'init_alloc' in options:
                     self.sim_settings['init_alloc'] = options['init_alloc']
+                else: self.sim_settings['init_alloc'] = {}
                 if 'constraints' in options:
                     self.sim_settings['constraints'] = options['constraints']
                 if 'alloc_is_coverage' in options:
@@ -258,6 +333,8 @@ class Model(object):
                 for impact_label in progset.impacts.keys():
                     if impact_label not in settings.par_funcs.keys():
                         self.sim_settings['impact_pars_not_func'].append(impact_label)
+                        
+                self.preCalculateProgsetVals(progset)   # For performance.
             else:
                 raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
         
