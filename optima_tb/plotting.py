@@ -1568,7 +1568,6 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         y_bounds    list of array for each ys entry, with format of (tbound, ybound_min, ybound_ymax), thus can be specified independently of ts
         **kwargs    further keyword arguments, such as ylims, legend_off, edgecolors, etc.
     """
-    import operator
     
     
     if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
@@ -1603,7 +1602,6 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
             t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2]
             ax.fill_between(t_bound, y_min_bound, y_max_bound, facecolor=colors[k], alpha = alpha, linewidth=0.1, edgecolor=colors[k])
         
-        index, value = max(enumerate(yval), key=operator.itemgetter(1))
         
         # smooth line 
         if smooth:
@@ -1611,6 +1609,7 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     
         # plot line
         ax.plot(ts[k], yval, c=colors[k])
+        
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
         if np.max(yval[indices]) > ymax_val:
