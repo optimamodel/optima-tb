@@ -187,7 +187,7 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
         sample_param.update(p_est,isYFactor=useYFactor)
         sample_param.updateEntryPoints(project.settings,compartment_est,charac_labels)
         results = project.runSim(parset = sample_param)
-        datapoints = results.getCharacteristicDatapoints()
+        datapoints, _, _ = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,target_data_characs,metric)
         return score
     

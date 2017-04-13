@@ -157,8 +157,9 @@ def _getColormapRange(cmap,ncols=10,order='alternate'):
         order_map[::3] = a 
         order_map[1::3] = b 
         order_map[2::3] = c
-    else: # order == 'sequential', so leave in order 
-        pass
+    else: # order == 'sequential', so leave in order but add buffer at beginning and end of colormap
+        order_map = range(ncols+2)
+        return [scalar_map.to_rgba(index) for index in order_map[1:-1]]
     
     return [scalar_map.to_rgba(index) for index in order_map]
 
@@ -213,17 +214,23 @@ def getCategoryColors(category_list,order='alternate'):
     return col_list,cat_colors
     
     
-def separateLegend(labels,colors,fig_name):
+def separateLegend(labels,colors,fig_name,reverse_order=False,**legendsettings):
     
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
     
-    fig = plt.figure()
-    patches = [
-        mpatches.Patch(color=color, label=label)
-        for label, color in zip(labels, colors)]
-    fig.legend(patches, labels, loc='center', frameon=False)
-    plt.savefig("%s_legend"%fig_name)
+    
+    if reverse_order:
+        labels = labels[::-1]
+        colors = colors[::-1]
+    
+    fig = plt.figure(figsize=(15,15)) # silly big
+    patches = [  mpatches.Patch(color=color, label=label) for label, color in zip(labels, colors)]
+    legendsettings['loc'] = 'center'
+    legendsettings['frameon'] = False
+    legendsettings['bbox_to_anchor'] = None
+    fig.legend(patches, labels, **legendsettings)
+    plt.savefig("%s_legend"%fig_name)#,bbox_inches='tight')
 
 
 def _turnOffBorder():
@@ -279,7 +286,10 @@ def getPIDs(results,poplabels):
     return pids
     
 
-def plotProjectResults(results,settings, data, title='', colormappings=None, colorlabels=None, pop_labels=None, plot_comp_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
+
+def plotProjectResults(results,settings, data, title='', 
+                       colormappings=None, colorlabels=None, pop_colormappings=None, 
+                       pop_labels=None, plot_comp_labels=None, debug=False, plot_observed_data=True, save_fig=False, fig_name=None):
     """
     Plot all results associated with a project. By default, this is a disease cascade for 
     each population, as well as characteristics of interest. 
@@ -302,17 +312,20 @@ def plotProjectResults(results,settings, data, title='', colormappings=None, col
     charac_specs = settings.charac_specs
     plotdict = settings.plot_settings
     
-    # plot each disease cascade for every population
+    # plot each disease cascade for every population     
     plotPopulation(results=results, data=data, title=title, colormappings=colormappings, cat_labels=colorlabels, pop_labels=pop_labels, plot_observed_data=plot_observed_data, \
-                   save_fig=save_fig, fig_name=fig_name, plotdict=plotdict, comp_labels=plot_comp_labels)
-     
+                    save_fig=save_fig, fig_name=fig_name, plotdict=plotdict, comp_labels=plot_comp_labels)
+      
     # plot characteristics
-    plotCharacteristic(results=results, settings=settings, pop_labels=pop_labels, data=data, plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
+    plotCharacteristic(results=results, settings=settings, pop_labels=pop_labels, data=data, colormappings=pop_colormappings,
+                       plot_observed_data=plot_observed_data, save_fig=save_fig, fig_name=fig_name, plotdict=plotdict)
+
     # internal plotting
     if debug:
         plotAllOutflows(results)
     
-def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_labels=None,
+def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_labels=None, 
+                  percentage_relative_to=None, y_intercept=None, ylabel=None, 
                   colormappings=None,colors=None,plot_observed_data=False,save_fig=False,fig_name=None):
     """
     Line plots of characteristics across scenarios, including alive, total infected population, etc.
@@ -329,7 +342,8 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
         plot_observed_data
         save_fig
         fig_name
-        
+        percentage_relative_to    scalar (float) that results should be rescaled to, and shown as 100% of. 
+        y_bar                scalar that plots a dashed grey line at value at. 
     """
     
     # close all remaining windows
@@ -346,13 +360,18 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
         start_year, end_year = tvec[0], tvec[1]
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
     
+    if colors is None or len(colors) < len(scen_labels):        
+        colors = gridColorMap(len(scen_labels))
+        logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
+   
     
     if plot_charac is None:
         plot_charac = results.outputs.keys()
         plot_charac = [output_id for output_id in plot_charac if isPlottableCharac(output_id, charac_specs)]       
 
     
-    if pop_labels is None:
+    if pop_labels is not None:
+        
         plot_pids = getPIDs(scen_results[0],pop_labels) #####
     else:
         plot_pids = range(len(scen_results[0].m_pops))
@@ -374,7 +393,13 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
                 result = scen_results[result_name] 
                 y_values_cur, _, _, _ = extractCharacteristic(results=result, charac_labels=[charac], charac_specs=charac_specs, data=data, pop_labels=[pop_label])
 
-                yvals.append(y_values_cur[charac][:][0])
+                ys = y_values_cur[charac][:][0]
+                
+                if percentage_relative_to is not None:
+                    # normalize, and also change ylabel 
+                    ys /= percentage_relative_to
+
+                yvals.append(ys)
                 labels.append(scen_labels[ri])
             
             if plot_observed_data:
@@ -391,28 +416,85 @@ def plotScenarios(scen_results,scen_labels,settings,data,plot_charac=None,pop_la
                   'unit_tag': unit_tag,
                   'xlabel':'Year',
                   'ylabel': charac_specs[charac]['name'] + unit_tag,
+                  'y_intercept': y_intercept,
                   'x_ticks' : (yr_range,yr_range),
+                  'smooth' : True, # smooth plots for scenarios
                   'title': 'Scenario comparison:\n%s [%s]' % (charac_specs[charac]['name'],pop_label),
                   'save_figname': '%s_ScenarioComparision_%s_%s'%(fig_name, pop_label, charac_specs[charac]['name'])}
+            if percentage_relative_to is not None:
+                final_dict['ylabel'] = ylabel
             final_dict.update(plotdict)
             
             
-            figure = _plotLine(ys = yvals, ts = np.tile(tvec,(len(labels),1)), labels = labels, legendsettings=None, save_fig=save_fig, fig_name=fig_name, colors=colors, **final_dict)#, y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
+            figure = _plotLine(ys = yvals, ts = np.tile(tvec,(len(labels),1)), labels = labels, reverse_order=True,
+                               legendsettings=None, save_fig=save_fig, fig_name=fig_name, colors=colors, **final_dict)#, y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
             
     if final_dict.has_key('legend_off') and final_dict['legend_off']:
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it represents 
         # classes of compartments
-        separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_ScenarioComparison")
+        separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendScenarioComparison")
         
-         
+        
+def plotScenarioBar (scen_results,scen_labels,settings,data,output_list=None,year=None, pop_labels=None, legendsettings=None,
+                  colormappings=None,colors=None,plot_observed_data=False,save_fig=False,fig_name=None) :
+    """
     
+    
+    """
+    
+    xlim = 3
+    if len(scen_labels)>3:
+        xlim = len(scen_labels)
+    
+    plotdict = settings.plot_settings
+    if plotdict is None:
+        plotdict = {}
+    
+    if legendsettings is None:
+        legendsettings = {}
+    
+    if year is None:
+        pass # set it to be the last year in the simulation
+        
+    # setup: determine colors to be used
+    colors = []
+    if colormappings is not None:
+        colors_dict, cat_colors = getCategoryColors(colormappings,'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for olabel in output_list:
+            colors.append(colors_dict[olabel])
+    
+    values = [ [scen_results[rname].getValueAt(output,year) for output in output_list] for rname in scen_results.keys()] 
+    
+    final_dict = dcp(plotdict)
+    
+    final_dict2 = {'xlim': (0,xlim),
+#                       'title':  title,
+                  'ylabel': "",
+                  'save_figname': fig_name+"_%s"%output}
+    final_dict.update(final_dict2)
+    
+    
+    _plotBars(values, labels=output, colors=colors, xlabels=scen_results.keys(), legendsettings=legendsettings, 
+              save_fig=save_fig, **final_dict)
+    
+
+    if final_dict.has_key('legend_off') and final_dict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it can represent 
+        # classes of budgets
+        separateLegend(labels=output,colors=cat_colors,fig_name=fig_name, reverse_order = True, **legendsettings)
+            
+  
+
     
 def plotScenarioFlows(scen_results,scen_labels,settings,data,
+                      percentage_relative_to=None, y_intercept=None, ylabel=None, 
                       comp_labels = None, comp_titles = None, pop_labels = None, 
                       link_labels = None, include_link_not_exclude = True, link_legend = None, 
                       plot_inflows = True, plot_outflows = True, exclude_transfers = False, sum_total=False, sum_population=False,
-                      colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, colors=None):
+                      colormappings=None, plot_observed_data=True, save_fig=False, fig_name=None, colors=None, legendsettings=None):
     """
     Line plots of flows across scenarios. Should be used for flows (instantaneous rates) only, such
     as incidence, deaths, notifications, etc.
@@ -436,6 +518,9 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
     year_inc = 5.  # TODO: move this to setting
     tvec = scen_results[0].sim_settings['tvec'] # TODO
     
+    if legendsettings is None:
+        legendsettings = {}
+    
     if 'xlim' in plotdict.keys():
         xlim = plotdict['xlim']
         start_year, end_year = xlim[0], xlim[1]
@@ -446,11 +531,10 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
         
   
     if pop_labels is not None:
-        plot_pids = getPIDs(scen_results[0],plot_pops)
+        plot_pids = getPIDs(scen_results[0],pop_labels)
     else:
         pop_labels = scen_results[0].pop_labels
         plot_pids = range(len(scen_results[0].m_pops))
-
     
     if link_legend is None: link_legend = dict()
     
@@ -462,61 +546,78 @@ def plotScenarioFlows(scen_results,scen_labels,settings,data,
     if comp_titles is not None and len(comp_titles) != len(comp_labels):
         logger.error("Flow-plot failure due to the number of compartment plot titles not matching the number of compartments to analyse.")
     
-          
-            
+    """
+    
     for (i,comp_label) in enumerate(comp_labels):
         
-        for (j, pid) in enumerate(plot_pids):
-            
-            pop_label = pop_labels[j]
-            
-            yvals = []
-            tvals = []
-            labels= []
-            
-            for (k,result_name) in enumerate(scen_results.keys()):
-                
-                result = scen_results[result_name]  
-                
-                all_rates, all_tvecs, all_labels = extractFlows(pop_labels=[pid],
-                                                                comp_label=comp_label,
-                                                                results=result, 
-                                                                settings=settings,
-                                                                tvec=tvec,
-                                                                link_labels=link_labels,
-                                                                include_link_not_exclude=include_link_not_exclude,
-                                                                link_legend=link_legend,
-                                                                plot_inflows=plot_inflows,
-                                                                plot_outflows=plot_outflows,
-                                                                sum_total=sum_total,
-                                                                sum_population=sum_population,
-                                                                exclude_transfers=exclude_transfers)
-                                
-                                
-                
-                yvals.append(all_rates[0])
-                tvals.append(all_tvecs[0])
-                labels.append(scen_labels[k])
+        rates, tvecs, all_labels = extractFlows(pop_labels=plot_pids,
+    """
+           
+    for (i,comp_label) in enumerate(comp_labels):
         
-            if comp_titles is not None:
-                title_comp = comp_titles[i]
-            else:
-                title_comp = 'Compartment: "%s"' % settings.node_specs[comp_label]['name']
             
-            
-            title_pop = '\nPopulation: "%s"' % pop_label
-            
-            final_dict = {'ylim' : 0,
-              'xlabel':'Year',
-              'ylabel': 'Number of People',
-              'x_ticks' : (yr_range,yr_range),
-              'title': '%s %s' % (title_comp,title_pop),
-              'save_figname': '%s_ScenarioFlowComparision_%s_%s'%(fig_name,comp_label,pop_label)
-              }
-            final_dict.update(plotdict)
+        yvals = []
+        tvals = []
+        labels= []
         
-            _plotLine(ys=yvals, ts=tvals, labels=labels, colors=colors, save_fig=save_fig, **final_dict)
+        for (k,result_name) in enumerate(scen_results.keys()):
+            
+            result = scen_results[result_name]  
+            all_rates, all_tvecs, all_labels = extractFlows(pop_labels=plot_pids,
+                                                            comp_label=comp_label,
+                                                            results=result, 
+                                                            settings=settings,
+                                                            tvec=tvec,
+                                                            link_labels=link_labels,
+                                                            include_link_not_exclude=include_link_not_exclude,
+                                                            link_legend=link_legend,
+                                                            plot_inflows=plot_inflows,
+                                                            plot_outflows=plot_outflows,
+                                                            sum_total=sum_total,
+                                                            sum_population=sum_population,
+                                                            exclude_transfers=exclude_transfers)
+                            
+            # WARNING: Summing across rates so that multiple populations are combined. Not sure if this is fine for all intended cases.
+            yv = sum(all_rates) #all_rates[0]
+            
+            if percentage_relative_to is not None:
+                yv /= percentage_relative_to
+                yv *= 100.
+            
+            yvals.append(yv)
+            tvals.append(all_tvecs[0])
+            labels.append(scen_labels[k])
     
+        if comp_titles is not None:
+            title_comp = comp_titles[i]
+        else:
+            title_comp = 'Compartment: "%s"' % settings.node_specs[comp_label]['name']
+        
+        
+        #title_pop = '\nPopulation: "%s"' % pop_label
+        
+        final_dict = {'ylim' : 0,
+          'xlabel':'Year',
+          'ylabel': 'Number of People',
+          'y_intercept': y_intercept,
+          'x_ticks' : (yr_range,yr_range),
+          'title': '', #%s %s' % (title_comp,title_pop),
+          'save_figname': '%s_ScenarioFlowComparision_%s_%s'%(fig_name,comp_label,all_labels[0])
+          }
+        if percentage_relative_to is not None:
+            final_dict['ylabel'] = ylabel
+            final_dict['ylim'] = [0,105.]
+        final_dict.update(plotdict)
+        print colors
+        _plotLine(ys=yvals, ts=tvals, labels=labels, colors=colors, save_fig=save_fig, reverse_order=True, smooth=True, **final_dict)
+    
+        if final_dict.has_key('legend_off') and final_dict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it represents 
+        # classes of compartments
+        
+            separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendScenFlow",**legendsettings)
+        
         
                
 def plotPopulation(results, data, pop_labels, title='',colormappings=None, 
@@ -630,11 +731,11 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
                                                      plot_observed_label=plot_observed_label, 
                                                      use_full_labels=True)
     
-    that, yhat = dataobs
+    if dataobs is not None:
+        that, yhat = dataobs
     
     # iterate for each key population group
     for (i,poplabel) in enumerate(pop_labels):
-        
         
         pl_title = title+' Population: %s' % (poplabel)
         if save_fig:
@@ -644,17 +745,22 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
                   'year_inc' :  5.,
                   'ylabel': 'People',
                   'mec' : 'k',
+                  'title' : pl_title,
                   'x_ticks' : (yr_range,yr_range),
                   'colors': colors
                   }
+        
+        if dataobs is not None:
+            pdict['datapoints'] = (that[i],yhat[i])
+        
         pdict.update(plotdict)
     
         legendsettings =  {'loc':'center left', 
                            'bbox_to_anchor':(1.05, 0.5), 
                            'ncol':ncol}
-   
-        _plotStackedCompartments(tvec, y_values[i][:], labels, datapoints=(that[i],yhat[i]),
-                                 title=pl_title,legendsettings=legendsettings, catlabels=cat_labels,catcolors=colors,
+        
+        _plotStackedCompartments(tvec, y_values[i][:], labels,
+                                 legendsettings=legendsettings, catlabels=cat_labels,catcolors=colors,
                                  save_fig=save_fig,save_figname=save_figname,**pdict)
         
         
@@ -662,14 +768,14 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it represents 
         # classes of compartments
-        separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name)
+        separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name, reverse_order=True, **legendsettings)
         
          
 
-def plotCharacteristic(results, settings, data, title='', outputIDs=None, 
-                       pop_labels = None, plot_total = False,
+def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_bounds = None, 
+                       pop_labels = None, plot_total = False, 
                        plot_observed_data=True, save_fig=False, fig_name=None, 
-                       colors=None, plotdict=None):
+                       colormappings=None, colors=None, plotdict=None, legendsettings=None):
     """
     Plot a characteristic across all populations
     
@@ -706,9 +812,14 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
     
         
     """
-    # setup:
+    charac_specs = settings.charac_specs
+    # setup:    
     if outputIDs is None:
         outputIDs = results.outputs.keys()
+        # now only select characteristics which are plottable
+        outputIDs = [output_id for output_id in outputIDs if isPlottableCharac(output_id, charac_specs)]       
+    # else we already know which characteristics to plot
+    
     
     if pop_labels is None:
         pop_labels = [pop.label for pop in results.m_pops]
@@ -716,8 +827,10 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
     if plotdict is None: 
         plotdict = {}
         
+    if legendsettings is None:
+        legendsettings = {}
+        
     tvec = results.sim_settings['tvec']
-    charac_specs = settings.charac_specs
     
     year_inc = 5.  # TODO: move this to setting
     if 'xlim' in plotdict.keys():
@@ -727,22 +840,33 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
         start_year, end_year = tvec[0], tvec[-1]
     yr_range = np.arange(start_year,end_year+0.1,year_inc,dtype=int)    
       
-        
-    # now only select characteristics which are plottable
-    outputIDs = [output_id for output_id in outputIDs if isPlottableCharac(output_id, charac_specs)]       
-
-
+    # placeholder for y_bounds:
+    yb = None
+    
+    if colors is not None and len(colors) >= len(pop_labels):
+        pass # colors as defined in the args should be used as is  
+    elif colormappings is not None and colors is None:
+        colors = []
+        colors_dict, cat_colors = getCategoryColors(colormappings,'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for (j,pop_label) in enumerate(pop_labels):
+            colors.append(colors_dict[pop_label])
+    else:        
+        colors = gridColorMap(len(pop_labels))
+        logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
+    
+    
     # extract all characteristics we're interested in, all at once
     y_values, labels, unit_tags, dataobs = extractCharacteristic(results, data, charac_specs, charac_labels=outputIDs, pop_labels=pop_labels, plot_observed_data=plot_observed_data, plot_total=plot_total)
     
-    that, yhat = dataobs
+    if dataobs is not None:
+        that, yhat = dataobs
     
     # now plot through each characteristic
     for i,output_id in enumerate(outputIDs):
         
         
-        final_dict = {'y_hat': yhat[i],
-                  't_hat': that[i],
+        final_dict = {
                   'unit_tag': unit_tags[i],
                   'xlabel':'Year',
                   'ylabel': charac_specs[output_id]['name'] + unit_tags[i],
@@ -750,11 +874,144 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None,
                   'title': '%s\n%s' % (title, charac_specs[output_id]['name']),
                   'save_figname': '%s_characteristic_%s'%(fig_name, charac_specs[output_id]['name'])}
         
+        if dataobs is not None: # this can be improved
+            final_dict['y_hat'] = yhat[i]
+            final_dict['t_hat'] = that[i]
+        
+        
         final_dict.update(plotdict)
         
-        _plotLine(y_values[output_id][:], np.tile(tvec,(len(labels),1)), labels, legendsettings=None, save_fig=save_fig, colors=colors, **final_dict)
+        
+        if y_bounds is not None:
+            yb = y_bounds[i]
+        
+        _plotLine(y_values[output_id][:], np.tile(tvec,(len(labels),1)), labels, y_bounds=yb, legendsettings=None, save_fig=save_fig, colors=colors, **final_dict)
+    
+    if final_dict.has_key('legend_off') and final_dict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it represents 
+        # classes of compartments
+        
+        separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendCharac",**legendsettings)
 
 
+def plotStackedBarOutputs(results, settings, year_list, output_list, output_labels=None, xlabels=None,
+                          title="", colormappings=None, save_fig=False, fig_name=None, legendsettings=None):
+    """
+    
+    
+    """
+    xlim = 3
+    if len(xlabels)>3:
+        xlim = len(xlabels)
+    
+    plotdict = settings.plot_settings
+    if plotdict is None:
+        plotdict = {}
+    
+    if legendsettings is None:
+        legendsettings = {}
+    
+    
+    # setup: determine colors to be used
+    colors = []
+    if colormappings is not None:
+        colors_dict, cat_colors = getCategoryColors(colormappings,'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for olabel in output_list:
+            colors.append(colors_dict[olabel])
+    
+    if output_labels is None:
+        output_labels = output_list 
+    
+    
+    # unfortunately we have to do it this way to ensure that the programs are all extracted in the same order
+    values = [[results.getValueAt(output_label,year) for output_label in output_list ] for year in year_list] 
+    
+    final_dict = dcp(plotdict)
+    
+    final_dict2 = {'xlim': (0,xlim),
+#                    'ylim': (0,1.4e4),
+                  'title':  '',
+                  'ylabel': "",
+                  'save_figname': fig_name}
+    final_dict.update(final_dict2)
+    
+    
+    _plotBars(values, labels=output_labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings, 
+              save_fig=save_fig, **final_dict)
+
+
+    if final_dict.has_key('legend_off') and final_dict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it can represent 
+        # classes of budgets
+        separateLegend(labels=output_labels,colors=cat_colors,fig_name=fig_name, reverse_order = True,**legendsettings)
+            
+            
+
+
+def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency="USD", 
+                colormappings=None, cat_labels=None, use_full_labels=False, full_labels=None,
+                save_fig=False, fig_name=None, legendsettings=None):
+    """
+    
+    Params:
+        budgets     list of dicts, with key:val of program:budget
+        title       string, with plot title
+        labels      list of programs
+    """
+    xlim = 3
+    if len(xlabels)>3:
+        xlim = len(xlabels)
+    
+    plotdict = settings.plot_settings
+    if plotdict is None:
+        plotdict = {}
+        
+    # setup: determine colors to be used
+    colors = []
+    if colormappings is not None:
+        colors_dict, cat_colors = getCategoryColors(colormappings,'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for (j,prog_label) in enumerate(labels):
+            colors.append(colors_dict[prog_label])
+    
+    
+    if labels is None:
+        # create super set of all programs. We could use itertools, but we'll use maps
+        progkeys = [b.keys() for b in budgets]
+        labels = list(set.union(*map(set, progkeys)))
+        labels.sort()
+        
+    if legendsettings is None:
+        legendsettings = {}
+    
+    # unfortunately we have to do it this way to ensure that the programs are all extracted in the same order
+    values = [[b[k] if b.has_key(k) else 0 for k in labels ] for b in budgets] 
+    
+    
+    final_dict = {'xlim': (0,xlim),
+                  'title': 'Budgets for %s' % (title),
+                  'ylabel': "Budget (%s)"%currency,
+                  'save_figname': '%s_budget'%fig_name}
+    plotdict.update(final_dict)
+    
+    
+    _plotBars(values, labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings, 
+              save_fig=save_fig, **plotdict)
+
+
+    if plotdict.has_key('legend_off') and plotdict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it can represent 
+        # classes of budgets
+        # reverse legend order so that it matches top<->bottom of stacked bars
+        if use_full_labels:
+            legendsettings =  {'ncol':2}
+            separateLegend(labels=full_labels,colors=colors,fig_name=fig_name, reverse_order=True,**legendsettings)
+        else:
+            separateLegend(labels=cat_labels,colors=cat_colors,fig_name=fig_name,reverse_order=True,)
 
 
 def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles = None, plot_pops = None, pop_labels = None, pop_titles = None, 
@@ -784,7 +1041,7 @@ def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles
     
     if link_legend is None: link_legend = dict()
     
-    if plot_pops is None:
+    if plot_pops is not None:
         plot_pids = getPIDs(results,pop_labels)
     else:
         plot_pids = range(len(results.m_pops))
@@ -828,7 +1085,7 @@ def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles
             if pop_titles is not None:
                 title_pop = plot_pops[j]
             else:
-                title_pop = '\nPopulation: "%s"' % pop.label
+                title_pop = '\nPopulation: "%s"' % pop_labels[j]
         
             
             final_dict = {
@@ -852,10 +1109,10 @@ def plotSingleCompartmentFlow(results, settings, comp_labels = None, comp_titles
                 logger.warn("No flows selected for plotting")
             
 
-def plotPopulationFlows(results, settings, comp_labels = None, comp_titles = None, pop_labels = None, 
+def plotPopulationFlows(results, settings, comp_labels = None, comp_titles = None, pop_labels = None,
               link_labels = None, include_link_not_exclude = True, link_legend = None, sum_total=False, sum_population=False,
               plot_inflows = True, plot_outflows = True, exclude_transfers = False, observed_data = None,
-              save_fig=False, fig_name=None, colors=None):
+              save_fig=False, fig_name=None, colors=None, colormappings=None):
     """
     Plot flows rates in and out of a compartment, across populations. Intended usage is 
     for plots such as total new infections, deaths, etc. where the net flow is required. 
@@ -943,6 +1200,20 @@ def plotPopulationFlows(results, settings, comp_labels = None, comp_titles = Non
     if comp_titles is not None and len(comp_titles) != len(comp_labels):
         logger.error("Flow-plot failure due to the number of compartment plot titles not matching the number of compartments to analyse.")
     
+    if colors is not None and len(colors) >= len(pop_labels):
+        pass # colors as defined in the args should be used as is  
+    elif colormappings is not None and colors is None:
+        colors = []
+        colors_dict, cat_colors = getCategoryColors(colormappings,'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for (j,pop_label) in enumerate(pop_labels):
+            colors.append(colors_dict[pop_label])
+    else:        
+        colors = gridColorMap(len(pop_labels))
+        logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
+    
+   
+    
     
     for (i,comp_label) in enumerate(comp_labels):
         
@@ -993,6 +1264,20 @@ def plotPopulationFlows(results, settings, comp_labels = None, comp_titles = Non
             
     # TODO: plot separate legend
 
+
+def _calculateDatapoints(data, data_labels, pop):
+    yvals = None
+    for (i,label) in enumerate(data_labels):
+        ys = data['characs'][label][pop]['y']
+        ts = data['characs'][label][pop]['t']
+        
+        if i==0:
+            yvals = ys
+        else:
+            yvals += ys
+    return yvals, ts
+
+
 def extractCompartment(results, data, pop_labels=None, comp_labels=None, 
                        plot_observed_data=True, plot_observed_label="alive", use_full_labels=False):
     """
@@ -1016,14 +1301,22 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
         labels = comp_labels
        
     if plot_observed_data:
-        
         for pop in pop_labels:
-            ys = data['characs'][plot_observed_label][pop]['y']
-            ts = data['characs'][plot_observed_label][pop]['t']
+            
+            if isinstance(plot_observed_label, basestring):
+                ys, ts = _calculateDatapoints(data, [plot_observed_label], pop)
+            elif isinstance(plot_observed_label, list):
+                ys, ts = _calculateDatapoints(data, plot_observed_label, pop)
+            else:
+                logger.warn("Unknown data characteristic: ")
+                logger.warn(plot_observed_label)
+            
             yhat.append(ys)
             that.append(ts)
     
-    dataobs = (that,yhat)
+        dataobs = (that,yhat)
+    else:
+        dataobs = None
 
     return datapoints, pop_labels, comp_labels, dataobs
  
@@ -1042,6 +1335,7 @@ def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_l
         plot_total            flag indicating whether to sum across populations
         
     """
+    
     datapoints, _, _ = results.getCharacteristicDatapoints(pop_label=pop_labels,char_label=charac_labels,use_observed_times=False)
     
     unit_tags = []
@@ -1083,7 +1377,8 @@ def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_l
         # 3) plot as total for a characteristic across populations. Note that we shouldn't plot
         #    totals for percentages, but we won't enforce this (for the moment)     
         if plot_total:
-            y_values = [datapoints[output_id][pop] for pop in pop_labels]
+            
+            y_values = [datapoints[output_id][i] for i,p in enumerate(pop_labels)]
             y_values = np.array(y_values)
             y_values = [y_values.sum(axis=0)]
             datapoints[output_id] = y_values
@@ -1150,6 +1445,7 @@ def extractFlows(pop_labels, comp_label, results, settings, tvec, link_labels = 
                             if was_proportion is True:
                                 num_flow *= comp_source.popsize_old
                             else:
+                                num_flow[num_flow>1.] = 1.
                                 num_flow = 1 - (1 - num_flow) ** results.dt     # Fractions must be converted to effective timestep rates.
                                 num_flow *= comp_source.popsize
                             num_flow /= results.dt      # All timestep-based effective fractional rates must be annualised.
@@ -1167,6 +1463,8 @@ def extractFlows(pop_labels, comp_label, results, settings, tvec, link_labels = 
         all_rates.append(pop_rates[0])
         all_tvecs.append(pop_tvecs[0])
         
+        
+    
     if sum_population:
         all_tvecs = all_tvecs[:1]
         all_labels = ['Total']
@@ -1206,8 +1504,10 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
         lw = 0
         if save_fig:
             lw = 0.1
-        ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=lw) # for some reason, lw=0 leads to no plot if we then use fig.savefig()
-        reg, = ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)
+
+        ax.fill_between(tvec, bottom, top, facecolor=colors[k], alpha=1,lw=lw, edgecolor=colors[k]) # for some reason, lw=0 leads to no plot if we then use fig.savefig()
+        reg, = ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10) # TODO fix this by using xlims and ylims appropriately
+
         bottom = dcp(top)
         
     max_val = max(top)
@@ -1259,7 +1559,9 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
  
     
 def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
-             legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None,
+             legendsettings=None,title=None,xlabel=None,ylabel=None,xlim=None,ylim=None,y_ticks=None,x_ticks=None, 
+             y_intercept=None, reverse_order=False, y_bounds=None,
+             smooth=False, symmetric=False, repeats=5, alpha=0.3, 
              marker='o',s=40,facecolors='none',linewidth=3,zorder=10,save_fig=False,save_figname=None,legend_off=False,**kwargs):
     """
     Plots multiple lines, with additional option of overlaying observed datapoints
@@ -1269,12 +1571,18 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         ts        list of values for xs, with each entry corresponding to a line
         labels    list of labels for each line
         colors    list of colors for each line
+        y_intercept
+        reverse_order
+        y_bounds    list of array for each ys entry, with format of (tbound, ybound_min, ybound_ymax), thus can be specified independently of ts
         **kwargs    further keyword arguments, such as ylims, legend_off, edgecolors, etc.
     """
+    
     
     if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}    
     
     ymin_val = np.min(ys[0])
+    indices = (ts[0]>=xlim[0])*(ts[0]<=xlim[1]) 
+    ymax_val = np.max(ys[0][indices])    
     
     if colors is None or len(colors) < len(ys):        
         colors = gridColorMap(len(ys))
@@ -1282,18 +1590,48 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         
     fig, ax = pl.subplots()
     
-    for k,yval in enumerate(ys):
+    if y_intercept is not None:
+        ax.hlines([y_intercept], np.min(ts[0]), np.max(ts[0]), colors='#AAAAAA', linewidth=0.75*linewidth, linestyle='--')
+    
+    
+    #plot ys, but reversed - and also reverse the labels (useful for scenarios, and optimizations):
+    order_ys = range(len(ys))
+    if reverse_order:
+#         print("Reversed order -----------------")
+        order_ys = order_ys[::-1] # surely there are more elegant ways to do this ... 
+        labels = labels[::-1]
+    
+    for k in order_ys: 
         
+        yval = ys[k]
+        
+        # if there are confidence bounds, plot using fill_between 
+        if y_bounds is not None:
+            t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2]
+            ax.fill_between(t_bound, y_min_bound, y_max_bound, facecolor=colors[k], alpha = alpha, linewidth=0.1, edgecolor=colors[k])
+        
+        
+        # smooth line 
+        if smooth:
+            yval = smoothfunc(yval, symmetric, repeats)
+    
+        # plot line
         ax.plot(ts[k], yval, c=colors[k])
+        
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
+        if np.max(yval[indices]) > ymax_val:
+            ymax_val = np.max(yval[indices])
             
+        # scatter data points
         if len(y_hat) > 0 and len(y_hat[k]) > 0: # i.e. we've seen observable data
             
             ax.scatter(t_hat[k],y_hat[k],marker=marker,edgecolors=colors[k],facecolors=facecolors,s=s,zorder=zorder,linewidth=linewidth)
             if np.min(y_hat[k]) < ymin_val:
                 ymin_val = np.min(y_hat[k])
-        
+            
+
+    
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width*0.8, box.height])   
     
@@ -1310,10 +1648,13 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     # Set the ymin to be halfway between the ymin_val and current ymin. 
     # This seems to get rid of the worst of bad choices for ylabels[0] = -5 when the real ymin=0
     tmp_val = (ymin+ymin_val)/2.
-    ax.set_ylim(ymin=tmp_val)
+    
+    ax.set_ylim(ymin=tmp_val,ymax=ymax_val)
+    
+    ax.set_ylim(ymin=0) ##### TMP
+    
     if ylim is not None:
         ax.set_ylim(ylim)
-    
     
     if xlim is not None:
         ax.set_xlim(xlim)
@@ -1332,6 +1673,128 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
         
     return fig
     
+def _plotBars(values, labels=None, colors=None, title="", orientation='v', legendsettings=None,
+              xlabel="", ylabel="", xlabels=None, yticks=None, barwidth=0.5, bar_offset=0.25, xlim=(0,3),ylim=None,
+              save_fig=False,save_figname=None,legend_off=False,formatter=None,reverse_order=True,**kwargs):
+    """
+    Plots bar graphs. Intended for budgets. 
+    
+    These plots can be used for multiple budgets, but given the plot formatting, it is only practical to be used 
+    for a 3 bars max.
+    
+    Params:
+        values    list 
+    """
+    # setup 
+    num_bars = len(values)
+    num_cats = len(values[0]) # label categories
+    inds = np.arange(num_bars) + bar_offset
+    xinds = np.arange(num_bars) + bar_offset + barwidth/2.
+    
+    
+    if xlabels is None:
+        x_ticks = (xinds, range(num_bars))
+    else:
+        x_ticks = (xinds, xlabels)
+    
+    if colors is None:
+        colors = gridColorMap(num_cats)
+        logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
+    
+    if legendsettings is None: 
+        legendsettings = {'loc':'center right', 'ncol':1}    
+
+    
+    # preprocessing to make our lives easier:
+    cat_values = map(list, zip(*values))
+    cumulative = np.zeros(num_bars)
+    
+    # and plot:
+    fig, ax = pl.subplots()
+    
+    for k in range(num_cats):
+        
+        if k == 0:
+            ax.bar(inds, cat_values[k], color=colors[k], width=barwidth, lw=0)
+        else:
+            ax.bar(inds, cat_values[k], color=colors[k], width=barwidth, bottom=cumulative, lw=0)
+            
+        cumulative += cat_values[k]
+    
+    _turnOffBorder()
+    
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    
+    if formatter is not None:
+        ax.yaxis.set_major_formatter(formatter)
+        ax.xaxis.set_major_formatter(formatter)
+    
+    if not legend_off:
+        ax.legend(labels, **legendsettings)
+    
+    if x_ticks is not None:
+        ax.set_xticks(x_ticks[0])
+        ax.set_xticklabels(x_ticks[1])
+    
+    ax.set_xlim(xlim)
+    if ylim is not None:
+        ax.set_ylim(ylim)
+    
+    if save_fig:
+        fig.savefig('%s' % (save_figname))                    
+        logger.info("Saved figure: '%s'"%save_figname)
+        
+    return fig
+       
+       
+       
+    
+def smoothfunc(ys, symmetric=False, repeats=3):
+    """
+    Params:
+        ys = y values to smooth 
+        symmetric = whether or not to use a symmetric convolution kernel
+        repeats = the number of times to apply the kernel
+        
+    Returns:
+        smoothed version of ys (as an array)
+    
+    Notes:
+        A symmetric kernel produces less "distortion" for the plot, but
+        could exacerbate unphysical effects (e.g., an intervention having
+        an impact before it begins). The function pads the ends of the
+        time series, so the first and last point shouldn't be affected
+        by the smoothing.
+        
+        The smoothness is directly proportional to the number of repeats.
+        In general, 1 repeat will smooth out time point pairs, 2 repeats
+        will smooth out time point triplets, etc.
+    
+    Example:
+        import pylab as pl
+        y = pl.rand(50)
+        ys = smoothfunc(y, symmetric=True, repeats=10)
+        pl.plot(y)
+        pl.plot(ys)
+    """
+    ys = np.array(ys) # Convert to an array
+    
+    # Choose the kernel
+    if symmetric:
+        kernel = np.array([0.25, 0.5, 0.25]) # The tiniest imaginable Gaussian
+    else:
+        kernel = np.array([0.125, 0.25, 0.5, 0.125]) # The tiniest imaginable asymmetric Gaussian
+    
+    npad = repeats*len(kernel) # Figure out how big the padding on each end needs to be
+    yspad = np.concatenate([np.ones(npad)*ys[0], ys, np.ones(npad)*ys[-1]]) # Pad the ends
+    for repeat in range(repeats): # Do the convolution
+        yspad = np.convolve(yspad, kernel, 'same')
+    
+    ys = yspad[npad:-npad] # Trim off the padding we added
+    
+    return ys
 
         
               

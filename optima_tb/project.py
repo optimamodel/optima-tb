@@ -10,14 +10,17 @@ from optima_tb.utils import tic, toc, odict, OptimaException
 from optima_tb.model import runModel
 from optima_tb.settings import Settings 
 from optima_tb.parameters import ParameterSet, export_paramset, load_paramset
+from optima_tb.programs import ProgramSet
 from optima_tb.plotting import plotProjectResults
 from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
+from optima_tb.optimization import optimizeFunc, parallelOptimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
 from optima_tb.scenarios import ParameterScenario, BudgetScenario, CoverageScenario
 from optima_tb.dataio import exportObj, importObj
+from optima_tb.reconciliation import reconcileFunc, compareOutcomesFunc
 
 from uuid import uuid4 as uuid
-from numpy import max
+import numpy as np
 
 
 #%% Project class (i.e. one self-contained geographical unit)
@@ -35,6 +38,7 @@ class Project(object):
         self.data = odict()
 
         self.parsets = odict()
+        self.progsets = odict()
         self.results = odict()
         
         self.scenarios = odict()
@@ -58,7 +62,7 @@ class Project(object):
             self.settings.tvec_end = yearRange[1]
     
     
-    def runSim(self, parset = None, parset_name = 'default', plot = False, debug = False):
+    def runSim(self, parset = None, parset_name = 'default', progset = None, progset_name = None, options = None, plot = False, debug = False):
         ''' Run model using a selected parset and store/return results. '''
         
         if parset is None:
@@ -67,9 +71,20 @@ class Project(object):
             else:
                 try: parset = self.parsets[parset_name]
                 except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
+                
+        if progset is None:
+            try: progset = self.progsets[progset_name]
+            except: logger.info('Initiating a standard run of project "%s" (i.e. without the influence of programs).' % self.name)
+        if progset is not None:
+            if options is None:
+                logger.info('Program set "%s" will be ignored while running project "%s" due to no options specified.' % (progset.name, self.name))
+                progset = None
 
         tm = tic()
-        results = runModel(settings = self.settings, parset = parset)
+
+        #results = runModel(settings = self.settings, parset = parset)
+        results = runModel(settings = self.settings, parset = parset, progset = progset, options = options)
+
         toc(tm, label = 'running %s model' % self.name)
         
         if plot:
@@ -79,27 +94,75 @@ class Project(object):
         
         return results
         
+        
+    def optimize(self, parset = None, parset_name = 'default', progset = None, progset_name = 'default', options = None, max_iter = 500):
+        ''' Optimize model using a selected parset and store/return results. '''
+        
+        if parset is None:
+            if len(self.parsets) < 1: 
+                raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot optimize model.' % self.name)
+            else:
+                try: parset = self.parsets[parset_name]
+                except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot optimize model.' % (self.name, parset_name))        
+        
+        if progset is None:
+            if len(self.progsets) < 1: 
+                raise OptimaException('ERROR: Project "%s" appears to have no program sets. Cannot optimize model.' % self.name)
+            else:
+                try: progset = self.progsets[progset_name]
+                except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot optimize model.' % (self.name, progset_name))
+                
+        results = optimizeFunc(settings = self.settings, parset = parset, progset = progset, options = options, max_iter = max_iter)
+        
+        return results
+    
+    
+    def parallelOptimize(self, parset = None, parset_name = 'default', progset = None, progset_name = 'default', options = None, num_threads = 4, block_iter = 10, max_blocks = 10, max_iter = None, doplot = False, fullfval = False, randseed = None):
+        ''' Like optimize, but parallel '''
+        
+        if parset is None:
+            if len(self.parsets) < 1: 
+                raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot optimize model.' % self.name)
+            else:
+                try: parset = self.parsets[parset_name]
+                except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot optimize model.' % (self.name, parset_name))        
+        
+        if progset is None:
+            if len(self.progsets) < 1: 
+                raise OptimaException('ERROR: Project "%s" appears to have no program sets. Cannot optimize model.' % self.name)
+            else:
+                try: progset = self.progsets[progset_name]
+                except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot optimize model.' % (self.name, progset_name))
 
-    def plotResults(self, results, colormappings=None, colorlabels=None, debug=False, pop_labels=None, plot_observed_data=True,savePlot=False,figName=None):
+        
+        results = parallelOptimizeFunc(settings = self.settings, parset = parset, progset = progset, options = options, num_threads = num_threads, block_iter = block_iter, max_blocks = max_blocks, max_iter = max_iter, doplot = doplot, fullfval = fullfval, randseed = randseed)
+
+        return results
+        
+
+    def plotResults(self, results, colormappings=None, colorlabels=None, debug=False, pop_labels=None, plot_observed_data=True,savePlot=False,figName=None,pop_colormappings=None):
         ''' Plot all available results '''
 
-        plotProjectResults(results,settings=self.settings, data=self.data, title = self.name.title(), colormappings=colormappings, colorlabels=colorlabels, pop_labels=pop_labels, debug = debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
+        plotProjectResults(results, settings=self.settings, data=self.data, title = self.name.title(), 
+                           colormappings=colormappings, colorlabels=colorlabels, pop_colormappings=pop_colormappings,
+                           pop_labels=pop_labels, debug = debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
+
             
     
     
-    def makeSpreadsheet(self, databook_path = None, num_pops = 5, num_migrations = 2):
+    def makeSpreadsheet(self, databook_path = None, num_pops = 5, num_migrations = 2, num_progs = 0):
         ''' Generate a data-input spreadsheet (e.g. for a country) corresponding to the loaded cascade settings. '''
         
         if databook_path is None: databook_path = '../data/' + self.name + '-data.xlsx'
-        logging.info("Attempting to create databook %s"%databook_path)
+        logger.info("Attempting to create databook %s"%databook_path)
         
-        makeSpreadsheetFunc(settings = self.settings, databook_path = databook_path, num_pops = num_pops, num_migrations = num_migrations)        
+        makeSpreadsheetFunc(settings = self.settings, databook_path = databook_path, num_pops = num_pops, num_migrations = num_migrations, num_progs = num_progs)        
         
     
     def loadSpreadsheet(self, databook_path = None):
         ''' Load data spreadsheet into Project data dictionary. '''
         if databook_path is None: databook_path = '../data/' + self.name + '-data.xlsx'
-        logging.info("Attempting to load databook %s"%databook_path)
+        logger.info("Attempting to load databook %s"%databook_path)
         
         self.data = loadSpreadsheetFunc(settings = self.settings, databook_path = databook_path) 
         
@@ -112,13 +175,63 @@ class Project(object):
         self.parsets[name] = ParameterSet(name = name)
         self.parsets[name].makePars(self.data)
         
-    def exportParset(self,parset_name):
+    def makeProgset(self, name = 'default'):
+        ''' Transform project data into a set of programs that can be used in budget scenarios and optimisations. '''
+
+        if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
+        self.progsets[name] = ProgramSet(name = name)
+        self.progsets[name].makeProgs(data = self.data, settings = self.settings)
+    
+    def reconcile(self, parset_name = None, progset_name = None, reconcile_for_year = 2017, unitcost_sigma = 0.05, attribute_sigma = 0.20, impact_pars = None, budget_allocation = None, overwrite = True):
+        '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible
+           Default behaviour is to overwrite existing progset
+        '''
+        #Make a copy of the original simulation end date
+        orig_tvec_end = self.settings.tvec_end
+        #Checks and settings for reconcile
+        if parset_name is None: 
+            try: 
+                parset_name = self.parsets.keys()[0]
+                logger.info('Parameter set was not identified for reconciliation, using parameter set: "%s"' %parset_name)
+            except:
+                raise OptimaException('No valid parameter sets exist within the project')
+            
+        if progset_name is None: 
+            try:
+                progset_name = self.progsets.keys()[0]
+                logger.info('Program set was not identified for reconciliation, using program set: "%s"' %progset_name)
+            except:
+                raise OptimaException('No valid program sets exist within the project')
+        
+        if not parset_name in self.parsets.keys(): raise OptimaException("ERROR: No parameter set '%s' found"%parset_name)
+        if not progset_name in self.progsets.keys(): raise OptimaException("ERROR: No program set '%s' found"%progset_name)
+        #If overwrite selected, reconcile will overwrite the progset, otherwise a new progset is created
+        if not overwrite:
+            progset_name += '_reconciled'
+            self.makeProgset(name=progset_name)
+        logger.info('Reconciling progset "%s" as overwrite is set as "%s"' %(progset_name, overwrite))
+        
+        #Run reconcile functionality
+        self.progsets[progset_name] = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
+                                                    parset_name=parset_name, progset_name=progset_name,
+                                                    unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
+                                                    impact_pars=impact_pars,orig_tvec_end=orig_tvec_end,
+                                                    budget_allocation=budget_allocation)
+
+    
+    def compareOutcomes(self, parset_name=None, progset_name=None, budget_allocation= None, year=2017):
+        '''Display how parameters for a progset and parset match up
+        '''
+        compareOutcomesFunc(proj=self, parset_name=parset_name, progset_name=progset_name, 
+                            budget_allocation=budget_allocation, year=year, compareoutcome=True)
+        
+    def exportParset(self, parset_name):
         ''' Exports parset to .csv file '''
         if not parset_name in self.parsets.keys():
             raise OptimaException("ERROR: no parameter set '%s' found"%parset_name)
         export_paramset(self.parsets[parset_name])
         
-    def importParset(self,parset_filename,new_name=None):
+    def importParset(self, parset_filename, new_name=None):
         ''' Imports parameter set from .csv file '''
         paramset = load_paramset(parset_filename)
         if new_name is None:
@@ -139,12 +252,12 @@ class Project(object):
         if not parset_name in self.parsets.keys():
             self.makeParset(name=parset_name)
         paramset = self.parsets[parset_name]
-        logging.info("Updating parameter values in parset=%s"%(parset_name))
+        logger.info("Updating parameter values in parset=%s"%(parset_name))
         
         makeManualCalibration(paramset,rate_dict)
     
     
-    def calculateFit(self,results,metric=None):
+    def calculateFit(self, results, metric=None):
         '''
         Calculates the score for the fit during manual calibration and prints to output. 
         
@@ -163,12 +276,13 @@ class Project(object):
         if self.data is None or len(self.data)==0:
             raise OptimaException('ERROR: no data is specified. Cannot calculate fit.')
         
-        datapoints = results.getCharacteristicDatapoints()
+        datapoints, _, _ = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,self.data['characs'],metric)
-        logger.info("Calculated scores for fit using %s: largest value=%.2f"%(metric,max(score)))
+        logger.info("Calculated scores for fit using %s: largest value=%.2f"%(metric,np.max(score)))
+        return score
       
       
-    def runAutofitCalibration(self,new_parset_name = None, old_parset_name="default", target_characs=None):
+    def runAutofitCalibration(self, new_parset_name = None, old_parset_name="default", target_characs=None):
         """
         Runs the autofitting calibration routine, as according to the parameter settings in the 
         settings.autofit_params configuration.
@@ -192,7 +306,7 @@ class Project(object):
         self.parsets[new_parset_name] = new_parset
         
         
-    def createScenarios(self,scenario_dict):
+    def createScenarios(self, scenario_dict):
         """
         Creates the scenarios to be run, and adds them to this project's store
         of available scenarios to run. Each scenario is described as a (key, value)
@@ -226,7 +340,7 @@ class Project(object):
             none
             
         
-        Example: 
+        Parameter Scenario Example: 
             scvalues = odict()
             param = 'birth_transit'
             scvalues[param] = odict()
@@ -239,15 +353,31 @@ class Project(object):
                                   'run_scenario' : True,
                                   'scenario_values': scvalues}
                }
-            proj= Project(name = 'sampleProject', cascade_path = 'data/cascade-simple.xlsx')
+            proj = Project(name = 'sampleProject', cascade_path = 'data/cascade-simple.xlsx')
             proj.createScenarios(scen_values)
+            
+        Budget Scenario Example: 
+            budget_options = {'HT-DS': 4e6,'SAT-DS':0,'HT-MDR': 3e4}
+            scen_values = { 'test_scenario': {'type': 'Budget',
+                                      'overwrite' : True, # it will overwrite scenario to the parset
+                                      'run_scenario' : True,
+                                      'scenario_values': budget_options}
+                   }
+            proj = Project(name = 'sampleProject', cascade_path = 'data/cascade-simple.xlsx')
+            proj.makeParset(name = 'default_parset')
+            proj.makeProgset(name = 'default_progset')
+            proj.createScenarios(scen_values)
+            resultset = proj.runScenarios(original_parset_name = 'default_parset',
+                                  original_progset_name='default_progset',
+                                  original_budget_options=options,
+                                  include_bau=False)
 
-        
-                 
+  
         """
         logger.info("About to create scenarios")
         
         pop_labels = self.data['pops']['label_names']
+
         
         for scenario_name in scenario_dict.keys():
             vals = scenario_dict[scenario_name]
@@ -257,7 +387,14 @@ class Project(object):
                 # TODO decide what to do if scenario with same name already exists. Update or ignore? SJ: prefer to ignore.
             
             if vals['type'].lower() == 'parameter':
-                self.scenarios[scenario_name] = ParameterScenario(name=scenario_name,pop_labels=pop_labels,**vals)
+                self.scenarios[scenario_name] = ParameterScenario(name=scenario_name,settings=self.settings,pop_labels=pop_labels,**vals)
+
+            elif vals['type'].lower() == 'budget':
+                self.scenarios[scenario_name] = BudgetScenario(name=scenario_name,pop_labels=pop_labels,**vals)
+            
+            elif vals['type'].lower() == 'coverage':
+                self.scenarios[scenario_name] = CoverageScenario(name=scenario_name,pop_labels=pop_labels,**vals)
+
             else:
                 raise NotImplementedError("ERROR: no corresponding Scenario type for scenario=%s"%scenario_name)
         
@@ -265,7 +402,7 @@ class Project(object):
         
         
 
-    def runScenarios(self,original_parset_name,scenario_set_name=None,include_bau=False,plot=False,save_results=False):
+    def runScenarios(self,original_parset_name,original_progset_name=None,original_budget_options=None,scenario_set_name=None,include_bau=False,plot=False,save_results=False):
         """
         Runs scenarios that are contained in this project's collection of scenarios (i.e. self.scenarios). 
         For each scenario run, using original_parset_name, the results generated are saved and 
@@ -286,18 +423,29 @@ class Project(object):
         Returns:
             results    dictionary of results obtained for each scenario, with key = scenario_name
         """
-        ops = self.parsets[original_parset_name]
+        orig_parset = self.parsets[original_parset_name]
+        
+        if original_progset_name is not None:
+            orig_progset = self.progsets[original_progset_name]
+        else:
+            orig_progset = None
+            
+        if original_budget_options is None:
+            original_budget_options = {}
+            
         results = odict()
         
         if include_bau:
-            results['BAU'] = self.runSim(parset_name = original_parset_name,plot=plot)
-            
+            results['BAU'] = self.runSim(parset_name = original_parset_name,progset=orig_progset,options=original_budget_options,plot=plot)
+
         
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
-                
-                results[scen_name] = self.runSim(parset_name = scen_name, parset = self.scenarios[scen].getScenarioParset(ops),plot=plot)
+
+                progset, budget_options = self.scenarios[scen].getScenarioProgset(orig_progset,original_budget_options)
+            
+                results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(orig_parset), progset=progset, options=budget_options, parset_name = scen_name, plot=plot)
                 
                 if scenario_set_name is None:
                     results[scen_name].name = '%s'%(scen_name)
@@ -306,13 +454,14 @@ class Project(object):
                     
                 if save_results:
                     results[scen_name].export()
+                    export_paramset(self.scenarios[scen].getScenarioParset(orig_parset))
         
         return results
     
     
     
     
-    def exportProject(self,filename=None,format='json',compression='zlib'):
+    def exportProject(self, filename=None, format='json', compression='zlib'):
         """
         
         This currently saves everything within a project, including results.
