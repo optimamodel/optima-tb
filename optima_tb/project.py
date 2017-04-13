@@ -182,7 +182,7 @@ class Project(object):
         self.progsets[name] = ProgramSet(name = name)
         self.progsets[name].makeProgs(data = self.data, settings = self.settings)
     
-    def reconcile(self, parset_name = None, progset_name = None, reconcile_for_year = 2017, unitcost_sigma = 0.05, attribute_sigma = 0.20, impact_pars = None, overwrite = True):
+    def reconcile(self, parset_name = None, progset_name = None, reconcile_for_year = 2017, unitcost_sigma = 0.05, attribute_sigma = 0.20, impact_pars = None, budget_allocation = None, overwrite = True):
         '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible
            Default behaviour is to overwrite existing progset
         '''
@@ -215,14 +215,15 @@ class Project(object):
         self.progsets[progset_name] = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
                                                     parset_name=parset_name, progset_name=progset_name,
                                                     unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
-                                                    impact_pars=impact_pars,orig_tvec_end=orig_tvec_end)
+                                                    impact_pars=impact_pars,orig_tvec_end=orig_tvec_end,
+                                                    budget_allocation=budget_allocation)
 
     
-    def compareOutcomes(self, parset_name=None, progset_name=None, year=2017):
+    def compareOutcomes(self, parset_name=None, progset_name=None, budget_allocation= None, year=2017):
         '''Display how parameters for a progset and parset match up
         '''
         compareOutcomesFunc(proj=self, parset_name=parset_name, progset_name=progset_name, 
-                            year=year, compareoutcome=True)
+                            budget_allocation=budget_allocation, year=year, compareoutcome=True)
         
     def exportParset(self, parset_name):
         ''' Exports parset to .csv file '''
