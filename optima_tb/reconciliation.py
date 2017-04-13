@@ -110,23 +110,23 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
         return progset
 
 def compareOutcomesFunc(proj, year, parset_name=None, progset_name=None, budget_allocation=None, compareoutcome=None, display=True):
-        """
-        Compares impact parameters as informed by progset to identified parset, and display the comparison
+    """
+    Compares impact parameters as informed by progset to identified parset, and display the comparison
+    
+    Params:
+        proj                    Project object to run simulations for reconciliation process (type: Python object)
+        year                    Year for which compaarison needs to be displayed/established (type: int)
+        parset_name             Parameter set name to compare  (type: string)
+        progset_name            Program set name to compare  (type: string)
+        budget_allocation       Dictionary of programs with new budget allocations (type: dict)
+        compareoutcome          Flag to pass into reconciliationMetric() to inform that this is not an optimization (type: bool)
+        display                 Flag to indicate whether to print out comparison results (type: bool)
         
-        Params:
-            proj                    Project object to run simulations for reconciliation process (type: Python object)
-            year                    Year for which compaarison needs to be displayed/established (type: int)
-            parset_name             Parameter set name to compare  (type: string)
-            progset_name            Program set name to compare  (type: string)
-            budget_allocation       Dictionary of programs with new budget allocations (type: dict)
-            compareoutcome          Flag to pass into reconciliationMetric() to inform that this is not an optimization (type: bool)
-            display                 Flag to indicate whether to print out comparison results (type: bool)
-            
-            
-        Returns:
-            impact                  dictionary of original and reconciled parset/progset impact comparison
-            
-        """
+        
+    Returns:
+        impact                  dictionary of original and reconciled parset/progset impact comparison
+        
+    """
     #Make a copy of the original simulation end date
     orig_tvec_end = proj.settings.tvec_end
     #Checks and settings for reconcile
