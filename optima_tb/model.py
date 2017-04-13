@@ -248,10 +248,65 @@ class Model(object):
             # Store budgets/coverages for programs that are initially allocated.
             if prog.label in init_alloc:
                 alloc = init_alloc[prog.label]
+                
+                # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to timevec.
+                if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog.label in self.sim_settings['constraints']['max_yearly_change']:
+                    if alloc_is_coverage:
+                        default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
+                    else:
+                        default = prog.getDefaultBudget(year=start_year)
+                    default = prog.getDefaultBudget(year = start_year)
+                    if abs(alloc - default) > project_settings.TOLERANCE:
+                        print 'Start it up...'
+                        alloc_def = self.sim_settings['tvec']*0.0 + default
+                        alloc_new = self.sim_settings['tvec']*0.0 + alloc
+                        try: eps = self.sim_settings['constraints']['max_yearly_change'][prog.label]['val']
+                        except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog.label)
+                        if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog.label] and self.sim_settings['constraints']['max_yearly_change'][prog.label]['rel'] is True:
+                            eps *= default
+                        alloc_ramp = default + (self.sim_settings['tvec'] - start_year)*eps
+                        if alloc >= default: alloc_ramp = np.minimum(alloc_ramp,alloc_new)
+                        else: alloc_ramp = np.maximum(alloc_ramp,alloc_new)
+    #                    print list(alloc_def)
+    #                    print list(alloc_new)
+    #                    print list(alloc_ramp)
+                        alloc_test = alloc_def*(self.sim_settings['tvec']<start_year) + alloc_ramp*(self.sim_settings['tvec']>=start_year)
+                        print list(alloc_test)
+                
                 if alloc_is_coverage:
                     self.prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc), 'cov':alloc, 'impact':{}}
                 else:
                     self.prog_vals[prog.label] = {'cost':alloc, 'cov':prog.getCoverage(budget=alloc), 'impact':{}}
+            
+            # If ramp constraints are active, cost and cov needs to be a fully time-dependent array corresponding to timevec.
+#            if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog.label in self.sim_settings['constraints']['max_yearly_change']:
+#                default = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
+#                default_budget = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
+#                d_years = self.sim_settings['tvec'][ti] - self.sim_settings['progs_start']
+#                try: eps = self.sim_settings['constraints']['max_yearly_change'][prog_label]['val']
+#                except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog_label)
+#                relative_yearly_change = False
+#                if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog_label] and self.sim_settings['constraints']['max_yearly_change'][prog_label]['rel'] is True:
+#                    relative_yearly_change = True
+#                direction = np.sign(prog_budget - default_budget)
+#                
+#                if relative_yearly_change is True:
+#                    if eps != np.inf and np.abs(default_budget) < project_settings.TOLERANCE:
+##                                                logger.warn('Default budget for "%s" is effectively zero and max yearly change is flagged as relative. Change in program funding will be negligible.' % prog_label)
+#                        raise OptimaException('ERROR: Default budget for "%s" is effectively zero (with desired budget aim greater than zero) and finite maximum-yearly-change factor is flagged as relative. Model will not continue running; change in program funding would be negligible.' % prog_label)
+#                    # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
+#                    if eps*d_years*default_budget <= np.abs(prog_budget - default_budget):
+#                        if direction > 0:       # Effective budget is increasing from and relative to the default.
+#                            prog_budget = np.min([default_budget*(1.0+eps*d_years), prog_budget])
+#                        elif direction < 0:     # Effective budget is decreasing from the relative to the default.
+#                            prog_budget = np.max([default_budget*(1.0-eps*d_years), prog_budget])
+#                else:
+#                    # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
+#                    if eps*d_years <= np.abs(prog_budget - default_budget):
+#                        if direction > 0:       # Effective budget is increasing from the default in an absolute manner.
+#                            prog_budget = np.min([default_budget+eps*d_years, prog_budget])
+#                        elif direction < 0:     # Effective budget is decreasing from the default in an absolute manner..
+#                            prog_budget = np.max([default_budget-eps*d_years, prog_budget])            
             
             # Store default budgets/coverages for all other programs if saturation is selected.
             elif 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
@@ -266,8 +321,6 @@ class Model(object):
                 for att_label in prog.attributes.keys():
                     att_vals = prog.attributes[att_label]
                     if len(set(att_vals[~np.isnan(att_vals)])) <= 1:
-#                        print att_vals
-#                        print set(att_vals[~np.isnan(att_vals)])
                         do_full_tvec_check[att_label] = False
                     else:
                         do_full_tvec_check[att_label] = True
