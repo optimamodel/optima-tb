@@ -208,13 +208,17 @@ class Program:
         Note that this method is not typically used during model processing.
         '''
         
+        # If coverage is a scalar, make it a float. If it is a list or array, make it an array of floats.
+        try: coverage = float(coverage)
+        except: coverage = dcp(np.array(coverage, 'float'))
+    
         if self.cov_format is None:
             raise OptimaException('ERROR: Attempted to convert coverage to budget for a program that does not have coverage.')
         else:
             if self.cov_format.lower() == 'fraction':
-                bud = float(coverage)*self.func_specs['pars']['unit_cost']/0.01     # Unit cost is per percentage when format is a fraction.
+                bud = coverage*self.func_specs['pars']['unit_cost']/0.01     # Unit cost is per percentage when format is a fraction.
             else:
-                bud = float(coverage)*self.func_specs['pars']['unit_cost']
+                bud = coverage*self.func_specs['pars']['unit_cost']
         return bud        
         
     def getCoverage(self, budget):
@@ -224,19 +228,25 @@ class Program:
         Excess coverage will also be ignored in the model.
         '''
         
+        # If budget is a scalar, make it a float. If it is a list or array, make it an array of floats.
+        try: budget = float(budget)
+        except: budget = dcp(np.array(budget, 'float'))
+        
         if self.cov_format is None:
             cov = np.nan    # Fixed cost programs have no coverage.
         else:
             if self.cov_format.lower() == 'fraction':
-                cov = float(budget)*0.01/self.func_specs['pars']['unit_cost']     # Unit cost is per percentage when format is a fraction.
+                cov = budget*0.01/self.func_specs['pars']['unit_cost']     # Unit cost is per percentage when format is a fraction.
             else:
-                cov = float(budget)/self.func_specs['pars']['unit_cost']
+                cov = budget/self.func_specs['pars']['unit_cost']
         return cov
         
     def getImpact(self, budget, impact_label = None, parser = None, years = None, budget_is_coverage = False):
         
         if self.func_specs['type'] == 'cost_only':
             return 0.0
+        
+        budget = dcp(budget)    # Just in case.
         
         # Baseline impact is just coverage.
         if budget_is_coverage:

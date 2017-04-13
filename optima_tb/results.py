@@ -89,6 +89,7 @@ class ResultSet(object):
         self.budgets = {} # placeholders
         self.coverages = {}
         if progset is not None and budget_options is not None:
+            budget_options = dcp(budget_options)
 #            print [p.label for p in progset.progs]
             # we have results for progsets and budget_options
             if budget_options.has_key('alloc_is_coverage') and budget_options['alloc_is_coverage']: # TODO update post-Belarus

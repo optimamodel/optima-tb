@@ -231,7 +231,7 @@ class Model(object):
         pop_index = self.pop_ids[pop_label]
         return self.pops[pop_index]
         
-    def preCalculateProgsetVals(self, progset):
+    def preCalculateProgsetVals(self, settings, progset):
         ''' Work out program coverages and impacts ahead of the model run. '''
         
         try: start_year = self.sim_settings['progs_start']
@@ -256,28 +256,35 @@ class Model(object):
                     else:
                         default = prog.getDefaultBudget(year=start_year)
                     default = prog.getDefaultBudget(year = start_year)
-                    if abs(alloc - default) > project_settings.TOLERANCE:
-                        print 'Start it up...'
+                    if np.abs(alloc - default) > project_settings.TOLERANCE:
+#                        print 'Start it up...'
                         alloc_def = self.sim_settings['tvec']*0.0 + default
                         alloc_new = self.sim_settings['tvec']*0.0 + alloc
                         try: eps = self.sim_settings['constraints']['max_yearly_change'][prog.label]['val']
                         except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog.label)
                         if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog.label] and self.sim_settings['constraints']['max_yearly_change'][prog.label]['rel'] is True:
                             eps *= default
-                        alloc_ramp = default + (self.sim_settings['tvec'] - start_year)*eps
-                        if alloc >= default: alloc_ramp = np.minimum(alloc_ramp,alloc_new)
-                        else: alloc_ramp = np.maximum(alloc_ramp,alloc_new)
-    #                    print list(alloc_def)
-    #                    print list(alloc_new)
-    #                    print list(alloc_ramp)
-                        alloc_test = alloc_def*(self.sim_settings['tvec']<start_year) + alloc_ramp*(self.sim_settings['tvec']>=start_year)
-                        print list(alloc_test)
+                        if np.isnan(eps): eps = np.inf  # Eps likely becomes a nan if it was infinity multiplied by zero.
+                        if np.abs(eps*settings.tvec_dt) < np.abs(alloc - default):
+                            if np.abs(eps) < project_settings.TOLERANCE:
+                                raise OptimaException('ERROR: The change in budget for ramp-constrained "%s" is effectively zero. Model will not continue running; change in program funding would be negligible.' % prog.label)
+                            alloc_ramp = default + (self.sim_settings['tvec'] - start_year) * eps * np.sign(alloc - default)
+                            if alloc >= default: alloc_ramp = np.minimum(alloc_ramp,alloc_new)
+                            else: alloc_ramp = np.maximum(alloc_ramp,alloc_new)
+        #                    print list(alloc_def)
+        #                    print list(alloc_new)
+        #                    print list(alloc_ramp)
+                            alloc = alloc_def*(self.sim_settings['tvec']<start_year) + alloc_ramp*(self.sim_settings['tvec']>=start_year)
+#                        print list(alloc)
                 
                 if alloc_is_coverage:
                     self.prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc), 'cov':alloc, 'impact':{}}
                 else:
                     self.prog_vals[prog.label] = {'cost':alloc, 'cov':prog.getCoverage(budget=alloc), 'impact':{}}
             
+#                if prog.label == 'HF XDR-TB':
+#                    print self.prog_vals[prog.label]
+                    
             # If ramp constraints are active, cost and cov needs to be a fully time-dependent array corresponding to timevec.
 #            if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog.label in self.sim_settings['constraints']['max_yearly_change']:
 #                default = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
@@ -325,12 +332,12 @@ class Model(object):
                     else:
                         do_full_tvec_check[att_label] = True
                 
-                # If attributes change over time, impact functions based on them need to be interpolated across all time.
+                # If attributes change over time and coverage values are greater than zero, impact functions based on them need to be interpolated across all time.
                 # Otherwise interpolating for the very last timestep alone should be sufficient.
                 # This means impact values can be stored as full arrays, single-element arrays or scalars in the case that an impact function has no attributes.
                 for par_label in prog.target_pars:
                     do_full_tvec = False
-                    if 'attribs' in prog.target_pars[par_label] and cov > project_settings.TOLERANCE:
+                    if 'attribs' in prog.target_pars[par_label] and np.sum(cov) > project_settings.TOLERANCE:
                         for att_label in prog.target_pars[par_label]['attribs'].keys():
                             if att_label in do_full_tvec_check and do_full_tvec_check[att_label] is True:
                                 do_full_tvec = True
@@ -339,8 +346,11 @@ class Model(object):
                     else:
                         years = [self.sim_settings['tvec'][-1]]
                     self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label = par_label, parser = self.parser, years = years, budget_is_coverage = True)
-        
-        print self.prog_vals
+            
+#            if prog.label == 'HF XDR-TB':
+#                    print self.prog_vals[prog.label]
+                    
+#        print self.prog_vals
         
 #        if 'init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']:
 #            prog_budget = self.sim_settings['init_alloc'][prog_label]
@@ -411,7 +421,7 @@ class Model(object):
                     if impact_label not in settings.par_funcs.keys():
                         self.sim_settings['impact_pars_not_func'].append(impact_label)
                         
-                self.preCalculateProgsetVals(progset)   # For performance.
+                self.preCalculateProgsetVals(settings=settings, progset=progset)   # For performance.
             else:
                 raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
         
