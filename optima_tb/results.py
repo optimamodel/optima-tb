@@ -245,7 +245,7 @@ class ResultSet(object):
                 comps = [comp_label]
         else:
             comps = self.comp_specs.keys()
-        
+
         # this currently uses odict for the output ... 
         datapoints = odict() 
         comp_labels = []
@@ -254,20 +254,16 @@ class ResultSet(object):
             datapoints[pi] = odict() 
             p_index = self.pop_label_index[pi]
             
-            for cj in range(len(self.comp_specs.keys())):#comps:
-                # TODO: this is an inefficient implementation and needs to be improved; possibly with a rethink of the data structures
-                if not self.m_pops[p_index].comps[cj].label in comps:
-                    continue
-        
-                comp_labels.append(self.m_pops[p_index].comps[cj].label)
-        
+            for ci,c_label in enumerate(comps):
+            
+                comp = self.m_pops[p_index].getComp(c_label)
                 if use_observed_times:
-                    datapoints[pi][self.m_pops[p_index].comps[cj].label] = self.m_pops[p_index].comps[cj][self.indices_observed_data]
+                    datapoints[pi][c_label] = comp[self.indices_observed_data]
                 else:
-                    datapoints[pi][self.m_pops[p_index].comps[cj].label] = self.m_pops[p_index].comps[cj]
-                
-        
-        return datapoints, pops, comp_labels
+                    datapoints[pi][c_label] = comp
+                comp_labels.append(c_label)
+   
+        return datapoints, pops, comps
     
     
     def getCharacteristicDatapoints(self,pop_label = None, char_label = None, use_observed_times=False):
