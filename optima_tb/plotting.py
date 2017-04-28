@@ -700,7 +700,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
         ncol = 1
     else:
         ncol = 2
-    
+        
     # setup: determine compartment indices to be plotted
     if comp_labels is None:
         comp_labels = sorted(mpops[0].comp_ids, key=mpops[0].comp_ids.get)
@@ -724,6 +724,7 @@ def plotPopulation(results, data, pop_labels, title='',colormappings=None,
         
      
     # preselect for populations   
+    
     y_values, pop_labels, labels, dataobs = extractCompartment(results, data, 
                                                      pop_labels=pop_labels, 
                                                      comp_labels=comp_labels, 
@@ -895,7 +896,7 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
         separateLegend(labels=labels,colors=colors,fig_name=fig_name+"_LegendCharac",**legendsettings)
 
 
-def plotStackedBarOutputs(results, settings, year_list, output_list, output_labels=None, xlabels=None,
+def plotStackedBarOutputs(results, settings, year_list, output_list, output_labels=None, xlabels=None, ylim=None,
                           title="", colormappings=None, save_fig=False, fig_name=None, legendsettings=None):
     """
     
@@ -931,7 +932,7 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
     final_dict = dcp(plotdict)
     
     final_dict2 = {'xlim': (0,xlim),
-#                    'ylim': (0,1.4e4),
+                   'ylim': ylim,
                   'title':  '',
                   'ylabel': "",
                   'save_figname': fig_name}
@@ -1524,11 +1525,7 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    if xlim is not None:
-        ax.set_xlim(xlim)
-    else:
-        ax.set_xlim(tvec[0],tvec[-1])
-        
+ 
     ax.set_ylim(ymax=max_val*1.05)
     
     if ylim is not None:
@@ -1543,7 +1540,12 @@ def _plotStackedCompartments(tvec,comps,labels=None,datapoints=None,title='',yla
         ticks = np.arange(tvec[0],tvec[-1],year_inc)
         ax.set_xticks(ticks)
         ax.set_xticklabels(ticks)
-        
+
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    else:
+        ax.set_xlim(tvec[0],tvec[-1])
+               
     
     if not legend_off:
         ax.legend(labels, **legendsettings)
@@ -1654,11 +1656,16 @@ def _plotLine(ys,ts,labels,colors=None,y_hat=[],t_hat=[],
     
     ax.set_ylim(ymin=0) ##### TMP
     
+    
+    
     if ylim is not None:
         ax.set_ylim(ylim)
     
     if xlim is not None:
         ax.set_xlim(xlim)
+    
+    ax.set_ylim(ymax=ax.get_ylim()[1]*1.05)
+    
     
     if x_ticks is not None:
         ax.set_xticks(x_ticks[0])
