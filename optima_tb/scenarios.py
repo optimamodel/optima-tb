@@ -11,37 +11,38 @@ from optima_tb.databook import getEmptyData
 
 
 class Scenario(object):
-    
-    def __init__(self,name,settings,run_scenario=False,overwrite=True):
-        
+
+    def __init__(self, name, settings, run_scenario=False, overwrite=True):
+
         self.name = name
-        self.uid  = uuid()
+        self.uid = uuid()
         self.run_scenario = run_scenario
         self.overwrite = overwrite
-        self.scenario_parset= None # Placeholder for scenario values
+        self.scenario_parset = None  # Placeholder for scenario values
         self.settings = settings
-    
-    
+
+
     def makeScenarioParset(self):
         raise NotImplementedError
-    
+
     def getScenarioParset(self, parset):
         raise NotImplementedError
-    
+
     def makeScenarioProgset(self):
         raise NotImplementedError
-    
-    def getScenarioProgset(self, progset,options):
+
+    def getScenarioProgset(self, progset, options):
         raise NotImplementedError
-    
+
+
 class ParameterScenario(Scenario):
-    
-    def __init__(self,name,settings,run_scenario=False,overwrite=True,scenario_values=None,pop_labels=None,**kwargs):
-        super(ParameterScenario,self).__init__(name,settings,run_scenario,overwrite)
-        self.makeScenarioParset(scenario_values,pop_labels=pop_labels)
-        
-        
-    def makeScenarioParset(self,scenario_values,pop_labels):
+
+    def __init__(self, name, settings, run_scenario=False, overwrite=True, scenario_values=None, pop_labels=None, **kwargs):
+        super(ParameterScenario, self).__init__(name, settings, run_scenario, overwrite)
+        self.makeScenarioParset(scenario_values, pop_labels=pop_labels)
+
+
+    def makeScenarioParset(self, scenario_values, pop_labels):
         """
         Given some data that describes a parameter scenario, creates the corresponding parameterSet 
         which can then be combined with a ParameterSet when running a model.
@@ -72,17 +73,17 @@ class ParameterScenario(Scenario):
     
         """
         data = getEmptyData()
-        
+
         if scenario_values is None:
             scenario_values = odict()
         data['linkpars'] = scenario_values
         # values required when creating a parameter set
         data['pops']['label_names'] = pop_labels
-        
+
         ps = ParameterSet(self.name)
         ps.makePars(data)
         self.scenario_parset = ps
-    
+
     def getScenarioParset(self, parset):
         """
         Get the corresponding parameterSet for this scenario, given an input parameterSet for the default baseline 
@@ -92,38 +93,38 @@ class ParameterScenario(Scenario):
         parameterScenario's parameterSet to the baseline parameterSet. 
         """
         import numpy as np
-        tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + self.settings.tvec_dt/2, self.settings.tvec_dt)
-        
-        
-        if self.overwrite: # update values in parset with those in scenario_parset
+        tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + self.settings.tvec_dt / 2, self.settings.tvec_dt)
+
+
+        if self.overwrite:  # update values in parset with those in scenario_parset
             return parset << self.scenario_parset
-        else: # add the two together
+        else:  # add the two together
             # inflate both the two parameter sets first
             parset.inflate(tvec)
             self.scenario_parset.inflate(tvec)
             return parset + self.scenario_parset
-    
-    
 
-    def getScenarioProgset(self, progset,options):
+
+
+    def getScenarioProgset(self, progset, options):
         return progset, options
-    
-    def __repr__(self, *args, **kwargs):
-        return "ParameterScenario: \n%s"%self.scenario_parset
 
-    
+    def __repr__(self, *args, **kwargs):
+        return "ParameterScenario: \n%s" % self.scenario_parset
+
+
 class BudgetScenario(Scenario):
-    
-    def __init__(self,name,run_scenario=False,overwrite=True,scenario_values=None,pop_labels=None,**kwargs):
-        super(BudgetScenario,self).__init__(name,run_scenario,overwrite)
+
+    def __init__(self, name, run_scenario=False, overwrite=True, scenario_values=None, pop_labels=None, **kwargs):
+        super(BudgetScenario, self).__init__(name, run_scenario, overwrite)
         self.makeScenarioProgset(budget_allocation=scenario_values)
-        
-    
+
+
     def getScenarioParset(self, parset):
         """
 
         """
-        return parset 
+        return parset
 
     def makeScenarioProgset(self, budget_allocation):
         """
@@ -138,7 +139,7 @@ class BudgetScenario(Scenario):
             
         """
         self.budget_allocation = budget_allocation
-    
+
 
 
     def getScenarioProgset(self, progset, budget_options):
@@ -157,35 +158,32 @@ class BudgetScenario(Scenario):
         if self.overwrite:
             for prog in self.budget_allocation.keys():
                 new_budget_options['init_alloc'][prog] = self.budget_allocation[prog]
-                
-        else: # we add the amount as additional funding
+
+        else:  # we add the amount as additional funding
             for prog in self.budget_allocation.keys():
-                
+
                 if new_budget_options['init_alloc'].has_key(prog):
                     new_budget_options['init_alloc'][prog] += self.budget_allocation[prog]
                 else:
                     new_budget_options['init_alloc'][prog] = self.budget_allocation[prog]
-                    
+
         return progset, new_budget_options
-    
+
     def __repr__(self, *args, **kwargs):
-        return "BudgetScenario: \n"+''.join('{}={}\n'.format(key, val) for key, val in sorted(self.budget_allocation.items()))
-
-
+        return "BudgetScenario: \n" + ''.join('{}={}\n'.format(key, val) for key, val in sorted(self.budget_allocation.items()))
 
 class CoverageScenario(BudgetScenario):
-    
-    def __init__(self,name,run_scenario=False,overwrite=True,scenario_values=None,pop_labels=None,**kwargs):
-        super(CoverageScenario,self).__init__(name,run_scenario=run_scenario,overwrite=overwrite,scenario_values=scenario_values,pop_labels=pop_labels,**kwargs)
-        
-    
-    def getScenarioProgset(self, progset,options):
-        progset, options = super(CoverageScenario,self).getScenarioProgset(progset,options)
+
+    def __init__(self, name, run_scenario=False, overwrite=True, scenario_values=None, pop_labels=None, **kwargs):
+        super(CoverageScenario, self).__init__(name, run_scenario=run_scenario, overwrite=overwrite, scenario_values=scenario_values, pop_labels=pop_labels, **kwargs)
+
+
+    def getScenarioProgset(self, progset, options):
+        progset, options = super(CoverageScenario, self).getScenarioProgset(progset, options)
         options['alloc_is_coverage'] = True
         return progset, options
 
     def __repr__(self, *args, **kwargs):
-        return "CoverageScenario: \n"+''.join('{}={}\n'.format(key, val) for key, val in sorted(self.budget_allocation.items()))
+        return "CoverageScenario: \n" + ''.join('{}={}\n'.format(key, val) for key, val in sorted(self.budget_allocation.items()))
 
-    
-    
+
