@@ -321,7 +321,7 @@ class PlottingSettings():
 
     def __init__(self, output='dev'):
 
-        logging.info("Loading plotting settings")
+        logging.info("Loading plotting settings: %s" % output)
 
 
         self.plotdict = {}  # holder
@@ -390,7 +390,6 @@ class PlottingSettings():
                          'alpha': 0.3,
                          # linestyle to be used as default
                          'default_linestyle' : '-'}
-
 
     def devSettings(self):
         pl.rcParams['figure.figsize'] = (10, 8)
