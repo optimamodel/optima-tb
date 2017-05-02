@@ -214,7 +214,7 @@ class Model(object):
         self.pops = list()              # List of population groups that this model subdivides into.
         self.pop_ids = dict()           # Maps label of a population to its position index within populations list.
         
-        self.contacts = dict()         # Maps interactions 'from' (i.e. a->b for [a][b]) and 'into' (i.e. a<-b for [a][b]) ModelPopulations, marking them with a weight.
+        self.contacts = dict()          # Maps interactions 'from' (i.e. a->b for [a][b]) and 'into' (i.e. a<-b for [a][b]) ModelPopulations, marking them with a weight.
         
         self.sim_settings = odict()
         
@@ -222,14 +222,96 @@ class Model(object):
         
         self.parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
+        self.prog_vals = dict()         # Stores coverage and impact values for programs, given budget info passed into model.
+                                        # Intended to avoid constant getImpact() calls during parameter value overwrites. 
             
         
     def getPop(self, pop_label):
         ''' Allow model populations to be retrieved by label rather than index. '''
         pop_index = self.pop_ids[pop_label]
         return self.pops[pop_index]
+    
         
+    def preCalculateProgsetVals(self, settings, progset):
+        ''' Work out program coverages and impacts ahead of the model run. '''
         
+        try: start_year = self.sim_settings['progs_start']
+        except: raise OptimaException('ERROR: Pre-calculation of program set values has been initiated without specifying a start year.')
+        
+        try: init_alloc = self.sim_settings['init_alloc']
+        except: raise OptimaException('ERROR: Pre-calculation of program set values has been initiated without specifying a starting allocation, empty or otherwise.')
+        
+        try: alloc_is_coverage = self.sim_settings['alloc_is_coverage']
+        except: raise OptimaException('ERROR: Pre-calculation of program set values has been initiated without specifying whether starting allocation is in money or coverage.')
+        
+        for prog in progset.progs:
+            
+            # Store budgets/coverages for programs that are initially allocated.
+            if prog.label in init_alloc:
+                alloc = init_alloc[prog.label]
+                
+                # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to timevec.
+                if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog.label in self.sim_settings['constraints']['max_yearly_change']:
+                    if alloc_is_coverage:
+                        default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
+                    else:
+                        default = prog.getDefaultBudget(year=start_year)
+                    default = prog.getDefaultBudget(year = start_year)
+                    if np.abs(alloc - default) > project_settings.TOLERANCE:
+#                        print 'Start it up...'
+                        alloc_def = self.sim_settings['tvec']*0.0 + default
+                        alloc_new = self.sim_settings['tvec']*0.0 + alloc
+                        try: eps = self.sim_settings['constraints']['max_yearly_change'][prog.label]['val']
+                        except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog.label)
+                        if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog.label] and self.sim_settings['constraints']['max_yearly_change'][prog.label]['rel'] is True:
+                            eps *= default
+                        if np.isnan(eps): eps = np.inf  # Eps likely becomes a nan if it was infinity multiplied by zero.
+                        if np.abs(eps*settings.tvec_dt) < np.abs(alloc - default):
+                            if np.abs(eps) < project_settings.TOLERANCE:
+                                raise OptimaException('ERROR: The change in budget for ramp-constrained "%s" is effectively zero. Model will not continue running; change in program funding would be negligible.' % prog.label)
+                            alloc_ramp = default + (self.sim_settings['tvec'] - start_year) * eps * np.sign(alloc - default)
+                            if alloc >= default: alloc_ramp = np.minimum(alloc_ramp,alloc_new)
+                            else: alloc_ramp = np.maximum(alloc_ramp,alloc_new)
+                            alloc = alloc_def*(self.sim_settings['tvec']<start_year) + alloc_ramp*(self.sim_settings['tvec']>=start_year)
+                
+                if alloc_is_coverage:
+                    self.prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc), 'cov':alloc, 'impact':{}}
+                else:
+                    self.prog_vals[prog.label] = {'cost':alloc, 'cov':prog.getCoverage(budget=alloc), 'impact':{}}
+            
+            # Store default budgets/coverages for all other programs if saturation is selected.
+            elif 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
+                self.prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year)), 'impact':{}}
+            
+            # Convert coverage into impact for programs.
+            if 'cov' in self.prog_vals[prog.label]:
+                cov = self.prog_vals[prog.label]['cov']
+                
+                # Check if program attributes have multiple distinct values across time.
+                do_full_tvec_check = {}
+                for att_label in prog.attributes.keys():
+                    att_vals = prog.attributes[att_label]
+                    if len(set(att_vals[~np.isnan(att_vals)])) <= 1:
+                        do_full_tvec_check[att_label] = False
+                    else:
+                        do_full_tvec_check[att_label] = True
+                
+                # If attributes change over time and coverage values are greater than zero, impact functions based on them need to be interpolated across all time.
+                # Otherwise interpolating for the very last timestep alone should be sufficient.
+                # This means impact values can be stored as full arrays, single-element arrays or scalars in the case that an impact function has no attributes.
+                for par_label in prog.target_pars:
+                    do_full_tvec = False
+                    if 'attribs' in prog.target_pars[par_label] and np.sum(cov) > project_settings.TOLERANCE:
+                        for att_label in prog.target_pars[par_label]['attribs'].keys():
+                            if att_label in do_full_tvec_check and do_full_tvec_check[att_label] is True:
+                                do_full_tvec = True
+                    if do_full_tvec is True:
+                        years = self.sim_settings['tvec']
+                    else:
+                        years = [self.sim_settings['tvec'][-1]]
+                    self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label = par_label, parser = self.parser, years = years, budget_is_coverage = True)
+            
+    
     def build(self, settings, parset, progset = None, options = None):
         ''' Build the full model. '''
         
@@ -246,6 +328,7 @@ class Model(object):
                     self.sim_settings['progs_end'] = options['progs_end']
                 if 'init_alloc' in options:
                     self.sim_settings['init_alloc'] = options['init_alloc']
+                else: self.sim_settings['init_alloc'] = {}
                 if 'constraints' in options:
                     self.sim_settings['constraints'] = options['constraints']
                 if 'alloc_is_coverage' in options:
@@ -256,6 +339,8 @@ class Model(object):
                 for impact_label in progset.impacts.keys():
                     if impact_label not in settings.par_funcs.keys():
                         self.sim_settings['impact_pars_not_func'].append(impact_label)
+                        
+                self.preCalculateProgsetVals(settings=settings, progset=progset)   # For performance.
             else:
                 raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
         
@@ -316,10 +401,6 @@ class Model(object):
                     for pop_label in parset.pop_labels:
                         val = par.interpolate(tvec = t_init, pop_label = pop_label)[0]
                         seed_dict[ep_label][pop_label] *= val
-
-#        print include_dict
-#        print calc_done
-#        print [(key,seed_dict[key][0]) for key in calc_done.keys()]
         
         # Now loop through all 'uncalculated entry-points'.
         # If any of their remaining inclusions have been calculated in previous loops, stop tracking the included compartment and subtract its value from the entry-point.
@@ -348,11 +429,6 @@ class Model(object):
             review_count += 1
             if review_count > len(settings.node_specs.keys()):
                 raise OptimaException('ERROR: Calculation phase for initial compartment values has looped more times than the number of compartments. Something is likely wrong with characteristic definitions.')
-
-#        print include_dict
-#        print calc_done
-#        print [(key,seed_dict[key][0]) for key in calc_done.keys()]
-#        print sum([seed_dict[key][0] for key in calc_done.keys()])
         
         # Now initialise all model compartments with these calculated values.
         for seed_label in seed_dict.keys():
@@ -723,51 +799,8 @@ class Model(object):
                                 # Make sure the population in the loop is a target of this program.
                                 if pop.label not in prog.target_pops:
                                     continue
-                                if 'init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']:
-                                    prog_budget = self.sim_settings['init_alloc'][prog_label]
-                                    
-                                    # Allow for effective budgets to be constrained to a maximum change rate, with respect to the default budget.
-                                    if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog_label in self.sim_settings['constraints']['max_yearly_change']:
-                                        default_budget = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
-                                        d_years = self.sim_settings['tvec'][ti] - self.sim_settings['progs_start']
-                                        try: eps = self.sim_settings['constraints']['max_yearly_change'][prog_label]['val']
-                                        except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog_label)
-                                        relative_yearly_change = False
-                                        if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog_label] and self.sim_settings['constraints']['max_yearly_change'][prog_label]['rel'] is True:
-                                            relative_yearly_change = True
-                                        direction = np.sign(prog_budget - default_budget)
-                                        
-                                        if relative_yearly_change is True:
-                                            if eps != np.inf and np.abs(default_budget) < project_settings.TOLERANCE:
-#                                                logger.warn('Default budget for "%s" is effectively zero and max yearly change is flagged as relative. Change in program funding will be negligible.' % prog_label)
-                                                raise OptimaException('ERROR: Default budget for "%s" is effectively zero (with desired budget aim greater than zero) and finite maximum-yearly-change factor is flagged as relative. Model will not continue running; change in program funding would be negligible.' % prog_label)
-                                            # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
-                                            if eps*d_years*default_budget <= np.abs(prog_budget - default_budget):
-                                                if direction > 0:       # Effective budget is increasing from and relative to the default.
-                                                    prog_budget = np.min([default_budget*(1.0+eps*d_years), prog_budget])
-                                                elif direction < 0:     # Effective budget is decreasing from the relative to the default.
-                                                    prog_budget = np.max([default_budget*(1.0-eps*d_years), prog_budget])
-                                        else:
-                                            # Only tests ramp restrictions if the change allowable each timestep is sufficiently small.
-                                            if eps*d_years <= np.abs(prog_budget - default_budget):
-                                                if direction > 0:       # Effective budget is increasing from the default in an absolute manner.
-                                                    prog_budget = np.min([default_budget+eps*d_years, prog_budget])
-                                                elif direction < 0:     # Effective budget is decreasing from the default in an absolute manner..
-                                                    prog_budget = np.max([default_budget-eps*d_years, prog_budget])
-                                        
-#                                        year_check = 2015   # Hard-coded check.
-#                                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
-#                                            print prog_label
-#                                            print prog_budget
-                                            
-                                else:
-                                    if 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
-                                        if self.sim_settings['alloc_is_coverage']:
-                                            prog_budget = prog.getCoverage(budget = prog.getDefaultBudget(year = self.sim_settings['progs_start']))
-                                        else:
-                                            prog_budget = prog.getDefaultBudget(year = self.sim_settings['progs_start'])
-                                    else: 
-                                        continue
+                                if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']):
+                                    continue
                                 
                                 # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
                                 source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
@@ -785,24 +818,30 @@ class Model(object):
                                             for from_pop in prog.target_pops:
                                                 source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]                                        
                                 
+                                # Impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
+                                # Makes sure that the right value is selected.
+                                try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
+                                except: net_impact = self.prog_vals[prog_label]['impact'][par_label]
+                                
                                 # Make sure each program impact is in the format of the parameter it affects.
+                                # NOTE: Can be compressed. Currently left explicit.
                                 if pars[0].val_format == 'fraction':
                                     if prog.cov_format == 'fraction':
-                                        impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])
+                                        impact = net_impact
                                     elif prog.cov_format == 'number':
                                         if source_element_size <= project_settings.TOLERANCE:
                                             impact = 0.0
                                         else:
-                                            impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])/source_set_size
+                                            impact = net_impact/source_set_size
     #                                    if impact > 1.0: impact = 1.0   # Maximum fraction allowable due to timestep conversion.
                                 elif pars[0].val_format == 'number':
                                     if prog.cov_format == 'fraction':
-                                        impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_element_size
+                                        impact = net_impact*source_element_size
                                     elif prog.cov_format == 'number':
                                         if source_element_size <= project_settings.TOLERANCE:
                                             impact = 0.0
                                         else:
-                                            impact = prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage'])*source_set_size/source_element_size
+                                            impact = net_impact*source_element_size/source_set_size
                                 
 #                                year_check = 2015   # Hard-coded check.
 #                                if par_label == 'spmyes_rate':
@@ -813,15 +852,15 @@ class Model(object):
 #                                        print('Target Population: %s' % pop.label)
 #                                        print('Target Parameter: %s' % par_label)
 #                                        print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
-#                                        print('Standard Program Impact: %f' % prog.getImpact(prog_budget, budget_is_coverage = self.sim_settings['alloc_is_coverage']))
-#                                        print('Rescaled Program Impact: %f' % prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage']))
+#                                        print('Program Coverage: %f' % self.prog_vals[prog_label]['cov'])#prog.getImpact(prog_budget, budget_is_coverage = self.sim_settings['alloc_is_coverage']))
+#                                        print('Program Impact: %f' % self.prog_vals[prog_label]['impact'][par_label])#prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage']))
 #                                        print('Program Impact Format: %s' % prog.cov_format)
 #                                        print('Source Compartment Size (Target Pop): %f' % source_element_size)
 #                                        print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
 #                                        print('Converted Impact: %f' % impact)
 #                                        print('Converted Impact Format: %s' % pars[0].val_format)
 #                                        print
-                                        
+
                                 if first_prog: new_val = 0
                                 new_val += impact
                                 if 'constraints' in self.sim_settings and 'impacts' in self.sim_settings['constraints'] and par_label in self.sim_settings['constraints']['impacts']:

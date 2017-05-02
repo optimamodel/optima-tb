@@ -208,16 +208,19 @@ class Program:
         Note that this method is not typically used during model processing.
         '''
 
+        # If coverage is a scalar, make it a float. If it is a list or array, make it an array of floats.
+        try: coverage = float(coverage)
+        except: coverage = dcp(np.array(coverage, 'float'))
+    
         if self.cov_format is None:
             raise OptimaException('ERROR: Attempted to convert coverage to budget for a program that does not have coverage.')
         else:
             if self.cov_format.lower() == 'fraction':
-                bud = float(coverage) * self.func_specs['pars']['unit_cost'] / 0.01  # Unit cost is per percentage when format is a fraction.
+                bud = coverage*self.func_specs['pars']['unit_cost']/0.01     # Unit cost is per percentage when format is a fraction.
             else:
-                bud = float(coverage) * self.func_specs['pars']['unit_cost']
-                print "Using unit cost $%.2f, program coverage %i --> $%.2f" % (self.func_specs['pars']['unit_cost'], coverage, bud)
-        return bud
-
+                bud = coverage*self.func_specs['pars']['unit_cost']
+        return bud        
+        
     def getCoverage(self, budget):
         '''
         Returns prospective coverage for a program. In simplest form, this is budget divided by unit cost.
@@ -225,20 +228,26 @@ class Program:
         Excess coverage will also be ignored in the model.
         '''
 
+        # If budget is a scalar, make it a float. If it is a list or array, make it an array of floats.
+        try: budget = float(budget)
+        except: budget = dcp(np.array(budget, 'float'))
+
         if self.cov_format is None:
             cov = np.nan  # Fixed cost programs have no coverage.
         else:
             if self.cov_format.lower() == 'fraction':
-                cov = float(budget) * 0.01 / self.func_specs['pars']['unit_cost']  # Unit cost is per percentage when format is a fraction.
+                cov = budget*0.01/self.func_specs['pars']['unit_cost']     # Unit cost is per percentage when format is a fraction.
             else:
-                cov = float(budget) / self.func_specs['pars']['unit_cost']
+                cov = budget/self.func_specs['pars']['unit_cost']
         return cov
-
-    def getImpact(self, budget, impact_label=None, parser=None, year=None, budget_is_coverage=False):
-
+        
+    def getImpact(self, budget, impact_label = None, parser = None, years = None, budget_is_coverage = False):
+        
         if self.func_specs['type'] == 'cost_only':
             return 0.0
-
+        
+        budget = dcp(budget)    # Just in case.
+        
         # Baseline impact is just coverage.
         if budget_is_coverage:
             imp = budget
@@ -254,12 +263,14 @@ class Program:
                 attribs = dcp(self.target_pars[impact_label]['attribs'])
                 for attrib_label in attribs.keys():
                     if attrib_label in self.attributes.keys():
-                        if year is None: year = max(self.t)
-                        output = self.interpolate(tvec=[year], attributes=[attrib_label])
+                        if years is None: years = [max(self.t)]
+                        output = self.interpolate(tvec=years, attributes=[attrib_label])
                     else:
-                        raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" due to a missing reference "%s".' % (self.label, impact_label, attrib_label))
-                    attribs[attrib_label] = output[attrib_label][-1]
-                new_val = parser.evaluateStack(stack=f_stack, deps=attribs)
-                imp *= new_val  # Scale coverage.
-
+                        raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" due to a missing reference "%s".' % (self.label,impact_label,attrib_label))
+                    attribs[attrib_label] = output[attrib_label]#[-1]
+#                    if len(output[attrib_label]) > 1:
+#                        print attribs
+                new_val = parser.evaluateStack(stack = f_stack, deps = attribs)
+                imp *= new_val      # Scale coverage.
+                
         return imp

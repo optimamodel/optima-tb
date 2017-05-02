@@ -1628,10 +1628,11 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
                           'bbox_to_anchor': (1.05, 0.5), 'ncol': 1}
 
     ymin_val = np.min(ys[0])
-    indices = (ts[0] >= xlim[0]) * (ts[0] <= xlim[1])
-    ymax_val = np.max(ys[0][indices])
-
-    if colors is None or len(colors) < len(ys):
+    if xlim is None: xlim = (ts[0][0],ts[0][-1])
+    indices = (ts[0]>=xlim[0])*(ts[0]<=xlim[1]) 
+    ymax_val = np.max(ys[0][indices])    
+    
+    if colors is None or len(colors) < len(ys):        
         colors = gridColorMap(len(ys))
         logger.info(
             "Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
