@@ -404,7 +404,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 if val not in ['']:
                     settings.linkpar_specs[label]['output'] = val
                     settings.linkpar_outputs.append(label)
-                    settings.par_deps[label] = True    # Whether a dependency or not, make sure the parameter is calculated and stored during a model run.
+#                    settings.par_deps[label] = True    # Whether a dependency or not, make sure the parameter is calculated and stored during a model run.
             
             # Attribute a custom sheet label to this parameter if available.
             if not cid_sheet is None:

@@ -944,7 +944,10 @@ class Model(object):
         for cid in settings.linkpar_outputs:
             outputs[cid] = odict()
             for pop in self.pops:
-                if cid in pop.dep_ids.keys():
+                if 'tag' in settings.linkpar_specs[cid]:    # If a parameter is a transition, grab values from its (first, if duplicated,) link object.
+                    tag = settings.linkpar_specs[cid]['tag']
+                    outputs[cid][pop.label] = pop.getLinks(tag)[0].vals
+                elif cid in pop.dep_ids.keys():             # If a parameter is a dependency, grab values from the dependency object.
                     outputs[cid][pop.label] = pop.getDep(cid).vals
                 else:
                     raise OptimaException('ERROR: Output parameter "%s" was not calculated as a "dependency" during the model run.' % cid)
