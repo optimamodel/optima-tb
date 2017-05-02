@@ -387,8 +387,9 @@ class PlottingSettings():
                          'barwidth': 0.8,
                          'bar_offset': 0.2,
                          # alpha for fill-between
-                         'alpha': 0.3}
-
+                         'alpha': 0.3,
+                         # linestyle to be used as default
+                         'default_linestyle' : '-'}
 
     def devSettings(self):
         pl.rcParams['figure.figsize'] = (10, 8)
