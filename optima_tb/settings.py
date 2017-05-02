@@ -97,6 +97,7 @@ class Settings(object):
         self.links = odict()                    # Key is a tag. Value is a list of compartment-label tuple.
         self.linkpar_specs = odict()            # Key is a link-parameter label. Value is a dict including link tag, link-parameter name, default value.
         self.linkpar_name_labels = odict()      # Key is a link-parameter name. Value is a link-parameter label. (A partial reversed linkpar-specs.)
+        self.linkpar_outputs = []               # A list of parameters that should be returned as result outputs along with characteristics.
         
         self.par_funcs = odict()                # A definition-ordered dictionary of parameters that are functionally defined in terms of other parameters/characteristics.
         self.par_deps = odict()                 # A definition-ordered dictionary of 'untagged' parameters used as dependencies for other parameters.

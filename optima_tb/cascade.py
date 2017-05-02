@@ -361,6 +361,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     cid_tag = None
     cid_label = None
     cid_name = None
+    cid_output = None
     cid_sheet = None
     cid_default = None
     cid_order = None
@@ -371,6 +372,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_pars.cell_value(0, col_id) == 'Transition Tag': cid_tag = col_id
         if ws_pars.cell_value(0, col_id) == 'Code Label': cid_label = col_id
         if ws_pars.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+        if ws_pars.cell_value(0, col_id) == 'Output': cid_output = col_id
         if ws_pars.cell_value(0, col_id) == 'Sheet Label': cid_sheet = col_id
         if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
@@ -395,6 +397,14 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 settings.linkpar_specs[label]['tag'] = tag
             else:
                 settings.par_deps[label] = True     # Untagged parameters are dependencies for actual tagged transitions.
+            
+            # Check whether this parameter should be included as a result output.
+            if not cid_output is None:
+                val = str(ws_pars.cell_value(row_id, cid_output))
+                if val not in ['']:
+                    settings.linkpar_specs[label]['output'] = val
+                    settings.linkpar_outputs.append(label)
+                    settings.par_deps[label] = True    # Whether a dependency or not, make sure the parameter is calculated and stored during a model run.
             
             # Attribute a custom sheet label to this parameter if available.
             if not cid_sheet is None:
