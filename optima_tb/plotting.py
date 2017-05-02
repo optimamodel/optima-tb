@@ -215,7 +215,7 @@ def getCategoryColors(category_list, order='alternate'):
 
 def getLinemapping(linestyle_dict):
     """
-    
+    Sample
     """
     linedict = odict()
     for k, v in linestyle_dict.iteritems():

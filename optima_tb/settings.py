@@ -388,6 +388,7 @@ class PlottingSettings():
                          'bar_offset': 0.2,
                          # alpha for fill-between
                          'alpha': 0.3,
+                         # linestyle to be used as default
                          'default_linestyle' : '-'}
 
 
