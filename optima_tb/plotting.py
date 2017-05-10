@@ -883,15 +883,22 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
 
     # now plot through each characteristic
     for i, output_id in enumerate(outputIDs):
+        
+        if output_id in charac_specs:
+            name = charac_specs[output_id]['name']
+        elif output_id in settings.linkpar_specs:
+            name = settings.linkpar_specs[output_id]['name']
+        else:
+            raise OptimaException('ERROR: Attempting to plot characteristic "%s" but cannot locate it in either characteristic or parameter specs.' % output_id)
 
 
         final_dict = {
                   'unit_tag': unit_tags[i],
                   'xlabel':'Year',
-                  'ylabel': charac_specs[output_id]['name'] + unit_tags[i],
+                  'ylabel': name + unit_tags[i],
                   'x_ticks' : (yr_range, yr_range),
-                  'title': '%s\n%s' % (title, charac_specs[output_id]['name']),
-                  'save_figname': '%s_characteristic_%s' % (fig_name, charac_specs[output_id]['name'])}
+                  'title': '%s\n%s' % (title, name),
+                  'save_figname': '%s_characteristic_%s' % (fig_name, name)}
 
         if dataobs is not None:  # this can be improved
             final_dict['y_hat'] = yhat[i]
@@ -1369,7 +1376,7 @@ def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_l
 
     for k, output_id in enumerate(charac_labels):
 
-        if 'plot_percentage' in charac_specs[output_id].keys():
+        if output_id in charac_specs and 'plot_percentage' in charac_specs[output_id].keys():
             y_values = [datapoints[output_id][i] for i, p in enumerate(pop_labels)]
             y_values = np.array(y_values)
             y_values *= 100
