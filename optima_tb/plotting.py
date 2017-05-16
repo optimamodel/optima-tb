@@ -211,6 +211,7 @@ def getCategoryColors(category_list, order='alternate'):
         for i, label in enumerate(v):
             col_list[label] = tmp_list[i]
         cat_colors.append(tmp_list[0])  # add a representative color
+#     print col_list
     return col_list, cat_colors
 
 def getLinemapping(linestyle_dict):
@@ -595,7 +596,19 @@ def plotScenarioFlows(scen_results, scen_labels, settings, data,
                 yv /= percentage_relative_to
                 yv *= 100.
 
+            if len(all_tvecs) == 0 :
+                continue
+
             yvals.append(yv)
+#             print "----->"
+#             print all_tvecs
+#             print yv
+#             print plot_pids
+#             print "<-----"
+#             print len(all_tvecs[0])
+#             print all_tvecs[0]
+#             print yv
+#             print len(yv)
             tvals.append(all_tvecs[0])
             labels.append(scen_labels[k])
 
@@ -1133,7 +1146,7 @@ def plotSingleCompartmentFlow(results, settings, comp_labels=None, comp_titles=N
 def plotPopulationFlows(results, settings, comp_labels=None, comp_titles=None, pop_labels=None,
               link_labels=None, include_link_not_exclude=True, link_legend=None, sum_total=False, sum_population=False,
               plot_inflows=True, plot_outflows=True, exclude_transfers=False, observed_data=None,
-              save_fig=False, fig_name=None, colors=None, colormappings=None):
+              save_fig=False, fig_name=None, colors=None, colormappings=None, linestyles=None):
     """
     Plot flows rates in and out of a compartment, across populations. Intended usage is 
     for plots such as total new infections, deaths, etc. where the net flow is required. 
@@ -1233,6 +1246,10 @@ def plotPopulationFlows(results, settings, comp_labels=None, comp_titles=None, p
         colors = gridColorMap(len(pop_labels))
         logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
 
+    if linestyles is not None:
+        # convert from odict (key: style) to odict (key: population)
+        linestyles = getLinemapping(linestyles)
+        linestyles = [linestyles[pop] for pop in pop_labels]
 
 
 
@@ -1279,7 +1296,8 @@ def plotPopulationFlows(results, settings, comp_labels=None, comp_titles=None, p
         final_dict.update(plotdict)
 
         if len(rates) > 0:
-            _plotLine(ys=rates, ts=tvecs, labels=labels, colors=colors, save_fig=save_fig, **final_dict)
+            _plotLine(ys=rates, ts=tvecs, labels=labels, colors=colors, linestyles=linestyles,
+                      save_fig=save_fig, **final_dict)
         else:
             logger.warn("No flows selected for plotting")
 
@@ -1602,6 +1620,10 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
 
 
     if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}
+
+    if len(ys) == 0:
+        # TODO: error to be fixed
+        return
 
     ymin_val = np.min(ys[0])
     if xlim is None: xlim = (ts[0][0], ts[0][-1])
