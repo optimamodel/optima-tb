@@ -946,15 +946,19 @@ class Model(object):
         '''
         Calculate outputs (called cascade characteristics in settings).
         These outputs must be calculated in the same order as defined in settings, otherwise references may break.
+        Include any parameters marked as an output in the cascade sheet.
         '''
 
         outputs = odict()
+        
+        # For characteristics...
         for cid in settings.charac_specs.keys():
             outputs[cid] = odict()
             for pop in self.pops:
                 outputs[cid][pop.label] = None
 
                 # Sum up all relevant compartment popsizes (or previously calculated characteristics).
+                # TODO: Don't recalculate if characteristic was calculated as a dependency.
                 for inc_label in settings.charac_specs[cid]['includes']:
                     if inc_label in self.getPop(pop.label).comp_ids.keys():
                         vals = self.getPop(pop.label).getComp(inc_label).popsize
@@ -979,7 +983,19 @@ class Model(object):
                         raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
 
                     outputs[cid][pop.label] /= (vals + project_settings.TOLERANCE)
-
+        
+        # For parameters...
+        for cid in settings.linkpar_outputs:
+            outputs[cid] = odict()
+            for pop in self.pops:
+                if 'tag' in settings.linkpar_specs[cid]:    # If a parameter is a transition, grab values from its (first, if duplicated,) link object.
+                    tag = settings.linkpar_specs[cid]['tag']
+                    outputs[cid][pop.label] = pop.getLinks(tag)[0].vals
+                elif cid in pop.dep_ids.keys():             # If a parameter is a dependency, grab values from the dependency object.
+                    outputs[cid][pop.label] = pop.getDep(cid).vals
+                else:
+                    raise OptimaException('ERROR: Output parameter "%s" was not calculated as a "dependency" during the model run.' % cid)
+                
         return outputs
 
     def printModelState(self, ti):

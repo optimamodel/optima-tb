@@ -126,6 +126,69 @@ class ResultSet(object):
         for (i,label) in enumerate(labels):
             label_names[label] = names[i]
         return label_names
+    
+    def getValuesAt(self, label, year_init, year_end=None, pop_labels=None, integrated=False):
+        """
+        Derives transition flow rates, characteristic or compartment values for results, according to label provided.
+       
+        The range of values correspond to timepoints from year_init (inclusive) to year_end (exclusive).
+        In the absence of a year_end, the value corresponding to only the year_init timepoint is returned.
+        Values are summed across all population groups unless a subset is specified with pop_labels.
+        Values can also be optionally integrated to return a scalar.
+        
+        Outputs values as array or integrated scalar, as well as the the corresponding timepoints.
+        """
+        
+        dt = self.dt
+        
+        if pop_labels is None:
+            pop_labels = self.pop_labels
+        
+        # Get time array ids for values between initial (inclusive) and end year (exclusive).
+        tvals = np.array(self.sim_settings['tvec'])
+        if year_end is None: year_end = year_init + dt
+        idx = (tvals>=year_init-dt/2)*(tvals<=year_end-dt/2)
+        
+        # Initialise output as appropriate array of zeros.
+        output = np.zeros(len(tvals[idx]))
+        
+        # Find values in results and add them to the output array per relevant population group.
+        # TODO: Semantics need to be cleaned during design review phase.
+        #       Link tags are actually stored in link_labels, while link labels could be in char_labels if a transition is marked as a result output.
+        if label in self.link_labels:
+            
+            values,_,_ = self.getFlow(link_label=label, pop_labels=pop_labels)  # Does not return link values directly but calculates flows instead.
+            values = values[label]
+                    
+            for pop in values.keys():
+                popvalues = values[pop]
+                output += popvalues[idx]
+        
+        elif label in self.char_labels:
+            
+            values,_,_ = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)
+            values = values[label]
+                    
+            for pop in values.keys():
+                popvalues = values[pop]
+                output += popvalues[idx]         
+            
+        elif label in self.comp_label_names.keys():
+            
+            values,_,_ = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)
+            for pop in values.keys():
+                popvalues = values[pop]
+                output += values[pop][label].popsize[idx]
+                
+        else:
+            logger.warn('Unable to find values for label="%s", with no corresponding characteristic, transition or compartment found.'%label)
+        
+        # Do a simple integration process if specified by user.
+        if integrated:
+            output = output.sum() * dt
+                               
+        return output, tvals[idx]
+        
         
     def getValueAt(self, label, year_init, year_end=None, pop_labels=None):
         """
