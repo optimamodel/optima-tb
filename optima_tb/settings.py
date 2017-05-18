@@ -342,6 +342,15 @@ class PlottingSettings():
             else:
                 return x
 
+    def PopSuffixFormatter(self, x, pos):
+            'The two args are the value and tick position'
+            if x >= 1e6:
+                return '%1.1fM' % (x * 1e-6)
+            elif x >= 1e3:
+                return '%1.1fK' % (x * 1e-3)
+            else:
+                return '%i' % (x)
+
     def defaultSettings(self):
 
         pl.rcParams['font.size'] = 12
@@ -384,7 +393,7 @@ class PlottingSettings():
                          'year_inc':5,
                          # colormapping for category lists
                          'colormapping_order':'alternate3',  # as we have triplets in undiagnosed --> diagnosed --> on treatment
-                         'formatter': FuncFormatter(self.KMSuffixFormatter) ,
+                         'formatter': FuncFormatter(self.PopSuffixFormatter), # KMSuffixFormatter) ,
                          'barwidth': 0.8,
                          'bar_offset': 0.2,
                          # alpha for fill-between

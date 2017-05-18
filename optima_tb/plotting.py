@@ -1,5 +1,6 @@
 # %% Imports
 import logging
+from inspect import findsource
 logger = logging.getLogger(__name__)
 
 from optima_tb.utils import odict
@@ -236,7 +237,7 @@ def separateLegend(labels, colors, fig_name, reverse_order=False, **legendsettin
         labels = labels[::-1]
         colors = colors[::-1]
 
-    fig = plt.figure(figsize=(15, 15))  # silly big
+    fig = plt.figure(figsize=(5, 5))  # silly big
     patches = [  mpatches.Patch(color=color, label=label) for label, color in zip(labels, colors)]
     legendsettings['loc'] = 'center'
     legendsettings['frameon'] = False
@@ -600,15 +601,6 @@ def plotScenarioFlows(scen_results, scen_labels, settings, data,
                 continue
 
             yvals.append(yv)
-#             print "----->"
-#             print all_tvecs
-#             print yv
-#             print plot_pids
-#             print "<-----"
-#             print len(all_tvecs[0])
-#             print all_tvecs[0]
-#             print yv
-#             print len(yv)
             tvals.append(all_tvecs[0])
             labels.append(scen_labels[k])
 
@@ -896,7 +888,7 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
 
     # now plot through each characteristic
     for i, output_id in enumerate(outputIDs):
-        
+
         if output_id in charac_specs:
             name = charac_specs[output_id]['name']
         elif output_id in settings.linkpar_specs:
@@ -990,6 +982,135 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
         separateLegend(labels=output_labels, colors=cat_colors, fig_name=fig_name, reverse_order=True, **legendsettings)
 
 
+def plotValueBars(results, settings, pop_labels, label, years, title=None, y_intercept=None,
+                    additional_labels=None, additional_initial_alpha=0.5, colors=None,
+                    colormappings=None, cat_labels=None, use_full_labels=False, full_labels=None,
+                    hatchstyles=None,
+                    save_fig=False, fig_name=None, legendsettings=None):
+    """
+    
+    
+    hatch='//'
+    """
+    plotdict = settings.plot_settings
+    num_bars = len(pop_labels)
+    plotdict['xlim'] = (-0.25, num_bars)
+    bar_width = 0.8 / len(years)
+    plotdict['barwidth'] = bar_width
+    plotdict['bar_offset'] = 0.2
+    plotdict['plot_stacked'] = False
+
+    alphas = list(np.linspace(1., 0.6, len(years)))
+
+#     if hatchstyles is not None:
+#         # convert from odict (key: style) to odict (key: population)
+#         hatchstyles = getLinemapping(hatchstyles)
+#         hatchstyles = [hatchstyles[pop] for pop in pop_labels]
+
+    if colors is not None and len(colors) >= len(pop_labels):
+        pass  # colors as defined in the args should be used as is
+    elif colormappings is not None and colors is None:
+        colors = []
+        colors_dict, cat_colors = getCategoryColors(colormappings, 'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for (j, pop_label) in enumerate(pop_labels):
+            colors.append(colors_dict[pop_label])
+    else:
+        colors = None
+
+
+    values = []
+    inds = []
+
+    for (i, year_init) in enumerate(years):
+        pval = []
+        for pop in pop_labels:
+            pval.append(results.getValuesAt(label, year_init, year_init + 1., pop, integrated=True)[0])
+        values.append(pval)
+
+        inds.append(list(np.arange(num_bars) + np.ones(num_bars) * i * bar_width))
+
+    if colors is not None:
+        colors = [colors] * len(years)
+
+    plotdict['save_figname'] = fig_name
+#     plotdict['']
+
+    _plotBars(values, pop_labels, inds=inds, colors=colors, xlabels=pop_labels, alphas=alphas, save_fig=save_fig, **plotdict)
+
+
+def plotCareCascade(results, settings, pop_labels, labels, years, title="", normalize=False, y_intercept=None,
+                    additional_labels=None, additional_initial_alpha=0.5,
+                    colormappings=None, cat_labels=None, use_full_labels=False, full_labels=None,
+                    save_fig=False, fig_name=None, legendsettings=None):
+    """
+    
+    """
+    xlabels = labels.keys()
+    plotdict = settings.plot_settings
+
+    yticks = None
+    if plotdict is None:
+        plotdict = {}
+
+    plotdict['bar_width'] = 0.8 / len(years)
+    xlim = (-0.25, len(xlabels))
+
+    # setup: determine colors to be used
+    colors = []
+    if colormappings is not None:
+        colors_dict, cat_colors = getCategoryColors(colormappings, 'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for (j, pop_label) in enumerate(pop_labels):
+            colors.append(colors_dict[pop_label])
+
+
+    cat_labels = pop_labels.keys()
+
+    for (i, year_init) in enumerate(years):
+        values = []
+        for (j, lab_key) in enumerate(labels.keys()):
+            lab_set = labels[lab_key]
+            pop_vals = []
+            for pop_label, pop_set in pop_labels.iteritems():
+                count = 0
+                for lab in lab_set:
+                    count += results.getValuesAt(lab, year_init, year_init + 1., pop_set, integrated=True)[0]
+                pop_vals.append(count)
+            values.append(pop_vals)
+
+        if normalize:
+            # determine the max for the first state in the cascade
+            init_state = np.sum(values[0])
+            y_ticks_pos = np.arange(0.1, 1.01, 0.1) * init_state
+            y_ticklabels = ['%g' % tick for tick in np.arange(10, 101, 10)]
+            yticks = [y_ticks_pos, y_ticklabels]
+
+            if y_intercept is not None:
+                # convert to real numbers
+                y_intercept = [yis * init_state for yis in y_intercept]
+
+
+#         plotdict['bar_offset'] = i * plotdict['bar_width']
+        plotdict['xlim'] = xlim
+        plotdict['save_figname'] = fig_name + "_%g" % year_init
+        _plotBars(values, pop_labels.keys(), xlabels=xlabels,
+                  colors=colors, y_intercept=y_intercept, yticks=yticks,
+                  legendsettings=legendsettings, save_fig=save_fig, **plotdict)
+
+
+    if plotdict.has_key('legend_off') and plotdict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it can represent
+        # classes of budgets
+        # reverse legend order so that it matches top<->bottom of stacked bars
+        if use_full_labels:
+            if legendsettings is None:
+                legendsettings = {}
+            separateLegend(labels=full_labels, colors=colors, fig_name=fig_name + "_legend", reverse_order=True, **legendsettings)
+        else:
+            print cat_labels
+            separateLegend(labels=cat_labels, colors=cat_colors, fig_name=fig_name + "_legend", reverse_order=True,)
 
 
 def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency="USD",
@@ -1736,8 +1857,9 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
 
     return fig
 
-def _plotBars(values, labels=None, colors=None, title="", orientation='v', legendsettings=None,
+def _plotBars(values, labels=None, colors=None, title="", orientation='v', legendsettings=None, y_intercept=None,
               xlabel="", ylabel="", xlabels=None, yticks=None, barwidth=0.5, bar_offset=0.25, xlim=(0, 3), ylim=None,
+              linewidth=3, inds=None, alphas=None, hatch=None, plot_stacked=True,
               save_fig=False, save_figname=None, legend_off=False, formatter=None, reverse_order=True, **kwargs):
     """
     Plots bar graphs. Intended for budgets. 
@@ -1747,12 +1869,28 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     
     Params:
         values    list 
+        
+    TODO
+        extend code to normalize along y-axis 
     """
     # setup
     num_bars = len(values)
     num_cats = len(values[0])  # label categories
-    inds = np.arange(num_bars) + bar_offset
-    xinds = np.arange(num_bars) + bar_offset + barwidth / 2.
+    if inds is None:
+        inds = np.arange(num_bars) + bar_offset
+
+    if plot_stacked:
+        xinds = np.arange(num_bars) + bar_offset + barwidth / 2.
+    else:
+        xinds = np.arange(num_cats) + bar_offset + barwidth / 2.
+
+    if alphas is None:
+        # TODO check
+        alphas = [1.] * num_bars * num_cats
+
+    if hatch is None:
+        # TODO check
+        hatch = ['-'] * num_bars * num_cats
 
 
     if xlabels is None:
@@ -1765,24 +1903,38 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
 
     if legendsettings is None:
-        legendsettings = {'loc':'center right', 'ncol':1}
+#         legendsettings = {'loc':'center right', 'ncol':1}
+        legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}
+
 
 
     # preprocessing to make our lives easier:
     cat_values = map(list, zip(*values))
     cumulative = np.zeros(num_bars)
+    if not plot_stacked:
+        # I hate myself for writing this. I'm so, so, sorry.
+        cat_values = values
+        num_cats = num_bars
 
     # and plot:
     fig, ax = pl.subplots()
 
+    if y_intercept is not None:
+        ax.hlines([y_intercept], xmin=xlim[0], xmax=xlim[1], colors='#AAAAAA', linewidth=0.75 * linewidth, linestyle='--', zorder=1)
+
     for k in range(num_cats):
-
+        print inds[k]
+        print cat_values[k]
+        print colors[k]
         if k == 0:
-            ax.bar(inds, cat_values[k], color=colors[k], width=barwidth, lw=0)
+            ax.bar(inds[k], cat_values[k], color=colors[k], width=barwidth, alpha=alphas[k], lw=0)
+        elif plot_stacked:
+            ax.bar(inds[k], cat_values[k], color=colors[k], width=barwidth, bottom=cumulative, alpha=alphas[k], lw=0)
         else:
-            ax.bar(inds, cat_values[k], color=colors[k], width=barwidth, bottom=cumulative, lw=0)
+            ax.bar(inds[k], cat_values[k], color=colors[k], width=barwidth, alpha=alphas[k], lw=0)
 
-        cumulative += cat_values[k]
+        if plot_stacked:
+            cumulative += cat_values[k]
 
     _turnOffBorder()
 
@@ -1800,6 +1952,10 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     if x_ticks is not None:
         ax.set_xticks(x_ticks[0])
         ax.set_xticklabels(x_ticks[1])
+
+    if yticks is not None:
+        ax.set_yticks(yticks[0])
+        ax.set_yticklabels(yticks[1])
 
     ax.set_xlim(xlim)
     if ylim is not None:
