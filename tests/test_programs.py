@@ -7,21 +7,32 @@ databook = os.path.abspath('../tests/databooks/databook_model_full (with program
 cascade =  os.path.abspath('../tests/cascade_spreadsheet/cascade_model_full (with programs).xlsx')
 
 #Setup Unit Test class
+class CreateProgsetTest(unittest.TestCase):
+    def setUp(self):
+        self.proj= Project(name = 'unittest', cascade_path = self.cascade)
+        self.proj.makeParset()
+
+    def tearDown(self):
+        self.proj = None
+        
 class ProgramsTest(unittest.TestCase):
     def setUp(self):
         self.proj= Project(name = 'unittest', cascade_path = self.cascade)
+        self.proj.makeParset()
+        self.proj.makeProgset()
 
     def tearDown(self):
         self.proj = None
     
 #Define Tests to run
-class TestPrograms(ProgramsTest):
+class TestProgset(CreateProgsetTest):
     def test_progset_creation(self):
         '''
             - Intended to test whether progsets are created with the correct name
         '''
-        pass
+        self.proj.makeProgset(name='test_creation')
     
+class TestPrograms(ProgramsTest):
     def test_progset_populationgroups(self):
         '''
             - Programs are created for the correct population groups
@@ -49,6 +60,8 @@ class TestPrograms(ProgramsTest):
         '''
     
 if __name__ == '__main__':
+    CreateProgsetTest.cascade = cascade
+    CreateProgsetTest.databook = databook
     ProgramsTest.cascade = cascade
     ProgramsTest.databook = databook
     unittest.main()
