@@ -361,6 +361,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     cid_tag = None
     cid_label = None
     cid_name = None
+    cid_output = None
     cid_sheet = None
     cid_default = None
     cid_order = None
@@ -371,6 +372,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_pars.cell_value(0, col_id) == 'Transition Tag': cid_tag = col_id
         if ws_pars.cell_value(0, col_id) == 'Code Label': cid_label = col_id
         if ws_pars.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+        if ws_pars.cell_value(0, col_id) == 'Output': cid_output = col_id
         if ws_pars.cell_value(0, col_id) == 'Sheet Label': cid_sheet = col_id
         if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
@@ -395,6 +397,14 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 settings.linkpar_specs[label]['tag'] = tag
             else:
                 settings.par_deps[label] = True     # Untagged parameters are dependencies for actual tagged transitions.
+            
+            # Check whether this parameter should be included as a result output.
+            if not cid_output is None:
+                val = str(ws_pars.cell_value(row_id, cid_output))
+                if val not in ['']:
+                    settings.linkpar_specs[label]['output'] = val
+                    settings.linkpar_outputs.append(label)
+#                    settings.par_deps[label] = True    # Whether a dependency or not, make sure the parameter is calculated and stored during a model run.
             
             # Attribute a custom sheet label to this parameter if available.
             if not cid_sheet is None:
@@ -499,17 +509,21 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     if ws_progtypes:
         cid_label = None
         cid_name = None
+        cid_special = None
         cid_attlabel = None
         cid_attname = None
         cid_pars = None
         cid_function = None
+        cid_groups = None
         for col_id in xrange(ws_progtypes.ncols):
             if ws_progtypes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Special Tag': cid_special = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Attribute Labels': cid_attlabel = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Attribute Names': cid_attname = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Impact Parameters': cid_pars = col_id
             if ws_progtypes.cell_value(0, col_id) == 'Impact Functions': cid_function = col_id
+            if ws_progtypes.cell_value(0, col_id) == 'Impact Groupings': cid_groups = col_id
         if None in [cid_tag, cid_label]:
             raise OptimaException('ERROR: Program type worksheet does not have correct column headers.')
         
@@ -520,8 +534,13 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 name = str(ws_progtypes.cell_value(row_id, cid_name))
                 if not '' in [label, name]:
                     current_label = label
-                    settings.progtype_specs[current_label] = {'name':name, 'impact_pars':odict(), 'attribute_label_names':odict(), 'attribute_name_labels':odict()}
+                    settings.progtype_specs[current_label] = {'name':name, 'impact_pars':odict(), 'impact_par_groups':{}, 'attribute_label_names':odict(), 'attribute_name_labels':odict()}
                     settings.progtype_name_labels[name] = current_label
+                    
+                    if not cid_special is None:
+                        special_tag = str(ws_progtypes.cell_value(row_id, cid_special))
+                        if special_tag not in ['']:
+                            settings.progtype_specs[current_label]['special'] = special_tag
                 
                 if not current_label is None:
                     if not None in [cid_attlabel, cid_attname]:
@@ -551,6 +570,16 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                                     for attrib in attrib_dict.keys():
                                         if not attrib in settings.progtype_specs[current_label]['attribute_label_names'].keys():
                                             raise OptimaException('ERROR: Attribute "%s" has not been defined for program type "%s" by the time it is loaded into settings.' % (attrib, current_label))
+
+                            # If the impact parameter has a corresponding label for its 'grouping', store it.
+                            # Grouped impact parameters effectively share coverage between them, scaled according to the size proportions of their source compartments.
+                            if not cid_groups is None:
+                                val = str(ws_progtypes.cell_value(row_id, cid_groups))
+                                if val not in ['']:
+                                    settings.progtype_specs[current_label]['impact_pars'][impact_par]['group'] = val
+                                    if val not in settings.progtype_specs[current_label]['impact_par_groups']:
+                                        settings.progtype_specs[current_label]['impact_par_groups'][val] = []
+                                    settings.progtype_specs[current_label]['impact_par_groups'][val].append(impact_par)
                         
         # Additional program-related settings ar established here.
         settings.databook['format']['programs']['max_lines_impact'] = max([len(settings.progtype_specs[x]['attribute_name_labels'].keys()) for x in settings.progtype_specs.keys()])

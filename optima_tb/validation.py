@@ -109,7 +109,12 @@ def checkNegativePopulation(model,msettings,dpopsizes,dpop_out,ti,dt,validationS
                     logging.debug("--- Compartment is empty; cannot remove from empty compartment: %s"%warning)
                     empty_compartment.append(did)
                 
-                elif dpopsizes[did] == 0 and pops[pid].comps[cid].popsize[ti+1] < 0.:
+#                elif dpopsizes[did] == 0 and pops[pid].comps[cid].popsize[ti+1] < 0.:
+#                    logging.warn("--- Compartment value is negative: %s"%warning)
+#                    reset_compartment.append(did)
+                
+                elif pops[pid].comps[cid].popsize[ti+1] < 0 :
+                    # TODO: modify appropriately
                     logging.debug("--- Compartment value is negative: %s"%warning)
                     reset_compartment.append(did)
                 
@@ -119,11 +124,12 @@ def checkNegativePopulation(model,msettings,dpopsizes,dpop_out,ti,dt,validationS
                     curr_pop = pops[pid].comps[cid].popsize[ti+1]
                     reduced_compartment[did] = curr_pop / np.abs(dpop_out[did])
                     
-                elif pops[pid].comps[cid].popsize[ti+1] < 0 :
-                    # TODO: modify appropriately
-                    logging.debug("--- Compartment value is negative: %s"%warning)
-                    reset_compartment.append(did)
-                    
+#                elif pops[pid].comps[cid].popsize[ti+1] < 0 :
+#                    # TODO: modify appropriately
+#                    logging.warn("--- Compartment value is negative: %s"%warning)
+#                    reset_compartment.append(did)
+                
+                if did in reduced_compartment and reduced_compartment[did] < 0: raise OptimaException('Uh oh. %s' % reduced_compartment[did])
     
         
         # go back and recalculate links so that 

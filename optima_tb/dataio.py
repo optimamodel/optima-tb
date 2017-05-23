@@ -12,7 +12,6 @@ import zlib
 import math
 
 from dateutil import parser, tz
-from twisted.python.reflect import qual, namedAny
 
 import logging
 logger = logging.getLogger(__name__)
@@ -29,7 +28,7 @@ COMPRESSION_EXTENSION = {'zlib' : '.Z',
                          None   : '',
                          ''     : ''}
 
-def exportObj(obj_to_export,filename=None,format='json',compression='zlib'):
+def exportObj(obj_to_export, filename=None, format='json', compression='zlib'):
     """
     
     Params:
@@ -40,36 +39,36 @@ def exportObj(obj_to_export,filename=None,format='json',compression='zlib'):
         
     
     """
-    
+
     # Determine object representation
-    if format=='json':
+    if format == 'json':
         contents = dumps(obj_to_export)
     else:
-        raise OptimaException("Format for export unknown (%s)"%format)
-    
+        raise OptimaException("Format for export unknown (%s)" % format)
+
     # Determine compression algorithm
     if compression == 'zlib':
         compressed = zlib.compress(contents, 6)
     elif compression is None or compression == '':
         logger.debug("No compression specified / listed")
     else:
-        raise OptimaException("Compression for export unknown (%s)"%compression)
-       
-    # Set up filename 
-    filename = "%s%s"%(filename,COMPRESSION_EXTENSION[compression])
+        raise OptimaException("Compression for export unknown (%s)" % compression)
+
+    # Set up filename
+    filename = "%s%s" % (filename, COMPRESSION_EXTENSION[compression])
 
     # Finally, save the formatted object (using compression) to the file
     try:
         f = open(filename, 'wb')
         f.write(compressed)
-        f.close() 
+        f.close()
         return filename
     except Exception, e:
-        logger.error("Error when trying to save file: %s"%(filename))
+        logger.error("Error when trying to save file: %s" % (filename))
         logger.error(str(e))
-    
 
-def importObj(filename,format='json',compression='zlib'):
+
+def importObj(filename, format='json', compression='zlib'):
     """
     
     Params:
@@ -82,10 +81,10 @@ def importObj(filename,format='json',compression='zlib'):
     try:
         blob = open(filename, 'rb').read()
     except Exception, e:
-        logger.error("Error when trying to load file: %s"%(filename))
+        logger.error("Error when trying to load file: %s" % (filename))
         raise OptimaException(str(e))
-    
-    
+
+
     # Determine compression algorithm
     if compression == 'zlib':
         uncompressed = zlib.decompress(blob)
@@ -93,15 +92,15 @@ def importObj(filename,format='json',compression='zlib'):
         logger.debug("No compression specified / listed")
         uncompressed = blob
     else:
-        raise OptimaException("Compression for export unknown (%s)"%compression)
- 
-    
+        raise OptimaException("Compression for export unknown (%s)" % compression)
+
+
     # Determine object representation
-    if format=='json':
+    if format == 'json':
         return loads(uncompressed)
     else:
-        raise OptimaException("Format for export unknown (%s)"%format)
-    
+        raise OptimaException("Format for export unknown (%s)" % format)
+
 
 
 def dumps(obj):
@@ -113,13 +112,14 @@ def dumps(obj):
     @author: ?
     
     """
+    from twisted.python.reflect import qual
 
     obj_registry = {}
     id_number = [0]
     saved_types = set()
 
     def default(r):
-        
+
         if isinstance(r, optimaOdict):
             o = {
                 "obj": "odict",
@@ -158,7 +158,7 @@ def dumps(obj):
 
         elif isinstance(r, dict):
             o = {}
-            for x,y in r.items():
+            for x, y in r.items():
                 o[default(x)] = default(y)
 
         else:
@@ -208,6 +208,9 @@ def loads(input):
     @author: ?
     
     """
+    from twisted.python.reflect import namedAny
+
+
     a = ast.literal_eval(input)
 
     registry = a["registry"]
@@ -241,7 +244,7 @@ def loads(input):
 
                     loaded[o["id"]] = new
 
-                    state = {x:decode(y) for x,y in val.items()}
+                    state = {x:decode(y) for x, y in val.items()}
                     try:
                         new.__setstate__(state)
                     except AttributeError:
@@ -280,7 +283,7 @@ def loads(input):
                 else:
                     assert False, str(o)[0:1000]
             else:
-                return {decode(x):decode(y) for x,y in o.iteritems()}
+                return {decode(x):decode(y) for x, y in o.iteritems()}
 
             return o
 
@@ -288,6 +291,7 @@ def loads(input):
 
     done = decode(schema)
     return done
+
 
 
 
