@@ -1,28 +1,40 @@
 from optima_tb.project import Project
+from optima_tb.utils import odict
+import pylab
 import unittest
 import os
 
 #Spreadsheets to use
-databook = os.path.abspath('../tests/databooks/databook_model_full (with programs).xlsx')
-cascade =  os.path.abspath('../tests/cascade_spreadsheet/cascade_model_full (with programs).xlsx')
+databook = os.path.abspath('../tests/databooks/databook_model_full.xlsx')
+cascade =  os.path.abspath('../tests/cascade_spreadsheet/cascade_model_full.xlsx')
 
 #Setup Unit Test class
 class CreateProgsetTest(unittest.TestCase):
     def setUp(self):
-        self.proj= Project(name = 'unittest', cascade_path = self.cascade)
+        self.proj= Project(name = 'unittest', cascade_path = cascade)
+        self.proj.loadSpreadsheet(databook_path=databook)
+        self.proj.setYear([2000,2015], False)
         self.proj.makeParset()
 
     def tearDown(self):
         self.proj = None
+        pylab.close('all')
         
 class ProgramsTest(unittest.TestCase):
     def setUp(self):
-        self.proj= Project(name = 'unittest', cascade_path = self.cascade)
+        self.proj= Project(name = 'unittest', cascade_path = cascade)
+        self.proj.loadSpreadsheet(databook_path=databook)
+        self.proj.setYear([2000,2015], False)
         self.proj.makeParset()
         self.proj.makeProgset()
+        self.prog_short_names = ['ds-tb', 'mdr-tb', 'vac-tb', 'cure-tb']#, 'fixed']
+        self.prog_full_names  = ['DS Treatment Program', 'MDR Treatment Program', 
+                            'Susceptible Vaccination Program', 'Latent Cure Program']#,
+                            #'Fixed Cost Program']
 
     def tearDown(self):
         self.proj = None
+        pylab.close('all')
     
 #Define Tests to run
 class TestProgset(CreateProgsetTest):
@@ -30,14 +42,39 @@ class TestProgset(CreateProgsetTest):
         '''
             - Intended to test whether progsets are created with the correct name
         '''
-        self.proj.makeProgset(name='test_creation')
+        progset_name = 'test_creation'
+        self.proj.makeProgset(name=progset_name)
+        num_progsets = len(self.proj.progsets)
+        self.assertEqual(1, num_progsets, 'Incorrect number of progsets exist! Expected Number: 1, Existing Number: %i' %num_progsets)
+        self.assertEqual(progset_name, self.proj.progsets[0].name, 'Progset names incorrectly created! Expected name: %s, Actual Name: %s' % (progset_name, self.proj.progsets[0].name))
+        return None
     
 class TestPrograms(ProgramsTest):
+    def test_program_names(self):
+        '''
+            - Check program names are created properly
+            - 
+        '''
+        for index, prog_name in enumerate(self.prog_short_names):
+            self.assertEqual(self.prog_short_names[index], self.proj.progsets[0].progs[index].label, 
+                             'Program labels are mismatched! Expected name: %s, Actual name: %s' %(self.prog_short_names[index], self.proj.progsets[0].progs[index].label))
+            self.assertEqual(self.prog_full_names[index], self.proj.progsets[0].progs[index].name, 
+                             'Program descriptive names are mismatched! Expected name: %s, Actual name: %s' %(self.prog_full_names[index], self.proj.progsets[0].progs[index].name))
+        return None
+        
     def test_progset_populationgroups(self):
         '''
             - Programs are created for the correct population groups
         '''
-        pass
+        prog_def = {'ds-tb':  ['0-14', '15-49', '50+'], 
+                    'mdr-tb': ['15-49', '50+'], 
+                    'vac-tb': ['0-14'], 
+                    'cure-tb':['Pris']}
+
+        for index, prog_name in enumerate(self.prog_short_names):
+            self.assertListEqual(prog_def[prog_name], self.proj.progsets[0].progs[index].target_pops, 
+                                 'Population definitions for programs is incorrect! Expected List: %s, Actual List: %s' %(prog_def[prog_name], self.proj.progsets[0].progs[index].target_pops))
+        return None
     
     def test_progset_attributes(self):
         '''
@@ -45,6 +82,17 @@ class TestPrograms(ProgramsTest):
         '''
         pass
     
+    def test_progset_attribvalues(self):
+        '''
+            - Attirbute values are stored within the progset correctly
+        '''
+        pass
+    
+    def test_progset_budgets(self):
+        '''
+            - Test whether budgets have been passed into progset correctly
+        '''
+        pass
     
     def test_costcoverage_curves(self):
         '''
@@ -60,10 +108,6 @@ class TestPrograms(ProgramsTest):
         '''
     
 if __name__ == '__main__':
-    CreateProgsetTest.cascade = cascade
-    CreateProgsetTest.databook = databook
-    ProgramsTest.cascade = cascade
-    ProgramsTest.databook = databook
     unittest.main()
 
 
