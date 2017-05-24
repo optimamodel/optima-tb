@@ -1,5 +1,6 @@
 from optima_tb.project import Project
 from optima_tb.utils import odict
+import pylab
 from copy import deepcopy as dcp
 from math import ceil
 import unittest
@@ -28,6 +29,7 @@ class ModelTest(unittest.TestCase):
 
     def tearDown(self):
         self.proj = None
+        pylab.close('all')
         
 
 class SimpleModel(ModelTest):
