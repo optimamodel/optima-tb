@@ -19,7 +19,7 @@ from copy import deepcopy as dcp
 from optima_tb.project import Project
 from optima_tb.plotting import extractCharacteristic, _plotLine
 
-#%% GUI classes
+#%% GUI class
 
 class GUI(qtw.QWidget):
     
@@ -31,9 +31,12 @@ class GUI(qtw.QWidget):
         
         self.setWindowTitle('GUI Selection Screen')   
         
+        self.button_cascade = qtw.QPushButton('Design Cascade', self)
+        self.button_cascade.clicked.connect(self.runGUICascade)
         self.button_calibration = qtw.QPushButton('Manual Calibration', self)
         self.button_calibration.clicked.connect(self.runGUICalibration)
         layout = qtw.QVBoxLayout(self)
+        layout.addWidget(self.button_cascade)
         layout.addWidget(self.button_calibration)
         self.setLayout(layout)
         
@@ -43,9 +46,63 @@ class GUI(qtw.QWidget):
     
         self.show()
         
+    def runGUICascade(self):
+        self.sub_gui = GUICascade()
+        
     def runGUICalibration(self):
         self.sub_gui = GUICalibration()
+      
+#%% Cascade GUI class
+
+class GUICascade(qtw.QWidget):
+    
+    def __init__(self):
+        super(GUICascade, self).__init__()
+        self.initUI()
         
+    def resetAttributes(self):
+        self.comp_dict = {'blah':3, 'woot':7}
+        
+    def initUI(self):
+        
+        self.resetAttributes()
+        
+        self.setWindowTitle('Cascade Designer')
+        
+        # Screen.
+        screen = qtw.QDesktopWidget().availableGeometry()
+        self.resize(screen.width()*9.0/10.0, screen.height()*9.0/10.0)
+        self.setGeometry((screen.width()-self.width())/2, (screen.height()-self.height())/2, 
+                         self.width(), self.height())
+        
+        self.list_comp_names = qtw.QListWidget()
+        
+        self.tabs = qtw.QTabWidget()
+        self.tab_compartment = qtw.QWidget()
+        self.tab_transition = qtw.QWidget()
+        
+        compartment_layout = qtw.QVBoxLayout()
+        compartment_layout.addWidget(self.list_comp_names)
+        self.tab_compartment.setLayout(compartment_layout)
+        	
+        self.tabs.addTab(self.tab_compartment, "Compartments")
+        self.tabs.addTab(self.tab_transition, "Transitions")
+        
+        total_layout = qtw.QHBoxLayout()
+        total_layout.addWidget(self.tabs)
+        self.setLayout(total_layout)
+        
+        self.refreshVisibility()
+        self.show()
+        
+    def refreshVisibility(self):
+        self.refreshCompartmentDict()
+    
+    def refreshCompartmentDict(self):
+        self.list_comp_names.clear()
+        self.list_comp_names.addItems(self.comp_dict.keys())
+        
+#%% Calibration GUI class
 
 class GUICalibration(qtw.QWidget):
     
