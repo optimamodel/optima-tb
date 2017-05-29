@@ -27,10 +27,10 @@ class ProgramsTest(unittest.TestCase):
         self.proj.setYear([2000,2015], False)
         self.proj.makeParset()
         self.proj.makeProgset()
-        self.prog_short_names = ['ds-tb', 'mdr-tb', 'vac-tb', 'cure-tb']#, 'fixed']
+        self.prog_short_names = ['ds-tb', 'mdr-tb', 'vac-tb', 'cure-tb', 'fixed']
         self.prog_full_names  = ['DS Treatment Program', 'MDR Treatment Program', 
-                            'Susceptible Vaccination Program', 'Latent Cure Program']#,
-                            #'Fixed Cost Program']
+                            'Susceptible Vaccination Program', 'Latent Cure Program',
+                            'Fixed Cost Program']
 
     def tearDown(self):
         self.proj = None
@@ -69,11 +69,20 @@ class TestPrograms(ProgramsTest):
         prog_def = {'ds-tb':  ['0-14', '15-49', '50+'], 
                     'mdr-tb': ['15-49', '50+'], 
                     'vac-tb': ['0-14'], 
-                    'cure-tb':['Pris']}
+                    'cure-tb':['Pris'],
+                    'fixed': []}
 
         for index, prog_name in enumerate(self.prog_short_names):
             self.assertListEqual(prog_def[prog_name], self.proj.progsets[0].progs[index].target_pops, 
                                  'Population definitions for programs is incorrect! Expected List: %s, Actual List: %s' %(prog_def[prog_name], self.proj.progsets[0].progs[index].target_pops))
+        return None
+    
+    def test_progset_budgets(self):
+        '''
+            - Test whether budgets have been passed into progset correctly
+        '''
+        for index, prog_name in enumerate(self.prog_short_names):
+            print self.proj.progsets[0].progs[index].cost
         return None
     
     def test_progset_attributes(self):
@@ -88,11 +97,7 @@ class TestPrograms(ProgramsTest):
         '''
         pass
     
-    def test_progset_budgets(self):
-        '''
-            - Test whether budgets have been passed into progset correctly
-        '''
-        pass
+
     
     def test_costcoverage_curves(self):
         '''
