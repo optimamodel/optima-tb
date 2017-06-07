@@ -82,7 +82,14 @@ class TestPrograms(ProgramsTest):
             - Test whether budgets have been passed into progset correctly:
                 - Length of array
                 - Content of each array/list
+                - Budget created against correct year
         '''
+        year_def = {'ds-tb':  [2010., 2015.], 
+                    'mdr-tb': [2013., 2015.], 
+                    'vac-tb': [2000.], 
+                    'cure-tb':[2009., 2015.],
+                    'fixed':  [2000.]}
+        
         prog_def = {'ds-tb':  [7625000., 15250000.], 
                     'mdr-tb': [5100000., np.nan], 
                     'vac-tb': [10500.], 
@@ -91,7 +98,9 @@ class TestPrograms(ProgramsTest):
         
         for index, prog_name in enumerate(self.prog_short_names):
             self.assertEqual(len(prog_def[prog_name]), len(self.proj.progsets[0].progs[index].cost),
-                             'Array length imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(prog_name, prog_def[prog_name], self.proj.progsets[0].progs[index].cost))
+                             'Budget array length imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(prog_name, prog_def[prog_name], self.proj.progsets[0].progs[index].cost))
+            self.assertListEqual(year_def[prog_name], np.ndarray.tolist(self.proj.progsets[0].progs[index].t),
+                                 'Year definitions for program: %s is incorrect! Expected List: %s, Actual List: %s' %(prog_name, year_def[prog_name], self.proj.progsets[0].progs[index].t))
             for indices, budget_value in enumerate(prog_def[prog_name]):
                 if np.isnan(budget_value):
                     self.assertEqual(np.isnan(budget_value), np.isnan(self.proj.progsets[0].progs[index].cost[indices]),
@@ -99,6 +108,40 @@ class TestPrograms(ProgramsTest):
                 else:
                     self.assertEqual(budget_value, self.proj.progsets[0].progs[index].cost[indices],
                                  'Budget values imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(prog_name, prog_def[prog_name], self.proj.progsets[0].progs[index].cost))
+        return None
+    
+    def test_progset_coverage(self):
+        '''
+            - Test whether coverages have been passed into progset correctly:
+                - Length of array
+                - Coverage format
+                - Content of each array/list
+        '''
+        prog_format = {'ds-tb':  'number', 
+                       'mdr-tb': 'number', 
+                       'vac-tb': 'fraction', 
+                       'cure-tb':'number',
+                       'fixed':  None}
+        
+        prog_def = {'ds-tb':  [76250., 152500.], 
+                    'mdr-tb': [25500., np.nan], 
+                    'vac-tb': [0.01], 
+                    'cure-tb':[0., 0.9],
+                    'fixed':  [np.nan]}
+
+        for index, prog_name in enumerate(self.prog_short_names):
+            self.assertEqual(len(prog_def[prog_name]), len(self.proj.progsets[0].progs[index].cov),
+                             'Coverage array length imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(prog_name, prog_def[prog_name], self.proj.progsets[0].progs[index].cov))
+            self.assertEqual(prog_format[prog_name], self.proj.progsets[0].progs[index].cov_format,
+                             'Coverage format imported for program: %s is incorrect! Expected Type: %s, Actual Type: %s' %(prog_name, prog_format[prog_name], self.proj.progsets[0].progs[index].cov_format))
+            
+            for indices, coverage_value in enumerate(prog_def[prog_name]):
+                if np.isnan(coverage_value):
+                    self.assertEqual(np.isnan(coverage_value), np.isnan(self.proj.progsets[0].progs[index].cov[indices]),
+                                     'Coverage values imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(prog_name, prog_def[prog_name], self.proj.progsets[0].progs[index].cov))
+                else:
+                    self.assertEqual(coverage_value, self.proj.progsets[0].progs[index].cov[indices],
+                                 'Coverage values imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(prog_name, prog_def[prog_name], self.proj.progsets[0].progs[index].cov))
         return None
     
     def test_progset_attributes(self):
