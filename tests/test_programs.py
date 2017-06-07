@@ -216,7 +216,28 @@ class TestPrograms(ProgramsTest):
         '''
             - Budget to Coverage mapping
         '''
-        
+        coverage_values = [0., 100., 1667., 1000000.]
+        unit_costs =    {'ds-tb'  : 100., 
+                         'mdr-tb' : 200., 
+                         'vac-tb' : 10.5, 
+                         'cure-tb': 50.,
+                         'fixed'  : np.nan}
+        for index, prog_name in enumerate(self.prog_short_names):
+            if prog_name == 'fixed': continue
+            for coverage in coverage_values:
+                if self.proj.progsets[0].progs[index].cov_format == 'number':
+                    expected_value = coverage * unit_costs[prog_name]
+                else:
+                    expected_value = coverage * unit_costs[prog_name] / 0.01
+                    
+                model_value = self.proj.progsets[0].progs[index].getBudget(coverage)
+                
+                if self.proj.progsets[0].progs[index].func_specs['type'] == 'linear':
+                    self.assertEqual(expected_value, model_value,
+                                'Budget value for program %s was incorrectly calculated. Expected value: %s, Model value: %s' %(prog_name, expected_value, model_value))
+                else: print "Incorrect entries detected!"
+                    
+        return None
         return None
     
     def test_costcoverage_curves(self):
