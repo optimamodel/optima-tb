@@ -183,12 +183,45 @@ class TestPrograms(ProgramsTest):
                                          'Attribute values loaded for "%s" and imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(attrib_name, prog_name, prog_def[prog_name][attrib_name], self.proj.progsets[0].progs[index].attributes[attrib_name]))
         return None
 
+    def test_budgetToCoverage_mapping(self):
+        '''
+            - Budget to Coverage mapping
+        '''
+        budget_values = [0., 100000., 500000., 1000000.]
+        unit_costs =    {'ds-tb'  : 100., 
+                         'mdr-tb' : 200., 
+                         'vac-tb' : 10.5, 
+                         'cure-tb': 50.,
+                         'fixed'  : np.nan}
+        for index, prog_name in enumerate(self.prog_short_names):
+            for budget in budget_values:
+                if self.proj.progsets[0].progs[index].cov_format == 'number':
+                    expected_value = budget / unit_costs[prog_name]
+                else:
+                    expected_value = 0.01 * budget / unit_costs[prog_name]
+                    
+                model_value = self.proj.progsets[0].progs[index].getCoverage(budget)
+                
+                if self.proj.progsets[0].progs[index].func_specs['type'] == 'cost_only':
+                    self.assertEqual(np.isnan(expected_value), np.isnan(model_value),
+                                'Coverage value for program %s was incorrectly calculated. Expected value: %s, Model value: %s' %(prog_name, expected_value, model_value))
+                elif self.proj.progsets[0].progs[index].func_specs['type'] == 'linear':
+                    self.assertEqual(expected_value, model_value,
+                                'Coverage value for program %s was incorrectly calculated. Expected value: %s, Model value: %s' %(prog_name, expected_value, model_value))
+                else: print "Incorrect entries detected!"
+                    
+        return None
+    
+    def test_coverageToBudget_mapping(self):
+        '''
+            - Budget to Coverage mapping
+        '''
+        
+        return None
     
     def test_costcoverage_curves(self):
         '''
             - Test saturation of curves (saturation not implemented in cost curves yet)
-            - Budget to Coverage mapping
-            - Coverage to Budget mapping
         '''
         pass
     
