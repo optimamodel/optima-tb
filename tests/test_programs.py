@@ -1,4 +1,5 @@
 from optima_tb.project import Project
+from optima_tb.utils import odict
 import numpy as np
 import pylab
 import unittest
@@ -147,8 +148,19 @@ class TestPrograms(ProgramsTest):
     def test_progset_attributes(self):
         '''
             - Parameters are not cross-referenced (i.e. parameters for Program X are not existing in Program Y)
+            - Check for attribute duplication
+            NOTE: odict check is not rigourous enough, needs to be better incorporated
         '''
-        pass
+        prog_def = {'ds-tb':  ['effic', 'adher', 'dur'], 
+                    'mdr-tb': ['effic', 'adher', 'dur'], 
+                    'vac-tb': ['effic'], 
+                    'cure-tb':['effic'],
+                    'fixed':  odict()}
+        for index, prog_name in enumerate(self.prog_short_names):
+            for attrib_name in prog_def[prog_name]:
+                self.assertEqual(True, attrib_name in self.proj.progsets[0].progs[index].attributes.keys(),
+                                 'Attribute key: %s was not found in Program: %s. Expected Attributes: %s, Actual Attributes: %s' %(attrib_name, prog_name, prog_def[prog_name], self.proj.progsets[0].progs[index].attributes.keys()))
+        return None
     
     def test_progset_attribvalues(self):
         '''
