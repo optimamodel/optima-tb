@@ -1,5 +1,5 @@
 from optima_tb.project import Project
-from optima_tb.utils import odict
+import numpy as np
 import pylab
 import unittest
 import os
@@ -74,15 +74,31 @@ class TestPrograms(ProgramsTest):
 
         for index, prog_name in enumerate(self.prog_short_names):
             self.assertListEqual(prog_def[prog_name], self.proj.progsets[0].progs[index].target_pops, 
-                                 'Population definitions for programs is incorrect! Expected List: %s, Actual List: %s' %(prog_def[prog_name], self.proj.progsets[0].progs[index].target_pops))
+                                 'Population definitions for program: %s is incorrect! Expected List: %s, Actual List: %s' %(prog_name, prog_def[prog_name], self.proj.progsets[0].progs[index].target_pops))
         return None
     
     def test_progset_budgets(self):
         '''
-            - Test whether budgets have been passed into progset correctly
+            - Test whether budgets have been passed into progset correctly:
+                - Length of array
+                - Content of each array/list
         '''
+        prog_def = {'ds-tb':  [7625000., 15250000.], 
+                    'mdr-tb': [5100000., np.nan], 
+                    'vac-tb': [10500.], 
+                    'cure-tb':[0., 4500.],
+                    'fixed': [1000000.]}
+        
         for index, prog_name in enumerate(self.prog_short_names):
-            print self.proj.progsets[0].progs[index].cost
+            self.assertEqual(len(prog_def[prog_name]), len(self.proj.progsets[0].progs[index].cost),
+                             'Array length imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(prog_name, prog_def[prog_name], self.proj.progsets[0].progs[index].cost))
+            for indices, budget_value in enumerate(prog_def[prog_name]):
+                if np.isnan(budget_value):
+                    self.assertEqual(np.isnan(budget_value), np.isnan(self.proj.progsets[0].progs[index].cost[indices]),
+                                     'Budget values imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(prog_name, prog_def[prog_name], self.proj.progsets[0].progs[index].cost))
+                else:
+                    self.assertEqual(budget_value, self.proj.progsets[0].progs[index].cost[indices],
+                                 'Budget values imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(prog_name, prog_def[prog_name], self.proj.progsets[0].progs[index].cost))
         return None
     
     def test_progset_attributes(self):
@@ -101,7 +117,7 @@ class TestPrograms(ProgramsTest):
     
     def test_costcoverage_curves(self):
         '''
-            - Test saturation of curves
+            - Test saturation of curves (saturation not implemented in cost curves yet)
             - Budget to Coverage mapping
             - Coverage to Budget mapping
         '''
