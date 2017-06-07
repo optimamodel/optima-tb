@@ -164,10 +164,24 @@ class TestPrograms(ProgramsTest):
     
     def test_progset_attribvalues(self):
         '''
-            - Attirbute values are stored within the progset correctly
+            - Attribute values are stored within the progset correctly
         '''
-        pass
-    
+        prog_def = {'ds-tb':  {'effic': [0.75, 0.9], 'adher': [0.66666667, 0.9], 'dur': [12., 6.]}, 
+                    'mdr-tb': {'effic': [np.nan, 2./3.], 'adher': [0.5, np.nan], 'dur': [18., 18.]}, 
+                    'vac-tb': {'effic': [0.5]}, 
+                    'cure-tb':{'effic': [0.2, 0.2]},
+                    'fixed':  odict()}
+        
+        for index, prog_name in enumerate(self.prog_short_names):
+            for attrib_name in prog_def[prog_name].keys():
+                for indices, attrib_value in enumerate(prog_def[prog_name][attrib_name]):
+                    if np.isnan(attrib_value):
+                        self.assertEqual(np.isnan(attrib_value), np.isnan(self.proj.progsets[0].progs[index].attributes[attrib_name][indices]),
+                                         'Attribute values loaded for "%s" and imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(attrib_name, prog_name, prog_def[prog_name][attrib_name], self.proj.progsets[0].progs[index].attributes[attrib_name]))
+                    else:
+                        self.assertEqual(attrib_value, self.proj.progsets[0].progs[index].attributes[attrib_name][indices],
+                                         'Attribute values loaded for "%s" and imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(attrib_name, prog_name, prog_def[prog_name][attrib_name], self.proj.progsets[0].progs[index].attributes[attrib_name]))
+        return None
 
     
     def test_costcoverage_curves(self):
@@ -182,6 +196,7 @@ class TestPrograms(ProgramsTest):
         '''
             - Continuity between parset and progset
         '''
+        pass
     
 if __name__ == '__main__':
     unittest.main()
