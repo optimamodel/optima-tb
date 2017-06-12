@@ -1069,6 +1069,7 @@ def plotCareCascade(results, settings, pop_labels, labels, years, title="", norm
 
     for (i, year_init) in enumerate(years):
         values = []
+        inds = []
         for (j, lab_key) in enumerate(labels.keys()):
             lab_set = labels[lab_key]
             pop_vals = []
@@ -1078,6 +1079,7 @@ def plotCareCascade(results, settings, pop_labels, labels, years, title="", norm
                     count += results.getValuesAt(lab, year_init, year_init + 1., pop_set, integrated=True)[0]
                 pop_vals.append(count)
             values.append(pop_vals)
+            inds.append(range(len(xlabels)))
 
         if normalize:
             # determine the max for the first state in the cascade
@@ -1094,7 +1096,8 @@ def plotCareCascade(results, settings, pop_labels, labels, years, title="", norm
 #         plotdict['bar_offset'] = i * plotdict['bar_width']
         plotdict['xlim'] = xlim
         plotdict['save_figname'] = fig_name + "_%g" % year_init
-        _plotBars(values, pop_labels.keys(), xlabels=xlabels,
+
+        _plotBars(values, pop_labels.keys(), xlabels=xlabels, inds=inds,
                   colors=colors, y_intercept=y_intercept, yticks=yticks,
                   legendsettings=legendsettings, save_fig=save_fig, **plotdict)
 
