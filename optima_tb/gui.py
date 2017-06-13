@@ -19,7 +19,7 @@ from copy import deepcopy as dcp
 from optima_tb.project import Project
 from optima_tb.plotting import extractCharacteristic, _plotLine
 
-#%% GUI class
+#%% GUI classes
 
 class GUI(qtw.QWidget):
     
@@ -31,12 +31,9 @@ class GUI(qtw.QWidget):
         
         self.setWindowTitle('GUI Selection Screen')   
         
-        self.button_cascade = qtw.QPushButton('Design Cascade', self)
-        self.button_cascade.clicked.connect(self.runGUICascade)
         self.button_calibration = qtw.QPushButton('Manual Calibration', self)
         self.button_calibration.clicked.connect(self.runGUICalibration)
         layout = qtw.QVBoxLayout(self)
-        layout.addWidget(self.button_cascade)
         layout.addWidget(self.button_calibration)
         self.setLayout(layout)
         
@@ -46,65 +43,11 @@ class GUI(qtw.QWidget):
     
         self.show()
         
-    def runGUICascade(self):
-        self.sub_gui = GUICascade()
-        
     def runGUICalibration(self):
         self.sub_gui = GUICalibration()
-      
-#%% Cascade GUI class
+        
 
-class GUICascade(qtw.QWidget):
-    
-    def __init__(self):
-        super(GUICascade, self).__init__()
-        self.initUI()
-        
-    def resetAttributes(self):
-        self.comp_dict = {'blah':3, 'woot':7}
-        
-    def initUI(self):
-        
-        self.resetAttributes()
-        
-        self.setWindowTitle('Cascade Designer')
-        
-        # Screen.
-        screen = qtw.QDesktopWidget().availableGeometry()
-        self.resize(screen.width()*9.0/10.0, screen.height()*9.0/10.0)
-        self.setGeometry((screen.width()-self.width())/2, (screen.height()-self.height())/2, 
-                         self.width(), self.height())
-        
-        self.list_comp_names = qtw.QListWidget()
-        
-        self.tabs = qtw.QTabWidget()
-        self.tab_compartment = qtw.QWidget()
-        self.tab_transition = qtw.QWidget()
-        
-        compartment_layout = qtw.QVBoxLayout()
-        compartment_layout.addWidget(self.list_comp_names)
-        self.tab_compartment.setLayout(compartment_layout)
-        	
-        self.tabs.addTab(self.tab_compartment, "Compartments")
-        self.tabs.addTab(self.tab_transition, "Transitions")
-        
-        total_layout = qtw.QHBoxLayout()
-        total_layout.addWidget(self.tabs)
-        self.setLayout(total_layout)
-        
-        self.refreshVisibility()
-        self.show()
-        
-    def refreshVisibility(self):
-        self.refreshCompartmentDict()
-    
-    def refreshCompartmentDict(self):
-        self.list_comp_names.clear()
-        self.list_comp_names.addItems(self.comp_dict.keys())
-        
-#%% Calibration GUI class
-
-class GUICalibration(qtw.QWidget):
+class GUICalibration(qtw.QMainWindow):
     
     def __init__(self):
         super(GUICalibration, self).__init__()
@@ -265,12 +208,64 @@ class GUICalibration(qtw.QWidget):
         self.splitter_total = qtw.QSplitter()
         self.splitter_total.addWidget(self.first_half)
         self.splitter_total.addWidget(self.second_half)
-        total_layout = qtw.QHBoxLayout()
+        total_layout = qtw.QVBoxLayout()
+        
+#        menu_bar = qtw.QMenuBar()
+#        menu_bar.setVerticalPolicy(qtw.QSizePolicy.Fixed)
+#        file_menu = qtw.QMenu('File')
+#        menu_bar.addMenu('File')#file_menu)
+##            fileMenu->addAction("Save");
+##            fileMenu->addAction("Exit");
+
+#        total_layout.addWidget(menu_bar)
         total_layout.addWidget(self.splitter_total)
         self.setLayout(total_layout)
+        
+        # Menu.
+        menu_bar = self.menuBar()
+        self.file_menu = menu_bar.addMenu('Project')
+        self.action_new_proj = qtw.QAction('Create', self)
+        self.action_import_proj = qtw.QAction('Import', self)
+        self.action_export_proj = qtw.QAction('Export', self)
+        self.file_menu.addAction(self.action_new_proj)
+        self.file_menu.addAction(self.action_import_proj)
+        self.file_menu.addAction(self.action_export_proj)
+        
+        self.action_new_proj.triggered.connect(self.createProject)
     
         self.refreshVisibility()
         self.show()
+        
+    def createProject(self):
+        print 'WHY'
+#        self.dialog_new_proj = qtw.QDialog()
+#        self.dialog_new_proj.exec_()
+#        self.dialog_new_proj.show()
+        project_name, ok = qtw.QInputDialog.getText(self, 'Create Project', 'Enter project name:')
+        cascade_name = qtw.QFileDialog.getOpenFileName(self, 'Create Project - Select Cascade File')
+        try:
+            self.project = Project(name = project_name, cascade_path = cascade_name, validation_level = 'avert')
+            self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
+            self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
+        except:
+            self.resetAttributes()
+            self.status = ('Status: Attempt to generate Project failed')
+            
+        databook_name = qtw.QFileDialog.getOpenFileName(self, 'Create Project - Select Databook File')
+        try:
+            self.project.loadSpreadsheet(databook_path = databook_name)
+            self.project.resetParsets()
+            self.project.makeParset(name = 'default')
+            self.loadCalibration(self.project.parsets[0].name, delay_refresh = True)
+            self.selectComparison(self.project.parsets[0].name)
+            self.status = ('Status: Valid data loaded into Project "%s", default Parset generated' % self.project.name)
+        except:
+            self.resetAttributes()
+            self.status = ('Status: Attempt to load data into Project failed, Project reset for safety')
+        print 'blug'
+        print project_name
+        print cascade_name
+        print databook_name
         
     def refreshVisibility(self):
         self.refreshStatus()
