@@ -6,9 +6,9 @@ import unittest
 import os
 
 #Spreadsheets to use
-databook = os.path.abspath('../tests/databooks/databook_model_full.xlsx')
-cascade =  os.path.abspath('../tests/cascade_spreadsheet/cascade_model_full.xlsx')
-
+databook  = os.path.abspath('../tests/databooks/databook_model_full.xlsx')
+cascade   =  os.path.abspath('../tests/cascade_spreadsheet/cascade_model_full.xlsx')
+TOLERANCE = 1e-9
 #Setup Unit Test class
 class CreateProgsetTest(unittest.TestCase):
     def setUp(self):
@@ -238,7 +238,35 @@ class TestPrograms(ProgramsTest):
                 else: print "Incorrect entries detected!"
                     
         return None
+    
+    def test_getDefaultBudget(self):
+        '''
+            - Test interpolation of budget
+            - Test extrapolation of budget
+            - Test whether correct budget is returned for a given year
+        '''
+        test_years = [2000, 2005, 2010, 2015]
+        expected_value = {'ds-tb'  : {'2000': 7625000., '2005': 7625000., '2010': 7625000., '2015': 15250000.},
+                          'mdr-tb' : {'2000': 5100000., '2005': 5100000., '2010': 5100000., '2015':  5100000.},
+                          'vac-tb' : {'2000':   10500., '2005':   10500., '2010':   10500., '2015':    10500.},
+                          'cure-tb': {'2000':       0., '2005':       0., '2010':     750., '2015':     4500.},
+                          'fixed'  : {'2000': 1000000., '2005': 1000000., '2010': 1000000., '2015':  1000000.}
+                         }
+        for year in test_years:
+            for prog in self.proj.progsets[0].prog_ids:
+                prog_index = self.proj.progsets[0].prog_ids[prog]
+                year_budgetValue = self.proj.progsets[0].progs[prog_index].getDefaultBudget(year=year)
+                difference = abs(year_budgetValue - expected_value[prog][str(year)]) #taking difference so that floating points can be compared
+                self.assertLess(difference, TOLERANCE, 
+                                'Budget value was incorrectly imported or there was some issue with interpolation!\nProgram: %s, Year: %i\n Model Value: %g, Expected Value: %g'%(prog,year, year_budgetValue, expected_value[prog][str(year)]))
         return None
+    
+    def test_getImpact(self):
+        '''
+            - Test impact of a program
+            - Test whether impact saturates at some value
+        '''
+        pass
     
     def test_costcoverage_curves(self):
         '''
