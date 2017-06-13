@@ -8,7 +8,7 @@ import os
 #Spreadsheets to use
 databook  = os.path.abspath('../tests/databooks/databook_model_full.xlsx')
 cascade   =  os.path.abspath('../tests/cascade_spreadsheet/cascade_model_full.xlsx')
-TOLERANCE = 1e-9
+TOLERANCE = 1e-6
 #Setup Unit Test class
 class CreateProgsetTest(unittest.TestCase):
     def setUp(self):
@@ -179,7 +179,8 @@ class TestPrograms(ProgramsTest):
                         self.assertEqual(np.isnan(attrib_value), np.isnan(self.proj.progsets[0].progs[index].attributes[attrib_name][indices]),
                                          'Attribute values loaded for "%s" and imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(attrib_name, prog_name, prog_def[prog_name][attrib_name], self.proj.progsets[0].progs[index].attributes[attrib_name]))
                     else:
-                        self.assertEqual(attrib_value, self.proj.progsets[0].progs[index].attributes[attrib_name][indices],
+                        difference = abs(attrib_value - self.proj.progsets[0].progs[index].attributes[attrib_name][indices])
+                        self.assertLess(difference, TOLERANCE,
                                          'Attribute values loaded for "%s" and imported for program: %s is incorrect! Expected List: %s, Actual List: %s' %(attrib_name, prog_name, prog_def[prog_name][attrib_name], self.proj.progsets[0].progs[index].attributes[attrib_name]))
         return None
 
@@ -271,12 +272,6 @@ class TestPrograms(ProgramsTest):
     def test_costcoverage_curves(self):
         '''
             - Test saturation of curves (saturation not implemented in cost curves yet)
-        '''
-        pass
-    
-    def test_parset_progset(self):
-        '''
-            - Continuity between parset and progset
         '''
         pass
     
