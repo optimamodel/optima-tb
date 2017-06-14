@@ -1,4 +1,5 @@
 from optima_tb.project import Project
+from optima_tb.parsing import FunctionParser
 from optima_tb.utils import odict
 import numpy as np
 import pylab
@@ -9,6 +10,17 @@ import os
 databook  = os.path.abspath('../tests/databooks/databook_model_full.xlsx')
 cascade   =  os.path.abspath('../tests/cascade_spreadsheet/cascade_model_full.xlsx')
 TOLERANCE = 1e-6
+parser = FunctionParser(debug=False)
+
+def calculateTreatment(effic=None, adher=None, dur=None):
+    '''Convenience function to calculate impact value when verifying the getImpact functionality
+    '''
+    if adher is None:
+        val = 1-(1-effic)**(12/dur)
+    else:
+        val = 1-adher
+    return val
+    
 #Setup Unit Test class
 class CreateProgsetTest(unittest.TestCase):
     def setUp(self):
@@ -267,7 +279,34 @@ class TestPrograms(ProgramsTest):
             - Test impact of a program
             - Test whether impact saturates at some value
         '''
-        pass
+        test_years = [2000, 2005, 2012, 2015]
+        expected_value = {'ds-tb'  : {'adtreat_prop'   : {'2000': 76250., '2005': 76250., '2012':106750., '2015': 152500.},
+                                      'adtorec_prop'   : {'2000': 76250.*calculateTreatment(effic=0.75, dur=12.), '2005': 76250.*calculateTreatment(effic=0.75, dur=12.), '2012':106750.*calculateTreatment(effic=0.81, dur=9.6), '2015': 152500.*calculateTreatment(effic=0.9, dur=6.)},
+                                      'adtomtreat_prop': {'2000': 76250.*calculateTreatment(adher=2./3.), '2005': 76250.*calculateTreatment(adher=2./3.), '2012':106750.*calculateTreatment(adher=0.76), '2015': 152500.*calculateTreatment(adher=0.9)},
+                                      },
+                          
+                          'mdr-tb' : {'adtreat_prop'   : {'2000': 25500.*0.85, '2005': 25500.*0.85, '2012': 25500.*0.85, '2015':  25500.*0.85},
+                                      'adtorec_prop'   : {'2000': 25500.*calculateTreatment(effic=2./3., dur=18.), '2005': 25500.*calculateTreatment(effic=2./3., dur=18.), '2012': 25500.*calculateTreatment(effic=2./3., dur=18.), '2015':  25500.*calculateTreatment(effic=2./3., dur=18.)},
+                                      'adtomtreat_prop': {'2000': 25500.*calculateTreatment(adher=0.5), '2005': 25500.*calculateTreatment(adher=0.5), '2012': 25500.*calculateTreatment(adher=0.5), '2015':  25500.*calculateTreatment(adher=0.5)},
+                                      },
+                                      
+                          'vac-tb' : {'v_rate'         : {'2000': 0.01*10500./10.5, '2005': 0.01*10500./10.5, '2012': 0.01*10500./10.5, '2015':  0.01*10500./10.5}},
+                                      
+                          'cure-tb': {'cure_rate'      : {'2000':     0., '2005':     0., '2012':    45., '2015':     90.}},
+                                      
+                          'fixed'  : {'cure_rate'      : {'2000':     0., '2005':     0., '2012':     0., '2015':      0.}},
+                         }
+        for year in test_years:
+            for prog in self.proj.progsets[0].prog_ids:
+                prog_index = self.proj.progsets[0].prog_ids[prog]
+                year_budgetValue = self.proj.progsets[0].progs[prog_index].getDefaultBudget(year=year)
+                for impact_label in self.proj.progsets[0].progs[prog_index].target_pars:
+                    year_impactValue = self.proj.progsets[0].progs[prog_index].getImpact(year_budgetValue, parser=parser, impact_label=impact_label, years=[year])
+                    calculated_impactValue = expected_value[prog][impact_label][str(year)]
+                    difference = abs(year_impactValue - calculated_impactValue) #taking difference so that floating points can be compared
+                    self.assertLess(difference, TOLERANCE, 
+                                    'Impact value was incorrectly calculated!\nProgram: %s, Year: %i, Impact Parameter: %s\nModel Value: %g, Expected Value: %g'%(prog,year, impact_label, year_impactValue, calculated_impactValue))
+        return None
     
     def test_costcoverage_curves(self):
         '''
