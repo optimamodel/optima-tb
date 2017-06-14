@@ -10,7 +10,6 @@ pp.ioff()   # Turn off interactive mode.
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from PyQt5 import QtCore as qtc
-from PyQt5 import QtGui as qtg
 from PyQt5 import QtWidgets as qtw
 import sys
 import numpy as np
@@ -18,6 +17,7 @@ from copy import deepcopy as dcp
 
 from optima_tb.project import Project
 from optima_tb.plotting import extractCharacteristic, _plotLine
+from optima_tb.dataio import saveObject, loadObject
 
 #%% GUI classes
 
@@ -232,25 +232,27 @@ class GUICalibration(qtw.QMainWindow):
         self.file_menu.addAction(self.action_export_proj)
         
         self.action_new_proj.triggered.connect(self.createProject)
+        self.action_import_proj.triggered.connect(self.importProject)
+        self.action_export_proj.triggered.connect(self.exportProject)
     
         self.refreshVisibility()
         self.show()
         
     def createProject(self):
+        self.resetAttributes()
         project_name, project_name_chosen = qtw.QInputDialog.getText(self, 'Create Project', 'Enter project name:')
         if project_name_chosen:
-            cascade_path = qtw.QFileDialog.getOpenFileName(self, 'Create Project - Select Cascade File')[0]
+            cascade_path = qtw.QFileDialog.getOpenFileName(self, 'Select Cascade File')[0]
             try:
                 self.project = Project(name = project_name, cascade_path = cascade_path, validation_level = 'avert')
                 self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
                 self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
             except:
-                self.resetAttributes()
                 self.status = ('Status: Attempt to generate Project failed')
                 self.refreshVisibility()
                 return
                 
-            databook_path = qtw.QFileDialog.getOpenFileName(self, 'Create Project - Select Databook File')[0]
+            databook_path = qtw.QFileDialog.getOpenFileName(self, 'Select Databook File')[0]
             try:
                 self.project.loadSpreadsheet(databook_path = databook_path)
                 self.project.resetParsets()
@@ -263,47 +265,70 @@ class GUICalibration(qtw.QMainWindow):
                 self.status = ('Status: Attempt to load data into Project failed, Project reset for safety')
         self.refreshVisibility()
         
+    def importProject(self):
+        self.resetAttributes()
+        import_path = qtw.QFileDialog.getOpenFileName(self, 'Import Project From File')[0]
+        try:
+            self.project = loadObject(filename=import_path)
+            self.status = ('Status: Project "%s" successfully imported' % self.project.name)
+        except:
+            self.status = ('Status: Attempt to import Project failed')
+        self.refreshVisibility()
+        
+    def exportProject(self):
+        export_path = qtw.QFileDialog.getSaveFileName(self, 'Export Project To File')[0]
+        try:
+            saveObject(filename=export_path, obj=self.project)
+            self.status = ('Status: Project "%s" successfully exported' % self.project.name)
+        except:
+            self.status = ('Status: Attempt to export Project failed')
+        self.refreshVisibility()
+
+    def refreshStatus(self):
+        if not self.guard_status:
+            self.statusBar().showMessage(self.status)
+
     def refreshVisibility(self):
         self.refreshStatus()
 
-        is_cascade_loaded = self.project is not None
-        is_parset_loaded = is_cascade_loaded and len(self.project.parsets.keys()) > 0
-        are_results_generated = (self.results_current is not None and self.results_comparison is not None)
-        
-        self.label_databook.setVisible(is_cascade_loaded)
-        self.edit_databook.setVisible(is_cascade_loaded)
-        self.button_databook.setVisible(is_cascade_loaded)
-        self.button_project_saturate.setVisible(is_cascade_loaded)
-        
-        if is_parset_loaded:
-            self.refreshParsetComboBoxes()
-        self.label_parset.setVisible(is_parset_loaded)
-        self.combo_parset.setVisible(is_parset_loaded)
-        
-        policy_min = qtw.QSizePolicy.Minimum
-        policy_exp = qtw.QSizePolicy.Expanding
-        if is_parset_loaded:
-            self.parset_layout_stretch.changeSize(0, 0, policy_min, policy_min)
-            self.makeParsetTable()
-        else:
-            self.parset_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
-        self.table_calibration.setVisible(is_parset_loaded)
-        
-        self.label_compare.setVisible(is_parset_loaded)
-        self.combo_compare.setVisible(is_parset_loaded)
-        self.button_compare.setVisible(is_parset_loaded)
-        self.label_overwrite.setVisible(is_parset_loaded)
-        self.edit_overwrite.setVisible(is_parset_loaded)
-        self.button_overwrite.setVisible(is_parset_loaded)
-        
-        if are_results_generated:
-            self.refreshCharacComboBox()
-            self.refreshPopComboBox()
-        self.label_plotter_charac.setVisible(are_results_generated)
-        self.combo_plotter_charac.setVisible(are_results_generated)
-        self.label_plotter_pop.setVisible(are_results_generated)
-        self.combo_plotter_pop.setVisible(are_results_generated)
-        self.button_plotter.setVisible(are_results_generated)
+#        is_cascade_loaded = self.project is not None
+#        is_parset_loaded = is_cascade_loaded and len(self.project.parsets.keys()) > 0
+#        are_results_generated = (self.results_current is not None and self.results_comparison is not None)
+#        
+#        self.label_databook.setVisible(is_cascade_loaded)
+#        self.edit_databook.setVisible(is_cascade_loaded)
+#        self.button_databook.setVisible(is_cascade_loaded)
+#        self.button_project_saturate.setVisible(is_cascade_loaded)
+#        
+#        if is_parset_loaded:
+#            self.refreshParsetComboBoxes()
+#        self.label_parset.setVisible(is_parset_loaded)
+#        self.combo_parset.setVisible(is_parset_loaded)
+#        
+#        policy_min = qtw.QSizePolicy.Minimum
+#        policy_exp = qtw.QSizePolicy.Expanding
+#        if is_parset_loaded:
+#            self.parset_layout_stretch.changeSize(0, 0, policy_min, policy_min)
+#            self.makeParsetTable()
+#        else:
+#            self.parset_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+#        self.table_calibration.setVisible(is_parset_loaded)
+#        
+#        self.label_compare.setVisible(is_parset_loaded)
+#        self.combo_compare.setVisible(is_parset_loaded)
+#        self.button_compare.setVisible(is_parset_loaded)
+#        self.label_overwrite.setVisible(is_parset_loaded)
+#        self.edit_overwrite.setVisible(is_parset_loaded)
+#        self.button_overwrite.setVisible(is_parset_loaded)
+#        
+#        if are_results_generated:
+#            self.refreshCharacComboBox()
+#            self.refreshPopComboBox()
+#        self.label_plotter_charac.setVisible(are_results_generated)
+#        self.combo_plotter_charac.setVisible(are_results_generated)
+#        self.label_plotter_pop.setVisible(are_results_generated)
+#        self.combo_plotter_pop.setVisible(are_results_generated)
+#        self.button_plotter.setVisible(are_results_generated)
             
     
     # NOTE: This constant refreshing of comboboxes is inefficient and can be improved later.
@@ -352,10 +377,6 @@ class GUICalibration(qtw.QMainWindow):
         if self.pop_plot_name is None:
             self.pop_plot_name = self.combo_plotter_pop.itemText(self.combo_plotter_pop.currentIndex())
         self.combo_plotter_pop.setCurrentIndex(self.combo_pop_dict[self.pop_plot_name])
-            
-    def refreshStatus(self):
-        if not self.guard_status:
-            self.statusBar().showMessage(self.status)
             
         
 #    def createProject(self):
