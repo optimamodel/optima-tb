@@ -237,35 +237,31 @@ class GUICalibration(qtw.QMainWindow):
         self.show()
         
     def createProject(self):
-        print 'WHY'
-#        self.dialog_new_proj = qtw.QDialog()
-#        self.dialog_new_proj.exec_()
-#        self.dialog_new_proj.show()
-        project_name, ok = qtw.QInputDialog.getText(self, 'Create Project', 'Enter project name:')
-        cascade_name = qtw.QFileDialog.getOpenFileName(self, 'Create Project - Select Cascade File')
-        try:
-            self.project = Project(name = project_name, cascade_path = cascade_name, validation_level = 'avert')
-            self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
-            self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
-        except:
-            self.resetAttributes()
-            self.status = ('Status: Attempt to generate Project failed')
-            
-        databook_name = qtw.QFileDialog.getOpenFileName(self, 'Create Project - Select Databook File')
-        try:
-            self.project.loadSpreadsheet(databook_path = databook_name)
-            self.project.resetParsets()
-            self.project.makeParset(name = 'default')
-            self.loadCalibration(self.project.parsets[0].name, delay_refresh = True)
-            self.selectComparison(self.project.parsets[0].name)
-            self.status = ('Status: Valid data loaded into Project "%s", default Parset generated' % self.project.name)
-        except:
-            self.resetAttributes()
-            self.status = ('Status: Attempt to load data into Project failed, Project reset for safety')
-        print 'blug'
-        print project_name
-        print cascade_name
-        print databook_name
+        project_name, project_name_chosen = qtw.QInputDialog.getText(self, 'Create Project', 'Enter project name:')
+        if project_name_chosen:
+            cascade_path = qtw.QFileDialog.getOpenFileName(self, 'Create Project - Select Cascade File')[0]
+            try:
+                self.project = Project(name = project_name, cascade_path = cascade_path, validation_level = 'avert')
+                self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
+                self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
+            except:
+                self.resetAttributes()
+                self.status = ('Status: Attempt to generate Project failed')
+                self.refreshVisibility()
+                return
+                
+            databook_path = qtw.QFileDialog.getOpenFileName(self, 'Create Project - Select Databook File')[0]
+            try:
+                self.project.loadSpreadsheet(databook_path = databook_path)
+                self.project.resetParsets()
+                self.project.makeParset(name = 'default')
+                self.loadCalibration(self.project.parsets[0].name, delay_refresh = True)
+                self.selectComparison(self.project.parsets[0].name)
+                self.status = ('Status: Valid data loaded into Project "%s", default Parset generated' % self.project.name)
+            except:
+                self.resetAttributes()
+                self.status = ('Status: Attempt to load data into Project failed, Project reset for safety')
+        self.refreshVisibility()
         
     def refreshVisibility(self):
         self.refreshStatus()
@@ -359,18 +355,18 @@ class GUICalibration(qtw.QMainWindow):
             
     def refreshStatus(self):
         if not self.guard_status:
-            self.status_bar.showMessage(self.status)
+            self.statusBar().showMessage(self.status)
             
         
-    def createProject(self):
-        try:
-            self.project = Project(name = self.edit_project_name.text(), cascade_path = self.edit_cascade.text(), validation_level = 'avert')
-            self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
-            self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
-        except:
-            self.resetAttributes()
-            self.status = ('Status: Attempt to generate Project failed')
-        self.refreshVisibility()
+#    def createProject(self):
+#        try:
+#            self.project = Project(name = self.edit_project_name.text(), cascade_path = self.edit_cascade.text(), validation_level = 'avert')
+#            self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
+#            self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
+#        except:
+#            self.resetAttributes()
+#            self.status = ('Status: Attempt to generate Project failed')
+#        self.refreshVisibility()
         
     def loadData(self):
         try:
