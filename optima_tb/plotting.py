@@ -1763,7 +1763,8 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
         logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
 
     if linestyles is None or len(linestyles) < len(ys):
-        linestyles = [kwargs['default_linestyle']] * len(ys)
+        try: linestyles = [kwargs['default_linestyle']] * len(ys)
+        except: linestyles = ['-'] * len(ys)
         logger.info("Plotting: setting linestyles to be default value, as not all lines had styles assigned")
 
 

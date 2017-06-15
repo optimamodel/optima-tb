@@ -421,25 +421,36 @@ class GUICalibration(qtw.QMainWindow):
         self.table_calibration.cellChanged.connect(self.updateParset)
         
     def showPlots(self):
+        # Clear plots.
         for i in reversed(range(self.plotter_layout.count())): 
             self.plotter_layout.itemAt(i).widget().setParent(None)        
         
-        print 'how'
-        
         if self.charac_plot_name is not None and self.pop_plot_name is not None:
             charac_plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
-#            pop_plot_label = self.project.data['pops']['name_labels'][self.pop_plot_name]
-            pid = self.combo_pop_dict[self.pop_plot_name]
+            pop_plot_label = self.project.data['pops']['name_labels'][self.pop_plot_name]
+#            pid = self.combo_pop_dict[self.pop_plot_name]
             
-            print 'is'
+            y_values_cur, t_values_cur = self.results_current.getValuesAt(label = charac_plot_label, year_init = self.tvec[0], year_end = self.tvec[-1], pop_labels = [pop_plot_label])
+            y_values_com, t_values_com = self.results_comparison.getValuesAt(label = charac_plot_label, year_init = self.tvec[0], year_end = self.tvec[-1], pop_labels = [pop_plot_label])
 
-            y_values_cur, t_values_cur, final_dict_cur = extractCharacteristic(results=self.results_current, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
-            y_values_com, t_values_com, final_dict_com = extractCharacteristic(results=self.results_comparison, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
+#            y_values_cur, t_values_cur, final_dict_cur = extractCharacteristic(results=self.results_current, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
+#            y_values_com, t_values_com, final_dict_com = extractCharacteristic(results=self.results_comparison, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
 
-            print 'this'
+            print y_values_cur
+            print t_values_cur
+            print y_values_com
+            print t_values_com
 
-            figure = _plotLine(ys = [y_values_cur[pid],y_values_com[pid]], ts = [t_values_cur[pid],t_values_com[pid]], labels = ['Edited "%s"' % self.parset.name,'Unedited "%s"' % self.parset_comparison_name], y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
-              
+            try: y_data = self.project.data['characs'][charac_plot_label][pop_plot_label]['y']
+            except: y_data = []
+            try: t_data = self.project.data['characs'][charac_plot_label][pop_plot_label]['t']
+            except: t_data = []
+
+            print y_data
+            print t_data
+
+            figure = _plotLine(ys = [y_values_cur,y_values_com], ts = [t_values_cur,t_values_com], labels = ['Edited "%s"' % self.parset.name,'Unedited "%s"' % self.parset_comparison_name], y_hat=[y_data,y_data], t_hat=[t_data,t_data])
+            
             canvas = FigureCanvasQTAgg(figure)
 
             self.plotter_layout.addWidget(canvas)        
