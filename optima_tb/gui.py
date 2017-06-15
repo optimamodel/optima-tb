@@ -91,25 +91,25 @@ class GUICalibration(qtw.QMainWindow):
                          self.width(), self.height())
         
         # Widgets.
-        self.label_project_name = qtw.QLabel('Project Name: ')
-        self.edit_project_name = qtw.QLineEdit()
-        self.edit_project_name.setText('New Project')
-        
-        self.label_cascade = qtw.QLabel('Cascade Filename: ')
-        self.edit_cascade = qtw.QLineEdit()
-        self.button_cascade = qtw.QPushButton('Locate File', self)
-        self.button_cascade.clicked.connect(self.factorySelectFile(display_field = self.edit_cascade))
-        
-        self.button_project_init = qtw.QPushButton('Create Project', self)
-        self.button_project_init.clicked.connect(self.createProject)
-        
-        self.label_databook = qtw.QLabel('Databook Filename: ')
-        self.edit_databook = qtw.QLineEdit()
-        self.button_databook = qtw.QPushButton('Locate File', self)
-        self.button_databook.clicked.connect(self.factorySelectFile(display_field = self.edit_databook))
-        
-        self.button_project_saturate = qtw.QPushButton('Load Data', self)
-        self.button_project_saturate.clicked.connect(self.loadData)
+#        self.label_project_name = qtw.QLabel('Project Name: ')
+#        self.edit_project_name = qtw.QLineEdit()
+#        self.edit_project_name.setText('New Project')
+#        
+#        self.label_cascade = qtw.QLabel('Cascade Filename: ')
+#        self.edit_cascade = qtw.QLineEdit()
+#        self.button_cascade = qtw.QPushButton('Locate File', self)
+#        self.button_cascade.clicked.connect(self.factorySelectFile(display_field = self.edit_cascade))
+#        
+#        self.button_project_init = qtw.QPushButton('Create Project', self)
+#        self.button_project_init.clicked.connect(self.createProject)
+#        
+#        self.label_databook = qtw.QLabel('Databook Filename: ')
+#        self.edit_databook = qtw.QLineEdit()
+#        self.button_databook = qtw.QPushButton('Locate File', self)
+#        self.button_databook.clicked.connect(self.factorySelectFile(display_field = self.edit_databook))
+#        
+#        self.button_project_saturate = qtw.QPushButton('Load Data', self)
+#        self.button_project_saturate.clicked.connect(self.loadData)
         
         self.label_parset = qtw.QLabel('Parset To Edit: ')
         self.combo_parset = qtw.QComboBox(self)
@@ -154,18 +154,18 @@ class GUICalibration(qtw.QMainWindow):
         grid_upper = qtw.QGridLayout()
         grid_upper.setSpacing(10)          
         
-        grid_upper.addWidget(self.label_project_name, 0, 0)
-        grid_upper.addWidget(self.edit_project_name, 0, 1)
-        grid_upper.addWidget(self.label_cascade, 1, 0)
-        grid_upper.addWidget(self.edit_cascade, 1, 1)
-        grid_upper.addWidget(self.button_cascade, 1, 2)
-        grid_upper.addWidget(self.button_project_init, 1, 3)
-        grid_upper.addWidget(self.label_databook, 2, 0)
-        grid_upper.addWidget(self.edit_databook, 2, 1)
-        grid_upper.addWidget(self.button_databook, 2, 2)
-        grid_upper.addWidget(self.button_project_saturate, 2, 3)
-        grid_upper.addWidget(self.label_parset, 3, 0)
-        grid_upper.addWidget(self.combo_parset, 3, 1)
+#        grid_upper.addWidget(self.label_project_name, 0, 0)
+#        grid_upper.addWidget(self.edit_project_name, 0, 1)
+#        grid_upper.addWidget(self.label_cascade, 1, 0)
+#        grid_upper.addWidget(self.edit_cascade, 1, 1)
+#        grid_upper.addWidget(self.button_cascade, 1, 2)
+#        grid_upper.addWidget(self.button_project_init, 1, 3)
+#        grid_upper.addWidget(self.label_databook, 2, 0)
+#        grid_upper.addWidget(self.edit_databook, 2, 1)
+#        grid_upper.addWidget(self.button_databook, 2, 2)
+#        grid_upper.addWidget(self.button_project_saturate, 2, 3)
+        grid_upper.addWidget(self.label_parset, 0, 0)
+        grid_upper.addWidget(self.combo_parset, 0, 1)
         
         grid_lower = qtw.QGridLayout()
         grid_lower.setSpacing(10)
@@ -187,7 +187,7 @@ class GUICalibration(qtw.QMainWindow):
         parset_layout.addWidget(self.table_calibration)
         parset_layout.addLayout(grid_lower)
         parset_layout.addItem(self.parset_layout_stretch)
-        parset_layout.addWidget(self.status_bar)
+#        parset_layout.addWidget(self.status_bar)
         
         self.plotter_layout = qtw.QGridLayout()#.QVBoxLayout()
         self.plotter_layout.setSpacing(5)
@@ -208,18 +208,20 @@ class GUICalibration(qtw.QMainWindow):
         self.splitter_total = qtw.QSplitter()
         self.splitter_total.addWidget(self.first_half)
         self.splitter_total.addWidget(self.second_half)
-        total_layout = qtw.QVBoxLayout()
+#        total_layout = qtw.QVBoxLayout()
+#        
+##        menu_bar = qtw.QMenuBar()
+##        menu_bar.setVerticalPolicy(qtw.QSizePolicy.Fixed)
+##        file_menu = qtw.QMenu('File')
+##        menu_bar.addMenu('File')#file_menu)
+###            fileMenu->addAction("Save");
+###            fileMenu->addAction("Exit");
+#
+##        total_layout.addWidget(menu_bar)
+#        total_layout.addWidget(self.splitter_total)
+#        self.setLayout(total_layout)
         
-#        menu_bar = qtw.QMenuBar()
-#        menu_bar.setVerticalPolicy(qtw.QSizePolicy.Fixed)
-#        file_menu = qtw.QMenu('File')
-#        menu_bar.addMenu('File')#file_menu)
-##            fileMenu->addAction("Save");
-##            fileMenu->addAction("Exit");
-
-#        total_layout.addWidget(menu_bar)
-        total_layout.addWidget(self.splitter_total)
-        self.setLayout(total_layout)
+        self.setCentralWidget(self.splitter_total)
         
         # Menu.
         menu_bar = self.menuBar()
@@ -270,6 +272,11 @@ class GUICalibration(qtw.QMainWindow):
         import_path = qtw.QFileDialog.getOpenFileName(self, 'Import Project From File')[0]
         try:
             self.project = loadObject(filename=import_path)
+            self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
+            if len(self.project.parsets) < 1:
+                self.project.makeParset(name = 'default')
+            self.loadCalibration(self.project.parsets[0].name, delay_refresh = True)
+            self.selectComparison(self.project.parsets[0].name)
             self.status = ('Status: Project "%s" successfully imported' % self.project.name)
         except:
             self.status = ('Status: Attempt to import Project failed')
@@ -291,44 +298,44 @@ class GUICalibration(qtw.QMainWindow):
     def refreshVisibility(self):
         self.refreshStatus()
 
-#        is_cascade_loaded = self.project is not None
-#        is_parset_loaded = is_cascade_loaded and len(self.project.parsets.keys()) > 0
-#        are_results_generated = (self.results_current is not None and self.results_comparison is not None)
+        is_cascade_loaded = self.project is not None
+        is_parset_loaded = is_cascade_loaded and len(self.project.parsets.keys()) > 0
+        are_results_generated = (self.results_current is not None and self.results_comparison is not None)
 #        
 #        self.label_databook.setVisible(is_cascade_loaded)
 #        self.edit_databook.setVisible(is_cascade_loaded)
 #        self.button_databook.setVisible(is_cascade_loaded)
 #        self.button_project_saturate.setVisible(is_cascade_loaded)
 #        
-#        if is_parset_loaded:
-#            self.refreshParsetComboBoxes()
-#        self.label_parset.setVisible(is_parset_loaded)
-#        self.combo_parset.setVisible(is_parset_loaded)
-#        
-#        policy_min = qtw.QSizePolicy.Minimum
-#        policy_exp = qtw.QSizePolicy.Expanding
-#        if is_parset_loaded:
-#            self.parset_layout_stretch.changeSize(0, 0, policy_min, policy_min)
-#            self.makeParsetTable()
-#        else:
-#            self.parset_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
-#        self.table_calibration.setVisible(is_parset_loaded)
-#        
-#        self.label_compare.setVisible(is_parset_loaded)
-#        self.combo_compare.setVisible(is_parset_loaded)
-#        self.button_compare.setVisible(is_parset_loaded)
-#        self.label_overwrite.setVisible(is_parset_loaded)
-#        self.edit_overwrite.setVisible(is_parset_loaded)
-#        self.button_overwrite.setVisible(is_parset_loaded)
-#        
-#        if are_results_generated:
-#            self.refreshCharacComboBox()
-#            self.refreshPopComboBox()
-#        self.label_plotter_charac.setVisible(are_results_generated)
-#        self.combo_plotter_charac.setVisible(are_results_generated)
-#        self.label_plotter_pop.setVisible(are_results_generated)
-#        self.combo_plotter_pop.setVisible(are_results_generated)
-#        self.button_plotter.setVisible(are_results_generated)
+        if is_parset_loaded:
+            self.refreshParsetComboBoxes()
+        self.label_parset.setVisible(is_parset_loaded)
+        self.combo_parset.setVisible(is_parset_loaded)
+        
+        policy_min = qtw.QSizePolicy.Minimum
+        policy_exp = qtw.QSizePolicy.Expanding
+        if is_parset_loaded:
+            self.parset_layout_stretch.changeSize(0, 0, policy_min, policy_min)
+            self.makeParsetTable()
+        else:
+            self.parset_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+        self.table_calibration.setVisible(is_parset_loaded)
+        
+        self.label_compare.setVisible(is_parset_loaded)
+        self.combo_compare.setVisible(is_parset_loaded)
+        self.button_compare.setVisible(is_parset_loaded)
+        self.label_overwrite.setVisible(is_parset_loaded)
+        self.edit_overwrite.setVisible(is_parset_loaded)
+        self.button_overwrite.setVisible(is_parset_loaded)
+        
+        if are_results_generated:
+            self.refreshCharacComboBox()
+            self.refreshPopComboBox()
+        self.label_plotter_charac.setVisible(are_results_generated)
+        self.combo_plotter_charac.setVisible(are_results_generated)
+        self.label_plotter_pop.setVisible(are_results_generated)
+        self.combo_plotter_pop.setVisible(are_results_generated)
+        self.button_plotter.setVisible(are_results_generated)
             
     
     # NOTE: This constant refreshing of comboboxes is inefficient and can be improved later.
@@ -389,18 +396,18 @@ class GUICalibration(qtw.QMainWindow):
 #            self.status = ('Status: Attempt to generate Project failed')
 #        self.refreshVisibility()
         
-    def loadData(self):
-        try:
-            self.project.loadSpreadsheet(databook_path = self.edit_databook.text())
-            self.project.resetParsets()
-            self.project.makeParset(name = 'default')
-            self.loadCalibration(self.project.parsets[0].name, delay_refresh = True)
-            self.selectComparison(self.project.parsets[0].name)
-            self.status = ('Status: Valid data loaded into Project "%s", default Parset generated' % self.project.name)
-        except:
-            self.resetAttributes()
-            self.status = ('Status: Attempt to load data into Project failed, Project reset for safety')
-        self.refreshVisibility()
+#    def loadData(self):
+#        try:
+#            self.project.loadSpreadsheet(databook_path = self.edit_databook.text())
+#            self.project.resetParsets()
+#            self.project.makeParset(name = 'default')
+#            self.loadCalibration(self.project.parsets[0].name, delay_refresh = True)
+#            self.selectComparison(self.project.parsets[0].name)
+#            self.status = ('Status: Valid data loaded into Project "%s", default Parset generated' % self.project.name)
+#        except:
+#            self.resetAttributes()
+#            self.status = ('Status: Attempt to load data into Project failed, Project reset for safety')
+#        self.refreshVisibility()
         
     def loadCalibration(self, parset_name, delay_refresh = False):
         self.parset_source_name = parset_name
@@ -446,10 +453,10 @@ class GUICalibration(qtw.QMainWindow):
         self.refreshVisibility()
         return
         
-    def factorySelectFile(self, display_field):
-        def selectFile(self):
-            display_field.setText(str(qtw.QFileDialog.getOpenFileName()[0]))
-        return selectFile
+#    def factorySelectFile(self, display_field):
+#        def selectFile(self):
+#            display_field.setText(str(qtw.QFileDialog.getOpenFileName()[0]))
+#        return selectFile
         
     def makeParsetTable(self):
         self.table_calibration.setVisible(False)    # Resizing columns requires table to be hidden first.
