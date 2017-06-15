@@ -33,8 +33,14 @@ class GUI(qtw.QWidget):
         
         self.button_calibration = qtw.QPushButton('Manual Calibration', self)
         self.button_calibration.clicked.connect(self.runGUICalibration)
+        self.button_scenario_parameter = qtw.QPushButton('Parameter Scenario', self)
+        self.button_scenario_parameter.clicked.connect(self.runGUIScenarioParameter)
+        self.button_scenario_budget = qtw.QPushButton('Budget Scenario', self)
+        self.button_scenario_budget.clicked.connect(self.runGUIScenarioBudget)
         layout = qtw.QVBoxLayout(self)
         layout.addWidget(self.button_calibration)
+        layout.addWidget(self.button_scenario_parameter)
+        layout.addWidget(self.button_scenario_budget)
         self.setLayout(layout)
         
         screen = qtw.QDesktopWidget().availableGeometry()
@@ -46,15 +52,130 @@ class GUI(qtw.QWidget):
     def runGUICalibration(self):
         self.sub_gui = GUICalibration()
         
+    def runGUIScenarioParameter(self):
+        self.sub_gui = GUIProjectManagerBase()
+        
+    def runGUIScenarioBudget(self):
+        self.sub_gui = GUIProjectManagerBase()
+        
+        
+class GUIProjectManagerBase(qtw.QMainWindow):
+    
+    def __init__(self):
+        super(GUIProjectManagerBase, self).__init__()
+        self.initUIProjectManager()
+    
+    
+    # The following wrapper function can be overloaded by derived classes.
+    # Intended usage is to initialise all attributes used by this GUI.
+    def resetAttributes(self):  self.resetAttributesProjectManager()
+    def resetAttributesProjectManager(self):
+        self.project = None     # This is the Project object that the GUI stores to calibrate and edit.
+        self.tvec = None
+        
+        self.guard_status = False   # Convenient flag that locks status updates if set to true.
+        self.status = 'Status: No Project generated'    # Initial status.
+        
+        
+    # The following wrapper function can be overloaded by derived classes.
+    # Intended usage is to update widgets inside the GUI and what the user sees, as required.
+    def refreshVisibility(self):  self.refreshVisibilityProjectManager()
+    def refreshVisibilityProjectManager(self):
+        self.refreshStatus()
+        
+    
+    # The following wrapper function can be overloaded by derived classes.
+    # Intended usage is to acknowledge the existence of a project and run initial processes required by derived GUI.    
+    def acknowledgeProject(self): pass
+        
+        
+    def initUIProjectManager(self):
+        self.resetAttributesProjectManager()    # This call is specific to base class attributes.
+        
+        # Screen.
+        screen = qtw.QDesktopWidget().availableGeometry()
+        self.resize(screen.width()*9.0/10.0, screen.height()*9.0/10.0)
+        self.setGeometry((screen.width()-self.width())/2, (screen.height()-self.height())/2, 
+                         self.width(), self.height())
+        
+        # Menu.
+        menu_bar = self.menuBar()
+        self.file_menu = menu_bar.addMenu('Project')
+        self.action_new_proj = qtw.QAction('Create', self)
+        self.action_import_proj = qtw.QAction('Import', self)
+        self.action_export_proj = qtw.QAction('Export', self)
+        self.file_menu.addAction(self.action_new_proj)
+        self.file_menu.addAction(self.action_import_proj)
+        self.file_menu.addAction(self.action_export_proj)
+        
+        self.action_new_proj.triggered.connect(self.createProject)
+        self.action_import_proj.triggered.connect(self.importProject)
+        self.action_export_proj.triggered.connect(self.exportProject)
+        
+        self.refreshVisibilityProjectManager()      # This call is specific to base class components.
+        self.show()
+        
+    def createProject(self):
+        self.resetAttributes()      # This call is to a derived method, representing a full GUI reset.
+        project_name, project_name_chosen = qtw.QInputDialog.getText(self, 'Create Project', 'Enter project name:')
+        if project_name_chosen:
+            cascade_path = qtw.QFileDialog.getOpenFileName(self, 'Select Cascade File')[0]
+            try:
+                self.project = Project(name = project_name, cascade_path = cascade_path, validation_level = 'avert')
+                self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
+                self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
+            except:
+                self.status = ('Status: Attempt to generate Project failed')
+                self.refreshVisibility()
+                return
+                
+            databook_path = qtw.QFileDialog.getOpenFileName(self, 'Select Databook File')[0]
+            try:
+                self.project.loadSpreadsheet(databook_path = databook_path)
+                self.project.resetParsets()
+                self.acknowledgeProject()
+                self.status = ('Status: Valid data loaded into Project "%s", default Parset generated' % self.project.name)
+            except:
+                self.resetAttributes()      # This call is to a derived method, representing a full GUI reset.
+                self.status = ('Status: Attempt to load data into Project failed, Project reset for safety')
+        self.refreshVisibility()
+        
+    def importProject(self):
+        self.resetAttributes()      # This call is to a derived method, representing a full GUI reset.
+        import_path = qtw.QFileDialog.getOpenFileName(self, 'Import Project From File')[0]
+        try:
+            self.project = loadObject(filename=import_path)
+            self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
+            self.acknowledgeProject()
+            self.status = ('Status: Project "%s" successfully imported' % self.project.name)
+        except:
+            self.status = ('Status: Attempt to import Project failed')
+        self.refreshVisibility()
+        
+    def exportProject(self):
+        export_path = qtw.QFileDialog.getSaveFileName(self, 'Export Project To File')[0]
+        try:
+            saveObject(filename=export_path, obj=self.project)
+            self.status = ('Status: Project "%s" successfully exported' % self.project.name)
+        except:
+            self.status = ('Status: Attempt to export Project failed')
+        self.refreshVisibility()
+        
+    def refreshStatus(self):
+        if not self.guard_status:
+            self.statusBar().showMessage(self.status)
+        
+        
 
-class GUICalibration(qtw.QMainWindow):
+class GUICalibration(GUIProjectManagerBase):
     
     def __init__(self):
         super(GUICalibration, self).__init__()
-        self.initUI()
+        self.initUICalibration()
         
     def resetAttributes(self):
-        self.project = None     # This is the Project object that the GUI stores to calibrate and edit.
+        self.resetAttributesProjectManager()
+        
         self.parset = None      # This is the ParameterSet object that stores all edits made in the GUI.
                                 # It is an (edited) copy, not a reference, to an existing Project ParameterSet.
         
@@ -62,7 +183,6 @@ class GUICalibration(qtw.QMainWindow):
         self.parset_comparison_name = None
         self.charac_plot_name = None
         self.pop_plot_name = None
-        self.tvec = None
         
         self.combo_parset_dict = {}     # Dictionary that maps Parset names to indices used in combo boxes.
         self.combo_charac_dict = {}     # Dictionary that maps Characteristic names to indices used in combo boxes.
@@ -70,23 +190,29 @@ class GUICalibration(qtw.QMainWindow):
         self.col_par_name = 0   # Column index for table calibration parameter names.
         self.col_pop_name = 1   # Column index for table calibration population names.
         
-        self.guard_status = False   # Convenient flag that locks status updates if set to true.
         self.results_current = None
         self.results_comparison = None
         
-    def initUI(self):
+    def acknowledgeProject(self):
+        if not self.project is None:
+            if len(self.project.parsets) < 1:
+                self.project.makeParset(name = 'default')
+            self.loadCalibration(self.project.parsets[0].name, delay_refresh = True)
+            self.selectComparison(self.project.parsets[0].name)
+        
+    def initUICalibration(self):
         
         self.resetAttributes()
         
-        self.status = 'Status: No Project generated'    # A status message to show at the bottom of the screen.      
+#        self.status = 'Status: No Project generated'    # A status message to show at the bottom of the screen.      
         
         self.setWindowTitle('Manual Calibration')
         
-        # Screen.
-        screen = qtw.QDesktopWidget().availableGeometry()
-        self.resize(screen.width()*9.0/10.0, screen.height()*9.0/10.0)
-        self.setGeometry((screen.width()-self.width())/2, (screen.height()-self.height())/2, 
-                         self.width(), self.height())
+#        # Screen.
+#        screen = qtw.QDesktopWidget().availableGeometry()
+#        self.resize(screen.width()*9.0/10.0, screen.height()*9.0/10.0)
+#        self.setGeometry((screen.width()-self.width())/2, (screen.height()-self.height())/2, 
+#                         self.width(), self.height())
         
         # Widgets.
         self.label_parset = qtw.QLabel('Parset To Edit: ')
@@ -104,9 +230,9 @@ class GUICalibration(qtw.QMainWindow):
         self.button_overwrite = qtw.QPushButton('Save Calibration', self)
         self.button_overwrite.clicked.connect(self.saveCalibration)
         
-        self.status_bar = qtw.QStatusBar()
-        self.status_bar.showMessage(self.status)
-        self.status_bar.setSizeGripEnabled(False)
+#        self.status_bar = qtw.QStatusBar()
+#        self.status_bar.showMessage(self.status)
+#        self.status_bar.setSizeGripEnabled(False)
         
         self.table_calibration = qtw.QTableWidget()
         self.table_calibration.cellChanged.connect(self.updateParset)
@@ -179,80 +305,29 @@ class GUICalibration(qtw.QMainWindow):
         
         self.setCentralWidget(self.splitter_total)
         
-        # Menu.
-        menu_bar = self.menuBar()
-        self.file_menu = menu_bar.addMenu('Project')
-        self.action_new_proj = qtw.QAction('Create', self)
-        self.action_import_proj = qtw.QAction('Import', self)
-        self.action_export_proj = qtw.QAction('Export', self)
-        self.file_menu.addAction(self.action_new_proj)
-        self.file_menu.addAction(self.action_import_proj)
-        self.file_menu.addAction(self.action_export_proj)
-        
-        self.action_new_proj.triggered.connect(self.createProject)
-        self.action_import_proj.triggered.connect(self.importProject)
-        self.action_export_proj.triggered.connect(self.exportProject)
+#        # Menu.
+#        menu_bar = self.menuBar()
+#        self.file_menu = menu_bar.addMenu('Project')
+#        self.action_new_proj = qtw.QAction('Create', self)
+#        self.action_import_proj = qtw.QAction('Import', self)
+#        self.action_export_proj = qtw.QAction('Export', self)
+#        self.file_menu.addAction(self.action_new_proj)
+#        self.file_menu.addAction(self.action_import_proj)
+#        self.file_menu.addAction(self.action_export_proj)
+#        
+#        self.action_new_proj.triggered.connect(self.createProject)
+#        self.action_import_proj.triggered.connect(self.importProject)
+#        self.action_export_proj.triggered.connect(self.exportProject)
     
         self.refreshVisibility()
         self.show()
-        
-    def createProject(self):
-        self.resetAttributes()
-        project_name, project_name_chosen = qtw.QInputDialog.getText(self, 'Create Project', 'Enter project name:')
-        if project_name_chosen:
-            cascade_path = qtw.QFileDialog.getOpenFileName(self, 'Select Cascade File')[0]
-            try:
-                self.project = Project(name = project_name, cascade_path = cascade_path, validation_level = 'avert')
-                self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
-                self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
-            except:
-                self.status = ('Status: Attempt to generate Project failed')
-                self.refreshVisibility()
-                return
-                
-            databook_path = qtw.QFileDialog.getOpenFileName(self, 'Select Databook File')[0]
-            try:
-                self.project.loadSpreadsheet(databook_path = databook_path)
-                self.project.resetParsets()
-                self.project.makeParset(name = 'default')
-                self.loadCalibration(self.project.parsets[0].name, delay_refresh = True)
-                self.selectComparison(self.project.parsets[0].name)
-                self.status = ('Status: Valid data loaded into Project "%s", default Parset generated' % self.project.name)
-            except:
-                self.resetAttributes()
-                self.status = ('Status: Attempt to load data into Project failed, Project reset for safety')
-        self.refreshVisibility()
-        
-    def importProject(self):
-        self.resetAttributes()
-        import_path = qtw.QFileDialog.getOpenFileName(self, 'Import Project From File')[0]
-        try:
-            self.project = loadObject(filename=import_path)
-            self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
-            if len(self.project.parsets) < 1:
-                self.project.makeParset(name = 'default')
-            self.loadCalibration(self.project.parsets[0].name, delay_refresh = True)
-            self.selectComparison(self.project.parsets[0].name)
-            self.status = ('Status: Project "%s" successfully imported' % self.project.name)
-        except:
-            self.status = ('Status: Attempt to import Project failed')
-        self.refreshVisibility()
-        
-    def exportProject(self):
-        export_path = qtw.QFileDialog.getSaveFileName(self, 'Export Project To File')[0]
-        try:
-            saveObject(filename=export_path, obj=self.project)
-            self.status = ('Status: Project "%s" successfully exported' % self.project.name)
-        except:
-            self.status = ('Status: Attempt to export Project failed')
-        self.refreshVisibility()
 
-    def refreshStatus(self):
-        if not self.guard_status:
-            self.statusBar().showMessage(self.status)
+#    def refreshStatus(self):
+#        if not self.guard_status:
+#            self.statusBar().showMessage(self.status)
 
     def refreshVisibility(self):
-        self.refreshStatus()
+        self.refreshVisibilityProjectManager()
 
         is_cascade_loaded = self.project is not None
         is_parset_loaded = is_cascade_loaded and len(self.project.parsets.keys()) > 0
