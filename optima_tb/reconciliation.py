@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma = 0.05, attribute_sigma = 0.20, impact_pars = None, budget_allocation = None, orig_tvec_end = None):
+def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma = 0.05, attribute_sigma = 0.20, budget_sigma = 0.0, impact_pars = None, budget_allocation = None, orig_tvec_end = None):
         """
         Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standard deviation sigma
         
@@ -22,6 +22,7 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
             progset_name            Program set name to match/reconcile  (type: string)
             unitcost_sigma          Standard deviation allowable for Unit Cost (type: float)
             attribute_sigma         Standard deviation allowable for attributes identified in impact_pars (type: float)
+            budget_sigma            Standard deviation allowable for budget for program (type: float)
             impact_pars             Impact pars to be reconciled (type: list or None)
             budget_allocation       Dictionary of programs with new budget allocations (type: dict)
             
@@ -53,7 +54,7 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
         
         #Convert into an optimisable list
         attribute_dict = createAttributeDict(settings=proj.settings, progset=progset)
-        attribute_list, unitcost_index = createAttributeList(attribute_dict=attribute_dict)
+        attribute_list, unitcost_index, budget_index = createAttributeList(attribute_dict=attribute_dict)
         #Setup min-max bounds for optimisation
         xmin, xmax = dcp(attribute_list), dcp(attribute_list)
         
@@ -62,6 +63,9 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
             if index in unitcost_index:
                 xmin[index] *= (1-unitcost_sigma)
                 xmax[index] *= (1+unitcost_sigma)
+            elif index in budget_index:
+                xmin[index] *= (1-budget_sigma)
+                xmax[index] *= (1+budget_sigma)
             else:
                 xmin[index] *= (1-attribute_sigma)
                 xmax[index] *= (1+attribute_sigma)
@@ -84,13 +88,12 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
                      'reltol': None
                      }
       
-        
         best_attribute_list = asd(reconciliationMetric, attribute_list, args, xmin = xmin, xmax = xmax, **optim_args)
         best_attribute_dict = regenerateAttributesDict(attribute_list = best_attribute_list, orig_attribute_dict = attribute_dict)
         progset = updateProgset(new_pars_dict=best_attribute_dict, progset=progset)
         impact['reconciled'] = compareOutcomesFunc(proj=proj, parset_name=parset_name, progset_name=progset_name, year=reconcile_for_year, compareoutcome=True, display=False)
-        print impact['original']['snmno_rate']
-        print impact['reconciled'].keys()
+#        print impact['original']['snmno_rate']
+#        print impact['reconciled'].keys()
         #Display comparison between old progset and new reconciled progset
         parset_value = 'Parset Impact'
         origprogset_value = 'Original Impact'
@@ -102,6 +105,7 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
             else:
                 outcome += '%s\n' %(par_label)
                 for popkey in impact['original'][par_label]:
+                    #print('Pop key: %s, Par_label: %s\nType(original parset value): %s\nType(original progset value): %s\nType(reconciled parset value): %s\nType(reconciled progset value): %s\n' %(popkey, par_label, impact['original'][par_label][popkey]['parset_impact_value'], impact['original'][par_label][popkey]['progset_impact_value'], impact['reconciled'][par_label][popkey]['parset_impact_value'], impact['reconciled'][par_label][popkey]['progset_impact_value']))
                     outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact['original'][par_label][popkey]['parset_impact_value'], impact['original'][par_label][popkey]['progset_impact_value'], impact['reconciled'][par_label][popkey]['progset_impact_value'])
                 outcome += '\n'
         print outcome
@@ -189,11 +193,15 @@ def createAttributeDict(settings, progset):
     '''
     attributes_dict = odict()
     for prog_label in progset.prog_ids.keys():
+        #print('Program Name: %s\n' %prog_label)
         mark_for_delete = False
         if prog_label not in attributes_dict.keys(): attributes_dict[prog_label] = odict()
         index = progset.prog_ids[prog_label]
         try:    
             attributes_dict[prog_label]['unit_cost'] = progset.progs[index].func_specs['pars']['unit_cost']
+            #print('Unit Cost: %g\n' %attributes_dict[prog_label]['unit_cost'])
+            attributes_dict[prog_label]['budget'] = progset.progs[index].getDefaultBudget(year=settings.tvec_end)
+            #print('Budget: %g\n' %attributes_dict[prog_label]['budget'])
             interpolated_attributes = progset.progs[index].interpolate(tvec=np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt))
             #TODO : generalise key
             for key in interpolated_attributes:
@@ -221,6 +229,7 @@ def createAttributeList(attribute_dict):
     '''
     attribute_list = []
     unitcost_index = []
+    budget_index = []
     index = 0
     for prog_label in attribute_dict.keys():
         for par in attribute_dict[prog_label]:
@@ -228,8 +237,11 @@ def createAttributeList(attribute_dict):
             if par == 'unit_cost':
                 unitcost_index.append(index)
                 index += 1
+            elif par == 'budget':
+                budget_index.append(index)            
+                index += 1
             else: index += 1
-    return attribute_list, unitcost_index
+    return attribute_list, unitcost_index, budget_index
 
 def regenerateAttributesDict(attribute_list, orig_attribute_dict):
     '''Reverse process, where the attributes list is converted back into the attributes dictionary after optimization/reconciliation
@@ -269,6 +281,7 @@ def updateProgset(new_pars_dict, progset):
                 else:
                     continue
             progset.progs[index].func_specs['pars']['unit_cost'] = new_pars_dict[prog_label]['unit_cost']
+            progset.progs[index].cost[-1] = new_pars_dict[prog_label]['budget']
     return progset
 
 def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, impact_pars, results, attribute_dict, reconcile_for_year, compareoutcome, prog_budget_alloc = None):
@@ -421,6 +434,8 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 #impact[popkey][par_label]['progset_impact_value'] = prog_attributes[popkey][par_label]['Impact Value']
                 if par_label not in impact.keys(): impact[par_label] = odict()
                 if popkey not in impact[par_label].keys(): impact[par_label][popkey] = odict()
-                impact[par_label][popkey]['parset_impact_value'] = par_attributes[popkey][par_label]['Impact Value']
-                impact[par_label][popkey]['progset_impact_value'] = prog_attributes[popkey][par_label]['Impact Value']
+                try: impact[par_label][popkey]['parset_impact_value'] = par_attributes[popkey][par_label]['Impact Value'][-1]
+                except:  impact[par_label][popkey]['parset_impact_value'] = par_attributes[popkey][par_label]['Impact Value']
+                try: impact[par_label][popkey]['progset_impact_value'] = prog_attributes[popkey][par_label]['Impact Value'][-1]
+                except: impact[par_label][popkey]['progset_impact_value'] = prog_attributes[popkey][par_label]['Impact Value']
         return impact
