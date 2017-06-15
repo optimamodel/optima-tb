@@ -80,8 +80,6 @@ class GUICalibration(qtw.QMainWindow):
         
         self.status = 'Status: No Project generated'    # A status message to show at the bottom of the screen.      
         
-#        self.calibration_items = []
-        
         self.setWindowTitle('Manual Calibration')
         
         # Screen.
@@ -91,26 +89,6 @@ class GUICalibration(qtw.QMainWindow):
                          self.width(), self.height())
         
         # Widgets.
-#        self.label_project_name = qtw.QLabel('Project Name: ')
-#        self.edit_project_name = qtw.QLineEdit()
-#        self.edit_project_name.setText('New Project')
-#        
-#        self.label_cascade = qtw.QLabel('Cascade Filename: ')
-#        self.edit_cascade = qtw.QLineEdit()
-#        self.button_cascade = qtw.QPushButton('Locate File', self)
-#        self.button_cascade.clicked.connect(self.factorySelectFile(display_field = self.edit_cascade))
-#        
-#        self.button_project_init = qtw.QPushButton('Create Project', self)
-#        self.button_project_init.clicked.connect(self.createProject)
-#        
-#        self.label_databook = qtw.QLabel('Databook Filename: ')
-#        self.edit_databook = qtw.QLineEdit()
-#        self.button_databook = qtw.QPushButton('Locate File', self)
-#        self.button_databook.clicked.connect(self.factorySelectFile(display_field = self.edit_databook))
-#        
-#        self.button_project_saturate = qtw.QPushButton('Load Data', self)
-#        self.button_project_saturate.clicked.connect(self.loadData)
-        
         self.label_parset = qtw.QLabel('Parset To Edit: ')
         self.combo_parset = qtw.QComboBox(self)
         self.combo_parset.activated[str].connect(self.loadCalibration)
@@ -154,16 +132,6 @@ class GUICalibration(qtw.QMainWindow):
         grid_upper = qtw.QGridLayout()
         grid_upper.setSpacing(10)          
         
-#        grid_upper.addWidget(self.label_project_name, 0, 0)
-#        grid_upper.addWidget(self.edit_project_name, 0, 1)
-#        grid_upper.addWidget(self.label_cascade, 1, 0)
-#        grid_upper.addWidget(self.edit_cascade, 1, 1)
-#        grid_upper.addWidget(self.button_cascade, 1, 2)
-#        grid_upper.addWidget(self.button_project_init, 1, 3)
-#        grid_upper.addWidget(self.label_databook, 2, 0)
-#        grid_upper.addWidget(self.edit_databook, 2, 1)
-#        grid_upper.addWidget(self.button_databook, 2, 2)
-#        grid_upper.addWidget(self.button_project_saturate, 2, 3)
         grid_upper.addWidget(self.label_parset, 0, 0)
         grid_upper.addWidget(self.combo_parset, 0, 1)
         
@@ -208,18 +176,6 @@ class GUICalibration(qtw.QMainWindow):
         self.splitter_total = qtw.QSplitter()
         self.splitter_total.addWidget(self.first_half)
         self.splitter_total.addWidget(self.second_half)
-#        total_layout = qtw.QVBoxLayout()
-#        
-##        menu_bar = qtw.QMenuBar()
-##        menu_bar.setVerticalPolicy(qtw.QSizePolicy.Fixed)
-##        file_menu = qtw.QMenu('File')
-##        menu_bar.addMenu('File')#file_menu)
-###            fileMenu->addAction("Save");
-###            fileMenu->addAction("Exit");
-#
-##        total_layout.addWidget(menu_bar)
-#        total_layout.addWidget(self.splitter_total)
-#        self.setLayout(total_layout)
         
         self.setCentralWidget(self.splitter_total)
         
@@ -301,12 +257,7 @@ class GUICalibration(qtw.QMainWindow):
         is_cascade_loaded = self.project is not None
         is_parset_loaded = is_cascade_loaded and len(self.project.parsets.keys()) > 0
         are_results_generated = (self.results_current is not None and self.results_comparison is not None)
-#        
-#        self.label_databook.setVisible(is_cascade_loaded)
-#        self.edit_databook.setVisible(is_cascade_loaded)
-#        self.button_databook.setVisible(is_cascade_loaded)
-#        self.button_project_saturate.setVisible(is_cascade_loaded)
-#        
+        
         if is_parset_loaded:
             self.refreshParsetComboBoxes()
         self.label_parset.setVisible(is_parset_loaded)
@@ -338,7 +289,6 @@ class GUICalibration(qtw.QMainWindow):
         self.button_plotter.setVisible(are_results_generated)
             
     
-    # NOTE: This constant refreshing of comboboxes is inefficient and can be improved later.
     def refreshParsetComboBoxes(self):
         combo_boxes = [self.combo_parset, self.combo_compare]
         combo_names = [self.parset_source_name, self.parset_comparison_name]
@@ -355,8 +305,6 @@ class GUICalibration(qtw.QMainWindow):
             combo_box.setCurrentIndex(self.combo_parset_dict[combo_name])
             
     def refreshCharacComboBox(self):
-#        combo_boxes = [self.combo_plotter_charac]
-#        combo_names = [self.parset_source_name]
         self.combo_charac_dict = {}
         self.combo_plotter_charac.clear()
         cid = 0
@@ -370,44 +318,16 @@ class GUICalibration(qtw.QMainWindow):
         self.combo_plotter_charac.setCurrentIndex(self.combo_charac_dict[self.charac_plot_name])
         
     def refreshPopComboBox(self):
-#        combo_boxes = [self.combo_plotter_charac]
-#        combo_names = [self.parset_source_name]
         self.combo_pop_dict = {}
         self.combo_plotter_pop.clear()
         pid = 0
-#        pop_label = self.project.data['pops']['name_labels'][pop_name]
         for pop_name in self.parset.pop_names:
-#            charac_name = self.project.settings.charac_specs[charac_label]['name']
             self.combo_pop_dict[pop_name] = pid
             self.combo_plotter_pop.addItem(pop_name)
             pid += 1
         if self.pop_plot_name is None:
             self.pop_plot_name = self.combo_plotter_pop.itemText(self.combo_plotter_pop.currentIndex())
         self.combo_plotter_pop.setCurrentIndex(self.combo_pop_dict[self.pop_plot_name])
-            
-        
-#    def createProject(self):
-#        try:
-#            self.project = Project(name = self.edit_project_name.text(), cascade_path = self.edit_cascade.text(), validation_level = 'avert')
-#            self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
-#            self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
-#        except:
-#            self.resetAttributes()
-#            self.status = ('Status: Attempt to generate Project failed')
-#        self.refreshVisibility()
-        
-#    def loadData(self):
-#        try:
-#            self.project.loadSpreadsheet(databook_path = self.edit_databook.text())
-#            self.project.resetParsets()
-#            self.project.makeParset(name = 'default')
-#            self.loadCalibration(self.project.parsets[0].name, delay_refresh = True)
-#            self.selectComparison(self.project.parsets[0].name)
-#            self.status = ('Status: Valid data loaded into Project "%s", default Parset generated' % self.project.name)
-#        except:
-#            self.resetAttributes()
-#            self.status = ('Status: Attempt to load data into Project failed, Project reset for safety')
-#        self.refreshVisibility()
         
     def loadCalibration(self, parset_name, delay_refresh = False):
         self.parset_source_name = parset_name
@@ -434,29 +354,22 @@ class GUICalibration(qtw.QMainWindow):
         self.parset_comparison_name = parset_name
         
     def selectCharacteristic(self, charac_name):
-#        self.charac_plot_label = self.project.settings.charac_name_labels[charac_name]
         self.charac_plot_name = charac_name
         
     def selectPopulation(self, pop_name):
-#        self.charac_plot_label = self.project.settings.charac_name_labels[charac_name]
         self.pop_plot_name = pop_name
         
     def runComparison(self):
         self.status = ('Status: Running models for Parset comparison')
         self.refreshStatus()
         self.results_current = self.project.runSim(parset = self.parset)
-        self.status = ('Status: Model successfully processed for edited Parset')
+        self.status = ('Status: Model successfully processed for current Parset')
         self.refreshStatus()
         self.results_comparison = self.project.runSim(parset_name = self.parset_comparison_name)
         self.status = ('Status: Model successfully processed for Parset "%s"' % self.parset_comparison_name)
         self.refreshStatus()
         self.refreshVisibility()
         return
-        
-#    def factorySelectFile(self, display_field):
-#        def selectFile(self):
-#            display_field.setText(str(qtw.QFileDialog.getOpenFileName()[0]))
-#        return selectFile
         
     def makeParsetTable(self):
         self.table_calibration.setVisible(False)    # Resizing columns requires table to be hidden first.
@@ -466,7 +379,6 @@ class GUICalibration(qtw.QMainWindow):
         try: self.table_calibration.cellChanged.disconnect()
         except: pass
 
-#        parset = self.project.parsets[self.parset_source_name]
         parset = self.parset
         num_pops = len(parset.pop_labels)
         row_count = num_pops*(len(parset.pars['cascade'])-len(self.project.settings.par_funcs))
@@ -512,13 +424,19 @@ class GUICalibration(qtw.QMainWindow):
         for i in reversed(range(self.plotter_layout.count())): 
             self.plotter_layout.itemAt(i).widget().setParent(None)        
         
+        print 'how'
+        
         if self.charac_plot_name is not None and self.pop_plot_name is not None:
             charac_plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
 #            pop_plot_label = self.project.data['pops']['name_labels'][self.pop_plot_name]
             pid = self.combo_pop_dict[self.pop_plot_name]
+            
+            print 'is'
 
             y_values_cur, t_values_cur, final_dict_cur = extractCharacteristic(results=self.results_current, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
             y_values_com, t_values_com, final_dict_com = extractCharacteristic(results=self.results_comparison, charac_label=charac_plot_label, charac_specs=self.project.settings.charac_specs, data=self.project.data)
+
+            print 'this'
 
             figure = _plotLine(ys = [y_values_cur[pid],y_values_com[pid]], ts = [t_values_cur[pid],t_values_com[pid]], labels = ['Edited "%s"' % self.parset.name,'Unedited "%s"' % self.parset_comparison_name], y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
               
