@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma = 0.05, attribute_sigma = 0.20, budget_sigma = 0.0, impact_pars = None, budget_allocation = None, orig_tvec_end = None):
+def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma = 0.05, attribute_sigma = 0.20, budget_sigma = 0.0, impact_pars = None, constrain_budget=True, budget_allocation = None, orig_tvec_end = None):
         """
         Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standard deviation sigma
         
@@ -24,6 +24,7 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
             attribute_sigma         Standard deviation allowable for attributes identified in impact_pars (type: float)
             budget_sigma            Standard deviation allowable for budget for program (type: float)
             impact_pars             Impact pars to be reconciled (type: list or None)
+            constrain_budget        Flag to inform algorithm whether to constrain total budget or not (type: bool)
             budget_allocation       Dictionary of programs with new budget allocations (type: dict)
             
         Returns:
@@ -76,7 +77,7 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
         #Run optimisation
         args = {'proj': proj, 'parset': parset, 'progset': progset, 'parset_name': parset_name,
                 'impact_pars': impact_pars, 'results': results, 'attribute_dict': attribute_dict, 
-                'reconcile_for_year': reconcile_for_year, 'compareoutcome': False, 'prog_budget_alloc': budget_allocation}
+                'reconcile_for_year': reconcile_for_year, 'compareoutcome': False, 'prog_budget_alloc': budget_allocation, 'constrain_budget': constrain_budget}
         
         optim_args = {
                      'stepsize': proj.settings.autofit_params['stepsize'], 
@@ -113,7 +114,7 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
         proj.setYear([2000, orig_tvec_end], False)
         return progset
 
-def compareOutcomesFunc(proj, year, parset_name=None, progset_name=None, budget_allocation=None, compareoutcome=None, display=True):
+def compareOutcomesFunc(proj, year, parset_name=None, progset_name=None, budget_allocation=None, compareoutcome=None, display=True, constrain_budget=True):
     """
     Compares impact parameters as informed by progset to identified parset, and display the comparison
     
@@ -161,7 +162,7 @@ def compareOutcomesFunc(proj, year, parset_name=None, progset_name=None, budget_
     impact = reconciliationMetric(new_attributes=[], proj=proj, parset=parset, progset=progset, 
                                   parset_name=parset_name, impact_pars=impact_pars, 
                                   results=results, attribute_dict={}, reconcile_for_year=year, 
-                                  compareoutcome=compareoutcome, prog_budget_alloc=budget_allocation)
+                                  compareoutcome=compareoutcome, prog_budget_alloc=budget_allocation, constrain_budget=constrain_budget)
     #display output
     if display:
         print('Comparing outcomes for year: %i' %year)
@@ -302,7 +303,7 @@ def rescaleAllocation(rescaled_dict, proposed_dict):
         
     return rescaled_dict, orig_total_budget, proposed_total_budget, constrained_total_budget
 
-def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, impact_pars, results, attribute_dict, reconcile_for_year, compareoutcome, prog_budget_alloc):
+def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, impact_pars, results, attribute_dict, reconcile_for_year, compareoutcome, prog_budget_alloc, constrain_budget):
     '''Objective function for reconciliation process, is used to compare outcomes as well as they use the same logic
        Uses functionality from model.py
         
@@ -324,11 +325,15 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
     #Options
     if compareoutcome == False:
         proposed_dict = regenerateAttributesDict(new_attributes, attribute_dict)
-        constrained_dict, orig_total_budget, proposed_total_budget, constrained_total_budget = rescaleAllocation(attribute_dict, proposed_dict)
-        progset = updateProgset(constrained_dict, progset)
-        print('Total Budget: %g\tProposed Budget: %g\tConstrained Budged: %g\n' %(orig_total_budget, proposed_total_budget, constrained_total_budget))
-        for key in attribute_dict.keys():
-            print('Program: %s\n  Original Budget: %g\tProposed Budget: %g\tConstrained Budget: %g\n' %(key, attribute_dict[key]['budget'], proposed_dict[key]['budget'], constrained_dict[key]['budget']))
+        if constrain_budget: 
+            constrained_dict, orig_total_budget, proposed_total_budget, constrained_total_budget = rescaleAllocation(attribute_dict, proposed_dict)
+            new_dict = constrained_dict
+        else: new_dict = proposed_dict
+        progset = updateProgset(new_dict, progset)
+        if constrain_budget:
+            print('Total Budget: %g\tProposed Budget: %g\tConstrained Budged: %g\n' %(orig_total_budget, proposed_total_budget, constrained_total_budget))
+            for key in attribute_dict.keys():
+                print('Program: %s\n  Original Budget: %g\tProposed Budget: %g\tConstrained Budget: %g\n' %(key, attribute_dict[key]['budget'], proposed_dict[key]['budget'], constrained_dict[key]['budget']))
             
     par_attributes = odict()
     prog_attributes = odict()

@@ -34,7 +34,7 @@ for prog in proj.progsets[progset_name].prog_ids:
 progset      = reconcileFunc(proj=proj, reconcile_for_year=reconcile_for_year, 
                              parset_name=parset_name, progset_name= progset_name,
                              unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, budget_sigma = budget_sigma,
-                             impact_pars=None,orig_tvec_end=proj.settings.tvec_end)
+                             impact_pars=None, constrain_budget = False, orig_tvec_end=proj.settings.tvec_end)
 
 #Save post-reconciled budget values of programs
 values['reconciled'] = odict()
