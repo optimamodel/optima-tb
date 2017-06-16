@@ -144,8 +144,8 @@ class GUIProjectManagerBase(qtw.QMainWindow):
                 self.project = Project(name = project_name, cascade_path = cascade_path, validation_level = 'avert')
                 self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
                 self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
-            except:
-                self.status = ('Status: Attempt to generate Project failed')
+            except Exception as E:
+                self.status = ('Status: Attempt to generate Project failed (%s)' % E.__repr__())
                 self.refreshVisibility()
                 return
                 
@@ -155,9 +155,9 @@ class GUIProjectManagerBase(qtw.QMainWindow):
                 self.project.resetParsets()
                 self.acknowledgeProject()
                 self.status = ('Status: Valid data loaded into Project "%s", default Parset generated' % self.project.name)
-            except:
+            except Exception as E:
                 self.resetAttributes()      # This call is to a derived method, representing a full GUI reset.
-                self.status = ('Status: Attempt to load data into Project failed, Project reset for safety')
+                self.status = ('Status: Attempt to load data into Project failed, Project reset for safety (%s)' % E.__repr__())
         self.refreshVisibility()
         
     def importProject(self):
