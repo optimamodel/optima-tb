@@ -184,15 +184,14 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.resetAttributesProjectManager()
         self.resetAttributesResultPlotter()
     def resetAttributesResultPlotter(self):
-        self.results_current = None
-        self.results_comparison = None
-        
+        self.result_1_plot_name = None
+        self.result_2_plot_name = None
         self.charac_plot_name = None
         self.pop_plot_name = None
+        self.combo_result_dict = {}     # Dictionary that maps Result names to indices used in combo boxes.
         self.combo_charac_dict = {}     # Dictionary that maps Characteristic names to indices used in combo boxes.
         self.combo_pop_dict = {}        # Dictionary that maps Population names to indices used in combo boxes.
 
-        
         
     # The following wrapper function can be overloaded by derived classes.
     # Intended usage is to update widgets inside the GUI and what the user sees, as required.
@@ -200,8 +199,21 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.refreshVisibilityProjectManager()
         self.refreshVisibilityResultPlotter()
     def refreshVisibilityResultPlotter(self):
-#        self.refreshStatus()
-        pass
+        is_project_loaded = self.project is not None
+        
+        if is_project_loaded:
+            self.refreshResultComboBoxes()
+            self.refreshCharacComboBox()
+            self.refreshPopComboBox()
+        self.label_plotter_result_1.setVisible(is_project_loaded)
+        self.combo_plotter_result_1.setVisible(is_project_loaded)
+        self.label_plotter_result_2.setVisible(is_project_loaded)
+        self.combo_plotter_result_2.setVisible(is_project_loaded)
+        self.label_plotter_charac.setVisible(is_project_loaded)
+        self.combo_plotter_charac.setVisible(is_project_loaded)
+        self.label_plotter_pop.setVisible(is_project_loaded)
+        self.combo_plotter_pop.setVisible(is_project_loaded)
+        self.button_plotter.setVisible(is_project_loaded)
         
     
     # The following wrapper function can be overloaded by derived classes.
@@ -217,8 +229,38 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.resetAttributesResultPlotter()    # This call is specific to base class attributes.
         
         self.setWindowTitle('Result Plotter')
+        
+        self.label_plotter_result_1 = qtw.QLabel('Select First Result: ')
+        self.combo_plotter_result_1 = qtw.QComboBox(self)
+        self.combo_plotter_result_1.activated[str].connect(self.selectResultOne)
+        self.label_plotter_result_2 = qtw.QLabel('Select Second Result: ')
+        self.combo_plotter_result_2 = qtw.QComboBox(self)
+        self.combo_plotter_result_2.activated[str].connect(self.selectResultTwo)
+        self.label_plotter_charac = qtw.QLabel('Select Characteristic: ')
+        self.combo_plotter_charac = qtw.QComboBox(self)
+        self.combo_plotter_charac.activated[str].connect(self.selectCharacteristic)
+        self.label_plotter_pop = qtw.QLabel('Select Population: ')
+        self.combo_plotter_pop = qtw.QComboBox(self)
+        self.combo_plotter_pop.activated[str].connect(self.selectPopulation)
+        self.button_plotter = qtw.QPushButton('Plot Figures', self)
+        self.button_plotter.clicked.connect(self.showPlots)
+        
+        # Layout.
+        grid_lower = qtw.QGridLayout()
+        grid_lower.setSpacing(10)
+        
+        grid_lower.addWidget(self.label_plotter_result_1, 0, 0)
+        grid_lower.addWidget(self.combo_plotter_result_1, 0, 1)
+        grid_lower.addWidget(self.label_plotter_result_2, 1, 0)
+        grid_lower.addWidget(self.combo_plotter_result_2, 1, 1)
+        grid_lower.addWidget(self.label_plotter_charac, 2, 0)
+        grid_lower.addWidget(self.combo_plotter_charac, 2, 1)
+        grid_lower.addWidget(self.label_plotter_pop, 3, 0)
+        grid_lower.addWidget(self.combo_plotter_pop, 3, 1)
+        grid_lower.addWidget(self.button_plotter, 3, 2)
                                          
         process_layout = qtw.QVBoxLayout()
+        process_layout.addLayout(grid_lower)
         
         self.plotter_layout = qtw.QGridLayout()
         self.plotter_layout.setSpacing(5)
@@ -238,6 +280,88 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         
         self.refreshVisibilityResultPlotter()      # This call is specific to base class components.
         self.show()
+        
+    def refreshResultComboBoxes(self):
+        combo_boxes = [self.combo_plotter_result_1, self.combo_plotter_result_2]
+        combo_names = [self.result_1_plot_name, self.result_2_plot_name]
+        self.combo_result_dict = {}
+        for k in xrange(len(combo_boxes)):
+            combo_box = combo_boxes[k]
+            combo_name = combo_names[k]
+            combo_box.clear()
+            rid = 0
+            for result_name in self.project.results.keys():
+                self.combo_result_dict[result_name] = rid
+                combo_box.addItem(result_name)
+                rid += 1
+            try: combo_box.setCurrentIndex(self.combo_result_dict[combo_name])
+            except: pass
+        
+    def refreshCharacComboBox(self):
+        self.combo_charac_dict = {}
+        self.combo_plotter_charac.clear()
+        cid = 0
+        for charac_label in self.project.settings.charac_specs.keys():
+            charac_name = self.project.settings.charac_specs[charac_label]['name']
+            self.combo_charac_dict[charac_name] = cid
+            self.combo_plotter_charac.addItem(charac_name)
+            cid += 1
+        if self.charac_plot_name is None:
+            self.charac_plot_name = self.combo_plotter_charac.itemText(self.combo_plotter_charac.currentIndex())
+        self.combo_plotter_charac.setCurrentIndex(self.combo_charac_dict[self.charac_plot_name])
+        
+    def refreshPopComboBox(self):
+        self.combo_pop_dict = {}
+        self.combo_plotter_pop.clear()
+        pid = 0
+        for pop_name in self.project.data['pops']['name_labels'].keys():
+            self.combo_pop_dict[pop_name] = pid
+            self.combo_plotter_pop.addItem(pop_name)
+            pid += 1
+        if self.pop_plot_name is None:
+            self.pop_plot_name = self.combo_plotter_pop.itemText(self.combo_plotter_pop.currentIndex())
+        self.combo_plotter_pop.setCurrentIndex(self.combo_pop_dict[self.pop_plot_name])
+        
+    def selectResultOne(self, result_name):
+        self.result_1_plot_name = result_name
+        
+    def selectResultTwo(self, result_name):
+        self.result_2_plot_name = result_name
+        
+    def selectCharacteristic(self, charac_name):
+        self.charac_plot_name = charac_name
+        
+    def selectPopulation(self, pop_name):
+        self.pop_plot_name = pop_name
+        
+    def showPlots(self):
+        # Clear plots.
+        for i in reversed(range(self.plotter_layout.count())): 
+            self.plotter_layout.itemAt(i).widget().setParent(None)        
+        
+        if self.result_1_plot_name is None or self.result_2_plot_name is None:
+            self.status = ('Status: No results could be selected for plotting purposes')
+            self.refreshVisibility()
+            return
+            
+        if self.charac_plot_name is not None and self.pop_plot_name is not None:
+            
+            charac_plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
+            pop_plot_label = self.project.data['pops']['name_labels'][self.pop_plot_name]
+            
+            y_values_cur, t_values_cur = self.project.results[self.result_1_plot_name].getValuesAt(label = charac_plot_label, year_init = self.tvec[0], year_end = self.tvec[-1], pop_labels = [pop_plot_label])
+            y_values_com, t_values_com = self.project.results[self.result_2_plot_name].getValuesAt(label = charac_plot_label, year_init = self.tvec[0], year_end = self.tvec[-1], pop_labels = [pop_plot_label])
+
+            try: y_data = self.project.data['characs'][charac_plot_label][pop_plot_label]['y']
+            except: y_data = []
+            try: t_data = self.project.data['characs'][charac_plot_label][pop_plot_label]['t']
+            except: t_data = []
+
+            figure = _plotLine(ys = [y_values_cur,y_values_com], ts = [t_values_cur,t_values_com], labels = ['Edited "%s"' % self.parset.name,'Unedited "%s"' % self.parset_comparison_name], y_hat=[y_data,y_data], t_hat=[t_data,t_data])
+            
+            canvas = FigureCanvasQTAgg(figure)
+
+            self.plotter_layout.addWidget(canvas)
         
         
 
