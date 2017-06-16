@@ -61,7 +61,7 @@ class Project(object):
             self.settings.tvec_end = yearRange[1]
     
     
-    def runSim(self, parset = None, parset_name = 'default', progset = None, progset_name = None, options = None, plot = False, debug = False):
+    def runSim(self, parset = None, parset_name = 'default', progset = None, progset_name = None, options = None, plot = False, debug = False, store_results = True, result_name = None):
         ''' Run model using a selected parset and store/return results. '''
         
         if parset is None:
@@ -90,6 +90,20 @@ class Project(object):
             tp = tic()
             self.plotResults(results = results, debug = debug)
             toc(tp, label = 'plotting %s' % self.name)
+            
+        if store_results:
+            if result_name is None:
+                result_name = parset_name
+                if not progset_name is None:
+                    result_name += '_' + progset_name
+                k = 1
+                while k > 0:
+                    result_name_attempt = result_name + '_' + k
+                    k += 1
+                    if result_name_attempt not in self.results.keys():
+                        result_name = result_name_attempt
+                        k = 0
+            self.results[result_name] = dcp(results)
         
         return results
         

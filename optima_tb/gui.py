@@ -53,12 +53,13 @@ class GUI(qtw.QWidget):
         self.sub_gui = GUICalibration()
         
     def runGUIScenarioParameter(self):
-        self.sub_gui = GUIProjectManagerBase()
+        self.sub_gui = GUIResultPlotterIntermediate()
         
     def runGUIScenarioBudget(self):
         self.sub_gui = GUIProjectManagerBase()
         
         
+# A base GUI class that enables project creation, import and export.
 class GUIProjectManagerBase(qtw.QMainWindow):
     
     def __init__(self):
@@ -86,12 +87,15 @@ class GUIProjectManagerBase(qtw.QMainWindow):
     
     # The following wrapper function can be overloaded by derived classes.
     # Intended usage is to acknowledge the existence of a project and run initial processes required by derived GUI.    
-    def acknowledgeProject(self): pass
+    def acknowledgeProject(self): self.acknowledgeProjectProjectManager()
+    def acknowledgeProjectProjectManager(self): pass
         
         
     def initUIProjectManager(self):
         self.resetAttributesProjectManager()    # This call is specific to base class attributes.
         
+        self.setWindowTitle('Project Manager')
+                                          
         # Screen.
         screen = qtw.QDesktopWidget().availableGeometry()
         self.resize(screen.width()*9.0/10.0, screen.height()*9.0/10.0)
@@ -164,6 +168,76 @@ class GUIProjectManagerBase(qtw.QMainWindow):
     def refreshStatus(self):
         if not self.guard_status:
             self.statusBar().showMessage(self.status)
+
+
+# An intermediate GUI class that extends project management and allows for result comparison.
+class GUIResultPlotterIntermediate(GUIProjectManagerBase):
+    
+    def __init__(self):
+        super(GUIResultPlotterIntermediate, self).__init__()
+        self.initUIResultPlotter()
+    
+    
+    # The following wrapper function can be overloaded by derived classes.
+    # Intended usage is to initialise all attributes used by this GUI.
+    def resetAttributes(self):  
+        self.resetAttributesProjectManager()
+        self.resetAttributesResultPlotter()
+    def resetAttributesResultPlotter(self):
+        self.results_current = None
+        self.results_comparison = None
+        
+        self.charac_plot_name = None
+        self.pop_plot_name = None
+        self.combo_charac_dict = {}     # Dictionary that maps Characteristic names to indices used in combo boxes.
+        self.combo_pop_dict = {}        # Dictionary that maps Population names to indices used in combo boxes.
+
+        
+        
+    # The following wrapper function can be overloaded by derived classes.
+    # Intended usage is to update widgets inside the GUI and what the user sees, as required.
+    def refreshVisibility(self):  
+        self.refreshVisibilityProjectManager()
+        self.refreshVisibilityResultPlotter()
+    def refreshVisibilityResultPlotter(self):
+#        self.refreshStatus()
+        pass
+        
+    
+    # The following wrapper function can be overloaded by derived classes.
+    # Intended usage is to acknowledge the existence of a project and run initial processes required by derived GUI.    
+    def acknowledgeProject(self): 
+        self.acknowledgeProjectProjectManager()
+        self.acknowledgeProjectResultPlotter()
+    def acknowledgeProjectResultPlotter(self): 
+        pass
+        
+        
+    def initUIResultPlotter(self):
+        self.resetAttributesResultPlotter()    # This call is specific to base class attributes.
+        
+        self.setWindowTitle('Result Plotter')
+                                         
+        process_layout = qtw.QVBoxLayout()
+        
+        self.plotter_layout = qtw.QGridLayout()
+        self.plotter_layout.setSpacing(5)
+        
+        self.first_half = qtw.QWidget()
+        self.first_half.resize(self.width()/2.0, self.height())
+        self.first_half.setLayout(process_layout)
+        self.second_half = qtw.QWidget()
+        self.second_half.resize(self.width()/2.0, self.height()/2.0)
+        self.second_half.setLayout(self.plotter_layout)
+        
+        # Window splitter.
+        self.splitter_total = qtw.QSplitter()
+        self.splitter_total.addWidget(self.first_half)
+        self.splitter_total.addWidget(self.second_half)
+        self.setCentralWidget(self.splitter_total)
+        
+        self.refreshVisibilityResultPlotter()      # This call is specific to base class components.
+        self.show()
         
         
 
@@ -181,17 +255,17 @@ class GUICalibration(GUIProjectManagerBase):
         
         self.parset_source_name = None
         self.parset_comparison_name = None
-        self.charac_plot_name = None
-        self.pop_plot_name = None
+#        self.charac_plot_name = None
+#        self.pop_plot_name = None
         
         self.combo_parset_dict = {}     # Dictionary that maps Parset names to indices used in combo boxes.
-        self.combo_charac_dict = {}     # Dictionary that maps Characteristic names to indices used in combo boxes.
-        self.combo_pop_dict = {}        # Dictionary that maps Population names to indices used in combo boxes.
+#        self.combo_charac_dict = {}     # Dictionary that maps Characteristic names to indices used in combo boxes.
+#        self.combo_pop_dict = {}        # Dictionary that maps Population names to indices used in combo boxes.
         self.col_par_name = 0   # Column index for table calibration parameter names.
         self.col_pop_name = 1   # Column index for table calibration population names.
         
-        self.results_current = None
-        self.results_comparison = None
+#        self.results_current = None
+#        self.results_comparison = None
         
     def acknowledgeProject(self):
         if not self.project is None:
