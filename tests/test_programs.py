@@ -221,7 +221,7 @@ class TestPrograms(ProgramsTest):
                 elif self.proj.progsets[0].progs[index].func_specs['type'] == 'linear':
                     self.assertEqual(expected_value, model_value,
                                 'Coverage value for program %s was incorrectly calculated. Expected value: %s, Model value: %s' %(prog_name, expected_value, model_value))
-                else: print "Incorrect entries detected!"
+                else: print('Unexpected "func_specs" for  detected for Program: %s! Key List: %s'%(progname, self.proj.progsets[0].progs[index].func_specs.keys()))
                     
         return None
     
@@ -237,19 +237,14 @@ class TestPrograms(ProgramsTest):
                          'fixed'  : np.nan}
         for index, prog_name in enumerate(self.prog_short_names):
             if prog_name == 'fixed': continue
+            self.assertEqual(self.proj.progsets[0].progs[index].func_specs['type'], 'linear', 'Unexpected type of cost-coverage curve. Expecting linear')
             for coverage in coverage_values:
                 if self.proj.progsets[0].progs[index].cov_format == 'number':
                     expected_value = coverage * unit_costs[prog_name]
                 else:
                     expected_value = coverage * unit_costs[prog_name] / 0.01
-                    
                 model_value = self.proj.progsets[0].progs[index].getBudget(coverage)
-                
-                if self.proj.progsets[0].progs[index].func_specs['type'] == 'linear':
-                    self.assertEqual(expected_value, model_value,
-                                'Budget value for program %s was incorrectly calculated. Expected value: %s, Model value: %s' %(prog_name, expected_value, model_value))
-                else: print "Incorrect entries detected!"
-                    
+                self.assertEqual(expected_value, model_value, 'Budget value for program %s was incorrectly calculated. Expected value: %s, Model value: %s' %(prog_name, expected_value, model_value))
         return None
     
     def test_getDefaultBudget(self):
