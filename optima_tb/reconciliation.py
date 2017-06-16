@@ -284,7 +284,25 @@ def updateProgset(new_pars_dict, progset):
             progset.progs[index].cost[-1] = new_pars_dict[prog_label]['budget']
     return progset
 
-def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, impact_pars, results, attribute_dict, reconcile_for_year, compareoutcome, prog_budget_alloc = None):
+def rescaleAllocation(rescaled_dict, proposed_dict):
+    '''This function normalises the proposed allocated budget to make sure that the total allowable budget is maintained
+    '''
+    proposed_total_budget = 0.
+    orig_total_budget = 0.
+    constrained_total_budget = 0.
+    
+    for prog_name in proposed_dict.keys():
+        orig_total_budget += rescaled_dict[prog_name]['budget']
+        proposed_total_budget += proposed_dict[prog_name]['budget']
+    
+    for prog_name in proposed_dict.keys():
+        scale_factor = proposed_dict[prog_name]['budget'] / proposed_total_budget 
+        rescaled_dict[prog_name]['budget'] = scale_factor * orig_total_budget
+        constrained_total_budget += rescaled_dict[prog_name]['budget']
+        
+    return rescaled_dict, orig_total_budget, proposed_total_budget, constrained_total_budget
+
+def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, impact_pars, results, attribute_dict, reconcile_for_year, compareoutcome, prog_budget_alloc):
     '''Objective function for reconciliation process, is used to compare outcomes as well as they use the same logic
        Uses functionality from model.py
         
@@ -305,8 +323,13 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
     '''
     #Options
     if compareoutcome == False:
-        new_dict = regenerateAttributesDict(new_attributes, attribute_dict)
-        progset = updateProgset(new_dict, progset)
+        proposed_dict = regenerateAttributesDict(new_attributes, attribute_dict)
+        constrained_dict, orig_total_budget, proposed_total_budget, constrained_total_budget = rescaleAllocation(attribute_dict, proposed_dict)
+        progset = updateProgset(constrained_dict, progset)
+        print('Total Budget: %g\tProposed Budget: %g\tConstrained Budged: %g\n' %(orig_total_budget, proposed_total_budget, constrained_total_budget))
+        for key in attribute_dict.keys():
+            print('Program: %s\n  Original Budget: %g\tProposed Budget: %g\tConstrained Budget: %g\n' %(key, attribute_dict[key]['budget'], proposed_dict[key]['budget'], constrained_dict[key]['budget']))
+            
     par_attributes = odict()
     prog_attributes = odict()
     parser = FunctionParser(debug=False)
