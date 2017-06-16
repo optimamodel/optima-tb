@@ -9,15 +9,31 @@ from matplotlib import pyplot as pp
 pp.ioff()   # Turn off interactive mode.
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from PyQt5 import QtCore as qtc
-from PyQt5 import QtWidgets as qtw
 import sys
 import numpy as np
 from copy import deepcopy as dcp
 
 from optima_tb.project import Project
-from optima_tb.plotting import extractCharacteristic, _plotLine
+from optima_tb.plotting import _plotLine
 from optima_tb.dataio import saveObject, loadObject
+
+#%% PyQt imports
+
+def importpyqt():
+    ''' Try to import pyqt, either PyQt4 or PyQt5, but allow it to fail '''
+    try:    
+        from PyQt5 import QtCore as qtc
+        from PyQt5 import QtWidgets as qtw
+    except:
+        try:
+            from PyQt4 import QtGui as qtw
+            from PyQt4 import QtCore as qtc
+        except Exception as E:
+            errormsg = 'PyQt could not be imported: %s' % E.__repr__()
+            raise Exception(errormsg)
+    return  qtc, qtw
+    
+qtc, qtw = importpyqt()
 
 #%% GUI classes
 
