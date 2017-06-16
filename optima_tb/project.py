@@ -20,6 +20,7 @@ from optima_tb.reconciliation import reconcileFunc, compareOutcomesFunc
 
 from uuid import uuid4 as uuid
 import numpy as np
+from copy import deepcopy as dcp
 
 
 #%% Project class (i.e. one self-contained geographical unit)
@@ -93,13 +94,13 @@ class Project(object):
             
         if store_results:
             if result_name is None:
-                result_name = parset_name
+                result_name = parset.name
                 if not progset_name is None:
-                    result_name += '_' + progset_name
+                    result_name = result_name + '_' + progset_name
                 k = 1
                 while k > 0:
-                    result_name_attempt = result_name + '_' + k
-                    k += 1
+                    result_name_attempt = result_name + '_' + str(k)
+                    k = k + 1
                     if result_name_attempt not in self.results.keys():
                         result_name = result_name_attempt
                         k = 0
