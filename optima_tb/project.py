@@ -95,8 +95,8 @@ class Project(object):
         if store_results:
             if result_name is None:
                 result_name = parset.name
-                if not progset_name is None:
-                    result_name = result_name + '_' + progset_name
+                if not progset is None:
+                    result_name = result_name + '_' + progset.name
                 k = 1
                 while k > 0:
                     result_name_attempt = result_name + '_' + str(k)
