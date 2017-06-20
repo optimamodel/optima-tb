@@ -140,8 +140,6 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         project_name, project_name_chosen = qtw.QInputDialog.getText(self, 'Create Project', 'Enter project name:')
         if project_name_chosen:
             cascade_path = qtw.QFileDialog.getOpenFileName(self, 'Select Cascade File')[0]
-            print 'idfdiufd'
-            print(cascade_path)
             try:
                 self.project = Project(name = project_name, cascade_path = cascade_path, validation_level = 'avert')
                 self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
