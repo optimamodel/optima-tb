@@ -796,6 +796,8 @@ class Model(object):
                     if not ('progs_end' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_end']):
                         if par_label in progset.impacts.keys():
                             first_prog = True   # True if program in prog_label loop is the first one in the impact dict list.
+                            impact_list = []    # Notes for each program what its impact would be before coverage limitations.
+                            overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
                             for prog_label in progset.impacts[par_label]:
                                 prog = progset.getProg(prog_label)
                                 prog_type = prog.prog_type
@@ -846,36 +848,70 @@ class Model(object):
                                             impact = 0.0
                                         else:
                                             impact = net_impact * source_element_size / source_set_size
+                                            
+                                overflow_factor = 0
+                                if float(source_set_size) <= project_settings.TOLERANCE:
+                                    overflow_factor = np.inf
+                                else:
+                                    overflow_factor = self.prog_vals[prog_label]['cov'] / float(source_set_size)
+                                overflow_list.append(overflow_factor)
 
-#                                year_check = 2015   # Hard-coded check.
-#                                if par_label == 'spmyes_rate':
-#                                    if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
-#                                        print('Year: %s' % self.sim_settings['tvec'][ti])
-#                                        print('Program Name: %s' % prog.name)
-#                                        print('Program %s: %f' % ('Coverage' if self.sim_settings['alloc_is_coverage'] else 'Budget', prog_budget))
-#                                        print('Target Population: %s' % pop.label)
-#                                        print('Target Parameter: %s' % par_label)
-#                                        print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
-#                                        print('Program Coverage: %f' % self.prog_vals[prog_label]['cov'])#prog.getImpact(prog_budget, budget_is_coverage = self.sim_settings['alloc_is_coverage']))
-#                                        print('Program Impact: %f' % self.prog_vals[prog_label]['impact'][par_label])#prog.getImpact(prog_budget, impact_label = par_label, parser = self.parser, year = self.sim_settings['tvec'][ti], budget_is_coverage = self.sim_settings['alloc_is_coverage']))
-#                                        print('Program Impact Format: %s' % prog.cov_format)
-#                                        print('Source Compartment Size (Target Pop): %f' % source_element_size)
-#                                        print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
-#                                        print('Converted Impact: %f' % impact)
-#                                        print('Converted Impact Format: %s' % pars[0].val_format)
-#                                        print
+                                year_check = 2015   # Hard-coded check.
+                                par_check = ['spdyes_rate','sndyes_rate']
+                                if par_label in par_check:
+                                    if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
+                                        print('Year: %s' % self.sim_settings['tvec'][ti])
+                                        print('Program Name: %s' % prog.name)
+                                        print('Program %s: %f' % ('Coverage' if self.sim_settings['alloc_is_coverage'] else 'Budget', self.prog_vals[prog_label]['cost']))
+                                        print('Target Population: %s' % pop.label)
+                                        print('Target Parameter: %s' % par_label)
+                                        print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
+                                        print('Program Coverage: %f' % self.prog_vals[prog_label]['cov'])
+                                        print('Program Impact: %f' % self.prog_vals[prog_label]['impact'][par_label])
+                                        print('Program Impact Format: %s' % prog.cov_format)
+                                        print('Source Compartment Size (Target Pop): %f' % source_element_size)
+                                        print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
+                                        print('Converted Impact: %f' % impact)
+                                        print('Converted Impact Format: %s' % pars[0].val_format)
+                                        print
 
-                                if first_prog: new_val = 0
-                                new_val += impact
-                                if 'constraints' in self.sim_settings and 'impacts' in self.sim_settings['constraints'] and par_label in self.sim_settings['constraints']['impacts']:
-                                    try: vals = self.sim_settings['constraints']['impacts'][par_label]['vals']
-                                    except: raise OptimaException('ERROR: An impact constraint was passed to the model for "%s" but had no values associated with it.' % par_label)
-                                    if not len(vals) == 2: raise OptimaException('ERROR: Constraints for impact "%s" must be provided as a list or tuple of two values, i.e. a lower and an upper constraint.' % par_label)
-                                    if new_val < vals[0]: new_val = vals[0]
-                                    if new_val > vals[1]: new_val = vals[1]
-                                first_prog = False
+                                if first_prog: 
+                                    new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
+                                    first_prog = False
+#                                new_val += impact
+                                impact_list.append(impact)
+                                
+#                            print overflow_list
+                            
+                            # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
+                            # Otherwise renormalises impacts.
+                            if len(overflow_list) > 0 and sum(overflow_list) > 1:
+                                impact_list = np.multiply(impact_list, 1/sum(overflow_list))
+                                
+                                
+                            new_val += np.sum(impact_list)
+                
+                            # Handle impact constraints.
+                            # Note: This applies to any parameter that is impacted by the progset, not just for programs that are in the allocation.
+                            if 'constraints' in self.sim_settings and 'impacts' in self.sim_settings['constraints'] and par_label in self.sim_settings['constraints']['impacts']:
+                                try: vals = self.sim_settings['constraints']['impacts'][par_label]['vals']
+                                except: raise OptimaException('ERROR: An impact constraint was passed to the model for "%s" but had no values associated with it.' % par_label)
+                                if not len(vals) == 2: raise OptimaException('ERROR: Constraints for impact "%s" must be provided as a list or tuple of two values, i.e. a lower and an upper constraint.' % par_label)
+                                if new_val < vals[0]: new_val = vals[0]
+                                if new_val > vals[1]: new_val = vals[1]
 
                 for par in pars:
+                    
+                    year_check = 2015   # Hard-coded check.
+                    par_check = ['spdyes_rate','sndyes_rate']
+                    if par_label in par_check:
+                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
+                            print('Year: %s' % self.sim_settings['tvec'][ti])
+                            print('Target Population: %s' % pop.label)
+                            print('Target Parameter: %s' % par_label)
+                            print('Final Impact: %f' % new_val)
+                            print
+                    
                     par.vals[ti] = new_val
 
                     # Backup the values of parameters that are tagged with special rules.
