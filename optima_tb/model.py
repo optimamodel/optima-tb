@@ -284,37 +284,36 @@ class Model(object):
                 self.prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year)), 'impact':{}}
 
             else:
-                logger.warn("Program '%s' was not contained in init_alloc and not saturate --> therefore was not created" % prog.label)
-                # TODO fix this case, or alter the next if statement, as the next block assumes that prog.label exists as a key
-
+                logger.warn("Program '%s' was not contained in init_alloc and not saturated, therefore was not created." % prog.label)
 
             # Convert coverage into impact for programs.
-            if 'cov' in self.prog_vals[prog.label]:
-                cov = self.prog_vals[prog.label]['cov']
-
-                # Check if program attributes have multiple distinct values across time.
-                do_full_tvec_check = {}
-                for att_label in prog.attributes.keys():
-                    att_vals = prog.attributes[att_label]
-                    if len(set(att_vals[~np.isnan(att_vals)])) <= 1:
-                        do_full_tvec_check[att_label] = False
-                    else:
-                        do_full_tvec_check[att_label] = True
-
-                # If attributes change over time and coverage values are greater than zero, impact functions based on them need to be interpolated across all time.
-                # Otherwise interpolating for the very last timestep alone should be sufficient.
-                # This means impact values can be stored as full arrays, single-element arrays or scalars in the case that an impact function has no attributes.
-                for par_label in prog.target_pars:
-                    do_full_tvec = False
-                    if 'attribs' in prog.target_pars[par_label] and np.sum(cov) > project_settings.TOLERANCE:
-                        for att_label in prog.target_pars[par_label]['attribs'].keys():
-                            if att_label in do_full_tvec_check and do_full_tvec_check[att_label] is True:
-                                do_full_tvec = True
-                    if do_full_tvec is True:
-                        years = self.sim_settings['tvec']
-                    else:
-                        years = [self.sim_settings['tvec'][-1]]
-                    self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=self.parser, years=years, budget_is_coverage=True)
+            if prog.label in self.prog_vals:
+                if 'cov' in self.prog_vals[prog.label]:
+                    cov = self.prog_vals[prog.label]['cov']
+    
+                    # Check if program attributes have multiple distinct values across time.
+                    do_full_tvec_check = {}
+                    for att_label in prog.attributes.keys():
+                        att_vals = prog.attributes[att_label]
+                        if len(set(att_vals[~np.isnan(att_vals)])) <= 1:
+                            do_full_tvec_check[att_label] = False
+                        else:
+                            do_full_tvec_check[att_label] = True
+    
+                    # If attributes change over time and coverage values are greater than zero, impact functions based on them need to be interpolated across all time.
+                    # Otherwise interpolating for the very last timestep alone should be sufficient.
+                    # This means impact values can be stored as full arrays, single-element arrays or scalars in the case that an impact function has no attributes.
+                    for par_label in prog.target_pars:
+                        do_full_tvec = False
+                        if 'attribs' in prog.target_pars[par_label] and np.sum(cov) > project_settings.TOLERANCE:
+                            for att_label in prog.target_pars[par_label]['attribs'].keys():
+                                if att_label in do_full_tvec_check and do_full_tvec_check[att_label] is True:
+                                    do_full_tvec = True
+                        if do_full_tvec is True:
+                            years = self.sim_settings['tvec']
+                        else:
+                            years = [self.sim_settings['tvec'][-1]]
+                        self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=self.parser, years=years, budget_is_coverage=True)
 
 
     def build(self, settings, parset, progset=None, options=None):
