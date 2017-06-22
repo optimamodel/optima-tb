@@ -19,7 +19,7 @@ from optima_tb.dataio import saveObject, loadObject
 
 #%% PyQt imports
 
-def importpyqt():
+def importPyQt():
     ''' Try to import pyqt, either PyQt4 or PyQt5, but allow it to fail '''
     try:    
         from PyQt5 import QtCore as qtc
@@ -33,7 +33,7 @@ def importpyqt():
             raise Exception(errormsg)
     return  qtc, qtw
     
-qtc, qtw = importpyqt()
+qtc, qtw = importPyQt()
 
 #%% GUI classes
 
@@ -139,7 +139,8 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         self.resetAttributes()      # This call is to a derived method, representing a full GUI reset.
         project_name, project_name_chosen = qtw.QInputDialog.getText(self, 'Create Project', 'Enter project name:')
         if project_name_chosen:
-            cascade_path = qtw.QFileDialog.getOpenFileName(self, 'Select Cascade File')[0]
+            try: cascade_path = qtw.QFileDialog.getOpenFileNameAndFilter(self, 'Select Cascade File')[0]
+            except: cascade_path = qtw.QFileDialog.getOpenFileName(self, 'Select Cascade File')[0]
             try:
                 self.project = Project(name = project_name, cascade_path = cascade_path, validation_level = 'avert')
                 self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
@@ -149,7 +150,8 @@ class GUIProjectManagerBase(qtw.QMainWindow):
                 self.refreshVisibility()
                 return
                 
-            databook_path = qtw.QFileDialog.getOpenFileName(self, 'Select Databook File')[0]
+            try: databook_path = qtw.QFileDialog.getOpenFileNameAndFilter(self, 'Select Databook File')[0]
+            except: databook_path = qtw.QFileDialog.getOpenFileName(self, 'Select Databook File')[0]
             try:
                 self.project.loadSpreadsheet(databook_path = databook_path)
                 self.project.resetParsets()
@@ -162,7 +164,8 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         
     def importProject(self):
         self.resetAttributes()      # This call is to a derived method, representing a full GUI reset.
-        import_path = qtw.QFileDialog.getOpenFileName(self, 'Import Project From File')[0]
+        try: import_path = qtw.QFileDialog.getOpenFileNameAndFilter(self, 'Import Project From File')[0]
+        except: import_path = qtw.QFileDialog.getOpenFileName(self, 'Import Project From File')[0]
         try:
             self.project = loadObject(filename=import_path)
             self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0/2)
@@ -173,7 +176,8 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         self.refreshVisibility()
         
     def exportProject(self):
-        export_path = qtw.QFileDialog.getSaveFileName(self, 'Export Project To File')[0]
+        try: export_path = qtw.QFileDialog.getSaveFileNameAndFilter(self, 'Export Project To File')[0]
+        except: export_path = qtw.QFileDialog.getSaveFileName(self, 'Export Project To File')[0]
         try:
             saveObject(filename=export_path, obj=self.project)
             self.status = ('Status: Project "%s" successfully exported' % self.project.name)
