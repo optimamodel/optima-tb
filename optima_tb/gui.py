@@ -641,12 +641,55 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.refreshStatus()
 
 
+
+        
 class GUIParameterScenario(GUIResultPlotterIntermediate):
 
-    # funky classes in here
+    def __init__(self):
+        super(GUIParameterScenario, self).__init__()
+        self.initUIParameterScenario()
 
 
+    def resetAttributes(self):
+        self.resetAttributesProjectManager()
+        self.resetAttributesResultPlotter()
 
+        # Initialise attributes specific to your parameter scenario GUI.
+
+
+    def refreshVisibility(self):
+        self.refreshVisibilityProjectManager()
+        self.refreshVisibilityResultPlotter()
+
+        # Update the visibility of widgets depending on if they have anything to show.
+
+
+    def acknowledgeProject(self):
+        self.acknowledgeProjectProjectManager()
+        self.acknowledgeProjectResultPlotter()
+        
+        # If a project is loaded, do whatever initial pre-processing is needed.
+
+
+    # While UI initialisation can extend the interface, this method is where widgets for the core process should be set up.
+    def developLayout(self, layout):
+        self.developLayoutResultPlotter()
+
+        # Initialise all widgets specific to the GUI process.
+        # They will appear on the left side of the screen beneath the file menu and above the project plotter.
+
+
+    def initUICalibration(self):
+        self.resetAttributes()
+
+        self.setWindowTitle('Parameter Scenario')
+
+        self.refreshVisibility()
+        self.show()
+
+
+    # Whatever auxiliary functions you require to link to widgets and so on.
+    # E.g...
     def translateToParameterScenario(self, param_diag, param_linkage, param_treatment_succ, param_treatment_fail):
         """
         
@@ -657,6 +700,55 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         
         """
         return None # scvalues odict
+        
+    
+# DJK to CK: Do this one after the Parameter Scenario as I -might- get to it before you.
+class GUIBudgetScenario(GUIResultPlotterIntermediate):
+
+    def __init__(self):
+        super(GUIBudgetScenario, self).__init__()
+        self.initUIBudgetScenario()
+
+
+    def resetAttributes(self):
+        self.resetAttributesProjectManager()
+        self.resetAttributesResultPlotter()
+
+        # Initialise attributes specific to your budget scenario GUI.
+
+
+    def refreshVisibility(self):
+        self.refreshVisibilityProjectManager()
+        self.refreshVisibilityResultPlotter()
+
+        # Update the visibility of widgets depending on if they have anything to show.
+
+
+    def acknowledgeProject(self):
+        self.acknowledgeProjectProjectManager()
+        self.acknowledgeProjectResultPlotter()
+        
+        # If a project is loaded, do whatever initial pre-processing is needed.
+
+
+    # While UI initialisation can extend the interface, this method is where widgets for the core process should be set up.
+    def developLayout(self, layout):
+        self.developLayoutResultPlotter()
+
+        # Initialise all widgets specific to the GUI process.
+        # They will appear on the left side of the screen beneath the file menu and above the project plotter.
+
+
+    def initUICalibration(self):
+        self.resetAttributes()
+
+        self.setWindowTitle('Budget Scenario')
+
+        self.refreshVisibility()
+        self.show()
+
+
+    # Whatever auxiliary functions you require to link to widgets and so on.
 
 
 
