@@ -848,16 +848,22 @@ class Model(object):
                                             impact = 0.0
                                         else:
                                             impact = net_impact * source_element_size / source_set_size
-                                            
+                                
+                                # Calculate how excessive program coverage is for the provided budgets.
+                                # If coverage is a fraction, excess is compared to unity.
+                                # If coverage is a number, excess is compared to the total number of people available for coverage.
                                 overflow_factor = 0
-                                if float(source_set_size) <= project_settings.TOLERANCE:
-                                    overflow_factor = np.inf
-                                else:
-                                    overflow_factor = self.prog_vals[prog_label]['cov'] / float(source_set_size)
+                                if prog.cov_format == 'fraction':
+                                    overflow_factor = self.prog_vals[prog_label]['cov']
+                                elif prog.cov_format == 'number':
+                                    if float(source_set_size) <= project_settings.TOLERANCE:
+                                        overflow_factor = np.inf
+                                    else:
+                                        overflow_factor = self.prog_vals[prog_label]['cov'] / float(source_set_size)
                                 overflow_list.append(overflow_factor)
 
                                 year_check = 2015   # Hard-coded check.
-                                par_check = ['spdyes_rate','sndyes_rate']
+                                par_check = ['spdyes_rate','sndyes_rate']#['spdsuc_rate','spdno_rate']
                                 if par_label in par_check:
                                     if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
                                         print('Year: %s' % self.sim_settings['tvec'][ti])
@@ -867,7 +873,7 @@ class Model(object):
                                         print('Target Parameter: %s' % par_label)
                                         print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
                                         print('Program Coverage: %f' % self.prog_vals[prog_label]['cov'])
-                                        print('Program Impact: %f' % self.prog_vals[prog_label]['impact'][par_label])
+                                        print('Program Impact: %f' % net_impact)
                                         print('Program Impact Format: %s' % prog.cov_format)
                                         print('Source Compartment Size (Target Pop): %f' % source_element_size)
                                         print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
@@ -903,7 +909,7 @@ class Model(object):
                 for par in pars:
                     
                     year_check = 2015   # Hard-coded check.
-                    par_check = ['spdyes_rate','sndyes_rate']
+                    par_check = ['spdyes_rate','sndyes_rate']#['spdsuc_rate','spdno_rate']
                     if par_label in par_check:
                         if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
                             print('Year: %s' % self.sim_settings['tvec'][ti])
