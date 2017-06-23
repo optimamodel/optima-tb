@@ -862,24 +862,24 @@ class Model(object):
                                         overflow_factor = self.prog_vals[prog_label]['cov'] / float(source_set_size)
                                 overflow_list.append(overflow_factor)
 
-                                year_check = 2015   # Hard-coded check.
-                                par_check = ['spdyes_rate','sndyes_rate']#['spdsuc_rate','spdno_rate']
-                                if par_label in par_check:
-                                    if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
-                                        print('Year: %s' % self.sim_settings['tvec'][ti])
-                                        print('Program Name: %s' % prog.name)
-                                        print('Program %s: %f' % ('Coverage' if self.sim_settings['alloc_is_coverage'] else 'Budget', self.prog_vals[prog_label]['cost']))
-                                        print('Target Population: %s' % pop.label)
-                                        print('Target Parameter: %s' % par_label)
-                                        print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
-                                        print('Program Coverage: %f' % self.prog_vals[prog_label]['cov'])
-                                        print('Program Impact: %f' % net_impact)
-                                        print('Program Impact Format: %s' % prog.cov_format)
-                                        print('Source Compartment Size (Target Pop): %f' % source_element_size)
-                                        print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
-                                        print('Converted Impact: %f' % impact)
-                                        print('Converted Impact Format: %s' % pars[0].val_format)
-                                        print
+#                                year_check = 2015   # Hard-coded check.
+#                                par_check = ['spdno_rate','sndno_rate']#['spdsuc_rate','spdno_rate']
+#                                if par_label in par_check:
+#                                    if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
+#                                        print('Year: %s' % self.sim_settings['tvec'][ti])
+#                                        print('Program Name: %s' % prog.name)
+#                                        print('Program %s: %f' % ('Coverage' if self.sim_settings['alloc_is_coverage'] else 'Budget', self.prog_vals[prog_label]['cost']))
+#                                        print('Target Population: %s' % pop.label)
+#                                        print('Target Parameter: %s' % par_label)
+#                                        print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
+#                                        print('Program Coverage: %f' % self.prog_vals[prog_label]['cov'])
+#                                        print('Program Impact: %f' % net_impact)
+#                                        print('Program Impact Format: %s' % prog.cov_format)
+#                                        print('Source Compartment Size (Target Pop): %f' % source_element_size)
+#                                        print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
+#                                        print('Converted Impact: %f' % impact)
+#                                        print('Converted Impact Format: %s' % pars[0].val_format)
+#                                        print
 
                                 if first_prog: 
                                     new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
@@ -908,15 +908,15 @@ class Model(object):
 
                 for par in pars:
                     
-                    year_check = 2015   # Hard-coded check.
-                    par_check = ['spdyes_rate','sndyes_rate']#['spdsuc_rate','spdno_rate']
-                    if par_label in par_check:
-                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
-                            print('Year: %s' % self.sim_settings['tvec'][ti])
-                            print('Target Population: %s' % pop.label)
-                            print('Target Parameter: %s' % par_label)
-                            print('Final Impact: %f' % new_val)
-                            print
+#                    year_check = 2015   # Hard-coded check.
+#                    par_check = ['spdno_rate','sndno_rate']#['spdsuc_rate','spdno_rate']
+#                    if par_label in par_check:
+#                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
+#                            print('Year: %s' % self.sim_settings['tvec'][ti])
+#                            print('Target Population: %s' % pop.label)
+#                            print('Target Parameter: %s' % par_label)
+#                            print('Final Impact: %f' % new_val)
+#                            print
                     
                     par.vals[ti] = new_val
 
