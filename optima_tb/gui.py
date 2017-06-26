@@ -344,7 +344,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             self.combo_plotter_charac.addItem(charac_name)
             cid += 1
         if self.charac_plot_name is None:
-            self.charac_plot_name = self.combo_plotter_charac.itemText(self.combo_plotter_charac.currentIndex())
+            self.charac_plot_name = str(self.combo_plotter_charac.itemText(self.combo_plotter_charac.currentIndex()))
         self.combo_plotter_charac.setCurrentIndex(self.combo_charac_dict[self.charac_plot_name])
 
     def refreshPopComboBox(self):
@@ -356,7 +356,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             self.combo_plotter_pop.addItem(pop_name)
             pid += 1
         if self.pop_plot_name is None:
-            self.pop_plot_name = self.combo_plotter_pop.itemText(self.combo_plotter_pop.currentIndex())
+            self.pop_plot_name = str(self.combo_plotter_pop.itemText(self.combo_plotter_pop.currentIndex()))
         self.combo_plotter_pop.setCurrentIndex(self.combo_pop_dict[self.pop_plot_name])
 
     def selectResultOne(self, result_name):
