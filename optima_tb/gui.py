@@ -13,6 +13,8 @@ from optima_tb.project import Project
 from optima_tb.plotting import _plotLine
 from optima_tb.dataio import saveObject, loadObject
 from optima_tb.defaults import defaultOptimOptions
+from optima_tb.utils import odict
+from optima_tb.settings import DO_NOT_SCALE
 
 # %% PyQt imports
 
@@ -659,7 +661,9 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
     def __init__(self):
         super(GUIParameterScenario, self).__init__()
-        self.initUIParameterScenario()
+
+        print self.translateToParameterScenario({})
+#         self.initUIParameterScenario()
 
 
     def resetAttributes(self):
@@ -702,16 +706,78 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
     # Whatever auxiliary functions you require to link to widgets and so on.
     # E.g...
-    def translateToParameterScenario(self, param_diag, param_linkage, param_treatment_succ, param_treatment_fail):
+    def translateToParameterScenario(self, scenario_dict):
         """
         
-        using the returned scvalues, correct usage should be
-        
-        proj.createScenario(scvalues)
-        resultsset = proj.runScenarios()
+        Assumes self.project has been set. 
+
+        # NOTE: Currently uses dummy values for diagnosis / linkage / treatment. Uncomment when values are linked in from GUI
         
         """
-        return None # scvalues odict
+        # translate params in from scenario_dict
+        # NOTE: Currently uses dummy values. Uncomment when values are linked in from GUI
+        diag_param = 0.5 # scenario_dict['param_diag']
+        link_param = 0.5 # scenario_dict['param_link']
+        succ_param = 0.5 # scenario_dict['param_succ']
+        fail_param = 0.5 # scenario_dict['param_fail']
+        year_param = 2017. # scenario_dict['year']
+
+        # setup populations
+        pops = self.project.data['pops']['label_names'].keys()
+
+        # setup params
+        active_succ_bases = ['s%s%ssuc_rate']
+        active_link_bases = ['s%s%syes_rate']
+        active_fail_bases = ['s%s%sno_rate']
+        active_diag_bases = ['s%s%sdiag_rate']
+
+        smear = ['p', 'n']
+        strain = ['d', 'm', 'x']
+
+        active_succ_params = [base % (sm, st) for base in active_succ_bases for sm in smear for st in strain]
+        active_link_params = [base % (sm, st) for base in active_link_bases for sm in smear for st in strain]
+        active_fail_params = [base % (sm, st) for base in active_fail_bases for sm in smear for st in strain]
+        active_diag_params = [base % (sm, st) for base in active_diag_bases for sm in smear for st in strain]
+
+        # setup year
+        dt = self.project.settings.tvec_dt
+        year_end = self.project.settings.tvec_end
+
+        scenarios_years = np.arange(year_param, year_end, dt)
+
+        # setup scenario values structure:
+        values = odict()
+        values['Care Cascade'] = {'active_diag': diag_param,
+                                  'active_diag': link_param,
+                                  'active_diag': succ_param,
+                                  'active_fail' : fail_param}
+        # if we wanted further scenarios, include here
+        # ...
+
+        # generate scenario values dictionary
+        scen_values = odict()  # complete scenario values
+        for scenario in values.keys():
+            scvalues = odict()  # the core of the parameter values for each scenario
+
+            for paramclass in values[scenario].keys():
+                paramlist = locals()['%s_params' % paramclass]
+
+                for param in paramlist:
+                    scvalues[param] = odict()
+
+                    for pop_label in pops:
+
+                        scvalues[param][pop_label] = odict()
+                        scvalues[param][pop_label]['y_format'] = 'fraction'
+                        scvalues[param][pop_label]['y_factor'] = DO_NOT_SCALE
+                        scvalues[param][pop_label]['y'] = np.ones(scenarios_years.shape) * values[scenario][paramclass]
+                        scvalues[param][pop_label]['t'] = scenarios_years
+
+            scen_values[scenario] = { 'type': 'Parameter',
+                                      'overwrite' : True,
+                                      'run_scenario' : True,
+                                      'scenario_values': scvalues}
+        return scen_values
 
 
 # DJK to CK: Do this one after the Parameter Scenario as I -might- get to it before you.
