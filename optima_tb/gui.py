@@ -175,7 +175,9 @@ class GUIProjectManagerBase(qtw.QMainWindow):
             self.status = ('Status: Project "%s" successfully imported' % self.project.name)
         except:
             self.status = ('Status: Attempt to import Project failed')
+        print 'monchingo'
         self.refreshVisibility()
+        print 'aufu'
 
     def exportProject(self):
         try: export_path = str(qtw.QFileDialog.getSaveFileNameAndFilter(self, 'Export Project To File')[0])
@@ -648,8 +650,258 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
 
 
-        
+
+
 class GUIParameterScenario(GUIResultPlotterIntermediate):
+
+    def __init__(self):
+        super(GUIParameterScenario, self).__init__()
+        self.initUICalibration()
+
+
+    def resetAttributes(self):
+        self.resetAttributesProjectManager()
+        self.resetAttributesResultPlotter()
+
+        self.parset = None      # This is the ParameterSet object that stores all edits made in the GUI.
+                                # It should be an (edited) copy, not a reference, to an existing Project ParameterSet.
+        self.parset_name = None
+        self.combo_parset_dict = {}     # Dictionary that maps Parset names to indices used in combo boxes.
+        self.col_par_name = 0   # Column index for table calibration parameter names.
+        self.col_pop_name = 1   # Column index for table calibration population names.
+
+
+    def refreshVisibility(self):
+        print 'ohhhhohoho'
+        self.refreshVisibilityProjectManager()
+        print 'kanchi'
+        self.refreshVisibilityResultPlotter()
+        print 'ushia'
+
+        is_project_loaded = self.project is not None
+        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
+        
+        print 'mmmk'
+        print is_project_loaded
+        print is_project_loaded
+        print 'ohhhh'
+
+        if is_project_loaded:
+            self.refreshParsetComboBox()
+        self.label_parset.setVisible(is_project_loaded)
+        self.combo_parset.setVisible(is_project_loaded)
+
+        policy_min = qtw.QSizePolicy.Minimum
+        policy_exp = qtw.QSizePolicy.Expanding
+        if does_parset_exist:
+            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_min)
+            self.makeParsetTable()
+        else:
+            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+        self.table_calibration.setVisible(does_parset_exist)
+
+        self.label_model_run.setVisible(does_parset_exist)
+        self.edit_model_run.setVisible(does_parset_exist)
+        self.button_model_run.setVisible(does_parset_exist)
+        self.label_overwrite.setVisible(does_parset_exist)
+        self.edit_overwrite.setVisible(does_parset_exist)
+        self.button_overwrite.setVisible(does_parset_exist)
+
+
+    def acknowledgeProject(self):
+        self.acknowledgeProjectProjectManager()
+        self.acknowledgeProjectResultPlotter()
+        if not self.project is None:
+            if len(self.project.parsets) < 1:
+                self.project.makeParset(name='default')
+            self.loadCalibration(self.project.parsets[0].name, delay_refresh=True)
+
+
+    # While UI initialisation can extend the interface, this method is where widgets for the core process should be set up.
+    def developLayout(self, layout):
+        self.developLayoutResultPlotter()
+
+        # Widgets.
+        self.label_parset = qtw.QLabel('Parameter Set To Edit: ')
+        self.combo_parset = qtw.QComboBox(self)
+        self.combo_parset.activated[str].connect(self.loadCalibration)
+
+        self.table_calibration = qtw.QTableWidget()
+        self.table_calibration.cellChanged.connect(self.updateParset)
+
+        self.label_model_run = qtw.QLabel('Run Calibration Results As... ')
+        self.edit_model_run = qtw.QLineEdit()
+        self.button_model_run = qtw.QPushButton('Generate Results', self)
+        self.button_model_run.clicked.connect(self.runCalibration)
+
+        self.label_overwrite = qtw.QLabel('Save Edits To... ')
+        self.edit_overwrite = qtw.QLineEdit()
+        self.button_overwrite = qtw.QPushButton('Save Calibration', self)
+        self.button_overwrite.clicked.connect(self.saveCalibration)
+
+        # Layout.
+        grid_parset_load = qtw.QGridLayout()
+        grid_parset_load.setSpacing(10)
+
+        grid_parset_load.addWidget(self.label_parset, 0, 0)
+        grid_parset_load.addWidget(self.combo_parset, 0, 1)
+
+        grid_parset_save = qtw.QGridLayout()
+        grid_parset_save.setSpacing(10)
+
+        grid_parset_save.addWidget(self.label_model_run, 0, 0)
+        grid_parset_save.addWidget(self.edit_model_run, 0, 1)
+        grid_parset_save.addWidget(self.button_model_run, 0, 2)
+        grid_parset_save.addWidget(self.label_overwrite, 1, 0)
+        grid_parset_save.addWidget(self.edit_overwrite, 1, 1)
+        grid_parset_save.addWidget(self.button_overwrite, 1, 2)
+
+        layout.addLayout(grid_parset_load)
+        layout.addWidget(self.table_calibration)
+        layout.addLayout(grid_parset_save)
+
+
+    def initUICalibration(self):
+        self.resetAttributes()
+
+        self.setWindowTitle('Manual Calibration')
+
+        self.refreshVisibility()
+        self.show()
+
+
+    def refreshParsetComboBox(self):
+        self.combo_parset_dict = {}
+        self.combo_parset.clear()
+        pid = 0
+        for parset_name in self.project.parsets.keys():
+            self.combo_parset_dict[parset_name] = pid
+            self.combo_parset.addItem(parset_name)
+            pid += 1
+        try: self.combo_parset.setCurrentIndex(self.combo_parset_dict[self.parset_name])
+        except: pass
+
+
+    def loadCalibration(self, parset_name, delay_refresh=False):
+        self.parset_name = parset_name
+        self.parset = dcp(self.project.parsets[parset_name])
+        self.status = ('Status: Parset "%s" selected for editing' % parset_name)
+        if not delay_refresh:
+            self.refreshVisibility()
+
+    def runCalibration(self):
+        self.status = ('Status: Running model for Parset "%s"' % self.parset_name)
+        self.refreshStatus()
+        result_name = self.edit_model_run.text()
+        if result_name == '':
+            result_name = None
+        self.project.runSim(parset=self.parset, store_results=True, result_name=result_name)
+        self.status = ('Status: Model successfully processed for Parset "%s"' % self.parset_name)
+        self.refreshVisibility()
+
+    def saveCalibration(self):
+        parset_name = self.edit_overwrite.text()
+        if parset_name == '':
+            self.status = ('Status: Attempt to save Parset failed, no name provided')
+        else:
+            if parset_name in self.project.parsets.keys():
+                self.status = ('Status: Parset "%s" successfully overwritten' % parset_name)
+            else:
+                self.status = ('Status: New Parset "%s" added to Project' % parset_name)
+            self.parset.name = parset_name
+            self.project.parsets[parset_name] = dcp(self.parset)
+        self.refreshVisibility()
+
+
+    def makeParsetTable(self):
+        self.table_calibration.setVisible(False)    # Resizing columns requires table to be hidden first.
+        self.table_calibration.clear()
+
+        # Disconnect the calibration table from cell change signals to avoid signal flooding during connection.
+        try: self.table_calibration.cellChanged.disconnect()
+        except: pass
+
+        parset = self.parset
+        num_pops = len(parset.pop_labels)
+        row_count = num_pops * (len(parset.pars['cascade']) - len(self.project.settings.par_funcs))
+        self.table_calibration.setRowCount(row_count)
+        self.table_calibration.setColumnCount(2 + len(self.tvec))
+        self.calibration_items = []
+
+        k = 0
+        par_labels = []
+        for par_type in ['characs', 'cascade']:
+            for par in parset.pars[par_type]:
+                if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or (par_type == 'characs' and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
+                    for pid in xrange(len(parset.pop_labels)):
+                        pop_label = parset.pop_labels[pid]
+                        par_labels.append(par.label + ' [' + pop_label + ']')
+                        try:
+                            par_name = self.project.settings.linkpar_specs[par.label]['name']
+                        except:
+                            par_name = self.project.settings.charac_specs[par.label]['name']
+                        temp = qtw.QTableWidgetItem()
+                        temp.setText(par_name)
+                        temp.setFlags(qtc.Qt.ItemIsEnabled or qtc.Qt.ItemIsSelectable)
+                        self.table_calibration.setItem(k * num_pops + pid, self.col_par_name, temp)
+                        temp = qtw.QTableWidgetItem()
+                        temp.setText(parset.pop_names[pid])
+                        temp.setFlags(qtc.Qt.ItemIsEnabled or qtc.Qt.ItemIsSelectable)
+                        self.table_calibration.setItem(k * num_pops + pid, self.col_pop_name, temp)
+
+                        for eid in xrange(len(par.t[pid])):
+                            t = par.t[pid][eid]
+                            y = par.y[pid][eid]
+                            temp = qtw.QTableWidgetItem()
+                            temp.setText(str(y))
+                            self.table_calibration.setItem(k * num_pops + pid, 2 + int(t) - self.tvec[0], temp)
+                    k += 1
+        self.table_calibration.setVerticalHeaderLabels(par_labels)
+        self.table_calibration.setHorizontalHeaderLabels(['Par. Name', 'Pop. Name'] + [str(int(x)) for x in self.tvec])
+        self.table_calibration.resizeColumnsToContents()
+
+        self.table_calibration.cellChanged.connect(self.updateParset)
+
+
+    def updateParset(self, row, col):
+        new_val_str = str(self.table_calibration.item(row, col).text())
+        year = float(str(self.table_calibration.horizontalHeaderItem(col).text()))
+
+        par_name = str(self.table_calibration.item(row, self.col_par_name).text())
+        pop_name = str(self.table_calibration.item(row, self.col_pop_name).text())
+        try:
+            par_label = self.project.settings.linkpar_name_labels[par_name]
+        except:
+            par_label = self.project.settings.charac_name_labels[par_name]
+        pop_label = self.project.data['pops']['name_labels'][pop_name]
+
+        par = self.parset.getPar(par_label)
+        try:
+            new_val = float(new_val_str)
+        except:
+            if new_val_str == '':
+                remove_success = par.removeValueAt(t=year, pop_label=pop_label)
+                if remove_success:
+                    self.status = ('Status: Value successfully deleted from Parset')
+                    self.refreshStatus()
+                    return
+                else: self.status = ('Status: Attempt to remove item in Parset failed, at least one value per row required')
+            else: self.status = ('Status: Attempt to edit item in Parset failed, only numbers allowed')
+            self.refreshStatus()
+            self.guard_status = True
+            self.table_calibration.item(row, col).setText(str(par.interpolate(tvec=[year], pop_label=pop_label)[0]))
+            self.guard_status = False
+            return
+        par.insertValuePair(t=year, y=new_val, pop_label=pop_label)
+        self.status = ('Status: Current edited Parset uses value "%f" for parameter "%s", population "%s", year "%i"' % (new_val, par_label, pop_label, year))
+        self.refreshStatus()
+
+
+
+
+
+        
+class GUIParameterScenario2(GUIResultPlotterIntermediate):
 
     def __init__(self):
         super(GUIParameterScenario, self).__init__()
@@ -664,10 +916,36 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
 
     def refreshVisibility(self):
+        print 'ohhhhohoho'
         self.refreshVisibilityProjectManager()
+        print 'kanchi'
         self.refreshVisibilityResultPlotter()
+        print 'ushia'
 
         # Update the visibility of widgets depending on if they have anything to show.
+        is_project_loaded = self.project is not None
+        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
+
+        if is_project_loaded:
+            self.refreshParsetComboBox()
+        self.label_parset.setVisible(is_project_loaded)
+        self.combo_parset.setVisible(is_project_loaded)
+
+        policy_min = qtw.QSizePolicy.Minimum
+        policy_exp = qtw.QSizePolicy.Expanding
+        if does_parset_exist:
+            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_min)
+            self.makeParsetTable()
+        else:
+            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+        self.table_calibration.setVisible(does_parset_exist)
+
+        self.label_model_run.setVisible(does_parset_exist)
+        self.edit_model_run.setVisible(does_parset_exist)
+        self.button_model_run.setVisible(does_parset_exist)
+        self.label_overwrite.setVisible(does_parset_exist)
+        self.edit_overwrite.setVisible(does_parset_exist)
+        self.button_overwrite.setVisible(does_parset_exist)
 
 
     def acknowledgeProject(self):
@@ -684,8 +962,47 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         # Initialise all widgets specific to the GUI process.
         # They will appear on the left side of the screen beneath the file menu and above the project plotter.
 
+        # Widgets.
+        self.label_parset = qtw.QLabel('Parameter Set To Edit: ')
+        self.combo_parset = qtw.QComboBox(self)
+        self.combo_parset.activated[str].connect(self.loadCalibration)
 
-    def initUICalibration(self):
+        self.table_calibration = qtw.QTableWidget()
+        self.table_calibration.cellChanged.connect(self.updateParset)
+
+        self.label_model_run = qtw.QLabel('Run Calibration Results As... ')
+        self.edit_model_run = qtw.QLineEdit()
+        self.button_model_run = qtw.QPushButton('Generate Results', self)
+        self.button_model_run.clicked.connect(self.runCalibration)
+
+        self.label_overwrite = qtw.QLabel('Save Edits To... ')
+        self.edit_overwrite = qtw.QLineEdit()
+        self.button_overwrite = qtw.QPushButton('Save Calibration', self)
+        self.button_overwrite.clicked.connect(self.saveCalibration)
+
+        # Layout.
+        grid_parset_load = qtw.QGridLayout()
+        grid_parset_load.setSpacing(10)
+
+        grid_parset_load.addWidget(self.label_parset, 0, 0)
+        grid_parset_load.addWidget(self.combo_parset, 0, 1)
+
+        grid_parset_save = qtw.QGridLayout()
+        grid_parset_save.setSpacing(10)
+
+        grid_parset_save.addWidget(self.label_model_run, 0, 0)
+        grid_parset_save.addWidget(self.edit_model_run, 0, 1)
+        grid_parset_save.addWidget(self.button_model_run, 0, 2)
+        grid_parset_save.addWidget(self.label_overwrite, 1, 0)
+        grid_parset_save.addWidget(self.edit_overwrite, 1, 1)
+        grid_parset_save.addWidget(self.button_overwrite, 1, 2)
+
+        layout.addLayout(grid_parset_load)
+        layout.addWidget(self.table_calibration)
+        layout.addLayout(grid_parset_save)
+
+
+    def initUIParameterScenario(self):
         self.resetAttributes()
 
         self.setWindowTitle('Parameter Scenario')
