@@ -542,7 +542,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
     def runCalibration(self):
         self.status = ('Status: Running model for Parset "%s"' % self.parset_name)
         self.refreshStatus()
-        result_name = self.edit_model_run.text()
+        result_name = str(self.edit_model_run.text())
         if result_name == '':
             result_name = None
         self.project.runSim(parset=self.parset, store_results=True, result_type='calibration', result_name=result_name)
@@ -551,7 +551,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.refreshVisibility()
 
     def saveCalibration(self):
-        parset_name = self.edit_overwrite.text()
+        parset_name = str(self.edit_overwrite.text())
         if parset_name == '':
             self.status = ('Status: Attempt to save Parset failed, no name provided')
         else:
@@ -865,7 +865,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     def runBudgetScenario(self):
         self.status = ('Status: Running model for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
         self.refreshStatus()
-        result_name = self.edit_model_run.text()
+        result_name = str(self.edit_model_run.text())
         if result_name == '':
             result_name = None
         self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, options=self.options, store_results=True, result_type='scen_budget', result_name=result_name)
