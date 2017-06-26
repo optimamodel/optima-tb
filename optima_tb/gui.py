@@ -8,7 +8,6 @@ logger = logging.getLogger()
 from matplotlib import pyplot as pp
 pp.ioff()   # Turn off interactive mode.
 
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 import sys
 import numpy as np
 from copy import deepcopy as dcp
@@ -25,10 +24,12 @@ def importPyQt():
     try:
         from PyQt5 import QtCore as qtc
         from PyQt5 import QtWidgets as qtw
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
     except:
         try:
             from PyQt4 import QtGui as qtw
             from PyQt4 import QtCore as qtc
+            from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
         except Exception as E:
             errormsg = 'PyQt could not be imported: %s' % E.__repr__()
             raise Exception(errormsg)
