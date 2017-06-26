@@ -262,8 +262,6 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
     def initUIResultPlotter(self):
         self.resetAttributesResultPlotter()    # This call is specific to base class attributes.
 
-#        self.setWindowTitle('Result Plotter')
-
         # Widgets.
         self.label_plotter_result_1 = qtw.QLabel('Select First Result: ')
         self.combo_plotter_result_1 = qtw.QComboBox(self)
@@ -655,10 +653,10 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
     def __init__(self):
         super(GUIParameterScenario, self).__init__()
-        self.initUICalibration()
+        self.initUIParameterScenario()
     
     
-    def initUICalibration(self):
+    def initUIParameterScenario(self):
         self.resetAttributes()
 
         self.setWindowTitle('Parameter Scenarios')
@@ -670,13 +668,50 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
     def resetAttributes(self):
         self.resetAttributesProjectManager()
         self.resetAttributesResultPlotter()
-
-        self.parset = None      # This is the ParameterSet object that stores all edits made in the GUI.
-                                # It should be an (edited) copy, not a reference, to an existing Project ParameterSet.
+        self.parset = None      # This is the ParameterSet object used as the base of the scenario
         self.parset_name = None
-        self.combo_parset_dict = {}     # Dictionary that maps Parset names to indices used in combo boxes.
-        self.col_par_name = 0   # Column index for table calibration parameter names.
-        self.col_pop_name = 1   # Column index for table calibration population names.
+        self.scenario_dict = {} # This stores all the scenario values
+    
+    
+    # While UI initialisation can extend the interface, this method is where widgets for the core process should be set up.
+    def developLayout(self, layout):
+        self.developLayoutResultPlotter()
+
+        # Widgets.
+        self.label_parset = qtw.QLabel('Parameter Set To Edit: ')
+        self.combo_parset = qtw.QComboBox(self)
+        self.combo_parset.activated[str].connect(self.loadCalibration)
+
+        self.label_model_run = qtw.QLabel('Run Scenario Results As... ')
+        self.edit_model_run = qtw.QLineEdit()
+        self.button_model_run = qtw.QPushButton('Generate Results', self)
+        self.button_model_run.clicked.connect(self.runCalibration)
+
+        self.label_overwrite = qtw.QLabel('Save Edits To... ')
+        self.edit_overwrite = qtw.QLineEdit()
+        self.button_overwrite = qtw.QPushButton('Save Calibration', self)
+        self.button_overwrite.clicked.connect(self.saveCalibration)
+
+        # Layout.
+        grid_parset_load = qtw.QGridLayout()
+        grid_parset_load.setSpacing(10)
+
+        grid_parset_load.addWidget(self.label_parset, 0, 0)
+        grid_parset_load.addWidget(self.combo_parset, 0, 1)
+
+        grid_parset_save = qtw.QGridLayout()
+        grid_parset_save.setSpacing(10)
+
+        grid_parset_save.addWidget(self.label_model_run, 0, 0)
+        grid_parset_save.addWidget(self.edit_model_run, 0, 1)
+        grid_parset_save.addWidget(self.button_model_run, 0, 2)
+        grid_parset_save.addWidget(self.label_overwrite, 1, 0)
+        grid_parset_save.addWidget(self.edit_overwrite, 1, 1)
+        grid_parset_save.addWidget(self.button_overwrite, 1, 2)
+
+        layout.addLayout(grid_parset_load)
+        layout.addWidget(self.table_calibration)
+        layout.addLayout(grid_parset_save)
 
 
     def refreshVisibility(self):
@@ -715,50 +750,6 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
             if len(self.project.parsets) < 1:
                 self.project.makeParset(name='default')
             self.loadCalibration(self.project.parsets[0].name, delay_refresh=True)
-
-
-    # While UI initialisation can extend the interface, this method is where widgets for the core process should be set up.
-    def developLayout(self, layout):
-        self.developLayoutResultPlotter()
-
-        # Widgets.
-        self.label_parset = qtw.QLabel('Parameter Set To Edit: ')
-        self.combo_parset = qtw.QComboBox(self)
-        self.combo_parset.activated[str].connect(self.loadCalibration)
-
-        self.table_calibration = qtw.QTableWidget()
-        self.table_calibration.cellChanged.connect(self.updateParset)
-
-        self.label_model_run = qtw.QLabel('Run Calibration Results As... ')
-        self.edit_model_run = qtw.QLineEdit()
-        self.button_model_run = qtw.QPushButton('Generate Results', self)
-        self.button_model_run.clicked.connect(self.runCalibration)
-
-        self.label_overwrite = qtw.QLabel('Save Edits To... ')
-        self.edit_overwrite = qtw.QLineEdit()
-        self.button_overwrite = qtw.QPushButton('Save Calibration', self)
-        self.button_overwrite.clicked.connect(self.saveCalibration)
-
-        # Layout.
-        grid_parset_load = qtw.QGridLayout()
-        grid_parset_load.setSpacing(10)
-
-        grid_parset_load.addWidget(self.label_parset, 0, 0)
-        grid_parset_load.addWidget(self.combo_parset, 0, 1)
-
-        grid_parset_save = qtw.QGridLayout()
-        grid_parset_save.setSpacing(10)
-
-        grid_parset_save.addWidget(self.label_model_run, 0, 0)
-        grid_parset_save.addWidget(self.edit_model_run, 0, 1)
-        grid_parset_save.addWidget(self.button_model_run, 0, 2)
-        grid_parset_save.addWidget(self.label_overwrite, 1, 0)
-        grid_parset_save.addWidget(self.edit_overwrite, 1, 1)
-        grid_parset_save.addWidget(self.button_overwrite, 1, 2)
-
-        layout.addLayout(grid_parset_load)
-        layout.addWidget(self.table_calibration)
-        layout.addLayout(grid_parset_save)
 
 
     def refreshParsetComboBox(self):
