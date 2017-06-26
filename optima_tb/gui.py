@@ -8,7 +8,7 @@ logger = logging.getLogger()
 from matplotlib import pyplot as pp
 pp.ioff()   # Turn off interactive mode.
 
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+
 import sys
 import numpy as np
 from copy import deepcopy as dcp
@@ -24,16 +24,18 @@ def importPyQt():
     try:
         from PyQt5 import QtCore as qtc
         from PyQt5 import QtWidgets as qtw
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
     except:
         try:
             from PyQt4 import QtGui as qtw
             from PyQt4 import QtCore as qtc
+            from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
         except Exception as E:
             errormsg = 'PyQt could not be imported: %s' % E.__repr__()
             raise Exception(errormsg)
-    return  qtc, qtw
+    return  qtc, qtw, FigureCanvasQTAgg
 
-qtc, qtw = importPyQt()
+qtc, qtw, FigureCanvasQTAgg = importPyQt()
 
 # %% GUI classes
 
@@ -378,9 +380,13 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             self.plotter_layout.itemAt(i).widget().setParent(None)
 
         if self.result_1_plot_name is None or self.result_2_plot_name is None:
-            self.status = ('Status: No results could be selected for plotting purposes')
+            self.status = ('Status: No results selected, using default(s)')
             self.refreshVisibility()
-            return
+            defaultkey = self.project.results.keys()[0]
+            if self.result_1_plot_name is None:
+                self.result_1_plot_name = defaultkey
+            if self.result_2_plot_name is None:
+                self.result_2_plot_name = defaultkey
 
         if self.charac_plot_name is not None and self.pop_plot_name is not None:
 
