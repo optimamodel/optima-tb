@@ -360,16 +360,16 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.combo_plotter_pop.setCurrentIndex(self.combo_pop_dict[self.pop_plot_name])
 
     def selectResultOne(self, result_name):
-        self.result_1_plot_name = result_name
+        self.result_1_plot_name = str(result_name)
 
     def selectResultTwo(self, result_name):
-        self.result_2_plot_name = result_name
+        self.result_2_plot_name = str(result_name)
 
     def selectCharacteristic(self, charac_name):
-        self.charac_plot_name = charac_name
+        self.charac_plot_name = str(charac_name)
 
     def selectPopulation(self, pop_name):
-        self.pop_plot_name = pop_name
+        self.pop_plot_name = str(pop_name)
         
     # When a calibration or scenario is run, results should be acknowledged.
     # This means that result name references for the plotter should be linked to the first and last results in the project.
@@ -533,9 +533,9 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
 
     def loadCalibration(self, parset_name, delay_refresh=False):
-        self.parset_name = parset_name
-        self.parset = dcp(self.project.parsets[parset_name])
-        self.status = ('Status: Parset "%s" selected for editing' % parset_name)
+        self.parset_name = str(parset_name)
+        self.parset = dcp(self.project.parsets[self.parset_name])
+        self.status = ('Status: Parset "%s" selected for editing' % self.parset_name)
         if not delay_refresh:
             self.refreshVisibility()
 
@@ -848,17 +848,17 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         except: pass
 
     def loadCalibration(self, parset_name, delay_refresh=False):
-        self.parset_name = parset_name
-        self.parset = dcp(self.project.parsets[parset_name])
-        self.status = ('Status: Parset "%s" selected for budget scenario' % parset_name)
+        self.parset_name = str(parset_name)
+        self.parset = dcp(self.project.parsets[self.parset_name])
+        self.status = ('Status: Parset "%s" selected for budget scenario' % self.parset_name)
         if not delay_refresh:
             self.refreshVisibility()
             
     def loadPrograms(self, progset_name, delay_refresh=False):
-        self.progset_name = progset_name
+        self.progset_name = str(progset_name)
 #        self.progset = dcp(self.project.progsets[progset_name])
         self.options = defaultOptimOptions(settings = self.project.settings, progset = self.project.progsets[self.progset_name])
-        self.status = ('Status: Progset "%s" selected for budget scenario' % progset_name)
+        self.status = ('Status: Progset "%s" selected for budget scenario' % self.progset_name)
         if not delay_refresh:
             self.refreshVisibility()
             
