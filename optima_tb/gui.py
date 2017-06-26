@@ -380,9 +380,9 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             self.plotter_layout.itemAt(i).widget().setParent(None)
 
         if self.result_1_plot_name is None or self.result_2_plot_name is None:
-            self.status = ('Status: No results selected, using default(s)')
+            self.status = ('Status: Plotting default selection(s)')
             self.refreshVisibility()
-            defaultkey = self.project.results.keys()[0]
+            defaultkey = self.project.results.keys()[0] # If not selected, just pick the first key
             if self.result_1_plot_name is None:
                 self.result_1_plot_name = defaultkey
             if self.result_2_plot_name is None:
@@ -472,7 +472,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.developLayoutResultPlotter()
 
         # Widgets.
-        self.label_parset = qtw.QLabel('Parset To Edit: ')
+        self.label_parset = qtw.QLabel('Parameter Set To Edit: ')
         self.combo_parset = qtw.QComboBox(self)
         self.combo_parset.activated[str].connect(self.loadCalibration)
 
