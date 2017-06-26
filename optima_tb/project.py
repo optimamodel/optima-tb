@@ -62,7 +62,7 @@ class Project(object):
             self.settings.tvec_end = yearRange[1]
     
     
-    def runSim(self, parset = None, parset_name = 'default', progset = None, progset_name = None, options = None, plot = False, debug = False, store_results = True, result_name = None):
+    def runSim(self, parset = None, parset_name = 'default', progset = None, progset_name = None, options = None, plot = False, debug = False, store_results = True, result_type = None, result_name = None):
         ''' Run model using a selected parset and store/return results. '''
         
         if parset is None:
@@ -97,6 +97,8 @@ class Project(object):
                 result_name = parset.name
                 if not progset is None:
                     result_name = result_name + '_' + progset.name
+                if result_type is not None:
+                    result_name = result_type + '_' + result_name
                 k = 1
                 while k > 0:
                     result_name_attempt = result_name + '_' + str(k)
