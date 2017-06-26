@@ -72,7 +72,7 @@ class GUI(qtw.QWidget):
         self.sub_gui = GUIResultPlotterIntermediate()
 
     def runGUIScenarioBudget(self):
-        self.sub_gui = GUIProjectManagerBase()
+        self.sub_gui = GUIBudgetScenario()
 
 
 # A base GUI class that enables project creation, import and export.
@@ -473,7 +473,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.table_calibration = qtw.QTableWidget()
         self.table_calibration.cellChanged.connect(self.updateParset)
 
-        self.label_model_run = qtw.QLabel('Run Calibration Results As... ')
+        self.label_model_run = qtw.QLabel('Run & Save Calibration Results As... ')
         self.edit_model_run = qtw.QLineEdit()
         self.button_model_run = qtw.QPushButton('Generate Results', self)
         self.button_model_run.clicked.connect(self.runCalibration)
@@ -713,6 +713,11 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     def resetAttributes(self):
         self.resetAttributesProjectManager()
         self.resetAttributesResultPlotter()
+        
+        self.parset_name = None
+        self.progset_name = None
+        self.combo_parset_dict = {}     # Dictionary that maps Parset names to indices used in combo boxes.
+        self.combo_progset_dict = {}    # Dictionary that maps Progset names to indices used in combo boxes.
 
         # Initialise attributes specific to your budget scenario GUI.
 
@@ -720,6 +725,31 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     def refreshVisibility(self):
         self.refreshVisibilityProjectManager()
         self.refreshVisibilityResultPlotter()
+        
+        is_project_loaded = self.project is not None
+        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
+        does_progset_exist = is_project_loaded and len(self.project.progsets.keys()) > 0
+
+        if is_project_loaded:
+            self.refreshParsetComboBox()
+#            self.refreshProgsetComboBox()
+        self.label_parset.setVisible(is_project_loaded)
+        self.combo_parset.setVisible(is_project_loaded)
+        self.label_progset.setVisible(is_project_loaded)
+        self.combo_progset.setVisible(is_project_loaded)
+
+#        policy_min = qtw.QSizePolicy.Minimum
+#        policy_exp = qtw.QSizePolicy.Expanding
+#        if does_parset_exist:
+#            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_min)
+#            self.makeParsetTable()
+#        else:
+#            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+#        self.table_calibration.setVisible(does_parset_exist)
+
+        self.label_model_run.setVisible(does_parset_exist & does_progset_exist)
+        self.edit_model_run.setVisible(does_parset_exist & does_progset_exist)
+        self.button_model_run.setVisible(does_parset_exist & does_progset_exist)
 
         # Update the visibility of widgets depending on if they have anything to show.
 
@@ -727,6 +757,10 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     def acknowledgeProject(self):
         self.acknowledgeProjectProjectManager()
         self.acknowledgeProjectResultPlotter()
+        if not self.project is None:
+            if len(self.project.parsets) < 1:
+                self.project.makeParset(name='default')
+            self.loadCalibration(self.project.parsets[0].name, delay_refresh=True)
         
         # If a project is loaded, do whatever initial pre-processing is needed.
 
@@ -734,21 +768,85 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     # While UI initialisation can extend the interface, this method is where widgets for the core process should be set up.
     def developLayout(self, layout):
         self.developLayoutResultPlotter()
+        
+        # Widgets.
+        self.label_parset = qtw.QLabel('Parset To Use: ')
+        self.combo_parset = qtw.QComboBox(self)
+        self.combo_parset.activated[str].connect(self.loadCalibration)
+        
+        self.label_progset = qtw.QLabel('Progset To Use: ')
+        self.combo_progset = qtw.QComboBox(self)
+        self.combo_progset.activated[str].connect(self.loadPrograms)
 
-        # Initialise all widgets specific to the GUI process.
-        # They will appear on the left side of the screen beneath the file menu and above the project plotter.
+        self.label_model_run = qtw.QLabel('Run & Save Budget Scenario Results As... ')
+        self.edit_model_run = qtw.QLineEdit()
+        self.button_model_run = qtw.QPushButton('Generate Results', self)
+        self.button_model_run.clicked.connect(self.runBudgetScenario)
+
+        # Layout.
+        grid_progset_load = qtw.QGridLayout()
+        grid_progset_load.setSpacing(10)
+
+        grid_progset_load.addWidget(self.label_parset, 0, 0)
+        grid_progset_load.addWidget(self.combo_parset, 0, 1)
+        grid_progset_load.addWidget(self.label_progset, 1, 0)
+        grid_progset_load.addWidget(self.combo_progset, 1, 1)
+
+        grid_progset_save = qtw.QGridLayout()
+        grid_progset_save.setSpacing(10)
+
+        grid_progset_save.addWidget(self.label_model_run, 0, 0)
+        grid_progset_save.addWidget(self.edit_model_run, 0, 1)
+        grid_progset_save.addWidget(self.button_model_run, 0, 2)
+
+        layout.addLayout(grid_progset_load)
+#        layout.addWidget(self.table_calibration)
+        layout.addLayout(grid_progset_save)
 
 
-    def initUICalibration(self):
+    def initUIBudgetScenario(self):
         self.resetAttributes()
 
         self.setWindowTitle('Budget Scenario')
 
         self.refreshVisibility()
         self.show()
+        
+        
+    def refreshParsetComboBox(self):
+        self.combo_parset_dict = {}
+        self.combo_parset.clear()
+        pid = 0
+        for parset_name in self.project.parsets.keys():
+            self.combo_parset_dict[parset_name] = pid
+            self.combo_parset.addItem(parset_name)
+            pid += 1
+        try: self.combo_parset.setCurrentIndex(self.combo_parset_dict[self.parset_name])
+        except: pass
 
-
-    # Whatever auxiliary functions you require to link to widgets and so on.
+    def loadCalibration(self, parset_name, delay_refresh=False):
+        self.parset_name = parset_name
+        self.parset = dcp(self.project.parsets[parset_name])
+        self.status = ('Status: Parset "%s" selected for budget scenario' % parset_name)
+        if not delay_refresh:
+            self.refreshVisibility()
+            
+    def loadPrograms(self, progset_name, delay_refresh=False):
+        self.progset_name = progset_name
+        self.progset = dcp(self.project.progsets[progset_name])
+        self.status = ('Status: Progset "%s" selected for budget scenario' % progset_name)
+        if not delay_refresh:
+            self.refreshVisibility()
+            
+    def runBudgetScenario(self):
+        self.status = ('Status: Running model for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
+        self.refreshStatus()
+        result_name = self.edit_model_run.text()
+        if result_name == '':
+            result_name = None
+        self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, store_results=True, result_name=result_name)
+        self.status = ('Status: Model successfully processed for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
+        self.refreshVisibility()
 
 
 
