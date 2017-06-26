@@ -244,9 +244,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.acknowledgeProjectResultPlotter()
     def acknowledgeProjectResultPlotter(self):
         if self.project is not None:
-            if len(self.project.results) > 0:
-                self.result_1_plot_name = self.project.results.keys()[0]
-                self.result_2_plot_name = self.project.results.keys()[0]
+            self.acknowledgeResults()
 
 
     # The following wrapper function can be overloaded by derived classes.
@@ -371,6 +369,13 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
 
     def selectPopulation(self, pop_name):
         self.pop_plot_name = pop_name
+        
+    # When a calibration or scenario is run, results should be acknowledged.
+    # This means that result name references for the plotter should be linked to the first and last results in the project.
+    def acknowledgeResults(self):
+        if len(self.project.results) > 0:
+                self.result_1_plot_name = self.project.results.keys()[0]
+                self.result_2_plot_name = self.project.results.keys()[-1]
 
     def showPlots(self):
         # Clear plots.
@@ -493,12 +498,12 @@ class GUICalibration(GUIResultPlotterIntermediate):
         grid_parset_save = qtw.QGridLayout()
         grid_parset_save.setSpacing(10)
 
-        grid_parset_save.addWidget(self.label_model_run, 0, 0)
-        grid_parset_save.addWidget(self.edit_model_run, 0, 1)
-        grid_parset_save.addWidget(self.button_model_run, 0, 2)
-        grid_parset_save.addWidget(self.label_overwrite, 1, 0)
-        grid_parset_save.addWidget(self.edit_overwrite, 1, 1)
-        grid_parset_save.addWidget(self.button_overwrite, 1, 2)
+        grid_parset_save.addWidget(self.label_overwrite, 0, 0)
+        grid_parset_save.addWidget(self.edit_overwrite, 0, 1)
+        grid_parset_save.addWidget(self.button_overwrite, 0, 2)
+        grid_parset_save.addWidget(self.label_model_run, 1, 0)
+        grid_parset_save.addWidget(self.edit_model_run, 1, 1)
+        grid_parset_save.addWidget(self.button_model_run, 1, 2)
 
         layout.addLayout(grid_parset_load)
         layout.addWidget(self.table_calibration)
@@ -539,7 +544,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
         result_name = self.edit_model_run.text()
         if result_name == '':
             result_name = None
-        self.project.runSim(parset=self.parset, store_results=True, result_name=result_name)
+        self.project.runSim(parset=self.parset, store_results=True, result_type='calibration', result_name=result_name)
+        self.acknowledgeResults()
         self.status = ('Status: Model successfully processed for Parset "%s"' % self.parset_name)
         self.refreshVisibility()
 
@@ -732,7 +738,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
 
         if is_project_loaded:
             self.refreshParsetComboBox()
-#            self.refreshProgsetComboBox()
+            self.refreshProgsetComboBox()
         self.label_parset.setVisible(is_project_loaded)
         self.combo_parset.setVisible(is_project_loaded)
         self.label_progset.setVisible(is_project_loaded)
@@ -761,6 +767,9 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
             if len(self.project.parsets) < 1:
                 self.project.makeParset(name='default')
             self.loadCalibration(self.project.parsets[0].name, delay_refresh=True)
+            if len(self.project.progsets) < 1:
+                self.project.makeProgset(name='default')
+            self.loadPrograms(self.project.progsets[0].name, delay_refresh=True)
         
         # If a project is loaded, do whatever initial pre-processing is needed.
 
@@ -823,6 +832,17 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
             pid += 1
         try: self.combo_parset.setCurrentIndex(self.combo_parset_dict[self.parset_name])
         except: pass
+    
+    def refreshProgsetComboBox(self):
+        self.combo_progset_dict = {}
+        self.combo_progset.clear()
+        pid = 0
+        for progset_name in self.project.progsets.keys():
+            self.combo_progset_dict[progset_name] = pid
+            self.combo_progset.addItem(progset_name)
+            pid += 1
+        try: self.combo_progset.setCurrentIndex(self.combo_progset_dict[self.progset_name])
+        except: pass
 
     def loadCalibration(self, parset_name, delay_refresh=False):
         self.parset_name = parset_name
@@ -844,7 +864,8 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         result_name = self.edit_model_run.text()
         if result_name == '':
             result_name = None
-        self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, store_results=True, result_name=result_name)
+        self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, store_results=True, result_type='scen_budget', result_name=result_name)
+        self.acknowledgeResults()
         self.status = ('Status: Model successfully processed for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
         self.refreshVisibility()
 
