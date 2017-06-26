@@ -762,8 +762,7 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
                 self.project.makeParset(name='default')
             self.loadCalibration(self.project.parsets[0].name, delay_refresh=True)
 
-        # If a project is loaded, do whatever initial pre-processing is needed.
-
+    # If a project is loaded, do whatever initial pre-processing is needed.
     def refreshParsetComboBox(self):
         self.combo_parset_dict = {}
         self.combo_parset.clear()
@@ -775,9 +774,6 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         try: self.combo_parset.setCurrentIndex(self.combo_parset_dict[self.parset_name])
         except: pass
 
-    # While UI initialisation can extend the interface, this method is where widgets for the core process should be set up.
-    def developLayout(self, layout):
-        self.developLayoutResultPlotter()
 
     def loadCalibration(self, parset_name, delay_refresh=False):
         self.parset_name = parset_name
