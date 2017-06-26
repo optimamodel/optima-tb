@@ -16,6 +16,7 @@ from copy import deepcopy as dcp
 from optima_tb.project import Project
 from optima_tb.plotting import _plotLine
 from optima_tb.dataio import saveObject, loadObject
+from optima_tb.defaults import defaultOptimOptions
 
 # %% PyQt imports
 
@@ -724,6 +725,8 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.progset_name = None
         self.combo_parset_dict = {}     # Dictionary that maps Parset names to indices used in combo boxes.
         self.combo_progset_dict = {}    # Dictionary that maps Progset names to indices used in combo boxes.
+        
+        self.options = None     # The options dictionary for running a budget scenario.
 
         # Initialise attributes specific to your budget scenario GUI.
 
@@ -853,7 +856,8 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
             
     def loadPrograms(self, progset_name, delay_refresh=False):
         self.progset_name = progset_name
-        self.progset = dcp(self.project.progsets[progset_name])
+#        self.progset = dcp(self.project.progsets[progset_name])
+        self.options = defaultOptimOptions(settings = self.project.settings, progset = self.project.progsets[self.progset_name])
         self.status = ('Status: Progset "%s" selected for budget scenario' % progset_name)
         if not delay_refresh:
             self.refreshVisibility()
@@ -864,7 +868,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         result_name = self.edit_model_run.text()
         if result_name == '':
             result_name = None
-        self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, store_results=True, result_type='scen_budget', result_name=result_name)
+        self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, options=self.options, store_results=True, result_type='scen_budget', result_name=result_name)
         self.acknowledgeResults()
         self.status = ('Status: Model successfully processed for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
         self.refreshVisibility()
