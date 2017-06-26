@@ -52,9 +52,9 @@ class GUI(qtw.QWidget):
         self.button_calibration = qtw.QPushButton('Manual Calibration', self)
         self.button_calibration.clicked.connect(self.runGUICalibration)
         self.button_scenario_parameter = qtw.QPushButton('Parameter Scenario', self)
-        self.button_scenario_parameter.clicked.connect(self.runGUIScenarioParameter)
+        self.button_scenario_parameter.clicked.connect(self.runGUIParameterScenario)
         self.button_scenario_budget = qtw.QPushButton('Budget Scenario', self)
-        self.button_scenario_budget.clicked.connect(self.runGUIScenarioBudget)
+        self.button_scenario_budget.clicked.connect(self.runGUIBudgetScenario)
         layout = qtw.QVBoxLayout(self)
         layout.addWidget(self.button_calibration)
         layout.addWidget(self.button_scenario_parameter)
@@ -70,11 +70,11 @@ class GUI(qtw.QWidget):
     def runGUICalibration(self):
         self.sub_gui = GUICalibration()
 
-    def runGUIScenarioParameter(self):
+    def runGUIParameterScenario(self):
         self.sub_gui = GUIParameterScenario()
 
-    def runGUIScenarioBudget(self):
-        self.sub_gui = GUIProjectManagerBase()
+    def runGUIBudgetScenario(self):
+        self.sub_gui = GUIBudgetScenario()
 
 
 # A base GUI class that enables project creation, import and export.
@@ -99,7 +99,6 @@ class GUIProjectManagerBase(qtw.QMainWindow):
     # The following wrapper function can be overloaded by derived classes.
     # Intended usage is to update widgets inside the GUI and what the user sees, as required.
     def refreshVisibility(self):  
-        print 'koshi'
         self.refreshVisibilityProjectManager()
     def refreshVisibilityProjectManager(self):
         self.refreshStatus()
@@ -177,9 +176,7 @@ class GUIProjectManagerBase(qtw.QMainWindow):
             self.status = ('Status: Project "%s" successfully imported' % self.project.name)
         except:
             self.status = ('Status: Attempt to import Project failed')
-        print 'monchingo'
         self.refreshVisibility()
-        print 'aufu'
 
     def exportProject(self):
         try: export_path = str(qtw.QFileDialog.getSaveFileNameAndFilter(self, 'Export Project To File')[0])
@@ -222,7 +219,6 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
     # The following wrapper function can be overloaded by derived classes.
     # Intended usage is to update widgets inside the GUI and what the user sees, as required.
     def refreshVisibility(self):
-        print 'aufuauf'
         self.refreshVisibilityProjectManager()
         self.refreshVisibilityResultPlotter()
     def refreshVisibilityResultPlotter(self):
@@ -444,7 +440,6 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
 
     def refreshVisibility(self):
-        print 'aliash'
         self.refreshVisibilityProjectManager()
         self.refreshVisibilityResultPlotter()
 
@@ -685,20 +680,12 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
 
     def refreshVisibility(self):
-        print 'ohhhhohoho'
         self.refreshVisibilityProjectManager()
-        print 'kanchi'
         self.refreshVisibilityResultPlotter()
-        print 'ushia'
 
         is_project_loaded = self.project is not None
         does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
         
-        print 'mmmk'
-        print is_project_loaded
-        print is_project_loaded
-        print 'ohhhh'
-
         if is_project_loaded:
             self.refreshParsetComboBox()
         self.label_parset.setVisible(is_project_loaded)
@@ -920,11 +907,8 @@ class GUIParameterScenario2(GUIResultPlotterIntermediate):
 
 
     def refreshVisibility(self):
-        print 'zzzsh'
         self.refreshVisibilityProjectManager()
-        print 'kanchi'
         self.refreshVisibilityResultPlotter()
-        print 'ushia'
 
         # Update the visibility of widgets depending on if they have anything to show.
         is_project_loaded = self.project is not None
@@ -1045,7 +1029,6 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
 
 
     def refreshVisibility(self):
-        print 'omg'
         self.refreshVisibilityProjectManager()
         self.refreshVisibilityResultPlotter()
 
