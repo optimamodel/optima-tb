@@ -71,7 +71,7 @@ class GUI(qtw.QWidget):
         self.sub_gui = GUICalibration()
 
     def runGUIScenarioParameter(self):
-        self.sub_gui = GUIResultPlotterIntermediate()
+        self.sub_gui = GUIParameterScenario()
 
     def runGUIScenarioBudget(self):
         self.sub_gui = GUIProjectManagerBase()
@@ -98,7 +98,9 @@ class GUIProjectManagerBase(qtw.QMainWindow):
 
     # The following wrapper function can be overloaded by derived classes.
     # Intended usage is to update widgets inside the GUI and what the user sees, as required.
-    def refreshVisibility(self):  self.refreshVisibilityProjectManager()
+    def refreshVisibility(self):  
+        print 'koshi'
+        self.refreshVisibilityProjectManager()
     def refreshVisibilityProjectManager(self):
         self.refreshStatus()
 
@@ -220,6 +222,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
     # The following wrapper function can be overloaded by derived classes.
     # Intended usage is to update widgets inside the GUI and what the user sees, as required.
     def refreshVisibility(self):
+        print 'aufuauf'
         self.refreshVisibilityProjectManager()
         self.refreshVisibilityResultPlotter()
     def refreshVisibilityResultPlotter(self):
@@ -263,7 +266,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
     def initUIResultPlotter(self):
         self.resetAttributesResultPlotter()    # This call is specific to base class attributes.
 
-        self.setWindowTitle('Result Plotter')
+#        self.setWindowTitle('Result Plotter')
 
         # Widgets.
         self.label_plotter_result_1 = qtw.QLabel('Select First Result: ')
@@ -417,6 +420,15 @@ class GUICalibration(GUIResultPlotterIntermediate):
     def __init__(self):
         super(GUICalibration, self).__init__()
         self.initUICalibration()
+        
+        
+    def initUICalibration(self):
+        self.resetAttributes()
+
+        self.setWindowTitle('Manual Calibration')
+
+        self.refreshVisibility()
+        self.show()
 
 
     def resetAttributes(self):
@@ -432,6 +444,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
 
     def refreshVisibility(self):
+        print 'aliash'
         self.refreshVisibilityProjectManager()
         self.refreshVisibilityResultPlotter()
 
@@ -511,15 +524,6 @@ class GUICalibration(GUIResultPlotterIntermediate):
         layout.addLayout(grid_parset_load)
         layout.addWidget(self.table_calibration)
         layout.addLayout(grid_parset_save)
-
-
-    def initUICalibration(self):
-        self.resetAttributes()
-
-        self.setWindowTitle('Manual Calibration')
-
-        self.refreshVisibility()
-        self.show()
 
 
     def refreshParsetComboBox(self):
@@ -657,6 +661,15 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
     def __init__(self):
         super(GUIParameterScenario, self).__init__()
         self.initUICalibration()
+    
+    
+    def initUICalibration(self):
+        self.resetAttributes()
+
+        self.setWindowTitle('Parameter Scenarios')
+
+        self.refreshVisibility()
+        self.show()
 
 
     def resetAttributes(self):
@@ -759,15 +772,6 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         layout.addLayout(grid_parset_load)
         layout.addWidget(self.table_calibration)
         layout.addLayout(grid_parset_save)
-
-
-    def initUICalibration(self):
-        self.resetAttributes()
-
-        self.setWindowTitle('Manual Calibration')
-
-        self.refreshVisibility()
-        self.show()
 
 
     def refreshParsetComboBox(self):
@@ -916,7 +920,7 @@ class GUIParameterScenario2(GUIResultPlotterIntermediate):
 
 
     def refreshVisibility(self):
-        print 'ohhhhohoho'
+        print 'zzzsh'
         self.refreshVisibilityProjectManager()
         print 'kanchi'
         self.refreshVisibilityResultPlotter()
@@ -1041,6 +1045,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
 
 
     def refreshVisibility(self):
+        print 'omg'
         self.refreshVisibilityProjectManager()
         self.refreshVisibilityResultPlotter()
 
