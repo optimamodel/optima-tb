@@ -30,10 +30,11 @@ def importPyQt():
             raise Exception(errormsg)
     return  qtc, qtw
 
+try: from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
+except: from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+
 qtc, qtw = importPyQt()
 
-try: from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-except: from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib import pyplot as pp
 pp.ioff()   # Turn off interactive mode.
 
@@ -371,7 +372,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
 
     def selectPopulation(self, pop_name):
         self.pop_plot_name = str(pop_name)
-        
+
     # When a calibration or scenario is run, results should be acknowledged.
     # This means that result name references for the plotter should be linked to the first and last results in the project.
     def acknowledgeResults(self):
@@ -402,7 +403,10 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             try: t_data = self.project.data['characs'][charac_plot_label][pop_plot_label]['t']
             except: t_data = []
 
-            figure = _plotLine(ys=[y_values_cur, y_values_com], ts=[t_values_cur, t_values_com], labels=['%s' % self.result_1_plot_name, '%s' % self.result_2_plot_name], y_hat=[y_data, y_data], t_hat=[t_data, t_data])
+            figure = _plotLine(ys=[y_values_cur, y_values_com], ts=[t_values_cur, t_values_com],
+                               title=self.charac_plot_name,
+                               labels=['%s' % self.result_1_plot_name, '%s' % self.result_2_plot_name],
+                               y_hat=[y_data, y_data], t_hat=[t_data, t_data])
 
             canvas = FigureCanvasQTAgg(figure)
 
@@ -650,7 +654,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
 
 
-        
+
 class GUIParameterScenario(GUIResultPlotterIntermediate):
 
     def __init__(self):
@@ -675,7 +679,7 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
     def acknowledgeProject(self):
         self.acknowledgeProjectProjectManager()
         self.acknowledgeProjectResultPlotter()
-        
+
         # If a project is loaded, do whatever initial pre-processing is needed.
 
 
@@ -708,8 +712,8 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         
         """
         return None # scvalues odict
-        
-    
+
+
 # DJK to CK: Do this one after the Parameter Scenario as I -might- get to it before you.
 class GUIBudgetScenario(GUIResultPlotterIntermediate):
 
@@ -721,12 +725,12 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     def resetAttributes(self):
         self.resetAttributesProjectManager()
         self.resetAttributesResultPlotter()
-        
+
         self.parset_name = None
         self.progset_name = None
         self.combo_parset_dict = {}     # Dictionary that maps Parset names to indices used in combo boxes.
         self.combo_progset_dict = {}    # Dictionary that maps Progset names to indices used in combo boxes.
-        
+
         self.options = None     # The options dictionary for running a budget scenario.
 
         # Initialise attributes specific to your budget scenario GUI.
@@ -735,7 +739,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     def refreshVisibility(self):
         self.refreshVisibilityProjectManager()
         self.refreshVisibilityResultPlotter()
-        
+
         is_project_loaded = self.project is not None
         does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
         does_progset_exist = is_project_loaded and len(self.project.progsets.keys()) > 0
@@ -774,19 +778,19 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
             if len(self.project.progsets) < 1:
                 self.project.makeProgset(name='default')
             self.loadPrograms(self.project.progsets[0].name, delay_refresh=True)
-        
+
         # If a project is loaded, do whatever initial pre-processing is needed.
 
 
     # While UI initialisation can extend the interface, this method is where widgets for the core process should be set up.
     def developLayout(self, layout):
         self.developLayoutResultPlotter()
-        
+
         # Widgets.
         self.label_parset = qtw.QLabel('Parset To Use: ')
         self.combo_parset = qtw.QComboBox(self)
         self.combo_parset.activated[str].connect(self.loadCalibration)
-        
+
         self.label_progset = qtw.QLabel('Progset To Use: ')
         self.combo_progset = qtw.QComboBox(self)
         self.combo_progset.activated[str].connect(self.loadPrograms)
@@ -824,8 +828,8 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
 
         self.refreshVisibility()
         self.show()
-        
-        
+
+
     def refreshParsetComboBox(self):
         self.combo_parset_dict = {}
         self.combo_parset.clear()
@@ -836,7 +840,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
             pid += 1
         try: self.combo_parset.setCurrentIndex(self.combo_parset_dict[self.parset_name])
         except: pass
-    
+
     def refreshProgsetComboBox(self):
         self.combo_progset_dict = {}
         self.combo_progset.clear()
@@ -854,15 +858,15 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.status = ('Status: Parset "%s" selected for budget scenario' % self.parset_name)
         if not delay_refresh:
             self.refreshVisibility()
-            
+
     def loadPrograms(self, progset_name, delay_refresh=False):
         self.progset_name = str(progset_name)
 #        self.progset = dcp(self.project.progsets[progset_name])
-        self.options = defaultOptimOptions(settings = self.project.settings, progset = self.project.progsets[self.progset_name])
+        self.options = defaultOptimOptions(settings=self.project.settings, progset=self.project.progsets[self.progset_name])
         self.status = ('Status: Progset "%s" selected for budget scenario' % self.progset_name)
         if not delay_refresh:
             self.refreshVisibility()
-            
+
     def runBudgetScenario(self):
         self.status = ('Status: Running model for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
         self.refreshStatus()
