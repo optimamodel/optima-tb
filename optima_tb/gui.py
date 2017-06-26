@@ -39,6 +39,24 @@ qtc, qtw, FigureCanvasQTAgg = importPyQt()
 from matplotlib import pyplot as pp
 pp.ioff()   # Turn off interactive mode.
 
+# %% Sanitized path import
+def sanitizedFileDialog(instance=None, which=None, title=None):
+    '''
+    Get a sanitized path from a file dialog, either open or save. Examples:
+    
+    path = sanitizedFileDialog(self, 'open', 'Choose file to open')
+    path = sanitizedFileDialog(self, 'save', 'Save file as')
+    '''
+    if which=='open':
+        try:    path = str(qtw.QFileDialog.getOpenFileNameAndFilter(instance, title)[0])
+        except: path = str(qtw.QFileDialog.getOpenFileName(instance, title)[0])
+    elif which=='save':
+        try:    path = str(qtw.QFileDialog.getSaveFileNameAndFilter(instance, title)[0])
+        except: path = str(qtw.QFileDialog.getSaveFileName(instance, title)[0])
+    else:
+        raise Exception('The argument "which" must be either "open" or "save", not %s' % which)
+    return path
+
 # %% GUI classes
 
 class GUI(qtw.QWidget):
@@ -49,13 +67,13 @@ class GUI(qtw.QWidget):
 
     def initUI(self):
 
-        self.setWindowTitle('GUI Selection Screen')
+        self.setWindowTitle('GUI selection screen')
 
-        self.button_calibration = qtw.QPushButton('Manual Calibration', self)
+        self.button_calibration = qtw.QPushButton('Manual calibration', self)
         self.button_calibration.clicked.connect(self.runGUICalibration)
-        self.button_scenario_parameter = qtw.QPushButton('Parameter Scenario', self)
+        self.button_scenario_parameter = qtw.QPushButton('Parameter scenario', self)
         self.button_scenario_parameter.clicked.connect(self.runGUIParameterScenario)
-        self.button_scenario_budget = qtw.QPushButton('Budget Scenario', self)
+        self.button_scenario_budget = qtw.QPushButton('Budget scenario', self)
         self.button_scenario_budget.clicked.connect(self.runGUIBudgetScenario)
         layout = qtw.QVBoxLayout(self)
         layout.addWidget(self.button_calibration)
@@ -95,7 +113,7 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         self.tvec = None
 
         self.guard_status = False   # Convenient flag that locks status updates if set to true.
-        self.status = 'Status: No Project generated'    # Initial status.
+        self.status = 'Status: No project generated'    # Initial status.
 
 
     # The following wrapper function can be overloaded by derived classes.
@@ -115,7 +133,7 @@ class GUIProjectManagerBase(qtw.QMainWindow):
     def initUIProjectManager(self):
         self.resetAttributesProjectManager()    # This call is specific to base class attributes.
 
-        self.setWindowTitle('Project Manager')
+        self.setWindowTitle('Project manager')
 
         # Screen.
         screen = qtw.QDesktopWidget().availableGeometry()
@@ -142,47 +160,43 @@ class GUIProjectManagerBase(qtw.QMainWindow):
 
     def createProject(self):
         self.resetAttributes()      # This call is to a derived method, representing a full GUI reset.
-        project_name, project_name_chosen = qtw.QInputDialog.getText(self, 'Create Project', 'Enter project name:')
+        project_name, project_name_chosen = qtw.QInputDialog.getText(self, 'Create project', 'Enter project name:')
         if project_name_chosen:
-            try: cascade_path = str(qtw.QFileDialog.getOpenFileNameAndFilter(self, 'Select Cascade File')[0])
-            except: cascade_path = str(qtw.QFileDialog.getOpenFileName(self, 'Select Cascade File')[0])
+            cascade_path = sanitizedFileDialog(self, 'open', 'Select cascade file')
             try:
                 self.project = Project(name=project_name, cascade_path=cascade_path, validation_level='avert')
                 self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0 / 2)
                 self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
             except Exception as E:
-                self.status = ('Status: Attempt to generate Project failed (%s)' % E.__repr__())
+                self.status = ('Status: Attempt to generate project failed (%s)' % E.__repr__())
                 self.refreshVisibility()
                 return
 
-            try: databook_path = str(qtw.QFileDialog.getOpenFileNameAndFilter(self, 'Select Databook File')[0])
-            except: databook_path = str(qtw.QFileDialog.getOpenFileName(self, 'Select Databook File')[0])
+            databook_path = sanitizedFileDialog(self, 'open', 'Select databook file')
             try:
                 self.project.loadSpreadsheet(databook_path=databook_path)
                 self.project.resetParsets()
                 self.acknowledgeProject()
-                self.status = ('Status: Valid data loaded into Project "%s", default Parset generated' % self.project.name)
+                self.status = ('Status: Valid data loaded into project "%s", default parameter set generated' % self.project.name)
             except Exception as E:
                 self.resetAttributes()      # This call is to a derived method, representing a full GUI reset.
-                self.status = ('Status: Attempt to load data into Project failed, Project reset for safety (%s)' % E.__repr__())
+                self.status = ('Status: Attempt to load data into project failed, project reset for safety (%s)' % E.__repr__())
         self.refreshVisibility()
 
     def importProject(self):
         self.resetAttributes()      # This call is to a derived method, representing a full GUI reset.
-        try: import_path = str(qtw.QFileDialog.getOpenFileNameAndFilter(self, 'Import Project From File')[0])
-        except: import_path = str(qtw.QFileDialog.getOpenFileName(self, 'Import Project From File')[0])
+        import_path = sanitizedFileDialog(self, 'open', 'Import project from file')
         try:
             self.project = loadObject(filename=import_path)
             self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0 / 2)
             self.acknowledgeProject()
             self.status = ('Status: Project "%s" successfully imported' % self.project.name)
         except:
-            self.status = ('Status: Attempt to import Project failed')
+            self.status = ('Status: Attempt to import project failed')
         self.refreshVisibility()
 
     def exportProject(self):
-        try: export_path = str(qtw.QFileDialog.getSaveFileNameAndFilter(self, 'Export Project To File')[0])
-        except: export_path = str(qtw.QFileDialog.getSaveFileName(self, 'Export Project To File')[0])
+        export_path = sanitizedFileDialog(self, 'save', 'Export project to file')
         try:
             saveObject(filename=export_path, obj=self.project)
             self.status = ('Status: Project "%s" successfully exported' % self.project.name)
@@ -263,19 +277,19 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.resetAttributesResultPlotter()    # This call is specific to base class attributes.
 
         # Widgets.
-        self.label_plotter_result_1 = qtw.QLabel('Select First Result: ')
+        self.label_plotter_result_1 = qtw.QLabel('Select first result: ')
         self.combo_plotter_result_1 = qtw.QComboBox(self)
         self.combo_plotter_result_1.activated[str].connect(self.selectResultOne)
-        self.label_plotter_result_2 = qtw.QLabel('Select Second Result: ')
+        self.label_plotter_result_2 = qtw.QLabel('Select second result: ')
         self.combo_plotter_result_2 = qtw.QComboBox(self)
         self.combo_plotter_result_2.activated[str].connect(self.selectResultTwo)
-        self.label_plotter_charac = qtw.QLabel('Select Characteristic: ')
+        self.label_plotter_charac = qtw.QLabel('Select characteristic: ')
         self.combo_plotter_charac = qtw.QComboBox(self)
         self.combo_plotter_charac.activated[str].connect(self.selectCharacteristic)
-        self.label_plotter_pop = qtw.QLabel('Select Population: ')
+        self.label_plotter_pop = qtw.QLabel('Select population: ')
         self.combo_plotter_pop = qtw.QComboBox(self)
         self.combo_plotter_pop.activated[str].connect(self.selectPopulation)
-        self.button_plotter = qtw.QPushButton('Plot Figures', self)
+        self.button_plotter = qtw.QPushButton('Plot figures', self)
         self.button_plotter.clicked.connect(self.showPlots)
 
         # Layout.
@@ -490,21 +504,21 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.developLayoutResultPlotter()
 
         # Widgets.
-        self.label_parset = qtw.QLabel('Parameter Set To Edit: ')
+        self.label_parset = qtw.QLabel('Parameter set to edit: ')
         self.combo_parset = qtw.QComboBox(self)
         self.combo_parset.activated[str].connect(self.loadCalibration)
 
         self.table_calibration = qtw.QTableWidget()
         self.table_calibration.cellChanged.connect(self.updateParset)
 
-        self.label_model_run = qtw.QLabel('Run & Save Calibration Results As... ')
+        self.label_model_run = qtw.QLabel('Run & save calibration results as... ')
         self.edit_model_run = qtw.QLineEdit()
-        self.button_model_run = qtw.QPushButton('Generate Results', self)
+        self.button_model_run = qtw.QPushButton('Generate results', self)
         self.button_model_run.clicked.connect(self.runCalibration)
 
-        self.label_overwrite = qtw.QLabel('Save Edits To... ')
+        self.label_overwrite = qtw.QLabel('Save edits to... ')
         self.edit_overwrite = qtw.QLineEdit()
-        self.button_overwrite = qtw.QPushButton('Save Calibration', self)
+        self.button_overwrite = qtw.QPushButton('Save calibration', self)
         self.button_overwrite.clicked.connect(self.saveCalibration)
 
         # Layout.
@@ -544,30 +558,30 @@ class GUICalibration(GUIResultPlotterIntermediate):
     def loadCalibration(self, parset_name, delay_refresh=False):
         self.parset_name = str(parset_name)
         self.parset = dcp(self.project.parsets[self.parset_name])
-        self.status = ('Status: Parset "%s" selected for editing' % self.parset_name)
+        self.status = ('Status: Parameter set "%s" selected for editing' % self.parset_name)
         if not delay_refresh:
             self.refreshVisibility()
 
     def runCalibration(self):
-        self.status = ('Status: Running model for Parset "%s"' % self.parset_name)
+        self.status = ('Status: Running model for parameter set "%s"' % self.parset_name)
         self.refreshStatus()
         result_name = str(self.edit_model_run.text())
         if result_name == '':
             result_name = None
         self.project.runSim(parset=self.parset, store_results=True, result_type='calibration', result_name=result_name)
         self.acknowledgeResults()
-        self.status = ('Status: Model successfully processed for Parset "%s"' % self.parset_name)
+        self.status = ('Status: Model successfully processed for parameter set "%s"' % self.parset_name)
         self.refreshVisibility()
 
     def saveCalibration(self):
         parset_name = str(self.edit_overwrite.text())
         if parset_name == '':
-            self.status = ('Status: Attempt to save Parset failed, no name provided')
+            self.status = ('Status: Attempt to save parameter set failed, no name provided')
         else:
             if parset_name in self.project.parsets.keys():
-                self.status = ('Status: Parset "%s" successfully overwritten' % parset_name)
+                self.status = ('Status: Parameter set "%s" successfully overwritten' % parset_name)
             else:
-                self.status = ('Status: New Parset "%s" added to Project' % parset_name)
+                self.status = ('Status: New parameter set "%s" added to project' % parset_name)
             self.parset.name = parset_name
             self.project.parsets[parset_name] = dcp(self.parset)
         self.refreshVisibility()
@@ -617,7 +631,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             self.table_calibration.setItem(k * num_pops + pid, 2 + int(t) - self.tvec[0], temp)
                     k += 1
         self.table_calibration.setVerticalHeaderLabels(par_labels)
-        self.table_calibration.setHorizontalHeaderLabels(['Par. Name', 'Pop. Name'] + [str(int(x)) for x in self.tvec])
+        self.table_calibration.setHorizontalHeaderLabels(['Parameter', 'Population'] + [str(int(x)) for x in self.tvec])
         self.table_calibration.resizeColumnsToContents()
 
         self.table_calibration.cellChanged.connect(self.updateParset)
@@ -642,18 +656,18 @@ class GUICalibration(GUIResultPlotterIntermediate):
             if new_val_str == '':
                 remove_success = par.removeValueAt(t=year, pop_label=pop_label)
                 if remove_success:
-                    self.status = ('Status: Value successfully deleted from Parset')
+                    self.status = ('Status: Value successfully deleted from parameter set')
                     self.refreshStatus()
                     return
-                else: self.status = ('Status: Attempt to remove item in Parset failed, at least one value per row required')
-            else: self.status = ('Status: Attempt to edit item in Parset failed, only numbers allowed')
+                else: self.status = ('Status: Attempt to remove item in parameter set failed, at least one value per row required')
+            else: self.status = ('Status: Attempt to edit item in parameter set failed, only numbers allowed')
             self.refreshStatus()
             self.guard_status = True
             self.table_calibration.item(row, col).setText(str(par.interpolate(tvec=[year], pop_label=pop_label)[0]))
             self.guard_status = False
             return
         par.insertValuePair(t=year, y=new_val, pop_label=pop_label)
-        self.status = ('Status: Current edited Parset uses value "%f" for parameter "%s", population "%s", year "%i"' % (new_val, par_label, pop_label, year))
+        self.status = ('Status: Current edited parameter set uses value "%f" for parameter "%s", population "%s", year "%i"' % (new_val, par_label, pop_label, year))
         self.refreshStatus()
 
 
@@ -670,7 +684,7 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
     def initUIParameterScenario(self):
         self.resetAttributes()
 
-        self.setWindowTitle('Parameter Scenarios')
+        self.setWindowTitle('Parameter scenarios')
 
         self.refreshVisibility()
         self.show()
@@ -689,18 +703,18 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         self.developLayoutResultPlotter()
 
         # Widgets.
-        self.label_parset = qtw.QLabel('Parameter Set To Edit: ')
+        self.label_parset = qtw.QLabel('Parameter set to edit: ')
         self.combo_parset = qtw.QComboBox(self)
         self.combo_parset.activated[str].connect(self.loadCalibration)
 
-        self.label_model_run = qtw.QLabel('Run Scenario Results As... ')
+        self.label_model_run = qtw.QLabel('Run scenario results as... ')
         self.edit_model_run = qtw.QLineEdit()
-        self.button_model_run = qtw.QPushButton('Generate Results', self)
+        self.button_model_run = qtw.QPushButton('Generate results', self)
         self.button_model_run.clicked.connect(self.runCalibration)
 
-        self.label_overwrite = qtw.QLabel('Save Edits To... ')
+        self.label_overwrite = qtw.QLabel('Save edits to... ')
         self.edit_overwrite = qtw.QLineEdit()
-        self.button_overwrite = qtw.QPushButton('Save Calibration', self)
+        self.button_overwrite = qtw.QPushButton('Save scenario', self)
         self.button_overwrite.clicked.connect(self.saveCalibration)
 
         # Layout.
@@ -956,17 +970,17 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.developLayoutResultPlotter()
 
         # Widgets.
-        self.label_parset = qtw.QLabel('Parset To Use: ')
+        self.label_parset = qtw.QLabel('Parameter set to use: ')
         self.combo_parset = qtw.QComboBox(self)
         self.combo_parset.activated[str].connect(self.loadCalibration)
 
-        self.label_progset = qtw.QLabel('Progset To Use: ')
+        self.label_progset = qtw.QLabel('Program set to use: ')
         self.combo_progset = qtw.QComboBox(self)
         self.combo_progset.activated[str].connect(self.loadPrograms)
 
-        self.label_model_run = qtw.QLabel('Run & Save Budget Scenario Results As... ')
+        self.label_model_run = qtw.QLabel('Run & save budget scenario results as... ')
         self.edit_model_run = qtw.QLineEdit()
-        self.button_model_run = qtw.QPushButton('Generate Results', self)
+        self.button_model_run = qtw.QPushButton('Generate results', self)
         self.button_model_run.clicked.connect(self.runBudgetScenario)
 
         # Layout.
@@ -993,7 +1007,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     def initUIBudgetScenario(self):
         self.resetAttributes()
 
-        self.setWindowTitle('Budget Scenario')
+        self.setWindowTitle('Budget scenario')
 
         self.refreshVisibility()
         self.show()
@@ -1024,7 +1038,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     def loadCalibration(self, parset_name, delay_refresh=False):
         self.parset_name = str(parset_name)
         self.parset = dcp(self.project.parsets[self.parset_name])
-        self.status = ('Status: Parset "%s" selected for budget scenario' % self.parset_name)
+        self.status = ('Status: Parameter set "%s" selected for budget scenario' % self.parset_name)
         if not delay_refresh:
             self.refreshVisibility()
 
@@ -1032,19 +1046,19 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.progset_name = str(progset_name)
 #        self.progset = dcp(self.project.progsets[progset_name])
         self.options = defaultOptimOptions(settings=self.project.settings, progset=self.project.progsets[self.progset_name])
-        self.status = ('Status: Progset "%s" selected for budget scenario' % self.progset_name)
+        self.status = ('Status: Program set "%s" selected for budget scenario' % self.progset_name)
         if not delay_refresh:
             self.refreshVisibility()
 
     def runBudgetScenario(self):
-        self.status = ('Status: Running model for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
+        self.status = ('Status: Running model for parameter set "%s" and program set "%s"' % (self.parset_name, self.progset_name))
         self.refreshStatus()
         result_name = str(self.edit_model_run.text())
         if result_name == '':
             result_name = None
         self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, options=self.options, store_results=True, result_type='scen_budget', result_name=result_name)
         self.acknowledgeResults()
-        self.status = ('Status: Model successfully processed for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
+        self.status = ('Status: Model successfully processed for parameter set "%s" and program set "%s"' % (self.parset_name, self.progset_name))
         self.refreshVisibility()
 
 
@@ -1058,3 +1072,4 @@ def runGUI():
     app.setApplicationName('Optima GUI')
     gui = GUI()
     sys.exit(app.exec_())
+    return gui
