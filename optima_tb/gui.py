@@ -23,18 +23,20 @@ from optima_tb.settings import DO_NOT_SCALE
 def importPyQt():
     ''' Try to import pyqt, either PyQt4 or PyQt5, but allow it to fail '''
     try:
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
         from PyQt5 import QtCore as qtc
         from PyQt5 import QtWidgets as qtw
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
     except:
         try:
+            from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
             from PyQt4 import QtGui as qtw
             from PyQt4 import QtCore as qtc
-            from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
         except Exception as E:
             errormsg = 'PyQt could not be imported: %s' % E.__repr__()
             raise Exception(errormsg)
     return  qtc, qtw, FigureCanvasQTAgg
+
+
 
 qtc, qtw, FigureCanvasQTAgg = importPyQt()
 
@@ -248,7 +250,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
     def acknowledgeProjectResultPlotter(self):
         if self.project is not None:
             self.acknowledgeResults()
-            
+
             # Clear all figures in the canvas.
             for i in reversed(range(self.plotter_layout.count())):
                 self.plotter_layout.itemAt(i).widget().setParent(None)
@@ -865,7 +867,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.label_progset = qtw.QLabel('Progset To Use: ')
         self.combo_progset = qtw.QComboBox(self)
         self.combo_progset.activated[str].connect(self.loadPrograms)
-        
+
         self.label_year_start = qtw.QLabel('Start Year For Program Budgets... ')
         self.edit_year_start = qtw.QLineEdit()
 
@@ -882,7 +884,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         grid_progset_load.addWidget(self.combo_parset, 0, 1)
         grid_progset_load.addWidget(self.label_progset, 1, 0)
         grid_progset_load.addWidget(self.combo_progset, 1, 1)
-        
+
         grid_progset_load.addWidget(self.label_year_start, 2, 0)
         grid_progset_load.addWidget(self.edit_year_start, 2, 1)
 
@@ -892,7 +894,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         grid_progset_save.addWidget(self.label_model_run, 0, 0)
         grid_progset_save.addWidget(self.edit_model_run, 0, 1)
         grid_progset_save.addWidget(self.button_model_run, 0, 2)
-        
+
         self.budget_layout = qtw.QGridLayout()
 
         self.scroll_budgets = qtw.QWidget()
@@ -901,7 +903,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.scroll_area = qtw.QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setWidget(self.scroll_budgets)
-        
+
 
         layout.addLayout(grid_progset_load)
         layout.addWidget(self.scroll_area)
@@ -919,12 +921,12 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     # Updates all options-related widgets to display values from the options dictionary.
     # Generally should only be called when a default options dictionary is initialised.
     def refreshOptionWidgets(self):
-        
+
         # Clear out all widgets in the budget layout.
         # TODO: Make more efficient by only clearing when absolutely necessary.
-        for i in reversed(range(self.budget_layout.count())): 
+        for i in reversed(range(self.budget_layout.count())):
             self.budget_layout.itemAt(i).widget().setParent(None)
-        
+
         self.widget_budget_dict = {}
         for prog_label in self.options['init_alloc']:
             if prog_label not in self.widget_budget_dict.keys():
@@ -935,11 +937,11 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
                 self.budget_layout.addWidget(label_budget, last_id + 1, 0)
                 self.budget_layout.addWidget(edit_budget, last_id + 1, 1)
                 self.widget_budget_dict[prog_label] = last_id + 1
-                
+
             current_id = self.widget_budget_dict[prog_label]
-            widget = self.budget_layout.itemAtPosition(current_id,1).widget()
+            widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
             widget.setText(str(self.options['init_alloc'][prog_label]))
-            
+
         self.edit_year_start.setText(str(self.options['progs_start']))
 
     def refreshParsetComboBox(self):
@@ -993,7 +995,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
             self.acknowledgeResults()
             self.status = ('Status: Model successfully processed for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
         self.refreshVisibility()
-        
+
     # Scans through widgets and updates options dict appropriately.
     # Return True if successful or False if there was an error.
     def updateOptions(self):
@@ -1002,12 +1004,12 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         else:
             try:
                 self.options['progs_start'] = float(str(self.edit_year_start.text()))
-                
+
                 for prog_label in self.widget_budget_dict.keys():
                     current_id = self.widget_budget_dict[prog_label]
-                    widget = self.budget_layout.itemAtPosition(current_id,1).widget()
+                    widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
                     self.options['init_alloc'][prog_label] = float(str(widget.text()))
-                
+
             except: return False
             return True
 
