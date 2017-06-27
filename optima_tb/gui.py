@@ -929,16 +929,17 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
 
         self.widget_budget_dict = {}
         for prog_label in self.options['init_alloc']:
-            if prog_label not in self.widget_budget_dict.keys():
+            prog_name = self.project.data['meta']['progs']['label_names'][prog_label]
+            if prog_name not in self.widget_budget_dict.keys():
                 try: last_id = max(self.widget_budget_dict.values())    # TODO: Make more efficient by storing max id rather than calculating all the time.
                 except: last_id = -1
-                label_budget = qtw.QLabel(prog_label)
+                label_budget = qtw.QLabel(prog_name)
                 edit_budget = qtw.QLineEdit()
                 self.budget_layout.addWidget(label_budget, last_id + 1, 0)
                 self.budget_layout.addWidget(edit_budget, last_id + 1, 1)
-                self.widget_budget_dict[prog_label] = last_id + 1
+                self.widget_budget_dict[prog_name] = last_id + 1
 
-            current_id = self.widget_budget_dict[prog_label]
+            current_id = self.widget_budget_dict[prog_name]
             widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
             widget.setText(str(self.options['init_alloc'][prog_label]))
 
@@ -1005,9 +1006,10 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
             try:
                 self.options['progs_start'] = float(str(self.edit_year_start.text()))
 
-                for prog_label in self.widget_budget_dict.keys():
-                    current_id = self.widget_budget_dict[prog_label]
+                for prog_name in self.widget_budget_dict.keys():
+                    current_id = self.widget_budget_dict[prog_name]
                     widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
+                    prog_label = self.project.data['meta']['progs']['name_labels'][prog_name]
                     self.options['init_alloc'][prog_label] = float(str(widget.text()))
 
             except: return False
