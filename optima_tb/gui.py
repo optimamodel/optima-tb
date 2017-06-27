@@ -976,20 +976,20 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.developLayoutResultPlotter()
 
         # Widgets.
-        self.label_parset = qtw.QLabel('Parset To Use: ')
+        self.label_parset = qtw.QLabel('Parameter set to use: ')
         self.combo_parset = qtw.QComboBox(self)
         self.combo_parset.activated[str].connect(self.loadCalibration)
 
-        self.label_progset = qtw.QLabel('Progset To Use: ')
+        self.label_progset = qtw.QLabel('Program set to use: ')
         self.combo_progset = qtw.QComboBox(self)
         self.combo_progset.activated[str].connect(self.loadPrograms)
 
-        self.label_year_start = qtw.QLabel('Start Year For Program Budgets... ')
+        self.label_year_start = qtw.QLabel('Start year for program budgets... ')
         self.edit_year_start = qtw.QLineEdit()
 
-        self.label_model_run = qtw.QLabel('Run & Save Budget Scenario Results As... ')
+        self.label_model_run = qtw.QLabel('Run & save budget scenario results as... ')
         self.edit_model_run = qtw.QLineEdit()
-        self.button_model_run = qtw.QPushButton('Generate Results', self)
+        self.button_model_run = qtw.QPushButton('Generate results', self)
         self.button_model_run.clicked.connect(self.runBudgetScenario)
 
         # Layout.
@@ -1029,7 +1029,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     def initUIBudgetScenario(self):
         self.resetAttributes()
 
-        self.setWindowTitle('Budget Scenario')
+        self.setWindowTitle('Budget scenario')
 
         self.refreshVisibility()
         self.show()
@@ -1086,7 +1086,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     def loadCalibration(self, parset_name, delay_refresh=False):
         self.parset_name = str(parset_name)
         self.parset = dcp(self.project.parsets[self.parset_name])
-        self.status = ('Status: Parset "%s" selected for budget scenario' % self.parset_name)
+        self.status = ('Status: Parameter set "%s" selected for budget scenario' % self.parset_name)
         if not delay_refresh:
             self.refreshVisibility()
 
@@ -1094,13 +1094,13 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.progset_name = str(progset_name)
         self.options = defaultOptimOptions(settings=self.project.settings, progset=self.project.progsets[self.progset_name])
         self.refreshOptionWidgets()
-        self.status = ('Status: Progset "%s" selected for budget scenario' % self.progset_name)
+        self.status = ('Status: Program set "%s" selected for budget scenario' % self.progset_name)
         if not delay_refresh:
             self.refreshVisibility()
 
     def runBudgetScenario(self):
         if not self.updateOptions():
-            self.status = ('Status: User-specified options could not be read into Budget Scenario, so options are being reverted')
+            self.status = ('Status: User-specified options could not be read into budget scenario, so options are being reverted')
             self.refreshOptionWidgets()
         else:
             self.status = ('Status: Running model for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
@@ -1110,7 +1110,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
                 result_name = None
             self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, options=self.options, store_results=True, result_type='scen_budget', result_name=result_name)
             self.acknowledgeResults()
-            self.status = ('Status: Model successfully processed for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
+            self.status = ('Status: Model successfully processed for parameter set "%s" and program set "%s"' % (self.parset_name, self.progset_name))
         self.refreshVisibility()
 
     # Scans through widgets and updates options dict appropriately.
@@ -1133,12 +1133,12 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
 
 
 
-# %% Functionality for opening GUIs
+# %% This is the thing that's actually called
 
 def runGUI():
     ''' Function that launches all available back-end GUIs as they are developed. '''
-
     app = qtw.QApplication(sys.argv)
     app.setApplicationName('Optima GUI')
     gui = GUI()
     sys.exit(app.exec_())
+    return gui # Not super needed, but avoids pylint warning
