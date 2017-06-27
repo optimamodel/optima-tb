@@ -807,6 +807,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         is_project_loaded = self.project is not None
         does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
         does_progset_exist = is_project_loaded and len(self.project.progsets.keys()) > 0
+        do_options_exist = self.options is not None
 
         if is_project_loaded:
             self.refreshParsetComboBox()
@@ -825,6 +826,8 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
 #            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
 #        self.table_calibration.setVisible(does_parset_exist)
 
+        self.label_year_start.setVisible(do_options_exist)
+        self.edit_year_start.setVisible(do_options_exist)
         self.label_model_run.setVisible(does_parset_exist & does_progset_exist)
         self.edit_model_run.setVisible(does_parset_exist & does_progset_exist)
         self.button_model_run.setVisible(does_parset_exist & does_progset_exist)
@@ -858,6 +861,9 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.label_progset = qtw.QLabel('Progset To Use: ')
         self.combo_progset = qtw.QComboBox(self)
         self.combo_progset.activated[str].connect(self.loadPrograms)
+        
+        self.label_year_start = qtw.QLabel('Start Year For Program Budgets... ')
+        self.edit_year_start = qtw.QLineEdit()
 
         self.label_model_run = qtw.QLabel('Run & Save Budget Scenario Results As... ')
         self.edit_model_run = qtw.QLineEdit()
@@ -872,6 +878,9 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         grid_progset_load.addWidget(self.combo_parset, 0, 1)
         grid_progset_load.addWidget(self.label_progset, 1, 0)
         grid_progset_load.addWidget(self.combo_progset, 1, 1)
+        
+        grid_progset_load.addWidget(self.label_year_start, 2, 0)
+        grid_progset_load.addWidget(self.edit_year_start, 2, 1)
 
         grid_progset_save = qtw.QGridLayout()
         grid_progset_save.setSpacing(10)
@@ -893,6 +902,10 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.refreshVisibility()
         self.show()
 
+    # Updates all options-related widgets to display values from the options dictionary.
+    # Generally should only be called when a default options dictionary is initialised.
+    def refreshOptionWidgets(self):
+        self.edit_year_start.setText(str(self.options['progs_start']))
 
     def refreshParsetComboBox(self):
         self.combo_parset_dict = {}
@@ -925,22 +938,37 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
 
     def loadPrograms(self, progset_name, delay_refresh=False):
         self.progset_name = str(progset_name)
-#        self.progset = dcp(self.project.progsets[progset_name])
         self.options = defaultOptimOptions(settings=self.project.settings, progset=self.project.progsets[self.progset_name])
+        self.refreshOptionWidgets()
         self.status = ('Status: Progset "%s" selected for budget scenario' % self.progset_name)
         if not delay_refresh:
             self.refreshVisibility()
 
     def runBudgetScenario(self):
-        self.status = ('Status: Running model for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
-        self.refreshStatus()
-        result_name = str(self.edit_model_run.text())
-        if result_name == '':
-            result_name = None
-        self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, options=self.options, store_results=True, result_type='scen_budget', result_name=result_name)
-        self.acknowledgeResults()
-        self.status = ('Status: Model successfully processed for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
+        if not self.updateOptions():
+            self.status = ('Status: User-specified options could not be read into Budget Scenario, so options are being reverted')
+            self.refreshOptionWidgets()
+        else:
+            self.status = ('Status: Running model for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
+            self.refreshStatus()
+            result_name = str(self.edit_model_run.text())
+            if result_name == '':
+                result_name = None
+            self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, options=self.options, store_results=True, result_type='scen_budget', result_name=result_name)
+            self.acknowledgeResults()
+            self.status = ('Status: Model successfully processed for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
         self.refreshVisibility()
+        
+    # Scans through widgets and updates options dict appropriately.
+    # Return True if successful or False if there was an error.
+    def updateOptions(self):
+        if self.options is None:
+            return False
+        else:
+            try:
+                self.options['progs_start'] = float(str(self.edit_year_start.text()))
+            except: return False
+            return True
 
 
 
