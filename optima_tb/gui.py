@@ -1140,5 +1140,5 @@ def runGUI():
 
     app = qtw.QApplication(sys.argv)
     app.setApplicationName('Optima GUI')
-    GUI()
+    gui = GUI()
     sys.exit(app.exec_())
