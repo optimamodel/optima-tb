@@ -696,11 +696,11 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         self.parset_name = None
         self.scen_name = None
         self.combo_parset_dict = {}     # Dictionary that maps ParameterSet names to indices used in combo boxes.
-        self.combo_scen_dict = {}    # Dictionary that maps ProgramSet names to indices used in combo boxes.
+        self.combo_scen_dict = {}    # Dictionary that maps Scen names to indices used in combo boxes.
 
-        self.options = None     # The options dictionary for running a budget scenario.
-        self.widget_scen_dict = {}    # Dictionary that maps Program names to indices marking their position in a scrolling list of budget widgets.
+        self.widget_pars_list = []    # Dictionary that maps Program names to indices marking their position in a scrolling list of budget widgets.
 
+        
         # Initialise attributes specific to your budget scenario GUI.
 
 
@@ -790,12 +790,12 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
         self.parscen_layout = qtw.QGridLayout()
 
-        self.scroll_budgets = qtw.QWidget()
-        self.scroll_budgets.setLayout(self.parscen_layout)
+        self.scroll_pars = qtw.QWidget()
+        self.scroll_pars.setLayout(self.parscen_layout)
 
         self.scroll_area = qtw.QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setWidget(self.scroll_budgets)
+        self.scroll_area.setWidget(self.scroll_pars)
 
         layout.addLayout(grid_scen_load)
         layout.addWidget(self.scroll_area)
@@ -804,29 +804,22 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
     # Updates all options-related widgets to display values from the options dictionary.
     # Generally should only be called when a default options dictionary is initialised.
-    def refreshOptionWidgets(self):
+    def refreshParsWidgets(self):
 
         # Clear out all widgets in the budget layout.
         for i in reversed(range(self.parscen_layout.count())):
             self.parscen_layout.itemAt(i).widget().setParent(None)
 
-        self.widget_budget_dict = {}
-        for prog_label in self.options['init_alloc']:
-            prog_name = self.project.data['meta']['progs']['label_names'][prog_label]
-            if prog_name not in self.widget_budget_dict.keys():
-                try: last_id = max(self.widget_budget_dict.values())    
-                except: last_id = -1
-                label_budget = qtw.QLabel(prog_name)
-                edit_budget = qtw.QLineEdit()
-                self.parscen_layout.addWidget(label_budget, last_id + 1, 0)
-                self.parscen_layout.addWidget(edit_budget, last_id + 1, 1)
-                self.widget_budget_dict[prog_name] = last_id + 1
+        for p,val in enumerate(self.widget_pars_list):
+            par_label,par_name = val
+            label_par = qtw.QLabel(par_name)
+            edit_par = qtw.QLineEdit()
+            self.parscen_layout.addWidget(label_par, p, 0)
+            self.parscen_layout.addWidget(edit_par, p, 1)
+            widget = self.parscen_layout.itemAtPosition(p, 1).widget()
+            widget.setText(str(0.0)) # TODO: WARNING, shouldn't hard-code
 
-            current_id = self.widget_budget_dict[prog_name]
-            widget = self.parscen_layout.itemAtPosition(current_id, 1).widget()
-            widget.setText(str(self.options['init_alloc'][prog_label]))
-
-        self.edit_year_start.setText(str(self.options['progs_start']))
+        self.edit_year_start.setText(str(2015)) # TODO: WARNING, shouldn't hard-code
 
     def refreshParsetComboBox(self):
         self.combo_parset_dict = {}
@@ -906,6 +899,13 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         succ_param = 0.5 # scenario_dict['param_succ']
         fail_param = 0.5 # scenario_dict['param_fail']
         year_param = 2017. # scenario_dict['year']
+        
+        ('param_diag', 'Proportion of people diagnosed'),
+        ('param_link', 'Proportion of people linked to care'),
+        ('param_succ', 'Proportion of people successfully treated'),
+        ('param_fail', 'Proportion of people linked to care'),
+        
+        
 
         # setup populations
         pops = self.project.data['pops']['label_names'].keys()
