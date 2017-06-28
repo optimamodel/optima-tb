@@ -808,12 +808,14 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
     # Generally should only be called when a default options dictionary is initialised.
     def refreshParsWidgets(self):
 
-        # Clear out all widgets in the budget layout.
+        # Clear out all widgets in the paraemters layout.
         for i in reversed(range(self.parscen_layout.count())):
             self.parscen_layout.itemAt(i).widget().setParent(None)
 
         for p,val in enumerate(self.widget_pars_list):
+            
             par_label,par_name = val
+            print 'difudifudi', par_label
             label_par = qtw.QLabel(par_name)
             edit_par = qtw.QLineEdit()
             self.parscen_layout.addWidget(label_par, p, 0)
@@ -844,15 +846,16 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
     def loadCalibration(self, parset_name, delay_refresh=False):
         self.parset_name = str(parset_name)
         self.parset = dcp(self.project.parsets[self.parset_name])
-        self.status = ('Status: Parameter set "%s" selected for budget scenario' % self.parset_name)
+        self.status = ('Status: Parameter set "%s" selected for parameter scenario' % self.parset_name)
+        self.refreshParsWidgets()
         if not delay_refresh:
             self.refreshVisibility()
 
 #    def loadScentype(self, scentype, delay_refresh=False): # CK: for setting different scenario types
     def runParameterScenario(self):
         if not self.updateOptions():
-            self.status = ('Status: User-specified options could not be read into budget scenario, so options are being reverted')
-            self.refreshOptionWidgets()
+            self.status = ('Status: User-specified options could not be read into parameter scenario, so options are being reverted')
+            self.refreshParsWidgets()
         else:
             self.status = ('Status: Running model for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
             self.refreshStatus()
