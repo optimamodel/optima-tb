@@ -698,12 +698,21 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         self.combo_parset_dict = {}     # Dictionary that maps ParameterSet names to indices used in combo boxes.
         self.combo_scen_dict = {}    # Dictionary that maps Scen names to indices used in combo boxes.
 
-        self.widget_pars_list = [ # Dictionary that maps Program names to indices marking their position in a scrolling list of parameter widgets
-                ('param_diag', 'Proportion of people diagnosed'),
-                ('param_link', 'Proportion of people linked to care'),
-                ('param_succ', 'Proportion of people successfully treated'),
-                ('param_fail', 'Proportion of people with treatment failure'),
-                ]    
+        self.widget_pars_list = [ # List that maps cascade parameter names
+                ('param_diag', 'Proportion of people diagnosed:'),
+                ('param_link', 'Proportion of people linked to care:'),
+                ('param_succ', 'Proportion of people successfully treated:'),
+                ('param_fail', 'Proportion of people with treatment failure:'),
+                ]
+        
+        self.cascade_pars = { # Dictionary for values
+                'param_diag': 0.0,
+                'param_link': 0.0,
+                'param_succ': 0.0,
+                'param_fail': 0.0,
+                }
+        
+        self.start_year = 2015.0 # WARNING, shouldn't hard-code
 
 
     def refreshVisibility(self):
@@ -813,17 +822,15 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
             self.parscen_layout.itemAt(i).widget().setParent(None)
 
         for p,val in enumerate(self.widget_pars_list):
-            
             par_label,par_name = val
-            print 'difudifudi', par_label
             label_par = qtw.QLabel(par_name)
             edit_par = qtw.QLineEdit()
             self.parscen_layout.addWidget(label_par, p, 0)
             self.parscen_layout.addWidget(edit_par, p, 1)
             widget = self.parscen_layout.itemAtPosition(p, 1).widget()
-            widget.setText(str(0.0)) # TODO: WARNING, shouldn't hard-code
+            widget.setText(str(self.cascade_pars[par_label]))
 
-        self.edit_year_start.setText(str(2015)) # TODO: WARNING, shouldn't hard-code
+        self.edit_year_start.setText(str(self.start_year))
 
     def refreshParsetComboBox(self):
         self.combo_parset_dict = {}
