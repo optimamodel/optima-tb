@@ -444,10 +444,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
         
         
     def initUICalibration(self):
+        self.setWindowTitle('Manual calibration')
         self.resetAttributes()
-
-        self.setWindowTitle('Manual Calibration')
-
         self.refreshVisibility()
         self.show()
 
@@ -685,227 +683,10 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
     
     
     def initUIParameterScenario(self):
-        self.resetAttributes()
-
         self.setWindowTitle('Parameter scenarios')
-
+        self.resetAttributes()
         self.refreshVisibility()
         self.show()
-
-
-    def resetAttributes(self):
-        self.resetAttributesProjectManager()
-        self.resetAttributesResultPlotter()
-        self.parset = None      # This is the ParameterSet object used as the base of the scenario
-        self.parset_name = None
-        self.scenario_dict = {} # This stores all the scenario values
-    
-    
-    # While UI initialisation can extend the interface, this method is where widgets for the core process should be set up.
-    def developLayout(self, layout):
-        self.developLayoutResultPlotter()
-
-        # Widgets.
-        self.label_parset = qtw.QLabel('Parameter set to edit: ')
-        self.combo_parset = qtw.QComboBox(self)
-        self.combo_parset.activated[str].connect(self.loadCalibration)
-
-        self.label_model_run = qtw.QLabel('Run scenario results as... ')
-        self.edit_model_run = qtw.QLineEdit()
-        self.button_model_run = qtw.QPushButton('Generate results', self)
-        self.button_model_run.clicked.connect(self.runCalibration)
-
-        self.label_overwrite = qtw.QLabel('Save edits to... ')
-        self.edit_overwrite = qtw.QLineEdit()
-        self.button_overwrite = qtw.QPushButton('Save scenario', self)
-        self.button_overwrite.clicked.connect(self.saveCalibration)
-
-        # Layout.
-        grid_parset_load = qtw.QGridLayout()
-        grid_parset_load.setSpacing(10)
-
-        grid_parset_load.addWidget(self.label_parset, 0, 0)
-        grid_parset_load.addWidget(self.combo_parset, 0, 1)
-
-        grid_parset_save = qtw.QGridLayout()
-        grid_parset_save.setSpacing(10)
-
-        grid_parset_save.addWidget(self.label_model_run, 0, 0)
-        grid_parset_save.addWidget(self.edit_model_run, 0, 1)
-        grid_parset_save.addWidget(self.button_model_run, 0, 2)
-        grid_parset_save.addWidget(self.label_overwrite, 1, 0)
-        grid_parset_save.addWidget(self.edit_overwrite, 1, 1)
-        grid_parset_save.addWidget(self.button_overwrite, 1, 2)
-
-        layout.addLayout(grid_parset_load)
-        layout.addWidget(self.table_calibration)
-        layout.addLayout(grid_parset_save)
-
-
-    def refreshVisibility(self):
-        self.refreshVisibilityProjectManager()
-        self.refreshVisibilityResultPlotter()
-
-        is_project_loaded = self.project is not None
-        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
-        
-        if is_project_loaded:
-            self.refreshParsetComboBox()
-        self.label_parset.setVisible(is_project_loaded)
-        self.combo_parset.setVisible(is_project_loaded)
-
-        policy_min = qtw.QSizePolicy.Minimum
-        policy_exp = qtw.QSizePolicy.Expanding
-        if does_parset_exist:
-            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_min)
-            self.makeParsetTable()
-        else:
-            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
-        self.table_calibration.setVisible(does_parset_exist)
-
-        self.label_model_run.setVisible(does_parset_exist)
-        self.edit_model_run.setVisible(does_parset_exist)
-        self.button_model_run.setVisible(does_parset_exist)
-        self.label_overwrite.setVisible(does_parset_exist)
-        self.edit_overwrite.setVisible(does_parset_exist)
-        self.button_overwrite.setVisible(does_parset_exist)
-
-
-    def acknowledgeProject(self):
-        self.acknowledgeProjectProjectManager()
-        self.acknowledgeProjectResultPlotter()
-        if not self.project is None:
-            if len(self.project.parsets) < 1:
-                self.project.makeParset(name='default')
-            self.loadCalibration(self.project.parsets[0].name, delay_refresh=True)
-
-    # If a project is loaded, do whatever initial pre-processing is needed.
-    def refreshParsetComboBox(self):
-        self.combo_parset_dict = {}
-        self.combo_parset.clear()
-        pid = 0
-        for parset_name in self.project.parsets.keys():
-            self.combo_parset_dict[parset_name] = pid
-            self.combo_parset.addItem(parset_name)
-            pid += 1
-        try: self.combo_parset.setCurrentIndex(self.combo_parset_dict[self.parset_name])
-        except: pass
-
-
-    def loadCalibration(self, parset_name, delay_refresh=False):
-        self.parset_name = parset_name
-        self.parset = dcp(self.project.parsets[parset_name])
-        self.status = ('Status: Parset "%s" selected for editing' % parset_name)
-        if not delay_refresh:
-            self.refreshVisibility()
-
-    def runCalibration(self):
-        self.status = ('Status: Running model for Parset "%s"' % self.parset_name)
-        self.refreshStatus()
-        result_name = self.edit_model_run.text()
-        if result_name == '':
-            result_name = None
-        self.project.runSim(parset=self.parset, store_results=True, result_name=result_name)
-        self.status = ('Status: Model successfully processed for Parset "%s"' % self.parset_name)
-        self.refreshVisibility()
-
-    def saveCalibration(self):
-        parset_name = self.edit_overwrite.text()
-        if parset_name == '':
-            self.status = ('Status: Attempt to save Parset failed, no name provided')
-        else:
-            if parset_name in self.project.parsets.keys():
-                self.status = ('Status: Parset "%s" successfully overwritten' % parset_name)
-            else:
-                self.status = ('Status: New Parset "%s" added to Project' % parset_name)
-            self.parset.name = parset_name
-            self.project.parsets[parset_name] = dcp(self.parset)
-        self.refreshVisibility()
-        self.show()
-
-
-    # Whatever auxiliary functions you require to link to widgets and so on.
-    # E.g...
-    def translateToParameterScenario(self, scenario_dict):
-        """
-        
-        Assumes self.project has been set. 
-
-        # NOTE: Currently uses dummy values for diagnosis / linkage / treatment. Uncomment when values are linked in from GUI
-        
-        """
-        # translate params in from scenario_dict
-        # NOTE: Currently uses dummy values. Uncomment when values are linked in from GUI
-        diag_param = 0.5 # scenario_dict['param_diag']
-        link_param = 0.5 # scenario_dict['param_link']
-        succ_param = 0.5 # scenario_dict['param_succ']
-        fail_param = 0.5 # scenario_dict['param_fail']
-        year_param = 2017. # scenario_dict['year']
-
-        # setup populations
-        pops = self.project.data['pops']['label_names'].keys()
-
-        # setup params
-        active_succ_bases = ['s%s%ssuc_rate']
-        active_link_bases = ['s%s%syes_rate']
-        active_fail_bases = ['s%s%sno_rate']
-        active_diag_bases = ['s%s%sdiag_rate']
-
-        smear = ['p', 'n']
-        strain = ['d', 'm', 'x']
-
-        active_succ_params = [base % (sm, st) for base in active_succ_bases for sm in smear for st in strain]
-        active_link_params = [base % (sm, st) for base in active_link_bases for sm in smear for st in strain]
-        active_fail_params = [base % (sm, st) for base in active_fail_bases for sm in smear for st in strain]
-        active_diag_params = [base % (sm, st) for base in active_diag_bases for sm in smear for st in strain]
-
-        # setup year
-        dt = self.project.settings.tvec_dt
-        year_end = self.project.settings.tvec_end
-
-        scenarios_years = np.arange(year_param, year_end, dt)
-
-        # setup scenario values structure:
-        values = odict()
-        values['Care Cascade'] = {'active_diag': diag_param,
-                                  'active_diag': link_param,
-                                  'active_diag': succ_param,
-                                  'active_fail' : fail_param}
-        # if we wanted further scenarios, include here
-        # ...
-
-        # generate scenario values dictionary
-        scen_values = odict()  # complete scenario values
-        for scenario in values.keys():
-            scvalues = odict()  # the core of the parameter values for each scenario
-
-            for paramclass in values[scenario].keys():
-                paramlist = locals()['%s_params' % paramclass]
-
-                for param in paramlist:
-                    scvalues[param] = odict()
-
-                    for pop_label in pops:
-
-                        scvalues[param][pop_label] = odict()
-                        scvalues[param][pop_label]['y_format'] = 'fraction'
-                        scvalues[param][pop_label]['y_factor'] = DO_NOT_SCALE
-                        scvalues[param][pop_label]['y'] = np.ones(scenarios_years.shape) * values[scenario][paramclass]
-                        scvalues[param][pop_label]['t'] = scenarios_years
-
-            scen_values[scenario] = { 'type': 'Parameter',
-                                      'overwrite' : True,
-                                      'run_scenario' : True,
-                                      'scenario_values': scvalues}
-        return scen_values
-
-
-# DJK to CK: Do this one after the Parameter Scenario as I -might- get to it before you.
-class GUIBudgetScenario(GUIResultPlotterIntermediate):
-
-    def __init__(self):
-        super(GUIBudgetScenario, self).__init__()
-        self.initUIBudgetScenario()
 
 
     def resetAttributes(self):
@@ -1026,13 +807,311 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         layout.addLayout(grid_progset_save)
 
 
+    # Updates all options-related widgets to display values from the options dictionary.
+    # Generally should only be called when a default options dictionary is initialised.
+    def refreshOptionWidgets(self):
+
+        # Clear out all widgets in the budget layout.
+        for i in reversed(range(self.budget_layout.count())):
+            self.budget_layout.itemAt(i).widget().setParent(None)
+
+        self.widget_budget_dict = {}
+        for prog_label in self.options['init_alloc']:
+            prog_name = self.project.data['meta']['progs']['label_names'][prog_label]
+            if prog_name not in self.widget_budget_dict.keys():
+                try: last_id = max(self.widget_budget_dict.values())    
+                except: last_id = -1
+                label_budget = qtw.QLabel(prog_name)
+                edit_budget = qtw.QLineEdit()
+                self.budget_layout.addWidget(label_budget, last_id + 1, 0)
+                self.budget_layout.addWidget(edit_budget, last_id + 1, 1)
+                self.widget_budget_dict[prog_name] = last_id + 1
+
+            current_id = self.widget_budget_dict[prog_name]
+            widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
+            widget.setText(str(self.options['init_alloc'][prog_label]))
+
+        self.edit_year_start.setText(str(self.options['progs_start']))
+
+    def refreshParsetComboBox(self):
+        self.combo_parset_dict = {}
+        self.combo_parset.clear()
+        pid = 0
+        for parset_name in self.project.parsets.keys():
+            self.combo_parset_dict[parset_name] = pid
+            self.combo_parset.addItem(parset_name)
+            pid += 1
+        try: self.combo_parset.setCurrentIndex(self.combo_parset_dict[self.parset_name])
+        except: pass
+
+    def refreshProgsetComboBox(self):
+        self.combo_progset_dict = {}
+        self.combo_progset.clear()
+        pid = 0
+        for progset_name in self.project.progsets.keys():
+            self.combo_progset_dict[progset_name] = pid
+            self.combo_progset.addItem(progset_name)
+            pid += 1
+        try: self.combo_progset.setCurrentIndex(self.combo_progset_dict[self.progset_name])
+        except: pass
+
+    def loadCalibration(self, parset_name, delay_refresh=False):
+        self.parset_name = str(parset_name)
+        self.parset = dcp(self.project.parsets[self.parset_name])
+        self.status = ('Status: Parameter set "%s" selected for budget scenario' % self.parset_name)
+        if not delay_refresh:
+            self.refreshVisibility()
+
+    def loadPrograms(self, progset_name, delay_refresh=False):
+        self.progset_name = str(progset_name)
+        self.options = defaultOptimOptions(settings=self.project.settings, progset=self.project.progsets[self.progset_name])
+        self.refreshOptionWidgets()
+        self.status = ('Status: Program set "%s" selected for budget scenario' % self.progset_name)
+        if not delay_refresh:
+            self.refreshVisibility()
+
+    def runBudgetScenario(self):
+        if not self.updateOptions():
+            self.status = ('Status: User-specified options could not be read into budget scenario, so options are being reverted')
+            self.refreshOptionWidgets()
+        else:
+            self.status = ('Status: Running model for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
+            self.refreshStatus()
+            result_name = str(self.edit_model_run.text())
+            if result_name == '':
+                result_name = None
+            self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, options=self.options, store_results=True, result_type='scen_budget', result_name=result_name)
+            self.acknowledgeResults()
+            self.status = ('Status: Model successfully processed for parameter set "%s" and program set "%s"' % (self.parset_name, self.progset_name))
+        self.refreshVisibility()
+
+    # Scans through widgets and updates options dict appropriately.
+    # Return True if successful or False if there was an error.
+    def updateOptions(self):
+        if self.options is None:
+            return False
+        else:
+            try:
+                self.options['progs_start'] = float(str(self.edit_year_start.text()))
+
+                for prog_name in self.widget_budget_dict.keys():
+                    current_id = self.widget_budget_dict[prog_name]
+                    widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
+                    prog_label = self.project.data['meta']['progs']['name_labels'][prog_name]
+                    self.options['init_alloc'][prog_label] = float(str(widget.text()))
+
+            except: return False
+            return True
+
+
+    # Whatever auxiliary functions you require to link to widgets and so on.
+    # E.g...
+    def translateToParameterScenario(self, scenario_dict):
+        """
+        
+        Assumes self.project has been set. 
+
+        # NOTE: Currently uses dummy values for diagnosis / linkage / treatment. Uncomment when values are linked in from GUI
+        
+        """
+        # translate params in from scenario_dict
+        # NOTE: Currently uses dummy values. Uncomment when values are linked in from GUI
+        diag_param = 0.5 # scenario_dict['param_diag']
+        link_param = 0.5 # scenario_dict['param_link']
+        succ_param = 0.5 # scenario_dict['param_succ']
+        fail_param = 0.5 # scenario_dict['param_fail']
+        year_param = 2017. # scenario_dict['year']
+
+        # setup populations
+        pops = self.project.data['pops']['label_names'].keys()
+
+        # setup params
+        active_succ_bases = ['s%s%ssuc_rate']
+        active_link_bases = ['s%s%syes_rate']
+        active_fail_bases = ['s%s%sno_rate']
+        active_diag_bases = ['s%s%sdiag_rate']
+
+        smear = ['p', 'n']
+        strain = ['d', 'm', 'x']
+
+        active_succ_params = [base % (sm, st) for base in active_succ_bases for sm in smear for st in strain]
+        active_link_params = [base % (sm, st) for base in active_link_bases for sm in smear for st in strain]
+        active_fail_params = [base % (sm, st) for base in active_fail_bases for sm in smear for st in strain]
+        active_diag_params = [base % (sm, st) for base in active_diag_bases for sm in smear for st in strain]
+
+        # setup year
+        dt = self.project.settings.tvec_dt
+        year_end = self.project.settings.tvec_end
+
+        scenarios_years = np.arange(year_param, year_end, dt)
+
+        # setup scenario values structure:
+        values = odict()
+        values['Care Cascade'] = {'active_diag': diag_param,
+                                  'active_diag': link_param,
+                                  'active_diag': succ_param,
+                                  'active_fail' : fail_param}
+        # if we wanted further scenarios, include here
+        # ...
+
+        # generate scenario values dictionary
+        scen_values = odict()  # complete scenario values
+        for scenario in values.keys():
+            scvalues = odict()  # the core of the parameter values for each scenario
+
+            for paramclass in values[scenario].keys():
+                paramlist = locals()['%s_params' % paramclass]
+
+                for param in paramlist:
+                    scvalues[param] = odict()
+
+                    for pop_label in pops:
+
+                        scvalues[param][pop_label] = odict()
+                        scvalues[param][pop_label]['y_format'] = 'fraction'
+                        scvalues[param][pop_label]['y_factor'] = DO_NOT_SCALE
+                        scvalues[param][pop_label]['y'] = np.ones(scenarios_years.shape) * values[scenario][paramclass]
+                        scvalues[param][pop_label]['t'] = scenarios_years
+
+            scen_values[scenario] = { 'type': 'Parameter',
+                                      'overwrite' : True,
+                                      'run_scenario' : True,
+                                      'scenario_values': scvalues}
+        return scen_values
+
+
+# DJK to CK: Do this one after the Parameter Scenario as I -might- get to it before you.
+class GUIBudgetScenario(GUIResultPlotterIntermediate):
+
+    def __init__(self):
+        super(GUIBudgetScenario, self).__init__()
+        self.initUIBudgetScenario()
+    
+    
     def initUIBudgetScenario(self):
-        self.resetAttributes()
-
         self.setWindowTitle('Budget scenario')
-
+        self.resetAttributes()
         self.refreshVisibility()
         self.show()
+
+
+    def resetAttributes(self):
+        self.resetAttributesProjectManager()
+        self.resetAttributesResultPlotter()
+
+        self.parset_name = None
+        self.progset_name = None
+        self.combo_parset_dict = {}     # Dictionary that maps ParameterSet names to indices used in combo boxes.
+        self.combo_progset_dict = {}    # Dictionary that maps ProgramSet names to indices used in combo boxes.
+
+        self.options = None     # The options dictionary for running a budget scenario.
+        self.widget_budget_dict = {}    # Dictionary that maps Program names to indices marking their position in a scrolling list of budget widgets.
+
+        # Initialise attributes specific to your budget scenario GUI.
+
+
+    def refreshVisibility(self):
+        self.refreshVisibilityProjectManager()
+        self.refreshVisibilityResultPlotter()
+
+        is_project_loaded = self.project is not None
+        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
+        does_progset_exist = is_project_loaded and len(self.project.progsets.keys()) > 0
+        do_options_exist = self.options is not None
+
+        if is_project_loaded:
+            self.refreshParsetComboBox()
+            self.refreshProgsetComboBox()
+        self.label_parset.setVisible(is_project_loaded)
+        self.combo_parset.setVisible(is_project_loaded)
+        self.label_progset.setVisible(is_project_loaded)
+        self.combo_progset.setVisible(is_project_loaded)
+
+        policy_min = qtw.QSizePolicy.Minimum
+        policy_exp = qtw.QSizePolicy.Expanding
+        if do_options_exist:
+            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_min)
+        else:
+            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+        self.scroll_area.setVisible(do_options_exist)
+
+        self.label_year_start.setVisible(do_options_exist)
+        self.edit_year_start.setVisible(do_options_exist)
+        self.label_model_run.setVisible(does_parset_exist & does_progset_exist)
+        self.edit_model_run.setVisible(does_parset_exist & does_progset_exist)
+        self.button_model_run.setVisible(does_parset_exist & does_progset_exist)
+
+        # Update the visibility of widgets depending on if they have anything to show.
+
+
+    def acknowledgeProject(self):
+        self.acknowledgeProjectProjectManager()
+        self.acknowledgeProjectResultPlotter()
+        if not self.project is None:
+            if len(self.project.parsets) < 1:
+                self.project.makeParset(name='default')
+            self.loadCalibration(self.project.parsets[0].name, delay_refresh=True)
+            if len(self.project.progsets) < 1:
+                self.project.makeProgset(name='default')
+            self.loadPrograms(self.project.progsets[0].name, delay_refresh=True)
+
+        # If a project is loaded, do whatever initial pre-processing is needed.
+
+
+    # While UI initialisation can extend the interface, this method is where widgets for the core process should be set up.
+    def developLayout(self, layout):
+        self.developLayoutResultPlotter()
+
+        # Widgets.
+        self.label_parset = qtw.QLabel('Parameter set to use: ')
+        self.combo_parset = qtw.QComboBox(self)
+        self.combo_parset.activated[str].connect(self.loadCalibration)
+
+        self.label_progset = qtw.QLabel('Program set to use: ')
+        self.combo_progset = qtw.QComboBox(self)
+        self.combo_progset.activated[str].connect(self.loadPrograms)
+
+        self.label_year_start = qtw.QLabel('Start year for program budgets... ')
+        self.edit_year_start = qtw.QLineEdit()
+
+        self.label_model_run = qtw.QLabel('Run & save budget scenario results as... ')
+        self.edit_model_run = qtw.QLineEdit()
+        self.button_model_run = qtw.QPushButton('Generate results', self)
+        self.button_model_run.clicked.connect(self.runBudgetScenario)
+
+        # Layout.
+        grid_progset_load = qtw.QGridLayout()
+        grid_progset_load.setSpacing(10)
+
+        grid_progset_load.addWidget(self.label_parset, 0, 0)
+        grid_progset_load.addWidget(self.combo_parset, 0, 1)
+        grid_progset_load.addWidget(self.label_progset, 1, 0)
+        grid_progset_load.addWidget(self.combo_progset, 1, 1)
+
+        grid_progset_load.addWidget(self.label_year_start, 2, 0)
+        grid_progset_load.addWidget(self.edit_year_start, 2, 1)
+
+        grid_progset_save = qtw.QGridLayout()
+        grid_progset_save.setSpacing(10)
+
+        grid_progset_save.addWidget(self.label_model_run, 0, 0)
+        grid_progset_save.addWidget(self.edit_model_run, 0, 1)
+        grid_progset_save.addWidget(self.button_model_run, 0, 2)
+
+        self.budget_layout = qtw.QGridLayout()
+
+        self.scroll_budgets = qtw.QWidget()
+        self.scroll_budgets.setLayout(self.budget_layout)
+
+        self.scroll_area = qtw.QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setWidget(self.scroll_budgets)
+
+
+        layout.addLayout(grid_progset_load)
+        layout.addWidget(self.scroll_area)
+        layout.addLayout(grid_progset_save)
+
 
     # Updates all options-related widgets to display values from the options dictionary.
     # Generally should only be called when a default options dictionary is initialised.
