@@ -698,10 +698,12 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         self.combo_parset_dict = {}     # Dictionary that maps ParameterSet names to indices used in combo boxes.
         self.combo_scen_dict = {}    # Dictionary that maps Scen names to indices used in combo boxes.
 
-        self.widget_pars_list = []    # Dictionary that maps Program names to indices marking their position in a scrolling list of budget widgets.
-
-        
-        # Initialise attributes specific to your budget scenario GUI.
+        self.widget_pars_list = [ # Dictionary that maps Program names to indices marking their position in a scrolling list of parameter widgets
+                ('param_diag', 'Proportion of people diagnosed'),
+                ('param_link', 'Proportion of people linked to care'),
+                ('param_succ', 'Proportion of people successfully treated'),
+                ('param_fail', 'Proportion of people with treatment failure'),
+                ]    
 
 
     def refreshVisibility(self):
@@ -710,7 +712,6 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
         is_project_loaded = self.project is not None
         does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
-        do_options_exist = self.options is not None
 
         if is_project_loaded:
             self.refreshParsetComboBox()
@@ -722,14 +723,14 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
         policy_min = qtw.QSizePolicy.Minimum
         policy_exp = qtw.QSizePolicy.Expanding
-        if do_options_exist:
+        if is_project_loaded:
             self.process_layout_stretch.changeSize(0, 0, policy_min, policy_min)
         else:
             self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
-        self.scroll_area.setVisible(do_options_exist)
+        self.scroll_area.setVisible(is_project_loaded)
 
-        self.label_year_start.setVisible(do_options_exist)
-        self.edit_year_start.setVisible(do_options_exist)
+        self.label_year_start.setVisible(is_project_loaded)
+        self.edit_year_start.setVisible(is_project_loaded)
         self.label_model_run.setVisible(does_parset_exist)
         self.edit_model_run.setVisible(does_parset_exist)
         self.button_model_run.setVisible(does_parset_exist)
@@ -767,7 +768,7 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         self.label_model_run = qtw.QLabel('Run & save parameter scenario results as:')
         self.edit_model_run = qtw.QLineEdit()
         self.button_model_run = qtw.QPushButton('Generate results', self)
-        self.button_model_run.clicked.connect(self.runBudgetScenario)
+        self.button_model_run.clicked.connect(self.runParameterScenario)
 
         # Layout.
         grid_scen_load = qtw.QGridLayout()
@@ -847,8 +848,7 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
             self.refreshVisibility()
 
 #    def loadScentype(self, scentype, delay_refresh=False): # CK: for setting different scenario types
-
-    def runBudgetScenario(self):
+    def runParameterScenario(self):
         if not self.updateOptions():
             self.status = ('Status: User-specified options could not be read into budget scenario, so options are being reverted')
             self.refreshOptionWidgets()
@@ -862,25 +862,6 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
             self.acknowledgeResults()
             self.status = ('Status: Model successfully processed for parameter set "%s" and program set "%s"' % (self.parset_name, self.progset_name))
         self.refreshVisibility()
-
-    # Scans through widgets and updates options dict appropriately.
-    # Return True if successful or False if there was an error.
-    def updateOptions(self):
-        if self.options is None:
-            return False
-        else:
-            try:
-                self.options['progs_start'] = float(str(self.edit_year_start.text()))
-
-                for prog_name in self.widget_budget_dict.keys():
-                    current_id = self.widget_budget_dict[prog_name]
-                    widget = self.parscen_layout.itemAtPosition(current_id, 1).widget()
-                    prog_label = self.project.data['meta']['progs']['name_labels'][prog_name]
-                    self.options['init_alloc'][prog_label] = float(str(widget.text()))
-
-            except: return False
-            return True
-
 
     # Whatever auxiliary functions you require to link to widgets and so on.
     # E.g...
@@ -900,13 +881,6 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         fail_param = 0.5 # scenario_dict['param_fail']
         year_param = 2017. # scenario_dict['year']
         
-        ('param_diag', 'Proportion of people diagnosed'),
-        ('param_link', 'Proportion of people linked to care'),
-        ('param_succ', 'Proportion of people successfully treated'),
-        ('param_fail', 'Proportion of people linked to care'),
-        
-        
-
         # setup populations
         pops = self.project.data['pops']['label_names'].keys()
 
@@ -933,9 +907,9 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         # setup scenario values structure:
         values = odict()
         values['Care Cascade'] = {'active_diag': diag_param,
-                                  'active_diag': link_param,
-                                  'active_diag': succ_param,
-                                  'active_fail' : fail_param}
+                                  'active_link': link_param,
+                                  'active_succ': succ_param,
+                                  'active_fail': fail_param}
         # if we wanted further scenarios, include here
         # ...
 
