@@ -764,6 +764,7 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
         self.label_year_start = qtw.QLabel('Start year for parameter changes:')
         self.edit_year_start = qtw.QLineEdit()
+        self.edit_year_start.setText(str(2015))
 
         self.label_model_run = qtw.QLabel('Run & save parameter scenario results as:')
         self.edit_model_run = qtw.QLineEdit()
