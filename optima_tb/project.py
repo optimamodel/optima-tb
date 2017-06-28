@@ -454,34 +454,34 @@ class Project(object):
         if include_bau:
             results['BAU'] = self.runSim(parset_name = original_parset_name,progset=orig_progset,options=original_budget_options,plot=plot)
 
-        
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
-
+                
                 progset, budget_options = self.scenarios[scen].getScenarioProgset(orig_progset,original_budget_options)
             
                 results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(orig_parset), progset=progset, options=budget_options, parset_name = scen_name, plot=plot)
                 
                 if scenario_set_name is None:
-                    results[scen_name].name = 'TMP%s'%(scen_name)
+                    results[scen_name].name = '%s'%(scen_name)
                 else:
-                    result_name = 'TMP%s:%s'%(scenario_set_name,scen_name)
+                    results[scen_name].name = '%s:%s'%(scenario_set_name,scen_name)
                 
-            if store_results:
-                result_name = results[scen_name].name
-                k = 1
-                while k > 0:
-                    result_name_attempt = result_name + '_' + str(k)
-                    k = k + 1
-                    if result_name_attempt not in self.results.keys():
-                        result_name = result_name_attempt
-                        k = 0
-                self.results[result_name] = dcp(results[scen_name])
+                if store_results:
+                    result_name = results[scen_name].name
                     
-                if save_results:
-                    results[scen_name].export()
-                    export_paramset(self.scenarios[scen].getScenarioParset(orig_parset))
+                    k = 1
+                    while k > 0:
+                        result_name_attempt = result_name + '_' + str(k)
+                        k = k + 1
+                        if result_name_attempt not in self.results.keys():
+                            result_name = result_name_attempt
+                            k = 0
+                    self.results[result_name] = dcp(results[scen_name])
+                        
+                    if save_results:
+                        results[scen_name].export()
+                        export_paramset(self.scenarios[scen].getScenarioParset(orig_parset))
         
         return results
     

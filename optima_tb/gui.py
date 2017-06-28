@@ -730,8 +730,8 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         self.label_scen.setVisible(is_project_loaded)
         self.combo_scen.setVisible(is_project_loaded)
 
-        policy_min = qtw.QSizePolicy.Minimum
-        policy_exp = qtw.QSizePolicy.Expanding
+#        policy_min = qtw.QSizePolicy.Minimum
+#        policy_exp = qtw.QSizePolicy.Expanding
 #        if is_project_loaded:
 #            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_min)
 #        else:
