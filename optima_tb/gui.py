@@ -968,6 +968,8 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
             if result_name == '':
                 result_name = None
             
+             
+guiPS = ParameterScenario(name, self.project..settings, run_scenario=True, overwrite=True, pop_labels=self.project.data['pops']['label_names'].keys())
             scen_values = self.translateToParameterScenario()
             scenario_name = 'Care cascade' # TODO WARNING hardcoded
             progset_name = None # TODO WARNING is this OK?
