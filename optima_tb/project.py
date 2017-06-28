@@ -418,7 +418,7 @@ class Project(object):
         
         
 
-    def runScenarios(self,original_parset_name,original_progset_name=None,original_budget_options=None,scenario_set_name=None,include_bau=False,plot=False,save_results=False):
+    def runScenarios(self, original_parset_name, original_progset_name=None, original_budget_options=None, scenario_set_name=None, include_bau=False, plot=False, save_results=False, store_results=True):
         """
         Runs scenarios that are contained in this project's collection of scenarios (i.e. self.scenarios). 
         For each scenario run, using original_parset_name, the results generated are saved and 
@@ -466,7 +466,23 @@ class Project(object):
                 if scenario_set_name is None:
                     results[scen_name].name = '%s'%(scen_name)
                 else:
-                    results[scen_name].name = '%s:%s'%(scenario_set_name,scen_name)
+                    result_name = '%s:%s'%(scenario_set_name,scen_name)
+                
+            if store_results:
+                result_name = results[scen_name].name
+                result_type = None # TODO WARNING
+                if not progset is None:
+                    result_name = result_name + '_' + progset.name
+                if result_type is not None:
+                    result_name = result_type + '_' + result_name
+                k = 1
+                while k > 0:
+                    result_name_attempt = result_name + '_' + str(k)
+                    k = k + 1
+                    if result_name_attempt not in self.results.keys():
+                        result_name = result_name_attempt
+                        k = 0
+                self.results[result_name] = dcp(results[scen_name])
                     
                 if save_results:
                     results[scen_name].export()
