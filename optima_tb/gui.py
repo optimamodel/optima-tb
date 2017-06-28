@@ -732,10 +732,10 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
         policy_min = qtw.QSizePolicy.Minimum
         policy_exp = qtw.QSizePolicy.Expanding
-        if is_project_loaded:
-            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_min)
-        else:
-            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+#        if is_project_loaded:
+#            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_min)
+#        else:
+#            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
         self.scroll_area.setVisible(is_project_loaded)
 
         self.label_year_start.setVisible(is_project_loaded)
