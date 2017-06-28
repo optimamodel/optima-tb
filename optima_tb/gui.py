@@ -969,12 +969,11 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
                 result_name = None
             
             scen_values = self.translateToParameterScenario()
-            scenario_name = 'Care cascade' # TODO WARNING hardcoded
             progset_name = None # TODO WARNING is this OK?
             
             self.project.createScenarios(scen_values)
             self.project.runScenarios(original_parset_name=self.parset_name, original_progset_name=progset_name,
-                                          scenario_set_name=scenario_name, include_bau=False, save_results=False)
+                                          scenario_set_name=result_name, include_bau=False, save_results=False)
             
 #            self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, options=self.options, store_results=True, result_type='scen_budget', result_name=result_name)
             self.acknowledgeResults()

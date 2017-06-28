@@ -464,17 +464,12 @@ class Project(object):
                 results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(orig_parset), progset=progset, options=budget_options, parset_name = scen_name, plot=plot)
                 
                 if scenario_set_name is None:
-                    results[scen_name].name = '%s'%(scen_name)
+                    results[scen_name].name = 'TMP%s'%(scen_name)
                 else:
-                    result_name = '%s:%s'%(scenario_set_name,scen_name)
+                    result_name = 'TMP%s:%s'%(scenario_set_name,scen_name)
                 
             if store_results:
                 result_name = results[scen_name].name
-                result_type = None # TODO WARNING
-                if not progset is None:
-                    result_name = result_name + '_' + progset.name
-                if result_type is not None:
-                    result_name = result_type + '_' + result_name
                 k = 1
                 while k > 0:
                     result_name_attempt = result_name + '_' + str(k)
