@@ -706,10 +706,10 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
                 ]
         
         self.cascade_pars = { # Dictionary for values
-                'param_diag': 0.0,
-                'param_link': 0.0,
-                'param_succ': 0.0,
-                'param_fail': 0.0,
+                'param_diag': 0.76, # TODO WARNING hard-coded
+                'param_link': 0.76,
+                'param_succ': 0.85,
+                'param_fail': 0.05,
                 }
         
         self.start_year = 2015.0 # WARNING, shouldn't hard-code
@@ -859,24 +859,11 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
             self.refreshVisibility()
 
 #    def loadScentype(self, scentype, delay_refresh=False): # CK: for setting different scenario types
-    def runParameterScenario(self):
-        if not self.updateOptions():
-            self.status = ('Status: User-specified options could not be read into parameter scenario, so options are being reverted')
-            self.refreshParsWidgets()
-        else:
-            self.status = ('Status: Running model for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
-            self.refreshStatus()
-            result_name = str(self.edit_model_run.text())
-            if result_name == '':
-                result_name = None
-            self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, options=self.options, store_results=True, result_type='scen_budget', result_name=result_name)
-            self.acknowledgeResults()
-            self.status = ('Status: Model successfully processed for parameter set "%s" and program set "%s"' % (self.parset_name, self.progset_name))
-        self.refreshVisibility()
+
 
     # Whatever auxiliary functions you require to link to widgets and so on.
     # E.g...
-    def translateToParameterScenario(self, scenario_dict):
+    def translateToParameterScenario(self):
         """
         
         Assumes self.project has been set. 
@@ -886,11 +873,11 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         """
         # translate params in from scenario_dict
         # NOTE: Currently uses dummy values. Uncomment when values are linked in from GUI
-        diag_param = 0.5 # scenario_dict['param_diag']
-        link_param = 0.5 # scenario_dict['param_link']
-        succ_param = 0.5 # scenario_dict['param_succ']
-        fail_param = 0.5 # scenario_dict['param_fail']
-        year_param = 2017. # scenario_dict['year']
+        diag_param = self.cascade_pars['param_diag']
+        link_param = self.cascade_pars['param_link']
+        succ_param = self.cascade_pars['param_succ']
+        fail_param = self.cascade_pars['param_fail']
+        year_param = self.start_year
         
         # setup populations
         pops = self.project.data['pops']['label_names'].keys()
@@ -948,6 +935,51 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
                                       'run_scenario' : True,
                                       'scenario_values': scvalues}
         return scen_values
+
+
+    # Scans through widgets and updates options dict appropriately.
+    # Return True if successful or False if there was an error.
+    def updatePars(self):
+        if self.cascade_pars is None:
+            return False
+        else:
+            try:
+                self.start_year = float(str(self.edit_year_start.text()))
+
+                for p,val in enumerate(self.widget_pars_list):
+                    par_label,par_name = val
+                    widget = self.parscen_layout.itemAtPosition(p, 1).widget()
+                    self.cascade_pars[par_label] = float(str(widget.text()))
+
+            except Exception as E: 
+                print('Could not update parameters: %s' % E.__repr__())
+                return False
+            return True
+
+
+    def runParameterScenario(self):
+        if not self.updatePars():
+            self.status = ('Status: User-specified options could not be read into parameter scenario, so options are being reverted')
+            self.refreshParsWidgets()
+        else:
+            self.status = ('Status: Running scenario for parameter set "%s"' % self.parset_name)
+            self.refreshStatus()
+            result_name = str(self.edit_model_run.text())
+            if result_name == '':
+                result_name = None
+            
+            scen_values = self.translateToParameterScenario()
+            scenario_name = 'Care cascade' # TODO WARNING hardcoded
+            progset_name = None # TODO WARNING is this OK?
+            
+            self.project.createScenarios(scen_values)
+            self.project.runScenarios(original_parset_name=self.parset_name, original_progset_name=progset_name,
+                                          scenario_set_name=scenario_name, include_bau=False, save_results=False)
+            
+#            self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, options=self.options, store_results=True, result_type='scen_budget', result_name=result_name)
+            self.acknowledgeResults()
+            self.status = ('Status: Scenarios successfully run for parameter set "%s"' % (self.parset_name))
+        self.refreshVisibility()
 
 
 # DJK to CK: Do this one after the Parameter Scenario as I -might- get to it before you.
