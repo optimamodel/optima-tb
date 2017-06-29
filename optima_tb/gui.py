@@ -12,11 +12,34 @@ from matplotlib import pyplot as pp
 pp.ioff()   # Turn off interactive mode.
 
 from optima_tb.project import Project
-from optima_tb.plotting import _plotLine
+from optima_tb.plotting import plotScenarios # _plotLine
 from optima_tb.dataio import saveObject, loadObject
 from optima_tb.defaults import defaultOptimOptions
 from optima_tb.utils import odict
 from optima_tb.settings import DO_NOT_SCALE
+
+##### TODO remove hardcoded from Belarus:
+def getColormappingsByPop():
+    cat_list = odict()
+    non_variable = None
+#     cat_list['#3B8183'] = ['0-4']
+#     cat_list['#789A9F'] = ['5-14']
+#     cat_list['#22AAB9'] = ['15-64']
+#     cat_list['#271A96'] = ['65+']
+    cat_list['ocean'] = ['0-4', '5-14', '15-64', '65+']
+    cat_list['#E45641'] = ['HIV 15+']
+    cat_list['#F1A94E'] = ['Prisoners']
+#     cat_list['hsv'] = ['0-4', '5-14','15-64','65+', 'HIV 15+', 'Prisoners']
+    labels = ['0-4', '5-14', '15-64', '65+', 'HIV 15+', 'Prisoners']
+    return cat_list, labels
+
+colormappings = getColormappingsByPop()
+colors = ['#8C8984',
+          '#333399']
+
+#### /hardcoded ref
+
+
 
 # %% PyQt imports
 
@@ -46,10 +69,10 @@ def sanitizedFileDialog(instance=None, which=None, title=None):
     path = sanitizedFileDialog(self, 'open', 'Choose file to open')
     path = sanitizedFileDialog(self, 'save', 'Save file as')
     '''
-    if which=='open':
+    if which == 'open':
         try:    path = str(qtw.QFileDialog.getOpenFileNameAndFilter(instance, title)[0])
         except: path = str(qtw.QFileDialog.getOpenFileName(instance, title)[0])
-    elif which=='save':
+    elif which == 'save':
         try:    path = str(qtw.QFileDialog.getSaveFileNameAndFilter(instance, title)[0])
         except: path = str(qtw.QFileDialog.getSaveFileName(instance, title)[0])
     else:
@@ -117,7 +140,7 @@ class GUIProjectManagerBase(qtw.QMainWindow):
 
     # The following wrapper function can be overloaded by derived classes.
     # Intended usage is to update widgets inside the GUI and what the user sees, as required.
-    def refreshVisibility(self):  
+    def refreshVisibility(self):
         self.refreshVisibilityProjectManager()
     def refreshVisibilityProjectManager(self):
         self.refreshStatus()
@@ -162,14 +185,25 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         project_name, project_name_chosen = qtw.QInputDialog.getText(self, 'Create project', 'Enter project name:')
         if project_name_chosen:
             cascade_path = sanitizedFileDialog(self, 'open', 'Select cascade file')
-            try:
-                self.project = Project(name=project_name, cascade_path=cascade_path, validation_level='avert')
+            # try:
+            if True:
+                self.project = Project(name=project_name, cascade_path=cascade_path, validation_level='avert', plotting_level='gui')
                 self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0 / 2)
                 self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
-            except Exception as E:
-                self.status = ('Status: Attempt to generate project failed (%s)' % E.__repr__())
-                self.refreshVisibility()
-                return
+            # except Exception as E:
+                # self.status = ('Status: Attempt to generate project failed (%s)' % E.__repr__())
+                # self.refreshVisibility()
+                # return
+
+            # set year ##### TODO remove hardcoded references
+            plot_over = [2000, 2035]
+            dt = 0.25
+            self.project.setYear(plot_over, False)
+            self.project.setYear(plot_over, True)
+            self.project.settings.plot_settings['x_ticks'] = [np.arange(plot_over[0], plot_over[1] + dt, 5, dtype=int), np.arange(plot_over[0], plot_over[1] + dt, 5, dtype=int)]
+            self.project.settings.plot_settings['xlim'] = (plot_over[0] - dt, plot_over[1] + dt)
+            print self.project.settings.tvec_end
+            #### /hardcoded references
 
             databook_path = sanitizedFileDialog(self, 'open', 'Select databook file')
             try:
@@ -187,7 +221,7 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         import_path = sanitizedFileDialog(self, 'open', 'Import project from file')
         try:
             self.project = loadObject(filename=import_path)
-            self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0 / 2)
+            self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_end + 1.0 / 2)
             self.acknowledgeProject()
             self.status = ('Status: Project "%s" successfully imported' % self.project.name)
         except:
@@ -362,6 +396,11 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             self.combo_charac_dict[charac_name] = cid
             self.combo_plotter_charac.addItem(charac_name)
             cid += 1
+
+        print "Set charac index = 61?"
+        try: self.combo_plotter_charac.setCurrentIndex(59) # for Moldova, set to be Active Prevalence
+        except: self.combo_plotter_charac.setCurrentIndex(0)    # Should be triggered if there are no results.
+
         if self.charac_plot_name is None:
             self.charac_plot_name = str(self.combo_plotter_charac.itemText(self.combo_plotter_charac.currentIndex()))
         self.combo_plotter_charac.setCurrentIndex(self.combo_charac_dict[self.charac_plot_name])
@@ -402,10 +441,21 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         for i in reversed(range(self.plotter_layout.count())):
             self.plotter_layout.itemAt(i).widget().setParent(None)
 
+        print "------"
+        print self.result_1_plot_name
+        print self.result_2_plot_name
+        print "------"
         if self.result_1_plot_name is None or self.result_2_plot_name is None:
             self.status = ('Status: Plotting default selection(s)')
             self.refreshVisibility()
-            defaultkey = self.project.results.keys()[0] # If not selected, just pick the first key
+            try:
+                print "Showing plot #61"
+                defaultkey = self.project.results.keys()[61] # For Moldova workshop, choose Active prevalence
+
+            except:
+                print "Showing default plot #0"
+                defaultkey = self.project.results.keys()[0] # If not selected, just pick the first key
+
             if self.result_1_plot_name is None:
                 self.result_1_plot_name = defaultkey
             if self.result_2_plot_name is None:
@@ -415,7 +465,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
 
             charac_plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
             pop_plot_label = self.project.data['pops']['name_labels'][self.pop_plot_name]
-
+            """
             y_values_cur, t_values_cur = self.project.results[self.result_1_plot_name].getValuesAt(label=charac_plot_label, year_init=self.tvec[0], year_end=self.tvec[-1], pop_labels=[pop_plot_label])
             y_values_com, t_values_com = self.project.results[self.result_2_plot_name].getValuesAt(label=charac_plot_label, year_init=self.tvec[0], year_end=self.tvec[-1], pop_labels=[pop_plot_label])
 
@@ -428,7 +478,21 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
                                title=self.charac_plot_name,
                                labels=['%s' % self.result_1_plot_name, '%s' % self.result_2_plot_name],
                                y_hat=[y_data, y_data], t_hat=[t_data, t_data])
-
+            """
+            # scen_results, scen_labels, settings, data, plot_charac=None, pop_labels=None,
+#                   percentage_relative_to=None, y_intercept=None, ylabel=None,
+#                   colormappings=None, colors=None, plot_observed_data=False, save_fig=False, fig_name=None
+            result_set = odict()
+            result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
+            result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
+            figure = plotScenarios(result_set, scen_labels=['%s' % self.result_1_plot_name, '%s' % self.result_2_plot_name],
+                                    settings=self.project.settings,
+                                    data=self.project.data,
+                                    plot_observed_data=True,
+                                    plot_charac=[charac_plot_label],
+                                    pop_labels=[pop_plot_label],
+                                    colors=colors,
+                                    save_fig=False)
             canvas = FigureCanvasQTAgg(figure)
 
             self.plotter_layout.addWidget(canvas)
@@ -441,8 +505,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
     def __init__(self):
         super(GUICalibration, self).__init__()
         self.initUICalibration()
-        
-        
+
+
     def initUICalibration(self):
         self.setWindowTitle('Manual calibration')
         self.resetAttributes()
@@ -680,8 +744,8 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
     def __init__(self):
         super(GUIParameterScenario, self).__init__()
         self.initUIParameterScenario()
-    
-    
+
+
     def initUIParameterScenario(self):
         self.setWindowTitle('Parameter scenarios')
         self.resetAttributes()
@@ -704,14 +768,14 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
                 ('param_succ', 'Proportion of people successfully treated:'),
                 ('param_fail', 'Proportion of people with treatment failure:'),
                 ]
-        
+
         self.cascade_pars = { # Dictionary for values
                 'param_diag': 0.76, # TODO WARNING hard-coded
                 'param_link': 0.76,
                 'param_succ': 0.85,
                 'param_fail': 0.05,
                 }
-        
+
         self.start_year = 2015.0 # WARNING, shouldn't hard-code
 
 
@@ -821,8 +885,8 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         for i in reversed(range(self.parscen_layout.count())):
             self.parscen_layout.itemAt(i).widget().setParent(None)
 
-        for p,val in enumerate(self.widget_pars_list):
-            par_label,par_name = val
+        for p, val in enumerate(self.widget_pars_list):
+            par_label, par_name = val
             label_par = qtw.QLabel(par_name)
             edit_par = qtw.QLineEdit()
             self.parscen_layout.addWidget(label_par, p, 0)
@@ -878,7 +942,7 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         succ_param = self.cascade_pars['param_succ']
         fail_param = self.cascade_pars['param_fail']
         year_param = self.start_year
-        
+
         # setup populations
         pops = self.project.data['pops']['label_names'].keys()
 
@@ -946,12 +1010,12 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
             try:
                 self.start_year = float(str(self.edit_year_start.text()))
 
-                for p,val in enumerate(self.widget_pars_list):
-                    par_label,par_name = val
+                for p, val in enumerate(self.widget_pars_list):
+                    par_label, par_name = val
                     widget = self.parscen_layout.itemAtPosition(p, 1).widget()
                     self.cascade_pars[par_label] = float(str(widget.text()))
 
-            except Exception as E: 
+            except Exception as E:
                 print('Could not update parameters: %s' % E.__repr__())
                 return False
             return True
@@ -967,14 +1031,14 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
             result_name = str(self.edit_model_run.text())
             if result_name == '':
                 result_name = None
-            
+
             scen_values = self.translateToParameterScenario()
             progset_name = None # TODO WARNING is this OK?
-            
+
             self.project.createScenarios(scen_values)
             self.project.runScenarios(original_parset_name=self.parset_name, original_progset_name=progset_name,
                                           scenario_set_name=result_name, include_bau=False, save_results=False)
-            
+
 #            self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, options=self.options, store_results=True, result_type='scen_budget', result_name=result_name)
             self.acknowledgeResults()
             self.status = ('Status: Scenarios successfully run for parameter set "%s"' % (self.parset_name))
@@ -987,8 +1051,8 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
     def __init__(self):
         super(GUIBudgetScenario, self).__init__()
         self.initUIBudgetScenario()
-    
-    
+
+
     def initUIBudgetScenario(self):
         self.setWindowTitle('Budget scenario')
         self.resetAttributes()
@@ -1137,7 +1201,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
 
             current_id = self.widget_budget_dict[prog_name]
             widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
-            widget.setText(str(self.options['init_alloc'][prog_label]))
+            widget.setText(str("%.0f" % self.options['init_alloc'][prog_label]))
 
         self.edit_year_start.setText(str(self.options['progs_start']))
 

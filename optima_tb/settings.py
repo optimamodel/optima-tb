@@ -399,7 +399,11 @@ class PlottingSettings():
                          # alpha for fill-between
                          'alpha': 0.3,
                          # linestyle to be used as default
-                         'default_linestyle' : '-'}
+                         'default_linestyle' : '-',
+                         # box width of plot and offset
+                         'box_width' : 0.8,
+                         'box_offset' : 0.,
+                         }
 
     def devSettings(self):
         pl.rcParams['figure.figsize'] = (10, 8)
@@ -440,6 +444,13 @@ class PlottingSettings():
 
         self.plotdict['legend_off'] = True
         self.plotdict['title'] = ''  # No title when we have presentation quality
+
+    def guiSettings(self):
+        self.defaultSettings()
+        self.plotdict['legendsettings'] = {'loc': 0 } # best ##{'loc': 4 } # lower right
+        self.plotdict['box_width'] = 0.95
+        self.plotdict['box_offset'] = 0.05
+
 
 
 

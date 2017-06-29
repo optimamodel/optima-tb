@@ -440,13 +440,15 @@ def plotScenarios(scen_results, scen_labels, settings, data, plot_charac=None, p
 
 
             figure = _plotLine(ys=yvals, ts=np.tile(tvec, (len(labels), 1)), labels=labels, reverse_order=True,
-                               legendsettings=None, save_fig=save_fig, fig_name=fig_name, colors=colors, **final_dict)  # , y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
+                               save_fig=save_fig, fig_name=fig_name, colors=colors, **final_dict)  # , y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
 
     if final_dict.has_key('legend_off') and final_dict['legend_off']:
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it represents
         # classes of compartments
         separateLegend(labels=labels, colors=colors, fig_name=fig_name + "_LegendScenarioComparison")
+
+    return figure
 
 
 def plotScenarioBar (scen_results, scen_labels, settings, data, output_list=None, year=None, pop_labels=None, legendsettings=None,
@@ -1731,7 +1733,8 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
              y_intercept=None, reverse_order=False, y_bounds=None, linestyles=None,
              smooth=False, symmetric=False, repeats=5,
              alpha=0.3, marker='o', s=40, facecolors='none', linewidth=3, zorder=10,
-             save_fig=False, save_figname=None, legend_off=False, **kwargs):
+             save_fig=False, save_figname=None, legend_off=False,
+             box_width=0.9, box_offset=0.0, **kwargs):
     """
     Plots multiple lines, with additional option of overlaying observed datapoints
     
@@ -1811,9 +1814,8 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
                 ymin_val = np.min(y_hat[k])
 
 
-
     box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+    ax.set_position([box.x0 + box.width * box_offset, box.y0, box.width * box_width, box.height])
 
 
     ax.set_title(title)
