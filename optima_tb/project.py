@@ -452,7 +452,7 @@ class Project(object):
         results = odict()
         
         if include_bau:
-            results['BAU'] = self.runSim(parset_name = original_parset_name,progset=orig_progset,options=original_budget_options,plot=plot)
+            results['BAU'] = self.runSim(parset_name=original_parset_name, progset=orig_progset, options=original_budget_options,plot=plot)
 
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
@@ -460,7 +460,7 @@ class Project(object):
                 
                 progset, budget_options = self.scenarios[scen].getScenarioProgset(orig_progset,original_budget_options)
             
-                results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(orig_parset), progset=progset, options=budget_options, parset_name = scen_name, plot=plot, store_results=False)
+                results[scen_name] = self.runSim(parset=self.scenarios[scen].getScenarioParset(orig_parset), progset=progset, options=budget_options, parset_name=scen_name, plot=plot, store_results=False) # Don't store results here since stored later
                 
                 if scenario_set_name is None:
                     results[scen_name].name = '%s'%(scen_name)
