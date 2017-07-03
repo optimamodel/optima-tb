@@ -37,6 +37,23 @@ colormappings = getColormappingsByPop()
 colors = ['#8C8984',
           '#333399']
 
+params_characs_moldova_gui = ['v_rate', # vaccination
+                              # latent disease
+                              'phi_early',
+                              'phi_late',
+                              'p_act_early',
+                              # latent treatment
+                              'treat_latent',
+                              'alpha_success',
+                              #
+                              'betaMDR',
+                              'betaXDR',
+                              'spm_prop',
+                              'snm_prop',
+                              'spd'
+                              ]
+
+
 #### /hardcoded ref
 
 
@@ -85,13 +102,14 @@ class GUI(qtw.QWidget):
 
     def __init__(self):
         super(GUI, self).__init__()
+#         self.setStyleSheet("background-color:white;")
         self.initUI()
 
     def initUI(self):
 
         self.setWindowTitle('GUI selection screen')
 
-        self.button_calibration = qtw.QPushButton('Manual calibration', self)
+        self.button_calibration = qtw.QPushButton('Exploring the epidemic', self)
         self.button_calibration.clicked.connect(self.runGUICalibration)
         self.button_scenario_parameter = qtw.QPushButton('Parameter scenario', self)
         self.button_scenario_parameter.clicked.connect(self.runGUIParameterScenario)
@@ -124,6 +142,7 @@ class GUIProjectManagerBase(qtw.QMainWindow):
 
     def __init__(self):
         super(GUIProjectManagerBase, self).__init__()
+#         self.setStyleSheet("background-color:white;")
         self.initUIProjectManager()
 
 
@@ -158,7 +177,12 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         self.setWindowTitle('Project manager')
 
         # Screen.
-        screen = qtw.QDesktopWidget().availableGeometry()
+        widget = qtw.QDesktopWidget()
+#         p = widget.palette()
+#         p.setColor(widget.backgroundRole(), Qt.red)
+#         widget.setPalette(p)
+
+        screen = widget.availableGeometry()
         self.resize(screen.width() * 9.0 / 10.0, screen.height() * 9.0 / 10.0)
         self.setGeometry((screen.width() - self.width()) / 2, (screen.height() - self.height()) / 2,
                          self.width(), self.height())
@@ -397,7 +421,6 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             self.combo_plotter_charac.addItem(charac_name)
             cid += 1
 
-        print "Set charac index = 61?"
         try: self.combo_plotter_charac.setCurrentIndex(59) # for Moldova, set to be Active Prevalence
         except: self.combo_plotter_charac.setCurrentIndex(0)    # Should be triggered if there are no results.
 
@@ -508,7 +531,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
 
     def initUICalibration(self):
-        self.setWindowTitle('Manual calibration')
+#         self.setWindowTitle('Manual calibration')
+        self.setWindowTitle('Exploring the epidemic')
         self.resetAttributes()
         self.refreshVisibility()
         self.show()
@@ -612,6 +636,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.combo_parset_dict = {}
         self.combo_parset.clear()
         pid = 0
+        print self.project.parsets.keys()
         for parset_name in self.project.parsets.keys():
             self.combo_parset_dict[parset_name] = pid
             self.combo_parset.addItem(parset_name)
@@ -669,7 +694,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
         k = 0
         par_labels = []
-        for par_type in ['characs', 'cascade']:
+        # for par_type in ['characs', 'cascade']:
+        for par_type in ['cascade']:
             for par in parset.pars[par_type]:
                 if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or (par_type == 'characs' and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
                     for pid in xrange(len(parset.pop_labels)):
