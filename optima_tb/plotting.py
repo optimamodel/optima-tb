@@ -404,7 +404,9 @@ def plotScenarios(scen_results, scen_labels, settings, data, plot_charac=None, p
 
             for (ri, result_name) in enumerate(scen_results.keys()):
                 result = scen_results[result_name]
-                y_values_cur, _, _, _ = extractCharacteristic(results=result, charac_labels=[charac], charac_specs=charac_specs, data=data, pop_labels=[pop_label])
+                y_values_cur, _, _, dataobs = extractCharacteristic(results=result, charac_labels=[charac], charac_specs=charac_specs, data=data, pop_labels=[pop_label], plot_observed_data=plot_observed_data)
+
+#                 y_values, labels, unit_tags, dataobs = extractCharacteristic(results, data, charac_specs, charac_labels=outputIDs, pop_labels=pop_labels, plot_observed_data=plot_observed_data, plot_total=plot_total)
 
                 ys = y_values_cur[charac][:][0]
 
@@ -414,6 +416,11 @@ def plotScenarios(scen_results, scen_labels, settings, data, plot_charac=None, p
 
                 yvals.append(ys)
                 labels.append(scen_labels[ri])
+
+                if dataobs is not None:  # this can be improved
+                    that_i, yhat_i = dataobs
+                    yhat.append(yhat_i)
+                    that.append(that_i)
 
             if plot_observed_data:
                 pass  # TODO: include in future, but will require information as to which is the 'Current conditions' / 'BAU' scenario.
@@ -434,6 +441,14 @@ def plotScenarios(scen_results, scen_labels, settings, data, plot_charac=None, p
                   'smooth' : True,  # smooth plots for scenarios
                   'title': 'Scenario comparison:\n%s [%s]' % (charac_specs[charac]['name'], pop_label),
                   'save_figname': '%s_ScenarioComparision_%s_%s' % (fig_name, pop_label, charac_specs[charac]['name'])}
+
+            if dataobs is not None:  # this can be improved
+
+                final_dict['y_hat'] = yhat
+                final_dict['t_hat'] = that
+                print "Observed data = ", len(that)
+                print that
+
             if percentage_relative_to is not None:
                 final_dict['ylabel'] = ylabel
             final_dict.update(plotdict)
@@ -1810,8 +1825,11 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
         if len(y_hat) > 0 and len(y_hat[k]) > 0:  # i.e. we've seen observable data
 
             ax.scatter(t_hat[k], y_hat[k], marker=marker, edgecolors=colors[k], facecolors=facecolors, s=s, zorder=zorder, linewidth=linewidth)
-            if np.min(y_hat[k]) < ymin_val:
-                ymin_val = np.min(y_hat[k])
+            try:
+                if np.min(y_hat[k]) < ymin_val:
+                    ymin_val = np.min(y_hat[k])
+            except:
+                pass
 
 
     box = ax.get_position()
