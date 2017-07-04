@@ -853,13 +853,15 @@ class Model(object):
                                 # If coverage is a fraction, excess is compared to unity.
                                 # If coverage is a number, excess is compared to the total number of people available for coverage.
                                 overflow_factor = 0
+                                try: net_cov = self.prog_vals[prog_label]['cov'][ti]
+                                except: net_cov = self.prog_vals[prog_label]['cov']
                                 if prog.cov_format == 'fraction':
-                                    overflow_factor = self.prog_vals[prog_label]['cov']
+                                    overflow_factor = net_cov
                                 elif prog.cov_format == 'number':
                                     if float(source_set_size) <= project_settings.TOLERANCE:
                                         overflow_factor = np.inf
                                     else:
-                                        overflow_factor = self.prog_vals[prog_label]['cov'] / float(source_set_size)
+                                        overflow_factor = net_cov / float(source_set_size)
                                 overflow_list.append(overflow_factor)
 
 #                                year_check = 2015   # Hard-coded check.
