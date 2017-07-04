@@ -94,9 +94,9 @@ class Project(object):
             
         if store_results:
             if result_name is None:
-                result_name = parset.name
+                result_name = 'parset_' + parset.name
                 if not progset is None:
-                    result_name = result_name + '_' + progset.name
+                    result_name = result_name + '_progset_' + progset.name
                 if result_type is not None:
                     result_name = result_type + '_' + result_name
                 k = 1
@@ -463,7 +463,7 @@ class Project(object):
                 if scenario_set_name is None:
                     results[scen_name].name = '%s'%(scen_name)
                 else:
-                    results[scen_name].name = '%s:%s'%(scenario_set_name,scen_name)
+                    results[scen_name].name = '%s_%s'%(scenario_set_name,scen_name)
                 
                 if store_results:
                     result_name = results[scen_name].name
