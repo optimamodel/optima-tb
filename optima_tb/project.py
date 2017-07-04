@@ -410,7 +410,6 @@ class Project(object):
             
             elif vals['type'].lower() == 'coverage':
                 self.scenarios[scenario_name] = CoverageScenario(name=scenario_name,pop_labels=pop_labels,**vals)
-
             else:
                 raise NotImplementedError("ERROR: no corresponding Scenario type for scenario=%s"%scenario_name)
         
@@ -457,10 +456,9 @@ class Project(object):
         for scen in self.scenarios.keys():
             if self.scenarios[scen].run_scenario:
                 scen_name = 'scenario_%s'%self.scenarios[scen].name
-                
-                progset, budget_options = self.scenarios[scen].getScenarioProgset(orig_progset,original_budget_options)
-            
-                results[scen_name] = self.runSim(parset=self.scenarios[scen].getScenarioParset(orig_parset), progset=progset, options=budget_options, parset_name=scen_name, plot=plot, store_results=False) # Don't store results here since stored later
+
+                progset, budget_options = self.scenarios[scen].getScenarioProgset(orig_progset,original_budget_options)            
+                results[scen_name] = self.runSim(parset = self.scenarios[scen].getScenarioParset(orig_parset), progset=progset, options=budget_options, parset_name = scen_name, plot=plot, store_results=False) # Don't store results here since stored later
                 
                 if scenario_set_name is None:
                     results[scen_name].name = '%s'%(scen_name)
