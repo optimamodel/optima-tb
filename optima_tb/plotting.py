@@ -1132,19 +1132,18 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
         plotdict = {}
 
     # setup: determine colors to be used
+    if labels is None:
+        # create super set of all programs. We could use itertools, but we'll use maps
+        progkeys = [b.keys() for b in budgets]
+        labels = list(set.union(*map(set, progkeys)))
+        labels.sort()
+
     colors = []
     if colormappings is not None:
         colors_dict, cat_colors = getCategoryColors(colormappings, 'sequential')
         # reorder so that colors are same as expected for plotting the population
         for (j, prog_label) in enumerate(labels):
             colors.append(colors_dict[prog_label])
-
-
-    if labels is None:
-        # create super set of all programs. We could use itertools, but we'll use maps
-        progkeys = [b.keys() for b in budgets]
-        labels = list(set.union(*map(set, progkeys)))
-        labels.sort()
 
     if legendsettings is None:
         legendsettings = {}
@@ -1158,7 +1157,6 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
                   'ylabel': "Budget (%s)" % currency,
                   'save_figname': '%s_budget' % fig_name}
     plotdict.update(final_dict)
-
 
     _plotBars(values, labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings,
               save_fig=save_fig, **plotdict)
@@ -1879,6 +1877,7 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     if inds is None:
         inds = np.arange(num_bars) + bar_offset
 
+
     if plot_stacked:
         xinds = np.arange(num_bars) + bar_offset + barwidth / 2.
     else:
@@ -1910,11 +1909,27 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
 
     # preprocessing to make our lives easier:
     cat_values = map(list, zip(*values))
+
+#     print "---------, values ---"
+#     print values
+#     print "----"
+#     print cat_values
+#     print "----"
+
+
     cumulative = np.zeros(num_bars)
     if not plot_stacked:
         # I hate myself for writing this. I'm so, so, sorry.
         cat_values = values
         num_cats = num_bars
+
+#     print "---------//////////////----"
+#     print cat_values
+#     print "----"
+#     print colors
+#     print "----"
+#     print len(cat_values), len(cat_values[0]), len(colors)
+
 
     # and plot:
     fig, ax = pl.subplots()
@@ -1923,15 +1938,20 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         ax.hlines([y_intercept], xmin=xlim[0], xmax=xlim[1], colors='#AAAAAA', linewidth=0.75 * linewidth, linestyle='--', zorder=1)
 
     for k in range(num_cats):
-        print inds[k]
-        print cat_values[k]
-        print colors[k]
-        if k == 0:
-            ax.bar(inds[k], cat_values[k], color=colors[k], width=barwidth, alpha=alphas[k], lw=0)
-        elif plot_stacked:
-            ax.bar(inds[k], cat_values[k], color=colors[k], width=barwidth, bottom=cumulative, alpha=alphas[k], lw=0)
+#         print inds
+#         print cat_values[k]
+#         print colors[k]
+        if plot_stacked:
+            indices = inds
         else:
-            ax.bar(inds[k], cat_values[k], color=colors[k], width=barwidth, alpha=alphas[k], lw=0)
+            indices = inds[k]
+
+        if k == 0:
+            ax.bar(indices, cat_values[k], color=colors[k], width=barwidth, alpha=alphas[k], lw=0)
+        elif plot_stacked:
+            ax.bar(indices, cat_values[k], color=colors[k], width=barwidth, bottom=cumulative, alpha=alphas[k], lw=0)
+        else:
+            ax.bar(indices, cat_values[k], color=colors[k], width=barwidth, alpha=alphas[k], lw=0)
 
         if plot_stacked:
             cumulative += cat_values[k]
