@@ -375,11 +375,13 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                             overflow_factor = net_cov / float(source_set_size)
                     overflow_list.append(overflow_factor)
                     
-                    if first_prog: new_val = 0
-                    new_val += impact
-                    first_prog = False
+                    if first_prog: 
+                        new_val = 0.
+                        temp_val = 0.
+                        first_prog = False
+                    temp_val += impact
                     impact_list.append(impact)
-                    prog_attributes[popkey][par_label]['Original Impact Value'] = new_val
+                    prog_attributes[popkey][par_label]['Original Impact Value'] = temp_val
                     prog_attributes[popkey][par_label]['Coverage Cap Impact Value'] = np.nan
                 
                 # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
