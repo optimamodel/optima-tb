@@ -389,13 +389,10 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 if len(overflow_list) > 0 and sum(overflow_list) > 1:
                     impact_list = np.multiply(impact_list, 1/sum(overflow_list))
                 new_val += np.sum(impact_list)
-                print('Par Label: %s, New Val: %s' % (par_label, new_val))
-                for temp_popkey in prog_attributes:
-                    try:
-                        if 'Original Impact Value' in prog_attributes[temp_popkey][par_label]:    
-                            prog_attributes[temp_popkey][par_label]['Coverage Cap Impact Value'] = new_val
-                    except:
-                        continue
+#                print('Pop key: %s, Par Label: %s, New Val: %s' % (popkey, par_label, new_val))
+                if prog_attributes[popkey][par_label]:    
+                    prog_attributes[popkey][par_label]['Coverage Cap Impact Value'] = new_val
+                    
                 
                     
     ###############################################################################
