@@ -162,21 +162,22 @@ def compareOutcomesFunc(proj, year, parset_name=None, progset_name=None, budget_
     if display:
         print('Comparing outcomes for year: %i' %year)
         parset_value  = 'parset_impact_value'
-        progset_value_uncapped = 'progset_impact_value_uncapped'
-        progset_value_capped = 'progset_impact_value_capped'
-        outcome = '\n\t\t\t%s\t%s\t%s\n' %(parset_value, progset_value_uncapped, progset_value_capped)
+        progset_value_uncapped = 'progset_impact_uncapped'
+        progset_value_capped = 'progset_impact_capped'
+        progset_overflow = 'overflow_list'
+        outcome = '\n\t\t\t%s\t%s\t%s\t%s\n' %(parset_value, progset_value_uncapped, progset_value_capped, progset_overflow)
         for par_label in impact.keys():
             if par_label == 'net_difference': continue
             else:
                 outcome += '%s\n' %(par_label)
                 for popkey in impact[par_label]:
-                    try: outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact[par_label][popkey][parset_value], impact[par_label][popkey][progset_value_uncapped], impact[par_label][popkey][progset_value_capped])
+                    try: outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\t\t{:<10}\n'.format(popkey, impact[par_label][popkey][parset_value], impact[par_label][popkey][progset_value_uncapped], impact[par_label][popkey][progset_value_capped], impact[par_label][popkey][progset_overflow])
                     except:
-                        try: outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact[par_label][popkey][parset_value], impact[par_label][popkey][progset_value_uncapped][0], impact[par_label][popkey][progset_value_capped][0])
+                        try: outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\t\t{:<10}\n'.format(popkey, impact[par_label][popkey][parset_value], impact[par_label][popkey][progset_value_uncapped][0], impact[par_label][popkey][progset_value_capped][0], impact[par_label][popkey][progset_overflow])
                         except:
-                            try: outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact[par_label][popkey][parset_value], impact[par_label][popkey][progset_value_uncapped][0], impact[par_label][popkey][progset_value_capped])
+                            try: outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\t\t{:<10}\n'.format(popkey, impact[par_label][popkey][parset_value], impact[par_label][popkey][progset_value_uncapped][0], impact[par_label][popkey][progset_value_capped], impact[par_label][popkey][progset_overflow])
                             except:
-                                outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact[par_label][popkey][parset_value], impact[par_label][popkey][progset_value_uncapped], impact[par_label][popkey][progset_value_capped][0])
+                                outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\t\t{:<10}\n'.format(popkey, impact[par_label][popkey][parset_value], impact[par_label][popkey][progset_value_uncapped], impact[par_label][popkey][progset_value_capped][0], impact[par_label][popkey][progset_overflow])
                 outcome += '\n'
         print outcome
     #Reset back to original runSim durations
@@ -392,6 +393,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
 #                print('Pop key: %s, Par Label: %s, New Val: %s' % (popkey, par_label, new_val))
                 if prog_attributes[popkey][par_label]:    
                     prog_attributes[popkey][par_label]['Coverage Cap Impact Value'] = new_val
+                    prog_attributes[popkey][par_label]['overflow_list'] = overflow_list
                     
                 
                     
@@ -462,6 +464,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 if par_label not in impact.keys(): impact[par_label] = odict()
                 if popkey not in impact[par_label].keys(): impact[par_label][popkey] = odict()
                 impact[par_label][popkey]['parset_impact_value'] = par_attributes[popkey][par_label]['Impact Value']
-                impact[par_label][popkey]['progset_impact_value_uncapped'] = prog_attributes[popkey][par_label]['Original Impact Value']
-                impact[par_label][popkey]['progset_impact_value_capped'] = prog_attributes[popkey][par_label]['Coverage Cap Impact Value']
+                impact[par_label][popkey]['progset_impact_uncapped'] = prog_attributes[popkey][par_label]['Original Impact Value']
+                impact[par_label][popkey]['progset_impact_capped'] = prog_attributes[popkey][par_label]['Coverage Cap Impact Value']
+                impact[par_label][popkey]['overflow_list'] = prog_attributes[popkey][par_label]['overflow_list']
         return impact
