@@ -212,8 +212,10 @@ class Program:
         try: coverage = float(coverage)
         except: coverage = dcp(np.array(coverage, 'float'))
 
-        if self.cov_format is None:
-
+        if self.func_specs['type'] == 'cost_only':
+            bud = np.nan    # A fixed-cost program has no coverage, so a coverage-budget conversion should return a NaN.
+                            # This will not bother value-updating in the model, as fixed-cost programs should not have impact parameters anyway.
+        elif self.cov_format is None:
             raise OptimaException('ERROR: Attempted to convert coverage to budget for a program (%s) that does not have coverage.' % self.label)
         else:
             if self.cov_format.lower() == 'fraction':
