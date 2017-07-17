@@ -1,6 +1,7 @@
 # %% Imports
 import logging
 from inspect import findsource
+from matplotlib.pyplot import plot
 logger = logging.getLogger(__name__)
 
 from optima_tb.utils import odict
@@ -237,7 +238,7 @@ def separateLegend(labels, colors, fig_name, reverse_order=False, **legendsettin
         labels = labels[::-1]
         colors = colors[::-1]
 
-    fig = plt.figure(figsize=(5, 5))  # silly big
+    fig = plt.figure() # figsize=(5, 5))  # silly big
     patches = [  mpatches.Patch(color=color, label=label) for label, color in zip(labels, colors)]
     legendsettings['loc'] = 'center'
     legendsettings['frameon'] = False
@@ -838,10 +839,12 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
         # now only select characteristics which are plottable
         outputIDs = [output_id for output_id in outputIDs if isPlottableCharac(output_id, charac_specs)]
     # else we already know which characteristics to plot
+    print "-------", outputIDs
 
 
     if pop_labels is None:
         pop_labels = [pop.label for pop in results.m_pops]
+    print "-----2--", pop_labels
 
     if plotdict is None:
         plotdict = {}
@@ -909,7 +912,7 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
             final_dict['y_hat'] = yhat[i]
             final_dict['t_hat'] = that[i]
 
-
+        print plotdict
         final_dict.update(plotdict)
 
 
@@ -917,7 +920,7 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
             yb = y_bounds[i]
 
         _plotLine(y_values[output_id][:], np.tile(tvec, (len(labels), 1)), labels, y_bounds=yb,
-                  legendsettings=None, save_fig=save_fig, colors=colors,
+                legendsettings=None, save_fig=save_fig, colors=colors, # ylim=(0, 1900000),
                   linestyles=linestyles, **final_dict)
 
     if final_dict.has_key('legend_off') and final_dict['legend_off']:
@@ -957,25 +960,30 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
     if output_labels is None:
         output_labels = output_list
 
-
     # unfortunately we have to do it this way to ensure that the programs are all extracted in the same order
-    values = [[results.getValueAt(output_label, year) for output_label in output_list ] for year in year_list]
+    values = [[results.getValueAt(output_label, year)  for output_label in output_list ]  for year in year_list]
 
-    final_dict = dcp(plotdict)
+#     print plotdict
+#     final_dict = dcp(plotdict)
 
-    final_dict2 = {'xlim': (0, xlim),
+    plotdict['plot_stacked'] = True
+    final_dict = {'xlim': (0, xlim),
                    'ylim': ylim,
                   'title':  '',
                   'ylabel': "",
+                  'plot_stacked': True,
+                  'barwidth': 0.8,
                   'save_figname': fig_name}
-    final_dict.update(final_dict2)
+#     final_dict.update(final_dict2)
 
-
+#     final_dict.update(plotdict)
+    plotdict.update(final_dict)
+    print plotdict
     _plotBars(values, labels=output_labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings,
-              save_fig=save_fig, **final_dict)
+              save_fig=save_fig, **plotdict)
 
 
-    if final_dict.has_key('legend_off') and final_dict['legend_off']:
+    if plotdict.has_key('legend_off') and plotdict['legend_off']:
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it can represent
         # classes of budgets
@@ -1148,6 +1156,7 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
     if legendsettings is None:
         legendsettings = {}
 
+
     # unfortunately we have to do it this way to ensure that the programs are all extracted in the same order
     values = [[b[k] if b.has_key(k) else 0 for k in labels ] for b in budgets]
 
@@ -1168,7 +1177,7 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
         # classes of budgets
         # reverse legend order so that it matches top<->bottom of stacked bars
         if use_full_labels:
-            legendsettings = {'ncol':2}
+            # legendsettings = {'ncol':2}
             separateLegend(labels=full_labels, colors=colors, fig_name=fig_name, reverse_order=True, **legendsettings)
         else:
             separateLegend(labels=cat_labels, colors=cat_colors, fig_name=fig_name, reverse_order=True,)
@@ -1877,6 +1886,12 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     if inds is None:
         inds = np.arange(num_bars) + bar_offset
 
+    print "Plot Bars"
+    print num_bars
+    print num_cats
+    print inds
+    print plot_stacked
+    print "-------"
 
     if plot_stacked:
         xinds = np.arange(num_bars) + bar_offset + barwidth / 2.
@@ -1945,6 +1960,10 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
             indices = inds
         else:
             indices = inds[k]
+
+        print indices
+        print cat_values[k]
+        print colors[k]
 
         if k == 0:
             ax.bar(indices, cat_values[k], color=colors[k], width=barwidth, alpha=alphas[k], lw=0)
