@@ -760,6 +760,7 @@ def plotPopulation(results, data, pop_labels=None, title='', colormappings=None,
         pl_title = title + ' Population: %s' % (poplabel)
         if save_fig:
             save_figname = fig_name + "_compartments_%s" % poplabel
+
         pdict = {  'ymin': 0,  # required
                   'xlabel': 'Year',
                   'year_inc' :  5.,
@@ -767,13 +768,15 @@ def plotPopulation(results, data, pop_labels=None, title='', colormappings=None,
                   'mec' : 'k',
                   'title' : pl_title,
                   'x_ticks' : (yr_range, yr_range),
-                  'colors': colors
+                  'colors': colors,
+                  'save_figname' : save_figname,
+                  'save_fig': save_fig,
                   }
 
         if dataobs is not None:
             pdict['datapoints'] = (that[i], yhat[i])
 
-        pdict.update(plotdict)
+        # pdict.update(plotdict)
 
         legendsettings = {'loc':'center left',
                            'bbox_to_anchor':(1.05, 0.5),
@@ -781,7 +784,8 @@ def plotPopulation(results, data, pop_labels=None, title='', colormappings=None,
 
         _plotStackedCompartments(tvec, y_values[i][:], labels,
                                  legendsettings=legendsettings, catlabels=cat_labels, catcolors=colors,
-                                 save_fig=save_fig, save_figname=save_figname, **pdict)
+                                 # save_fig=save_fig, save_figname=save_figname,
+                                 **pdict)
 
 
     if pdict.has_key('legend_off') and pdict['legend_off']:
