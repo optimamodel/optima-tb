@@ -290,7 +290,7 @@ class Model(object):
             if prog.label in self.prog_vals:
                 if 'cov' in self.prog_vals[prog.label]:
                     cov = self.prog_vals[prog.label]['cov']
-    
+
                     # Check if program attributes have multiple distinct values across time.
                     do_full_tvec_check = {}
                     for att_label in prog.attributes.keys():
@@ -299,7 +299,7 @@ class Model(object):
                             do_full_tvec_check[att_label] = False
                         else:
                             do_full_tvec_check[att_label] = True
-    
+
                     # If attributes change over time and coverage values are greater than zero, impact functions based on them need to be interpolated across all time.
                     # Otherwise interpolating for the very last timestep alone should be sufficient.
                     # This means impact values can be stored as full arrays, single-element arrays or scalars in the case that an impact function has no attributes.
@@ -848,7 +848,7 @@ class Model(object):
                                             impact = 0.0
                                         else:
                                             impact = net_impact * source_element_size / source_set_size
-                                
+
                                 # Calculate how excessive program coverage is for the provided budgets.
                                 # If coverage is a fraction, excess is compared to unity.
                                 # If coverage is a number, excess is compared to the total number of people available for coverage.
@@ -883,22 +883,22 @@ class Model(object):
 #                                        print('Converted Impact Format: %s' % pars[0].val_format)
 #                                        print
 
-                                if first_prog: 
+                                if first_prog:
                                     new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
                                     first_prog = False
 #                                new_val += impact
                                 impact_list.append(impact)
-                                
+
 #                            print overflow_list
-                            
+
                             # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
                             # Otherwise renormalises impacts.
                             if len(overflow_list) > 0 and sum(overflow_list) > 1:
-                                impact_list = np.multiply(impact_list, 1/sum(overflow_list))
-                                
-                                
+                                impact_list = np.multiply(impact_list, 1 / sum(overflow_list))
+
+
                             new_val += np.sum(impact_list)
-                
+
                             # Handle impact constraints.
                             # Note: This applies to any parameter that is impacted by the progset, not just for programs that are in the allocation.
                             if 'constraints' in self.sim_settings and 'impacts' in self.sim_settings['constraints'] and par_label in self.sim_settings['constraints']['impacts']:
@@ -909,7 +909,7 @@ class Model(object):
                                 if new_val > vals[1]: new_val = vals[1]
 
                 for par in pars:
-                    
+
 #                    year_check = 2015   # Hard-coded check.
 #                    par_check = ['spdno_rate','sndno_rate']#['spdsuc_rate','spdno_rate']
 #                    if par_label in par_check:
@@ -919,7 +919,7 @@ class Model(object):
 #                            print('Target Parameter: %s' % par_label)
 #                            print('Final Impact: %f' % new_val)
 #                            print
-                    
+
                     par.vals[ti] = new_val
 
                     # Backup the values of parameters that are tagged with special rules.
@@ -993,7 +993,7 @@ class Model(object):
         '''
 
         outputs = odict()
-        
+
         # For characteristics...
         for cid in settings.charac_specs.keys():
             outputs[cid] = odict()
@@ -1026,7 +1026,7 @@ class Model(object):
                         raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
 
                     outputs[cid][pop.label] /= (vals + project_settings.TOLERANCE)
-        
+
         # For parameters...
         for cid in settings.linkpar_outputs:
             outputs[cid] = odict()
@@ -1038,7 +1038,7 @@ class Model(object):
                     outputs[cid][pop.label] = pop.getDep(cid).vals
                 else:
                     raise OptimaException('ERROR: Output parameter "%s" was not calculated as a "dependency" during the model run.' % cid)
-                
+
         return outputs
 
     def printModelState(self, ti):

@@ -440,6 +440,7 @@ class PlottingSettings():
 
         self.plotdict['legend_off'] = True
         self.plotdict['title'] = ''  # No title when we have presentation quality
+        self.plotdict['num_cols'] = 1
 
 
 
