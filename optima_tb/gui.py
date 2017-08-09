@@ -19,41 +19,8 @@ from optima_tb.utils import odict
 from optima_tb.settings import DO_NOT_SCALE
 
 ##### TODO remove hardcoded from Belarus:
-def getColormappingsByPop():
-    cat_list = odict()
-    non_variable = None
-#     cat_list['#3B8183'] = ['0-4']
-#     cat_list['#789A9F'] = ['5-14']
-#     cat_list['#22AAB9'] = ['15-64']
-#     cat_list['#271A96'] = ['65+']
-    cat_list['ocean'] = ['0-4', '5-14', '15-64', '65+']
-    cat_list['#E45641'] = ['HIV 15+']
-    cat_list['#F1A94E'] = ['Prisoners']
-#     cat_list['hsv'] = ['0-4', '5-14','15-64','65+', 'HIV 15+', 'Prisoners']
-    labels = ['0-4', '5-14', '15-64', '65+', 'HIV 15+', 'Prisoners']
-    return cat_list, labels
-
-colormappings = getColormappingsByPop()
 colors = ['#8C8984',
           '#333399']
-
-params_characs_moldova_gui = ['v_rate', # vaccination
-                              # latent disease
-                              'phi_early',
-                              'phi_late',
-                              'p_act_early',
-                              # latent treatment
-                              'treat_latent',
-                              'alpha_success',
-                              #
-                              'betaMDR',
-                              'betaXDR',
-                              'spm_prop',
-                              'snm_prop',
-                              'spd'
-                              ]
-
-
 #### /hardcoded ref
 
 
@@ -421,8 +388,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             self.combo_plotter_charac.addItem(charac_name)
             cid += 1
 
-        try: self.combo_plotter_charac.setCurrentIndex(59) # for Moldova, set to be Active Prevalence
-        except: self.combo_plotter_charac.setCurrentIndex(0)    # Should be triggered if there are no results.
+        self.combo_plotter_charac.setCurrentIndex(0)    # Should be triggered if there are no results.
 
         if self.charac_plot_name is None:
             self.charac_plot_name = str(self.combo_plotter_charac.itemText(self.combo_plotter_charac.currentIndex()))
@@ -694,8 +660,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
         k = 0
         par_labels = []
-        # for par_type in ['characs', 'cascade']:
-        for par_type in ['cascade']:
+        for par_type in ['characs', 'cascade']:
             for par in parset.pars[par_type]:
                 if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or (par_type == 'characs' and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
                     for pid in xrange(len(parset.pop_labels)):
