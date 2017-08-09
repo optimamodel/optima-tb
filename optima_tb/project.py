@@ -16,11 +16,11 @@ from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from optima_tb.optimization import optimizeFunc, parallelOptimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
 from optima_tb.scenarios import ParameterScenario, BudgetScenario, CoverageScenario
-from optima_tb.dataio import exportObj, importObj
 from optima_tb.reconciliation import reconcileFunc, compareOutcomesFunc
 
 from uuid import uuid4 as uuid
 import numpy as np
+from copy import deepcopy as dcp
 
 
 # %% Project class (i.e. one self-contained geographical unit)
@@ -61,8 +61,7 @@ class Project(object):
         else:
             self.settings.tvec_end = yearRange[1]
 
-
-    def runSim(self, parset=None, parset_name='default', progset=None, progset_name=None, options=None, plot=False, debug=False):
+    def runSim(self, parset = None, parset_name = 'default', progset = None, progset_name = None, options = None, plot = False, debug = False, store_results = True, result_type = None, result_name = None):
         ''' Run model using a selected parset and store/return results. '''
 
         if parset is None:
@@ -89,8 +88,24 @@ class Project(object):
 
         if plot:
             tp = tic()
-            self.plotResults(results=results, debug=debug)
-            toc(tp, label='plotting %s' % self.name)
+            self.plotResults(results = results, debug = debug)
+            toc(tp, label = 'plotting %s' % self.name)
+            
+        if store_results:
+            if result_name is None:
+                result_name = 'parset_' + parset.name
+                if not progset is None:
+                    result_name = result_name + '_progset_' + progset.name
+                if result_type is not None:
+                    result_name = result_type + '_' + result_name
+                k = 1
+                while k > 0:
+                    result_name_attempt = result_name + '_' + str(k)
+                    k = k + 1
+                    if result_name_attempt not in self.results.keys():
+                        result_name = result_name_attempt
+                        k = 0
+            self.results[result_name] = dcp(results)
 
         return results
 
@@ -402,7 +417,7 @@ class Project(object):
 
     def runScenarios(self, original_parset_name, original_progset_name=None, original_budget_options=None,
                      run_scenario_names=None, bau_label="BAU", include_bau=False,
-                     scenario_set_name=None, plot=False, save_results=False):
+                     scenario_set_name=None, plot=False, save_results=False, store_results=True):
         """
         Runs scenarios that are contained in this project's collection of scenarios (i.e. self.scenarios). 
         For each scenario run, using original_parset_name, the results generated are saved and 
@@ -452,47 +467,59 @@ class Project(object):
             if (run_scenario_names is not None and self.scenarios[scen].name in run_scenario_names) or (run_scenario_names is None and self.scenarios[scen].run_scenario):
                 progset, budget_options = self.scenarios[scen].getScenarioProgset(orig_progset, original_budget_options)
                 logger.info("Starting scenario case: %s" % scen_name)
-                results[scen_name] = self.runSim(parset=self.scenarios[scen].getScenarioParset(orig_parset), progset=progset, options=budget_options, parset_name=scen_name, plot=plot)
+                results[scen_name] = self.runSim(parset=self.scenarios[scen].getScenarioParset(orig_parset), progset=progset, options=budget_options, parset_name=scen_name, plot=plot, store_results=False) # Don't store results here since stored later
                 logger.info("Completed scenario case: %s" % scen_name)
                 if scenario_set_name is None:
                     results[scen_name].name = '%s' % (scen_name)
                 else:
-                    results[scen_name].name = '%s:%s' % (scenario_set_name, scen_name)
-
-                if save_results:
-                    results[scen_name].export()
-                    export_paramset(self.scenarios[scen].getScenarioParset(orig_parset))
-
+                    results[scen_name].name = '%s_%s'%(scenario_set_name,scen_name)
+                
+                if store_results:
+                    result_name = results[scen_name].name
+                    
+                    k = 1
+                    while k > 0:
+                        result_name_attempt = result_name + '_' + str(k)
+                        k = k + 1
+                        if result_name_attempt not in self.results.keys():
+                            result_name = result_name_attempt
+                            k = 0
+                    self.results[result_name] = dcp(results[scen_name])
+                        
+                    if save_results:
+                        results[scen_name].export()
+                        export_paramset(self.scenarios[scen].getScenarioParset(orig_parset))
+        
         return results
-
-
-
-
-    def exportProject(self, filename=None, format='json', compression='zlib'):
-        """
+    
+    
+    
+    
+#    def exportProject(self, filename=None, format='json', compression='zlib'):
+#        """
+#        
+#        This currently saves everything within a project, including results.
+#        
+#        Params:
+#            filename      filename to save to. If none is supplied, value is set to "<project.name>.project"
+#            format        string for supported format types (json)
+#            compression   string for supported compression types (zlib)
+#        
+#        Usage
+#            project = Project(name="sample", cascade="cascade.xlsx")
+#            project.exportProject()
+#            # saves to "sample.project.Z"
+#            project.exportProject(filename="special")
+#            # saves to "special.Z"
+#        
+#        """
+#        if filename is None:
+#            filename = "%s.project"%self.name
+#        
+#        logger.info("Attempting to save file in format=%s"%format)
+#        filename = exportObj(self,filename=filename,format=format,compression=compression)
+#        logger.info("Saved to file: %s"%filename)
+#        return filename
         
-        This currently saves everything within a project, including results.
+    
         
-        Params:
-            filename      filename to save to. If none is supplied, value is set to "<project.name>.project"
-            format        string for supported format types (json)
-            compression   string for supported compression types (zlib)
-        
-        Usage
-            project = Project(name="sample", cascade="cascade.xlsx")
-            project.exportProject()
-            # saves to "sample.project.Z"
-            project.exportProject(filename="special")
-            # saves to "special.Z"
-        
-        """
-        if filename is None:
-            filename = "%s.project" % self.name
-
-        logger.info("Attempting to save file in format=%s" % format)
-        filename = exportObj(self, filename=filename, format=format, compression=compression)
-        logger.info("Saved to file: %s" % filename)
-        return filename
-
-
-

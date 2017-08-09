@@ -405,7 +405,9 @@ def plotScenarios(scen_results, scen_labels, settings, data, plot_charac=None, p
 
             for (ri, result_name) in enumerate(scen_results.keys()):
                 result = scen_results[result_name]
-                y_values_cur, _, _, _ = extractCharacteristic(results=result, charac_labels=[charac], charac_specs=charac_specs, data=data, pop_labels=[pop_label])
+                y_values_cur, _, _, dataobs = extractCharacteristic(results=result, charac_labels=[charac], charac_specs=charac_specs, data=data, pop_labels=[pop_label], plot_observed_data=plot_observed_data)
+
+#                 y_values, labels, unit_tags, dataobs = extractCharacteristic(results, data, charac_specs, charac_labels=outputIDs, pop_labels=pop_labels, plot_observed_data=plot_observed_data, plot_total=plot_total)
 
                 ys = y_values_cur[charac][:][0]
 
@@ -415,6 +417,11 @@ def plotScenarios(scen_results, scen_labels, settings, data, plot_charac=None, p
 
                 yvals.append(ys)
                 labels.append(scen_labels[ri])
+
+                if dataobs is not None:  # this can be improved
+                    that_i, yhat_i = dataobs
+                    yhat.append(yhat_i)
+                    that.append(that_i)
 
             if plot_observed_data:
                 pass  # TODO: include in future, but will require information as to which is the 'Current conditions' / 'BAU' scenario.
@@ -435,19 +442,29 @@ def plotScenarios(scen_results, scen_labels, settings, data, plot_charac=None, p
                   'smooth' : True,  # smooth plots for scenarios
                   'title': 'Scenario comparison:\n%s [%s]' % (charac_specs[charac]['name'], pop_label),
                   'save_figname': '%s_ScenarioComparision_%s_%s' % (fig_name, pop_label, charac_specs[charac]['name'])}
+
+            if dataobs is not None:  # this can be improved
+
+                final_dict['y_hat'] = yhat
+                final_dict['t_hat'] = that
+                print "Observed data = ", len(that)
+                print that
+
             if percentage_relative_to is not None:
                 final_dict['ylabel'] = ylabel
             final_dict.update(plotdict)
 
 
             figure = _plotLine(ys=yvals, ts=np.tile(tvec, (len(labels), 1)), labels=labels, reverse_order=True,
-                               legendsettings=None, save_fig=save_fig, fig_name=fig_name, colors=colors, **final_dict)  # , y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
+                               save_fig=save_fig, fig_name=fig_name, colors=colors, **final_dict)  # , y_hat=[final_dict_cur['y_hat'][pid],final_dict_com['y_hat'][pid]], t_hat=[final_dict_cur['t_hat'][pid],final_dict_com['t_hat'][pid]])
 
     if final_dict.has_key('legend_off') and final_dict['legend_off']:
         # Do this separately to main iteration so that previous figure are not corrupted
         # Note that colorlist may be different to colors, as it represents
         # classes of compartments
         separateLegend(labels=labels, colors=colors, fig_name=fig_name + "_LegendScenarioComparison")
+
+    return figure
 
 
 def plotScenarioBar (scen_results, scen_labels, settings, data, output_list=None, year=None, pop_labels=None, legendsettings=None,
@@ -1742,7 +1759,8 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
              y_intercept=None, reverse_order=False, y_bounds=None, linestyles=None,
              smooth=False, symmetric=False, repeats=5,
              alpha=0.3, marker='o', s=40, facecolors='none', linewidth=3, zorder=10,
-             save_fig=False, save_figname=None, legend_off=False, **kwargs):
+             save_fig=False, save_figname=None, legend_off=False,
+             box_width=0.9, box_offset=0.0, **kwargs):
     """
     Plots multiple lines, with additional option of overlaying observed datapoints
     
@@ -1774,7 +1792,8 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
         logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
 
     if linestyles is None or len(linestyles) < len(ys):
-        linestyles = [kwargs['default_linestyle']] * len(ys)
+        try: linestyles = [kwargs['default_linestyle']] * len(ys)
+        except: linestyles = ['-'] * len(ys)
         logger.info("Plotting: setting linestyles to be default value, as not all lines had styles assigned")
 
 
@@ -1817,13 +1836,15 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
         if len(y_hat) > 0 and len(y_hat[k]) > 0:  # i.e. we've seen observable data
 
             ax.scatter(t_hat[k], y_hat[k], marker=marker, edgecolors=colors[k], facecolors=facecolors, s=s, zorder=zorder, linewidth=linewidth)
-            if np.min(y_hat[k]) < ymin_val:
-                ymin_val = np.min(y_hat[k])
-
+            try:
+                if np.min(y_hat[k]) < ymin_val:
+                    ymin_val = np.min(y_hat[k])
+            except:
+                pass
 
 
     box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+    ax.set_position([box.x0 + box.width * box_offset, box.y0, box.width * box_width, box.height])
 
 
     ax.set_title(title)
