@@ -24,9 +24,12 @@ def defaultOptimOptions(settings, progset = None):
         for prog in progset.progs:
             options['init_alloc'][prog.label] = prog.getDefaultBudget()
             options['constraints']['limits'][prog.label] = {'vals':[0.0,np.inf],'rel':True}
-            options['constraints']['max_yearly_change'][prog.label] = {'val':np.inf, 'rel':True}
             if prog.func_specs['type'] == 'cost_only':
                 options['constraints']['limits'][prog.label]['vals'] = [1.0,1.0]
+            else:
+                # All programs that are not fixed-cost can have a default ramp constraint.
+                # This should be fine for fixed-cost programs too, but is redundant and does not need to be explicit.
+                options['constraints']['max_yearly_change'][prog.label] = {'val':np.inf, 'rel':True}
         for impact in progset.impacts.keys():
             options['constraints']['impacts'][impact] = {'vals':[0.0,np.inf]}
     options['orig_alloc'] = dcp(options['init_alloc'])

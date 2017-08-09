@@ -211,16 +211,19 @@ class Program:
         # If coverage is a scalar, make it a float. If it is a list or array, make it an array of floats.
         try: coverage = float(coverage)
         except: coverage = dcp(np.array(coverage, 'float'))
-    
-        if self.cov_format is None:
-            raise OptimaException('ERROR: Attempted to convert coverage to budget for a program that does not have coverage.')
+
+        if self.func_specs['type'] == 'cost_only':
+            bud = np.nan    # A fixed-cost program has no coverage, so a coverage-budget conversion should return a NaN.
+                            # This will not bother value-updating in the model, as fixed-cost programs should not have impact parameters anyway.
+        elif self.cov_format is None:
+            raise OptimaException('ERROR: Attempted to convert coverage to budget for a program (%s) that does not have coverage.' % self.label)
         else:
             if self.cov_format.lower() == 'fraction':
-                bud = coverage*self.func_specs['pars']['unit_cost']/0.01     # Unit cost is per percentage when format is a fraction.
+                bud = coverage * self.func_specs['pars']['unit_cost'] / 0.01     # Unit cost is per percentage when format is a fraction.
             else:
-                bud = coverage*self.func_specs['pars']['unit_cost']
-        return bud        
-        
+                bud = coverage * self.func_specs['pars']['unit_cost']
+        return bud
+
     def getCoverage(self, budget):
         '''
         Returns prospective coverage for a program. In simplest form, this is budget divided by unit cost.
@@ -236,18 +239,18 @@ class Program:
             cov = np.nan  # Fixed cost programs have no coverage.
         else:
             if self.cov_format.lower() == 'fraction':
-                cov = budget*0.01/self.func_specs['pars']['unit_cost']     # Unit cost is per percentage when format is a fraction.
+                cov = budget * 0.01 / self.func_specs['pars']['unit_cost']     # Unit cost is per percentage when format is a fraction.
             else:
-                cov = budget/self.func_specs['pars']['unit_cost']
+                cov = budget / self.func_specs['pars']['unit_cost']
         return cov
-        
-    def getImpact(self, budget, impact_label = None, parser = None, years = None, budget_is_coverage = False):
-        
+
+    def getImpact(self, budget, impact_label=None, parser=None, years=None, budget_is_coverage=False):
+
         if self.func_specs['type'] == 'cost_only':
             return 0.0
-        
+
         budget = dcp(budget)    # Just in case.
-        
+
         # Baseline impact is just coverage.
         if budget_is_coverage:
             imp = budget
@@ -266,11 +269,11 @@ class Program:
                         if years is None: years = [max(self.t)]
                         output = self.interpolate(tvec=years, attributes=[attrib_label])
                     else:
-                        raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" due to a missing reference "%s".' % (self.label,impact_label,attrib_label))
-                    attribs[attrib_label] = output[attrib_label]#[-1]
+                        raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" due to a missing reference "%s".' % (self.label, impact_label, attrib_label))
+                    attribs[attrib_label] = output[attrib_label]# [-1]
 #                    if len(output[attrib_label]) > 1:
 #                        print attribs
-                new_val = parser.evaluateStack(stack = f_stack, deps = attribs)
+                new_val = parser.evaluateStack(stack=f_stack, deps=attribs)
                 imp *= new_val      # Scale coverage.
-                
+
         return imp

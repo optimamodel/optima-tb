@@ -169,7 +169,8 @@ def compareOutcomesFunc(proj, year, parset_name=None, progset_name=None, budget_
             else:
                 outcome += '%s\n' %(par_label)
                 for popkey in impact[par_label]:
-                    outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact[par_label][popkey]['parset_impact_value'], impact[par_label][popkey]['progset_impact_value'])
+                    try: outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact[par_label][popkey]['parset_impact_value'], impact[par_label][popkey]['progset_impact_value'])
+                    except: outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact[par_label][popkey]['parset_impact_value'], impact[par_label][popkey]['progset_impact_value'][0])
                 outcome += '\n'
         print outcome
     #Reset back to original runSim durations

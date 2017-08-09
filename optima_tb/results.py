@@ -2,6 +2,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from optima_tb.utils import OptimaException, odict, defaultrepr, objrepr
+import optima_tb.settings as project_settings
 
 import numpy as np
 from math import ceil, floor
@@ -437,7 +438,7 @@ class ResultSet(object):
                         if was_proportion is True:
                             num_flow *= comp_source.popsize_old
                         else:
-    #                        num_flow[num_flow>1.] = 1.
+                            num_flow[np.logical_and(num_flow>1.,num_flow<(1.+project_settings.TOLERANCE))] = 1.
                             num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
                             num_flow *= comp_source.popsize
                         num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
