@@ -692,6 +692,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.table_calibration.setVerticalHeaderLabels(custom_ids)
         self.table_calibration.setHorizontalHeaderLabels(['Parameter', 'Population'] + [str(int(x)) for x in self.tvec])
         self.table_calibration.resizeColumnsToContents()
+        self.table_calibration.resizeRowsToContents()
 
         self.table_calibration.cellChanged.connect(self.updateParset)
 
@@ -699,14 +700,21 @@ class GUICalibration(GUIResultPlotterIntermediate):
     def updateParset(self, row, col):
         new_val_str = str(self.table_calibration.item(row, col).text())
         year = float(str(self.table_calibration.horizontalHeaderItem(col).text()))
+        custom_id = str(self.table_calibration.verticalHeaderItem(row).text())
 
-        par_name = str(self.table_calibration.item(row, self.col_par_name).text())
-        pop_name = str(self.table_calibration.item(row, self.col_pop_name).text())
-        try:
-            par_label = self.project.settings.linkpar_name_labels[par_name]
-        except:
-            par_label = self.project.settings.charac_name_labels[par_name]
-        pop_label = self.project.data['pops']['name_labels'][pop_name]
+#        par_name = str(self.table_calibration.item(row, self.col_par_name).text())
+#        pop_name = str(self.table_calibration.item(row, self.col_pop_name).text())
+#        try:
+#            par_label = self.project.settings.linkpar_name_labels[par_name]
+#        except:
+#            par_label = self.project.settings.charac_name_labels[par_name]
+#        pop_label = self.project.data['pops']['name_labels'][pop_name]
+
+        par_label = self.calibration_id_dict[custom_id]['par_label']
+        pop_label = self.calibration_id_dict[custom_id]['pop_label']
+        
+        print par_label
+        print pop_label
 
         par = self.parset.getPar(par_label)
         try:
