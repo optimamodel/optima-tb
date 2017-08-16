@@ -512,8 +512,9 @@ class GUICalibration(GUIResultPlotterIntermediate):
                                 # It should be an (edited) copy, not a reference, to an existing Project ParameterSet.
         self.parset_name = None
         self.combo_parset_dict = {}     # Dictionary that maps Parset names to indices used in combo boxes.
-        self.col_par_name = 0   # Column index for table calibration parameter names.
-        self.col_pop_name = 1   # Column index for table calibration population names.
+#        self.col_par_name = 0   # Column index for table calibration parameter names.
+#        self.col_pop_name = 1   # Column index for table calibration population names.
+        self.calibration_id_dict = {}   # Dictionary that maps custom calibration-widget label to parameter and population labels.
 
 
     def refreshVisibility(self):
@@ -655,29 +656,31 @@ class GUICalibration(GUIResultPlotterIntermediate):
         num_pops = len(parset.pop_labels)
         row_count = num_pops * (len(parset.pars['cascade']) - len(self.project.settings.par_funcs))
         self.table_calibration.setRowCount(row_count)
-        self.table_calibration.setColumnCount(2 + len(self.tvec))
+        self.table_calibration.setColumnCount(len(self.tvec))
         self.calibration_items = []
 
         k = 0
-        par_labels = []
+        custom_ids = []
         for par_type in ['characs', 'cascade']:
             for par in parset.pars[par_type]:
                 if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or (par_type == 'characs' and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
                     for pid in xrange(len(parset.pop_labels)):
                         pop_label = parset.pop_labels[pid]
-                        par_labels.append(par.label + ' [' + pop_label + ']')
                         try:
                             par_name = self.project.settings.linkpar_specs[par.label]['name']
                         except:
                             par_name = self.project.settings.charac_specs[par.label]['name']
+                        custom_id = par_name + '\n' + parset.pop_names[pid]
+                        custom_ids.append(custom_id)
+                        self.calibration_id_dict[custom_id] = {'par_label':par.label, 'pop_label':pop_label}
                         temp = qtw.QTableWidgetItem()
-                        temp.setText(par_name)
+#                        temp.setText(par_name)
                         temp.setFlags(qtc.Qt.ItemIsEnabled or qtc.Qt.ItemIsSelectable)
-                        self.table_calibration.setItem(k * num_pops + pid, self.col_par_name, temp)
+#                        self.table_calibration.setItem(k * num_pops + pid, self.col_par_name, temp)
                         temp = qtw.QTableWidgetItem()
-                        temp.setText(parset.pop_names[pid])
+#                        temp.setText(parset.pop_names[pid])
                         temp.setFlags(qtc.Qt.ItemIsEnabled or qtc.Qt.ItemIsSelectable)
-                        self.table_calibration.setItem(k * num_pops + pid, self.col_pop_name, temp)
+#                        self.table_calibration.setItem(k * num_pops + pid, self.col_pop_name, temp)
 
                         for eid in xrange(len(par.t[pid])):
                             t = par.t[pid][eid]
@@ -686,7 +689,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             temp.setText(str(y))
                             self.table_calibration.setItem(k * num_pops + pid, 2 + int(t) - self.tvec[0], temp)
                     k += 1
-        self.table_calibration.setVerticalHeaderLabels(par_labels)
+        self.table_calibration.setVerticalHeaderLabels(custom_ids)
         self.table_calibration.setHorizontalHeaderLabels(['Parameter', 'Population'] + [str(int(x)) for x in self.tvec])
         self.table_calibration.resizeColumnsToContents()
 
