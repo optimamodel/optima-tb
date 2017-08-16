@@ -988,11 +988,11 @@ def validateFormatType(data_to_validate, label, loop, key, attribute, pop, valid
           validation = False
     elif data_to_validate['y_format'] == 'number':
       if data_to_validate[label][loop] < 0.:
-          logging.warning('Please verify databook under %s%s and population %s as a fraction or a negative number was entered for definition type "number" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
+          logging.warning('Please verify databook under %s%s and population %s as a negative number was entered for definition type "number" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
           validation = False
-      elif data_to_validate[label][loop] > 0. and data_to_validate[label][loop] < 1.:
-          logging.warning('Please verify databook under %s%s and population %s as a fraction or a negative number was entered for definition type "number" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
-          validation = False
+#       elif data_to_validate[label][loop] > 0. and data_to_validate[label][loop] < 1.:
+#           logging.warning('Please verify databook under %s%s and population %s as a fraction or a negative number was entered for definition type "number" for Year: %i, value entered: %0.1f' % (key, attribute, pop, data_to_validate['t'][loop], data_to_validate['y'][loop]))
+#           validation = False
     return validation
 
 
