@@ -674,23 +674,22 @@ class GUICalibration(GUIResultPlotterIntermediate):
                         custom_ids.append(custom_id)
                         self.calibration_id_dict[custom_id] = {'par_label':par.label, 'pop_label':pop_label}
                         temp = qtw.QTableWidgetItem()
-#                        temp.setText(par_name)
-                        temp.setFlags(qtc.Qt.ItemIsEnabled or qtc.Qt.ItemIsSelectable)
-#                        self.table_calibration.setItem(k * num_pops + pid, self.col_par_name, temp)
-                        temp = qtw.QTableWidgetItem()
-#                        temp.setText(parset.pop_names[pid])
-                        temp.setFlags(qtc.Qt.ItemIsEnabled or qtc.Qt.ItemIsSelectable)
-#                        self.table_calibration.setItem(k * num_pops + pid, self.col_pop_name, temp)
+                        temp.setText(str(par.y_factor[pid]))
+                        temp.setTextAlignment(qtc.Qt.AlignCenter)
+                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable | qtc.Qt.ItemIsUserCheckable)
+                        temp.setCheckState(qtc.Qt.Unchecked)
+                        self.table_calibration.setItem(k * num_pops + pid, 0, temp)
 
                         for eid in xrange(len(par.t[pid])):
                             t = par.t[pid][eid]
                             y = par.y[pid][eid]
                             temp = qtw.QTableWidgetItem()
                             temp.setText(str(y))
-                            self.table_calibration.setItem(k * num_pops + pid, 2 + int(t) - self.tvec[0], temp)
+                            temp.setTextAlignment(qtc.Qt.AlignCenter)
+                            self.table_calibration.setItem(k * num_pops + pid, 1 + int(t) - self.tvec[0], temp)
                     k += 1
         self.table_calibration.setVerticalHeaderLabels(custom_ids)
-        self.table_calibration.setHorizontalHeaderLabels(['Parameter', 'Population'] + [str(int(x)) for x in self.tvec])
+        self.table_calibration.setHorizontalHeaderLabels(['Scaling Factor\n(Autocalibration Checkbox)'] + [str(int(x)) for x in self.tvec])
         self.table_calibration.resizeColumnsToContents()
         self.table_calibration.resizeRowsToContents()
 
@@ -699,43 +698,44 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
     def updateParset(self, row, col):
         new_val_str = str(self.table_calibration.item(row, col).text())
-        year = float(str(self.table_calibration.horizontalHeaderItem(col).text()))
-        custom_id = str(self.table_calibration.verticalHeaderItem(row).text())
-
-#        par_name = str(self.table_calibration.item(row, self.col_par_name).text())
-#        pop_name = str(self.table_calibration.item(row, self.col_pop_name).text())
-#        try:
-#            par_label = self.project.settings.linkpar_name_labels[par_name]
-#        except:
-#            par_label = self.project.settings.charac_name_labels[par_name]
-#        pop_label = self.project.data['pops']['name_labels'][pop_name]
-
-        par_label = self.calibration_id_dict[custom_id]['par_label']
-        pop_label = self.calibration_id_dict[custom_id]['pop_label']
-        
-        print par_label
-        print pop_label
-
-        par = self.parset.getPar(par_label)
-        try:
-            new_val = float(new_val_str)
-        except:
-            if new_val_str == '':
-                remove_success = par.removeValueAt(t=year, pop_label=pop_label)
-                if remove_success:
-                    self.status = ('Status: Value successfully deleted from parameter set')
-                    self.refreshStatus()
-                    return
-                else: self.status = ('Status: Attempt to remove item in parameter set failed, at least one value per row required')
-            else: self.status = ('Status: Attempt to edit item in parameter set failed, only numbers allowed')
+        if col > 0:
+            year = float(str(self.table_calibration.horizontalHeaderItem(col).text()))
+            custom_id = str(self.table_calibration.verticalHeaderItem(row).text())
+    
+    #        par_name = str(self.table_calibration.item(row, self.col_par_name).text())
+    #        pop_name = str(self.table_calibration.item(row, self.col_pop_name).text())
+    #        try:
+    #            par_label = self.project.settings.linkpar_name_labels[par_name]
+    #        except:
+    #            par_label = self.project.settings.charac_name_labels[par_name]
+    #        pop_label = self.project.data['pops']['name_labels'][pop_name]
+    
+            par_label = self.calibration_id_dict[custom_id]['par_label']
+            pop_label = self.calibration_id_dict[custom_id]['pop_label']
+    
+            par = self.parset.getPar(par_label)
+            try:
+                new_val = float(new_val_str)
+            except:
+                if new_val_str == '':
+                    remove_success = par.removeValueAt(t=year, pop_label=pop_label)
+                    if remove_success:
+                        self.status = ('Status: Value successfully deleted from parameter set')
+                        self.refreshStatus()
+                        return
+                    else: self.status = ('Status: Attempt to remove item in parameter set failed, at least one value per row required')
+                else: self.status = ('Status: Attempt to edit item in parameter set failed, only numbers allowed')
+                self.refreshStatus()
+                self.guard_status = True
+                self.table_calibration.item(row, col).setText(str(par.interpolate(tvec=[year], pop_label=pop_label)[0]))
+                self.guard_status = False
+                return
+            par.insertValuePair(t=year, y=new_val, pop_label=pop_label)
+            self.status = ('Status: Current edited parameter set uses value "%f" for parameter "%s", population "%s", year "%i"' % (new_val, par_label, pop_label, year))
             self.refreshStatus()
-            self.guard_status = True
-            self.table_calibration.item(row, col).setText(str(par.interpolate(tvec=[year], pop_label=pop_label)[0]))
-            self.guard_status = False
-            return
-        par.insertValuePair(t=year, y=new_val, pop_label=pop_label)
-        self.status = ('Status: Current edited parameter set uses value "%f" for parameter "%s", population "%s", year "%i"' % (new_val, par_label, pop_label, year))
-        self.refreshStatus()
+        else:
+            pass
+            
 
 
 
