@@ -254,6 +254,8 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.combo_result_dict = {}     # Dictionary that maps Result names to indices used in combo boxes.
         self.combo_charac_dict = {}     # Dictionary that maps Characteristic names to indices used in combo boxes.
         self.combo_pop_dict = {}        # Dictionary that maps Population names to indices used in combo boxes.
+        
+        self.plot_window = None         # A new window for displaying plots.
 
 
     # The following wrapper function can be overloaded by derived classes.
@@ -354,10 +356,10 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.second_half.setLayout(self.plotter_layout)
 
         # Window splitter.
-        self.splitter_total = qtw.QSplitter()
-        self.splitter_total.addWidget(self.first_half)
-        self.splitter_total.addWidget(self.second_half)
-        self.setCentralWidget(self.splitter_total)
+#        self.splitter_total = qtw.QSplitter()
+#        self.splitter_total.addWidget(self.first_half)
+#        self.splitter_total.addWidget(self.second_half)
+        self.setCentralWidget(self.first_half)
 
         self.refreshVisibilityResultPlotter()      # This call is specific to base class components.
         self.show()
@@ -434,21 +436,21 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         print self.result_1_plot_name
         print self.result_2_plot_name
         print "------"
-        if self.result_1_plot_name is None or self.result_2_plot_name is None:
-            self.status = ('Status: Plotting default selection(s)')
-            self.refreshVisibility()
-            try:
-                print "Showing plot #61"
-                defaultkey = self.project.results.keys()[61] # For Moldova workshop, choose Active prevalence
-
-            except:
-                print "Showing default plot #0"
-                defaultkey = self.project.results.keys()[0] # If not selected, just pick the first key
-
-            if self.result_1_plot_name is None:
-                self.result_1_plot_name = defaultkey
-            if self.result_2_plot_name is None:
-                self.result_2_plot_name = defaultkey
+#        if self.result_1_plot_name is None or self.result_2_plot_name is None:
+#            self.status = ('Status: Plotting default selection(s)')
+#            self.refreshVisibility()
+#            try:
+#                print "Showing plot #61"
+#                defaultkey = self.project.results.keys()[61] # For Moldova workshop, choose Active prevalence
+#
+#            except:
+#                print "Showing default plot #0"
+#            defaultkey = self.project.results.keys()[0] # If not selected, just pick the first key
+#
+#            if self.result_1_plot_name is None:
+#                self.result_1_plot_name = defaultkey
+#            if self.result_2_plot_name is None:
+#                self.result_2_plot_name = defaultkey
 
         if self.charac_plot_name is not None and self.pop_plot_name is not None:
 
@@ -483,8 +485,17 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
                                     colors=colors,
                                     save_fig=False)
             canvas = FigureCanvasQTAgg(figure)
-
-            self.plotter_layout.addWidget(canvas)
+            
+            # Create new plotting window
+            self.plot_window = qtw.QMainWindow(self)
+            self.plot_window.setWindowTitle('%s - %s' % (self.charac_plot_name, self.pop_plot_name))
+            widget = qtw.QDesktopWidget()
+            screen = widget.availableGeometry()
+            self.plot_window.resize(screen.width() * 4.0 / 10.0, screen.height() * 4.0 / 10.0)
+            self.plot_window.setGeometry((screen.width() - self.plot_window.width()) / 2, (screen.height() - self.plot_window.height()) / 2,
+                                         self.plot_window.width(), self.plot_window.height())
+            self.plot_window.setCentralWidget(canvas)
+            self.plot_window.show()
 
 
 
