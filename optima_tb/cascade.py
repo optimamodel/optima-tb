@@ -205,7 +205,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_characs.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_characs.cell_value(0, col_id) == 'Entry Point': cid_entry = col_id
         if ws_characs.cell_value(0, col_id) == 'Includes': cid_include_start = col_id
-        if ws_characs.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id       # NOTE: Consider whether calibrate column is necessary. At least get rid of the punctuation.
+        if ws_characs.cell_value(0, col_id) == 'Autocalibrate': cid_yfactor = col_id
     
     
     
@@ -325,8 +325,8 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 val = str(ws_characs.cell_value(row_id, cid_yfactor))
                 if val.lower() == 'n' or val == '-1':
                     settings.charac_specs[charac_label]['y_factor'] = DO_NOT_SCALE
-                elif val not in ['']:
-                    settings.charac_specs[charac_label]['y_factor'] = float(val)
+#                elif val not in ['']:
+#                    settings.charac_specs[charac_label]['y_factor'] = float(val)
                 else:
                     settings.charac_specs[charac_label]['y_factor'] = DEFAULT_YFACTOR
 
@@ -377,7 +377,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
         if ws_pars.cell_value(0, col_id) == 'Function': cid_function = col_id
-        if ws_pars.cell_value(0, col_id) == 'Calibrate?': cid_yfactor = col_id      # NOTE: Consider whether calibrate column is necessary. At least get rid of the punctuation.
+        if ws_pars.cell_value(0, col_id) == 'Autocalibrate': cid_yfactor = col_id
         if ws_pars.cell_value(0, col_id) == 'Special Rules': cid_rules = col_id
     if None in [cid_tag, cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade transition-parameters worksheet does not have correct column headers.')
@@ -458,8 +458,8 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 val = str(ws_pars.cell_value(row_id, cid_yfactor))
                 if val.lower() == 'n' or val == '-1':
                     settings.linkpar_specs[label]['y_factor'] = DO_NOT_SCALE
-                elif val not in ['']:
-                    settings.linkpar_specs[label]['y_factor'] = float(val)
+#                elif val not in ['']:
+#                    settings.linkpar_specs[label]['y_factor'] = float(val)
                 else:
                     settings.linkpar_specs[label]['y_factor'] = DEFAULT_YFACTOR
                     

@@ -3,6 +3,7 @@
 from optima_tb.utils import odict, OptimaException
 from optima_tb.interpolation import interpolateFunc
 from optima_tb.databook import getEmptyData
+from optima_tb.settings import DO_NOT_SCALE, DEFAULT_YFACTOR
 
 import logging
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ import operator
 class Parameter(object):
     ''' Class to hold one set of parameter values disaggregated by populations. '''
     
-    def __init__(self, label, t = None, y = None, y_format = None, y_factor = None):
+    def __init__(self, label, t = None, y = None, y_format = None, y_factor = None, autocalibrate = None):
         self.label = label
         
         # These ordered dictionaries have population labels as keys.
@@ -28,11 +29,13 @@ class Parameter(object):
         if y is None: y = odict()
         if y_format is None: y_format = odict()
         if y_factor is None: y_factor = odict()
-        self.t = t                      # Time data.
-        self.y = y                      # Value data.
-        self.y_format = y_format        # Value format data (e.g. Probability, Fraction or Number).
-        self.y_factor = y_factor        # Scale factor of data (i.e. 1., or None indicating that scaling should not occur during automated calibration
-        
+        if autocalibrate is None: autocalibrate = odict()
+        self.t = t                              # Time data.
+        self.y = y                              # Value data.
+        self.y_format = y_format                # Value format data (e.g. Probability, Fraction or Number).
+        self.y_factor = y_factor                # Scaling factor of data. Corresponds to different transformations whether format is fraction or number.
+        self.autocalibrate = autocalibrate      # A set of boolean flags corresponding to y_factor that denote whether this parameter can be autocalibrated.
+                                                                
     def insertValuePair(self, t, y, pop_label):
         ''' Check if the inserted t value already exists for the population parameter. If not, append y value. If so, overwrite y value. '''
         k = 0
@@ -141,7 +144,12 @@ class ParameterSet(object):
                 self.pars['cascade'][-1].t[pop_id] = data['linkpars'][label][pop_id]['t']
                 self.pars['cascade'][-1].y[pop_id] = data['linkpars'][label][pop_id]['y']
                 self.pars['cascade'][-1].y_format[pop_id] = data['linkpars'][label][pop_id]['y_format']
-                self.pars['cascade'][-1].y_factor[pop_id] = data['linkpars'][label][pop_id]['y_factor']
+                if data['linkpars'][label][pop_id]['y_factor'] == DO_NOT_SCALE:
+                    self.pars['cascade'][-1].y_factor[pop_id] = DEFAULT_YFACTOR
+                    self.pars['cascade'][-1].autocalibrate[pop_id] = False
+                else:
+                    self.pars['cascade'][-1].y_factor[pop_id] = data['linkpars'][label][pop_id]['y_factor']
+                    self.pars['cascade'][-1].autocalibrate[pop_id] = True
                 
         # Characteristic parameters (e.g. popsize/prevalence).
         # Despite being mostly data to calibrate against, is still stored in full so as to interpolate initial value.
@@ -152,7 +160,12 @@ class ParameterSet(object):
                 self.pars['characs'][l].t[pop_id] = data['characs'][label][pop_id]['t']
                 self.pars['characs'][l].y[pop_id] = data['characs'][label][pop_id]['y']
                 self.pars['characs'][l].y_format[pop_id] = data['characs'][label][pop_id]['y_format']
-                self.pars['characs'][l].y_factor[pop_id] = data['characs'][label][pop_id]['y_factor']
+                if data['characs'][label][pop_id]['y_factor'] == DO_NOT_SCALE:
+                    self.pars['characs'][-1].y_factor[pop_id] = DEFAULT_YFACTOR
+                    self.pars['characs'][-1].autocalibrate[pop_id] = False
+                else:
+                    self.pars['characs'][-1].y_factor[pop_id] = data['characs'][label][pop_id]['y_factor']
+                    self.pars['characs'][-1].autocalibrate[pop_id] = True
             
         # Migrations, including aging.
         for trans_type in data['transfers'].keys():
@@ -199,7 +212,7 @@ class ParameterSet(object):
         getYFactor will return the scaling factor (y_factor) that can be used to manipulate
         
         To avoid values from being extracted, users should use the assumption value to specify values, or 
-        mark the 'Calibrate?' column in the cascade spreadsheet with "-1" (== settings.DO_NOT_SCALE value)
+        mark the 'Autocalibrate' column in the cascade spreadsheet with "-1" (== settings.DO_NOT_SCALE value)
         
         If getMinMax=True, this function additionally returns the min and max values for each of the parameters returned,
         depending on y_format. Each minmax value is a tuple of form (min,max). Note that min/max values can be either a float, int, or None.

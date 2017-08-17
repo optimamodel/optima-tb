@@ -164,7 +164,7 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     
     
     if len(paramvec)+len(compartment_init) == 0:
-        raise OptimaException("No available cascade parameters or initial populations to calibrate during autofitting. Please set at least one 'Calibrate?' value to be not equal to %g OR at least one entry point for a population."%settings.DO_NOT_SCALE)
+        raise OptimaException("No available cascade parameters or initial populations to calibrate during autofitting. Please set at least one 'Autocalibrate' value to be not equal to %g OR at least one entry point for a population."%settings.DO_NOT_SCALE)
     
     mins, maxs = zip(*minmax)
     sample_param = dcp(paramset)   # ParameterSet created just to be overwritten
