@@ -16,7 +16,7 @@ from optima_tb.plotting import plotScenarios # _plotLine
 from optima_tb.dataio import saveObject, loadObject
 from optima_tb.defaults import defaultOptimOptions
 from optima_tb.utils import odict
-from optima_tb.settings import DO_NOT_SCALE
+from optima_tb.settings import DO_NOT_SCALE, DEFAULT_YFACTOR
 
 ##### TODO remove hardcoded from Belarus:
 colors = ['#8C8984',
@@ -688,7 +688,10 @@ class GUICalibration(GUIResultPlotterIntermediate):
                         temp.setText(str(par.y_factor[pid]))
                         temp.setTextAlignment(qtc.Qt.AlignCenter)
                         temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable | qtc.Qt.ItemIsUserCheckable)
-                        temp.setCheckState(qtc.Qt.Unchecked)
+                        if par.autocalibrate[pid]:
+                            temp.setCheckState(qtc.Qt.Checked)
+                        else:
+                            temp.setCheckState(qtc.Qt.Unchecked)
                         self.table_calibration.setItem(k * num_pops + pid, 0, temp)
 
                         for eid in xrange(len(par.t[pid])):
@@ -708,23 +711,36 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
 
     def updateParset(self, row, col):
+        custom_id = str(self.table_calibration.verticalHeaderItem(row).text())
+        par_label = self.calibration_id_dict[custom_id]['par_label']
+        pop_label = self.calibration_id_dict[custom_id]['pop_label']
+        par = self.parset.getPar(par_label)
+        
         new_val_str = str(self.table_calibration.item(row, col).text())
-        if col > 0:
+        if col == 0:
+            calib_prefix = ''
+            if self.table_calibration.item(row, col).checkState() == qtc.Qt.Checked:
+                par.autocalibrate[pop_label] = True
+            else:
+                par.autocalibrate[pop_label] = False
+                calib_prefix = 'un'
+            
+            try:
+                new_val = float(new_val_str)
+                if new_val < 0:
+                    raise Exception('scaling factor is negative')
+            except Exception as E:
+                self.status = ('Status: Attempt to edit scaling factor failed because "%s"' % E.message)
+                new_val = DEFAULT_YFACTOR
+                self.refreshStatus()
+                self.guard_status = True
+                self.table_calibration.item(row, col).setText(str(new_val))
+                self.guard_status = False
+                return
+            par.y_factor[pop_label] = new_val
+            self.status = ('Status: Current edited parameter set %smarked for autocalibration uses scaling factor "%f" for parameter "%s", population "%s"' % (calib_prefix, new_val, par_label, pop_label))
+        else:
             year = float(str(self.table_calibration.horizontalHeaderItem(col).text()))
-            custom_id = str(self.table_calibration.verticalHeaderItem(row).text())
-    
-    #        par_name = str(self.table_calibration.item(row, self.col_par_name).text())
-    #        pop_name = str(self.table_calibration.item(row, self.col_pop_name).text())
-    #        try:
-    #            par_label = self.project.settings.linkpar_name_labels[par_name]
-    #        except:
-    #            par_label = self.project.settings.charac_name_labels[par_name]
-    #        pop_label = self.project.data['pops']['name_labels'][pop_name]
-    
-            par_label = self.calibration_id_dict[custom_id]['par_label']
-            pop_label = self.calibration_id_dict[custom_id]['pop_label']
-    
-            par = self.parset.getPar(par_label)
             try:
                 new_val = float(new_val_str)
             except:
@@ -743,9 +759,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                 return
             par.insertValuePair(t=year, y=new_val, pop_label=pop_label)
             self.status = ('Status: Current edited parameter set uses value "%f" for parameter "%s", population "%s", year "%i"' % (new_val, par_label, pop_label, year))
-            self.refreshStatus()
-        else:
-            pass
+        self.refreshStatus()
             
 
 
