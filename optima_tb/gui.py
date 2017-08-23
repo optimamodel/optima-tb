@@ -549,12 +549,15 @@ class GUICalibration(GUIResultPlotterIntermediate):
             self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
         self.table_calibration.setVisible(does_parset_exist)
 
-        self.label_model_run.setVisible(does_parset_exist)
-        self.edit_model_run.setVisible(does_parset_exist)
-        self.button_model_run.setVisible(does_parset_exist)
+        self.label_autocalibrate.setVisible(does_parset_exist)
+        self.edit_autocalibrate.setVisible(does_parset_exist)
+        self.button_autocalibrate.setVisible(does_parset_exist)
         self.label_overwrite.setVisible(does_parset_exist)
         self.edit_overwrite.setVisible(does_parset_exist)
         self.button_overwrite.setVisible(does_parset_exist)
+        self.label_model_run.setVisible(does_parset_exist)
+        self.edit_model_run.setVisible(does_parset_exist)
+        self.button_model_run.setVisible(does_parset_exist)
 
 
     def acknowledgeProject(self):
@@ -577,16 +580,22 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
         self.table_calibration = qtw.QTableWidget()
         self.table_calibration.cellChanged.connect(self.updateParset)
-
-        self.label_model_run = qtw.QLabel('Run & save calibration results as... ')
-        self.edit_model_run = qtw.QLineEdit()
-        self.button_model_run = qtw.QPushButton('Generate results', self)
-        self.button_model_run.clicked.connect(self.runCalibration)
+        
+        self.label_autocalibrate = qtw.QLabel('Autocalibration time in seconds... ')
+        self.edit_autocalibrate = qtw.QLineEdit()
+        self.edit_autocalibrate.setText(str(10))
+        self.button_autocalibrate = qtw.QPushButton('Autocalibrate Parameters', self)
+        self.button_autocalibrate.clicked.connect(self.autocalibrate)
 
         self.label_overwrite = qtw.QLabel('Save edits to... ')
         self.edit_overwrite = qtw.QLineEdit()
         self.button_overwrite = qtw.QPushButton('Save calibration', self)
         self.button_overwrite.clicked.connect(self.saveCalibration)
+
+        self.label_model_run = qtw.QLabel('Run & save calibration results as... ')
+        self.edit_model_run = qtw.QLineEdit()
+        self.button_model_run = qtw.QPushButton('Generate results', self)
+        self.button_model_run.clicked.connect(self.runCalibration)
 
         # Layout.
         grid_parset_load = qtw.QGridLayout()
@@ -598,12 +607,15 @@ class GUICalibration(GUIResultPlotterIntermediate):
         grid_parset_save = qtw.QGridLayout()
         grid_parset_save.setSpacing(10)
 
-        grid_parset_save.addWidget(self.label_overwrite, 0, 0)
-        grid_parset_save.addWidget(self.edit_overwrite, 0, 1)
-        grid_parset_save.addWidget(self.button_overwrite, 0, 2)
-        grid_parset_save.addWidget(self.label_model_run, 1, 0)
-        grid_parset_save.addWidget(self.edit_model_run, 1, 1)
-        grid_parset_save.addWidget(self.button_model_run, 1, 2)
+        grid_parset_save.addWidget(self.label_autocalibrate, 0, 0)
+        grid_parset_save.addWidget(self.edit_autocalibrate, 0, 1)
+        grid_parset_save.addWidget(self.button_autocalibrate, 0, 2)
+        grid_parset_save.addWidget(self.label_overwrite, 1, 0)
+        grid_parset_save.addWidget(self.edit_overwrite, 1, 1)
+        grid_parset_save.addWidget(self.button_overwrite, 1, 2)
+        grid_parset_save.addWidget(self.label_model_run, 2, 0)
+        grid_parset_save.addWidget(self.edit_model_run, 2, 1)
+        grid_parset_save.addWidget(self.button_model_run, 2, 2)
 
         layout.addLayout(grid_parset_load)
         layout.addWidget(self.table_calibration)
@@ -622,25 +634,13 @@ class GUICalibration(GUIResultPlotterIntermediate):
         try: self.combo_parset.setCurrentIndex(self.combo_parset_dict[self.parset_name])
         except: pass
 
-
     def loadCalibration(self, parset_name, delay_refresh=False):
         self.parset_name = str(parset_name)
         self.parset = dcp(self.project.parsets[self.parset_name])
         self.status = ('Status: Parameter set "%s" selected for editing' % self.parset_name)
         if not delay_refresh:
             self.refreshVisibility()
-
-    def runCalibration(self):
-        self.status = ('Status: Running model for parameter set "%s"' % self.parset_name)
-        self.refreshStatus()
-        result_name = str(self.edit_model_run.text())
-        if result_name == '':
-            result_name = None
-        self.project.runSim(parset=self.parset, store_results=True, result_type='calibration', result_name=result_name)
-        self.acknowledgeResults()
-        self.status = ('Status: Model successfully processed for parameter set "%s"' % self.parset_name)
-        self.refreshVisibility()
-
+            
     def saveCalibration(self):
         parset_name = str(self.edit_overwrite.text())
         if parset_name == '':
@@ -654,6 +654,28 @@ class GUICalibration(GUIResultPlotterIntermediate):
             self.project.parsets[parset_name] = dcp(self.parset)
         self.refreshVisibility()
 
+    def runCalibration(self):
+        self.status = ('Status: Running model for parameter set "%s"' % self.parset_name)
+        self.refreshStatus()
+        result_name = str(self.edit_model_run.text())
+        if result_name == '':
+            result_name = None
+        self.project.runSim(parset=self.parset, store_results=True, result_type='calibration', result_name=result_name)
+        self.acknowledgeResults()
+        self.status = ('Status: Model successfully processed for parameter set "%s"' % self.parset_name)
+        self.refreshVisibility()
+        
+    def autocalibrate(self):
+        try:
+            calibration_time = float(str(self.edit_autocalibrate.text()))
+            if calibration_time < 0:
+                raise Exception('autocalibration time cannot be negative')
+        except Exception as E:
+            self.status = ('Status: Autocalibration aborted because "%s"' % E.message)
+            self.refreshStatus()
+            return
+        self.status = ('Status: Autocalibrating checked selection of parameter set "%s" for %s seconds' % (self.parset_name, str(calibration_time)))
+        self.refreshStatus()
 
     def makeParsetTable(self):
         self.table_calibration.setVisible(False)    # Resizing columns requires table to be hidden first.
