@@ -9,6 +9,7 @@ import sys
 import numpy as np
 from copy import deepcopy as dcp
 from matplotlib import pyplot as pp
+import pylab as pl
 pp.ioff()   # Turn off interactive mode.
 
 from optima_tb.project import Project
@@ -389,6 +390,13 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             self.combo_charac_dict[charac_name] = cid
             self.combo_plotter_charac.addItem(charac_name)
             cid += 1
+            
+        for flow_label in self.project.settings.linkpar_specs.keys():
+            if 'tag' in self.project.settings.linkpar_specs[flow_label]:
+                flow_name = self.project.settings.linkpar_specs[flow_label]['name']
+                self.combo_charac_dict[flow_name] = cid
+                self.combo_plotter_charac.addItem(flow_name)
+                cid += 1
 
         self.combo_plotter_charac.setCurrentIndex(0)    # Should be triggered if there are no results.
 
@@ -454,8 +462,46 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
 
         if self.charac_plot_name is not None and self.pop_plot_name is not None:
 
-            charac_plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
             pop_plot_label = self.project.data['pops']['name_labels'][self.pop_plot_name]
+            
+            result_set = odict()
+            result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
+            result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
+           
+            try: 
+                charac_plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
+
+#                result_set = odict()
+#                result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
+#                result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
+                figure = plotScenarios(result_set, scen_labels=['%s' % self.result_1_plot_name, '%s' % self.result_2_plot_name],
+                                        settings=self.project.settings,
+                                        data=self.project.data,
+                                        plot_observed_data=True,
+                                        plot_charac=[charac_plot_label],
+                                        pop_labels=[pop_plot_label],
+                                        colors=colors,
+                                        save_fig=False)
+
+            except: 
+                flow_plot_label = self.project.settings.linkpar_name_labels[self.charac_plot_name]
+                flow_plot_tag = self.project.settings.linkpar_specs[flow_plot_label]['tag']
+                t_start = self.project.settings.tvec_start
+                t_end = self.project.settings.tvec_end
+                dt = self.project.settings.tvec_dt
+
+                figure, axes = pl.subplots()
+        
+                for result_label in result_set.keys():
+                    
+                    result = result_set[result_label]
+                    vals = result.getValuesAt(flow_plot_tag,t_start,t_end,pop_labels=[pop_plot_label])[0]
+                    
+                    axes.plot(np.arange(t_start,t_end,dt), vals, '-', label=result_label)
+                
+                axes.legend()
+
+#            pop_plot_label = self.project.data['pops']['name_labels'][self.pop_plot_name]
             """
             y_values_cur, t_values_cur = self.project.results[self.result_1_plot_name].getValuesAt(label=charac_plot_label, year_init=self.tvec[0], year_end=self.tvec[-1], pop_labels=[pop_plot_label])
             y_values_com, t_values_com = self.project.results[self.result_2_plot_name].getValuesAt(label=charac_plot_label, year_init=self.tvec[0], year_end=self.tvec[-1], pop_labels=[pop_plot_label])
@@ -473,17 +519,41 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             # scen_results, scen_labels, settings, data, plot_charac=None, pop_labels=None,
 #                   percentage_relative_to=None, y_intercept=None, ylabel=None,
 #                   colormappings=None, colors=None, plot_observed_data=False, save_fig=False, fig_name=None
-            result_set = odict()
-            result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
-            result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
-            figure = plotScenarios(result_set, scen_labels=['%s' % self.result_1_plot_name, '%s' % self.result_2_plot_name],
-                                    settings=self.project.settings,
-                                    data=self.project.data,
-                                    plot_observed_data=True,
-                                    plot_charac=[charac_plot_label],
-                                    pop_labels=[pop_plot_label],
-                                    colors=colors,
-                                    save_fig=False)
+#            result_set = odict()
+#            result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
+#            result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
+#            figure = plotScenarios(result_set, scen_labels=['%s' % self.result_1_plot_name, '%s' % self.result_2_plot_name],
+#                                    settings=self.project.settings,
+#                                    data=self.project.data,
+#                                    plot_observed_data=True,
+#                                    plot_charac=[charac_plot_label],
+#                                    pop_labels=[pop_plot_label],
+#                                    colors=colors,
+#                                    save_fig=False)
+            
+#            figr, axr = pl.subplots()
+#    
+#            for result_label in res_dict.keys():
+#                
+#                result = res_dict[result_label]
+#                try: del vals
+#                except: pass
+#                for label in labels:
+#                    try: vals += result.getValuesAt(label,t_start,t_end,pop_labels=pop_labels)[0]
+#                    except: vals = result.getValuesAt(label,t_start,t_end,pop_labels=pop_labels)[0]
+#                    
+#                try: del den_vals
+#                except: pass
+#                if not den_labels is None:
+#                    for label in den_labels:
+#                        try: den_vals += result.getValuesAt(label,t_start,t_end,pop_labels=pop_labels)[0]
+#                        except: den_vals = result.getValuesAt(label,t_start,t_end,pop_labels=pop_labels)[0]
+#                    
+#                try: axr.plot(np.arange(t_start,t_end,dt), vals/den_vals, '-', label=result_label)
+#                except: axr.plot(np.arange(t_start,t_end,dt), vals, '-', label=result_label)
+#            
+#            axr.legend()
+            
             canvas = FigureCanvasQTAgg(figure)
             
             # Create new plotting window
