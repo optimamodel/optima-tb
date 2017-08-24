@@ -744,8 +744,9 @@ class GUICalibration(GUIResultPlotterIntermediate):
             self.status = ('Status: Autocalibration aborted because "%s"' % E.message)
             self.refreshStatus()
             return
+        self.project.runAutofitCalibration()   # SERIOUS EDITING.
         self.status = ('Status: Autocalibrating checked selection of parameter set "%s" for %s seconds' % (self.parset_name, str(calibration_time)))
-        self.refreshStatus()
+        self.refreshVisibility()
 
     def makeParsetTable(self):
         self.table_calibration.setVisible(False)    # Resizing columns requires table to be hidden first.
