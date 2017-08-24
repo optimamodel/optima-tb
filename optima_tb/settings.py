@@ -418,7 +418,7 @@ class PlottingSettings():
         self.plotdict['legend_off'] = True
 
     def presentationSettings(self):
-        pl.rcParams['font.size'] = 16
+        pl.rcParams['font.size'] = 14
         pl.rcParams['figure.figsize'] = (9, 7)
         pl.rcParams['savefig.dpi'] = 300
 
