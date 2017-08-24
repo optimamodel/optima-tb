@@ -3,7 +3,7 @@ logger = logging.getLogger(__name__)
 
 from optima_tb.utils import OptimaException, tic, toc, odict
 import optima_tb.settings as settings
-import optima_tb.asd as asd
+import optima_tb.asd_autocalibrate as asd
 from optima_tb.parameters import ParameterSet
 
 import numpy as np
