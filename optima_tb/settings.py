@@ -52,7 +52,6 @@ class Settings(object):
             self.plot_settings = PlottingSettings().plotdict
 
 
-
         self.tvec_start = 2000.0  # Default start year for data input and simulations.
         self.tvec_end = 2030.0  # Default end year for data input and simulations.
         self.tvec_observed_end = 2015.0
@@ -403,6 +402,9 @@ class PlottingSettings():
                          # box width of plot and offset
                          'box_width' : 0.8,
                          'box_offset' : 0.,
+                         # legend
+                         'legend_off' : False, # I am legend
+                         'legendsettings': {'loc': 0 } # best location
                          }
 
     def devSettings(self):

@@ -257,6 +257,161 @@ def _turnOffBorder():
     pl.gca().yaxis.set_ticks_position('left')
 
 
+def plotResult(proj, result, value_labels, pop_labels=None, plot_total=False,
+               plot_observed_data=True, observed_data_label=None,
+               colormappings=None, colors=None, linestyles=None,
+               title="", save_fig=False, fig_name=None):
+    """
+    Plots either characteristics, compartment size, or flow rate, as line. 
+    
+    Supports plotting of:
+        - multiple populations
+        - plotting total across multiple populations
+        - plotting observed datapoints (where applicable)
+    
+    If neither colormappings or colors is specified, default color list is used from gridColorMap()
+    
+    Params:
+        proj            project object, containing plotting settings and observed data points
+        result          result object 
+        value_labels    list of compartment labels, flow rate labels, characteristics
+        pop_labels      populations to be plotted. Default (None) plots all populations.
+        plot_total      plot total across populations
+        plot_observed_data    add observed datapoints as scatter plot, if corresponding datapoints exist. See note.
+        observed_data_label_dict   dict of mappings of what 
+        colormappings   colormappings that should be used to generate colors for populations. Supercedes colors. 
+                        Format: odict with color / colormap as key, value = list of populations for corresponding key 
+        colors          list of colors that should be used for population. 
+        linestyles      odict of (k,v): (linestypes, list of populations) 
+        title           title for plot
+        save_fig        boolean flag, whether to save plot
+        fig_name        if plot is saved, filename
+        
+    Replaces:
+        plotCharacteristic
+        plotPopulationFlows
+    
+    Example:
+        TBC
+    
+    TODO:
+        unit_tags
+        convert percentages
+        use_full_labels
+        titles
+    
+    """
+    # -------------------------------------------------------
+    # extract relevant objects
+    plotdict = proj.settings.plot_settings
+    data = proj.data
+    charac_specs = proj.settings.charac_specs
+    plot_over = (proj.settings.tvec_start, proj.settings.tvec_observed_end)
+
+    # -------------------------------------------------------
+    # generic setup for data
+    if pop_labels is None:
+        pop_labels = [pop.label for pop in result.m_pops]
+    if fig_name is None:
+        fig_name = "PlotValue"
+    # -------------------------------------------------------
+    # generic setup for colors and line
+    if colormappings is not None:
+        colors = []
+        colors_dict, cat_colors = getCategoryColors(colormappings, 'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for (j, pop_label) in enumerate(pop_labels):
+            colors.append(colors_dict[pop_label])
+    elif colors is not None and len(colors) >= len(pop_labels):
+        pass  # colors as defined in the args should be used as is
+    else:
+        colors = gridColorMap(len(pop_labels))
+        logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
+
+    if linestyles is not None:
+        # convert from odict (key: style) to odict (key: population)
+        linestyles = getLinemapping(linestyles)
+        linestyles = [linestyles[pop] for pop in pop_labels]
+
+
+    # -------------------------------------------------------
+    # loop over values to be plotted
+    for value_label in value_labels:
+        # reset reused variables
+        ys = []
+        ts = []
+        dataobs = ([], [])
+
+        # get values
+        if plot_total:
+            y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
+            ys = [y]
+            ts = [t]
+        else:
+            for pop in pop_labels:
+                y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop, integrated=False)
+                ys.append(y)
+                ts.append(t)
+        # get observed data points
+        if plot_observed_data:
+            dataobs = _extractDatapoint(data, value_label, pop_labels, charac_specs)
+
+        # setup for plot:
+        final_dict = {
+#                   'unit_tag': unit_tags[i],
+                  'xlabel':'Year',
+#                   'ylabel': name + unit_tags[i],
+#                   'x_ticks' : year_range,
+                    'title': '%s' % title,
+#                   'save_figname': '%s_%s' % (fig_name, name),
+                  'y_hat': dataobs[1],
+                  't_hat': dataobs[0]}
+
+        final_dict.update(plotdict)
+
+        # plot values
+        _plotLine(ys, ts, pop_labels, # y_bounds=yb,
+                save_fig=save_fig, colors=colors,
+                linestyles=linestyles, **final_dict)
+
+
+    # -------------------------------------------------------
+    if plotdict.has_key('legend_off') and plotdict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it represents
+        # classes of compartments
+        legendsettings = plotdict['legendsettings']
+        separateLegend(labels=pop_labels, colors=colors, fig_name=fig_name + "_Legend", **legendsettings)
+
+
+def plotCompareResult(proj, resultset, labels, pop_labels=None, plot_total=False, plot_observed_data=True,
+               colormappings=None, colors=None, linestyles=None,
+               title="", save_fig=False, fig_name=None):
+    """
+    To replace plotScenarios and plotScenarioFlows
+    """
+    pass
+
+def plotStackedBarOutput(proj, resultset, labels, pop_labels=None, # plot_total=False, plot_observed_data=True,
+               colormappings=None, colors=None, linestyles=None,
+               title="", save_fig=False, fig_name=None):
+    """
+    To replace plotStackedBarOutputs using standardized function args
+    """
+    pass
+
+def plotStackedValues(proj, resultset, labels, pop_labels=None, plot_total=False, plot_observed_data=True,
+               colormappings=None, colors=None, linestyles=None,
+               title="", save_fig=False, fig_name=None):
+    """
+    To replace plotPopulation
+    """
+    pass
+
+
+
+# ------------- Retained for backwards compatability
+
 def isPlottableComp(comp_label, sim_settings, comp_specs):
     """ 
     Returns bool indicating whether a population label should be included in metrics
@@ -860,6 +1015,7 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
     
         
     """
+    logging.warn("DEPRECATED (plotCharacterstic): please replace usage with plotResult()")
     charac_specs = settings.charac_specs
     # setup:
     if outputIDs is None:
@@ -1537,6 +1693,45 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
 
     return datapoints, pop_labels, comp_labels, dataobs
 
+def _extractDatapoint(data, value_label, pop_labels, charac_specs):
+    print "Extract datapoint", value_label, pop_labels
+    dataobs = None
+    if value_label in data['characs'].keys():
+
+        ys = [data['characs'][value_label][poplabel]['y'] for poplabel in pop_labels]
+        ts = [data['characs'][value_label][poplabel]['t'] for poplabel in pop_labels]
+
+        if 'plot_percentage' in charac_specs[value_label].keys():
+            ys *= 100
+
+    else:  # For the case when plottable characteristics were not in the databook and thus not converted to data.
+        logging.info("Could not find datapoints with label '%s'" % value_label)
+        ys = []
+        ts = []
+
+    dataobs = (ts, ys)
+    return dataobs
+
+def _sumDatapoints(dataobs):
+    # TODO
+    pass
+
+
+def _convertPercentage(datapoints, value_label, charac_specs):
+    unit_tag = []
+    if output_id in charac_specs and 'plot_percentage' in charac_specs[output_id].keys():
+        y_values = [datapoints[output_id][i] for i, p in enumerate(pop_labels)]
+        y_values = np.array(y_values)
+        y_values *= 100
+        datapoints[output_id] = y_values
+        unit_tags.append(' (%)')
+    else:
+        unit_tags.append('')
+
+    return datapoints, unit_tags
+
+def _convertTotal():
+    pass
 
 def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_labels=None, plot_observed_data=True, plot_total=False):
     """
