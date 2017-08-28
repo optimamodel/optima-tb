@@ -76,8 +76,8 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
         
         optim_args = {
                      'stepsize': proj.settings.autofit_params['stepsize'], 
-                     'maxiters': 300,#proj.settings.autofit_params['MaxIter'],
-                     'maxtime': proj.settings.autofit_params['timelimit'],
+                     'maxiters': 300,#proj.settings.autofit_params['maxiters'],
+                     'maxtime': proj.settings.autofit_params['maxtime'],
                      'sinc': proj.settings.autofit_params['sinc'],
                      'sdec': proj.settings.autofit_params['sdec'], 
                      'fulloutput': False,

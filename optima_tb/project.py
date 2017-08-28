@@ -318,11 +318,12 @@ class Project(object):
         logger.info("About to run autofit on parameters using parameter set = %s" % old_parset_name)
         
         if max_time is not None:    # Update autocalibration settings with new time limit...
-            prev_max_time = self.settings.autofit_params['timelimit']
-            self.settings.autofit_params['timelimit'] = max_time
-        new_parset = performAutofit(self, paramset, new_parset_name=new_parset_name, target_characs=target_characs, **self.settings.autofit_params)
+            prev_max_time = self.settings.autofit_params['maxtime']
+            self.settings.autofit_params['maxtime'] = max_time
+        try: new_parset = performAutofit(self, paramset, new_parset_name=new_parset_name, target_characs=target_characs, **self.settings.autofit_params)
+        except Exception as e: print repr(e)
         if max_time is not None:    # ...and revert.
-            self.settings.autofit_params['timelimit'] = prev_max_time
+            self.settings.autofit_params['maxtime'] = prev_max_time
         
         logger.info("Created new parameter set '%s' using autofit" % new_parset_name)
         if save_parset: self.parsets[new_parset_name] = new_parset

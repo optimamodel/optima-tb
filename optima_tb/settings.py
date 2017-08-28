@@ -138,8 +138,8 @@ class Settings(object):
         """
         calibration = odict()
         calibration['stepsize'] = 0.1
-        calibration['MaxIter'] = 2000
-        calibration['timelimit'] = 300.  # Time in seconds.
+        calibration['maxiters'] = 2000
+        calibration['maxtime'] = 300.  # Time in seconds.
 
         calibration['sinc'] = 1.5
         calibration['sdec'] = 2.

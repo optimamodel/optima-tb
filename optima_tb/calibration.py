@@ -3,7 +3,7 @@ logger = logging.getLogger(__name__)
 
 from optima_tb.utils import OptimaException, tic, toc, odict
 import optima_tb.settings as settings
-import optima_tb.asd_autocalibrate as asd
+import optima_tb.asd as asd
 from optima_tb.parameters import ParameterSet
 
 import numpy as np
@@ -182,18 +182,29 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
         logger.info("Autofit: fitting to the following target characteristics =[%s]"%(",".join(target_characs)))
     
     
-    def objective_calc(p_est,compartment_est):
-        ''' Function used by ASD algorithm to run and evaluate fit of parameter set'''    
-        sample_param.update(p_est,isYFactor=useYFactor)
-        sample_param.updateEntryPoints(project.settings,compartment_est,charac_labels)
+    def calculateObjective(parvec_and_characs, len_parvec):
+        '''
+        Function used by ASD algorithm to run and evaluate fit of parameter set.
+        This function is placed here as ASD does not disaggregate its input vector, whereas autocalibration needs to differentiate parameters from characteristics.
+        '''
+        print 'a'
+        if len_parvec > 0:
+            p_est = parvec_and_characs[:len_parvec]
+            print 'a1'
+            sample_param.update(p_est,isYFactor=useYFactor)
+        print 'b'
+        if len_parvec < len(parvec_and_characs):
+            compartment_est = parvec_and_characs[len_parvec:]
+            sample_param.updateEntryPoints(project.settings,compartment_est,charac_labels)
+        print 'c'
         results = project.runSim(parset = sample_param, store_results = False)
         datapoints, _, _ = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,target_data_characs,metric)
         return score
     
     
-    parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, init_compartments=compartment_init, xmin=mins,xmax=maxs,xnames=casc_labels+charac_labels,**calibration_settings)
-    
+    try: parvecnew, fval, exitflag, output = asd.asd(calculateObjective, paramvec+compartment_init, args={'len_parvec':len(paramvec)}, xmin=mins, xmax=maxs, label=casc_labels+charac_labels, **calibration_settings)
+    except Exception as e: print repr(e)
     
     # Compare old and new values 
     print paramvec
