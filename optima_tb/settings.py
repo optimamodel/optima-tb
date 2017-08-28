@@ -418,7 +418,7 @@ class PlottingSettings():
         self.plotdict['legend_off'] = True
 
     def presentationSettings(self):
-        pl.rcParams['font.size'] = 16
+        pl.rcParams['font.size'] = 14
         pl.rcParams['figure.figsize'] = (9, 7)
         pl.rcParams['savefig.dpi'] = 300
 
@@ -444,6 +444,7 @@ class PlottingSettings():
 
         self.plotdict['legend_off'] = True
         self.plotdict['title'] = ''  # No title when we have presentation quality
+        self.plotdict['num_cols'] = 1
 
     def guiSettings(self):
         self.defaultSettings()

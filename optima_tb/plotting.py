@@ -359,6 +359,7 @@ def plotScenarios(scen_results, scen_labels, settings, data, plot_charac=None, p
         percentage_relative_to    scalar (float) that results should be rescaled to, and shown as 100% of. 
         y_bar                scalar that plots a dashed grey line at value at. 
     """
+    print "figname", fig_name
 
     # close all remaining windows
     pl.close("all")
@@ -383,6 +384,7 @@ def plotScenarios(scen_results, scen_labels, settings, data, plot_charac=None, p
         plot_charac = results.outputs.keys()
         plot_charac = [output_id for output_id in plot_charac if isPlottableCharac(output_id, charac_specs)]
 
+    print "plot_charac --> ", plot_charac
 
     if pop_labels is not None:
 
@@ -452,7 +454,12 @@ def plotScenarios(scen_results, scen_labels, settings, data, plot_charac=None, p
 
             if percentage_relative_to is not None:
                 final_dict['ylabel'] = ylabel
+
+            print "/////////////"
+            print plotdict
             final_dict.update(plotdict)
+            print final_dict
+            print "\\\\\\\\\\\\\\\\\\\\\|||"
 
 
             figure = _plotLine(ys=yvals, ts=np.tile(tvec, (len(labels), 1)), labels=labels, reverse_order=True,
@@ -497,8 +504,8 @@ def plotScenarioBar (scen_results, scen_labels, settings, data, output_list=None
             colors.append(colors_dict[olabel])
 
     values = [ [scen_results[rname].getValueAt(output, year) for output in output_list] for rname in scen_results.keys()]
-
-    final_dict = dcp(plotdict)
+    print values, '\n' * 10
+    final_dict = plotdict
 
     final_dict2 = {'xlim': (0, xlim),
 #                       'title':  title,
@@ -793,7 +800,7 @@ def plotPopulation(results, data, pop_labels=None, title='', colormappings=None,
         if dataobs is not None:
             pdict['datapoints'] = (that[i], yhat[i])
 
-        # pdict.update(plotdict)
+        pdict.update(plotdict)
 
         legendsettings = {'loc':'center left',
                            'bbox_to_anchor':(1.05, 0.5),
@@ -860,15 +867,15 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
         # now only select characteristics which are plottable
         outputIDs = [output_id for output_id in outputIDs if isPlottableCharac(output_id, charac_specs)]
     # else we already know which characteristics to plot
-    print "-------", outputIDs
+#     print "-------", outputIDs
 
 
     if pop_labels is None:
         pop_labels = [pop.label for pop in results.m_pops]
-    print "-----2--", pop_labels
+#     print "-----2--", pop_labels
 
     if plotdict is None:
-        plotdict = {}
+        plotdict = settings.plot_settings
 
     if legendsettings is None:
         legendsettings = {}
@@ -920,7 +927,6 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
         else:
             raise OptimaException('ERROR: Attempting to plot characteristic "%s" but cannot locate it in either characteristic or parameter specs.' % output_id)
 
-
         final_dict = {
                   'unit_tag': unit_tags[i],
                   'xlabel':'Year',
@@ -932,10 +938,11 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
         if dataobs is not None:  # this can be improved
             final_dict['y_hat'] = yhat[i]
             final_dict['t_hat'] = that[i]
-
+        print "/////////////"
         print plotdict
         final_dict.update(plotdict)
-
+        print final_dict
+        print "\\\\\\\\\\\\\\\\\\\\\|||"
 
         if y_bounds is not None:
             yb = y_bounds[i]
@@ -1028,6 +1035,7 @@ def plotValueBars(results, settings, pop_labels, label, years, title=None, y_int
     plotdict['barwidth'] = bar_width
     plotdict['bar_offset'] = 0.2
     plotdict['plot_stacked'] = False
+    plotdict['ylabel'] = settings.linkpar_specs[label]['name']
 
     alphas = list(np.linspace(1., 0.6, len(years)))
 
@@ -1076,7 +1084,7 @@ def plotCareCascade(results, settings, pop_labels, labels, years, title="", norm
     
     """
     xlabels = labels.keys()
-    plotdict = settings.plot_settings
+    plotdict = dcp(settings.plot_settings)
 
     yticks = None
     if plotdict is None:
@@ -1098,6 +1106,7 @@ def plotCareCascade(results, settings, pop_labels, labels, years, title="", norm
 
     for (i, year_init) in enumerate(years):
         values = []
+        inds = []
         for (j, lab_key) in enumerate(labels.keys()):
             lab_set = labels[lab_key]
             pop_vals = []
@@ -1107,6 +1116,7 @@ def plotCareCascade(results, settings, pop_labels, labels, years, title="", norm
                     count += results.getValuesAt(lab, year_init, year_init + 1., pop_set, integrated=True)[0]
                 pop_vals.append(count)
             values.append(pop_vals)
+            inds.append(range(len(xlabels)))
 
         if normalize:
             # determine the max for the first state in the cascade
@@ -1120,10 +1130,22 @@ def plotCareCascade(results, settings, pop_labels, labels, years, title="", norm
                 y_intercept = [yis * init_state for yis in y_intercept]
 
 
+        print values
+        print plotdict
+        print colors
+        print "--> convert"
+        new_val = np.array(values)
+        new_val.transpose()
+
 #         plotdict['bar_offset'] = i * plotdict['bar_width']
         plotdict['xlim'] = xlim
         plotdict['save_figname'] = fig_name + "_%g" % year_init
-        _plotBars(values, pop_labels.keys(), xlabels=xlabels,
+
+        plotdict['plot_stacked'] = True
+        plotdict['barwidth'] = 0.8
+        print values
+        print pop_labels.keys()
+        _plotBars(new_val, pop_labels.keys(), xlabels=xlabels,
                   colors=colors, y_intercept=y_intercept, yticks=yticks,
                   legendsettings=legendsettings, save_fig=save_fig, **plotdict)
 
@@ -1183,7 +1205,7 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
 
 
     final_dict = {'xlim': (0, xlim),
-                  'title': 'Budgets for %s' % (title),
+                  'title': "", # 'Budgets for %s' % (title),
                   'ylabel': "Budget (%s)" % currency,
                   'save_figname': '%s_budget' % fig_name}
     plotdict.update(final_dict)
@@ -1785,6 +1807,9 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
     ymin_val = np.min(ys[0])
     if xlim is None: xlim = (ts[0][0], ts[0][-1])
     indices = (ts[0] >= xlim[0]) * (ts[0] <= xlim[1])
+#     print indices
+#     print xlim
+#     print ts
     ymax_val = np.max(ys[0][indices])
 
     if colors is None or len(colors) < len(ys):
@@ -1794,6 +1819,7 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
     if linestyles is None or len(linestyles) < len(ys):
         try: linestyles = [kwargs['default_linestyle']] * len(ys)
         except: linestyles = ['-'] * len(ys)
+
         logger.info("Plotting: setting linestyles to be default value, as not all lines had styles assigned")
 
 

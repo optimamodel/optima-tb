@@ -840,6 +840,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                         data[data_label][current_def_label][current_pop_label]['y_format'] = str(ws.cell_value(row_id, col_id)).lower()
                     if col_id > 1 and isinstance(ws.cell_value(row_id, col_id), Number):
                         list_y.append(float(ws.cell_value(row_id, col_id)))
+#                         print data_label, current_def_label, current_pop_label
                         if not isinstance(ws.cell_value(row_id - 1 - pop_id, col_id), Number):
                             list_t.append(float(ws.cell_value(row_id - 1 - pop_id, col_id + 2)))
                             break
