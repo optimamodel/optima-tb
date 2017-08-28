@@ -196,13 +196,13 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     
     
     # Compare old and new values 
-#     print paramvec
-#     print parvecnew[:len(paramvec)]
-#     print compartment_init
-#     print parvecnew[len(paramvec):]
+    print paramvec
+    print parvecnew[:len(paramvec)]
+    print compartment_init
+    print parvecnew[len(paramvec):]
     
     sample_param.update(parvecnew,isYFactor=useYFactor)
-    sample_param._updateFromYFactor()
+#    sample_param._updateFromYFactor()
     sample_param.name = new_parset_name
     
     return sample_param

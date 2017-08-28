@@ -744,8 +744,10 @@ class GUICalibration(GUIResultPlotterIntermediate):
             self.status = ('Status: Autocalibration aborted because "%s"' % E.message)
             self.refreshStatus()
             return
-        self.project.runAutofitCalibration(max_time = calibration_time)
         self.status = ('Status: Autocalibrating checked selection of parameter set "%s" for %s seconds' % (self.parset_name, str(calibration_time)))
+        self.refreshStatus()
+        self.parset = self.project.runAutofitCalibration(max_time = calibration_time, save_parset = False)
+        self.status = ('Status: Autocalibration complete (but unsaved) for parameter set "%s"' % self.parset_name)
         self.refreshVisibility()
 
     def makeParsetTable(self):

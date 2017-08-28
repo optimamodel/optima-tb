@@ -297,7 +297,7 @@ class Project(object):
         return score
 
 
-    def runAutofitCalibration(self, new_parset_name=None, old_parset_name="default", target_characs=None, max_time=None):
+    def runAutofitCalibration(self, new_parset_name=None, old_parset_name="default", target_characs=None, max_time=None, save_parset=True):
         """
         Runs the autofitting calibration routine, as according to the parameter settings in the 
         settings.autofit_params configuration.
@@ -325,7 +325,9 @@ class Project(object):
             self.settings.autofit_params['timelimit'] = prev_max_time
         
         logger.info("Created new parameter set '%s' using autofit" % new_parset_name)
-        self.parsets[new_parset_name] = new_parset
+        if save_parset: self.parsets[new_parset_name] = new_parset
+                    
+        return new_parset
 
 
     def createScenarios(self, scenario_dict):
