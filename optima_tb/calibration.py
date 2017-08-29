@@ -185,31 +185,34 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
         logger.info("Autofit: fitting to the following target characteristics =[%s]"%(",".join(target_characs)))
     
     
-    def calculateObjective(parvec_and_characs, len_parvec):
+    def calculateObjective(parvec_and_characs):
         '''
         Function used by ASD algorithm to run and evaluate fit of parameter set.
         This function is placed here as ASD does not disaggregate its input vector, whereas autocalibration needs to differentiate parameters from characteristics.
         '''
-        p_est = parvec_and_characs[:len_parvec]
-        sample_param.update(p_est,par_pop_labelsisYFactor=useYFactor)
-        compartment_est = parvec_and_characs[len_parvec:]
-        sample_param.updateEntryPoints(project.settings,compartment_est,charac_pop_labels)
+#        parvec_est = parvec_and_characs[:len_parvec]
+#        sample_param.updateParameters(parvec_est, par_pop_labels, isYFactor=useYFactor)
+#        characs_est = parvec_and_characs[len_parvec:]
+#        sample_param.updateCharacteristics(characs_est, charac_pop_labels, isYFactor=useYFactor)
+        sample_param.update(parvec_and_characs, par_pop_labels+charac_pop_labels, isYFactor=useYFactor)
         results = project.runSim(parset = sample_param, store_results = False)
         datapoints, _, _ = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,target_data_characs,metric)
+        try: score = sum(score)
+        except: pass
         return score
     
-    
-    try: parvecnew, fval, exitflag, output = asd.asd(calculateObjective, paramvec+compartment_init, args={'len_parvec':len(paramvec)}, xmin=mins, xmax=maxs, label=par_pop_labels+charac_pop_labels, **calibration_settings)
+    calibration_settings['fulloutput'] = True
+    try: parvecnew, fval, details = asd.asd(calculateObjective, paramvec+compartment_init, args={}, xmin=mins, xmax=maxs, **calibration_settings)
     except Exception as e: print repr(e)
     
-    # Compare old and new values 
-    print paramvec
-    print parvecnew[:len(paramvec)]
-    print compartment_init
-    print parvecnew[len(paramvec):]
+#    # Compare old and new values 
+#    print paramvec
+#    print parvecnew[:len(paramvec)]
+#    print compartment_init
+#    print parvecnew[len(paramvec):]
     
-    sample_param.update(parvecnew,par_pop_labels,isYFactor=useYFactor)
+    sample_param.update(parvecnew, par_pop_labels+charac_pop_labels, isYFactor=useYFactor)
 #    sample_param._updateFromYFactor()
     sample_param.name = new_parset_name
     

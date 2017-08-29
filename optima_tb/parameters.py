@@ -262,7 +262,7 @@ class ParameterSet(object):
                     # if we're grabbing the minmax values for the y-values directly, then use the values
                     minmax.append(minmax_bounds)
                     # also grab the cascade labels for debugging and logging purposes
-                    casc_labels.append(casc_id)
+                    casc_labels.append((casc_id,pop_id))
                 index+=1
                 
         if getMinMax:
@@ -286,22 +286,30 @@ class ParameterSet(object):
 #                    print j
                     if self.pars['characs'][j].autocalibrate[pop_id] == True:
                         init_compartments.append(self.pars['characs'][j].y_factor[pop_id])
-                        charac_labels.append(charac_id)                        
+                        charac_labels.append((charac_id,pop_id))                        
         return init_compartments,charac_labels
          
     
-    def update(self,par_vec,par_labels,isYFactor=False):
+    def update(self, par_vec, par_pop_labels, isYFactor=False):
         """
-        Update parameters from a list of values, given a corresponding list of parameter labels.
+        Update parameters from a list of values, given a corresponding list of parameter labels and population labels, arranged in pairs.
 
         TODO: extend function so that can also add years or format values
         TODO: remove index ...?
         """
         import optima_tb.settings as settings
         
-        for (pop_id,pop_label) in enumerate(self.pop_labels):
-            for par_label in par_labels:
-                par = self.getPar(par_label)
+        index = 0
+        for par_pop_label in par_pop_labels:
+            par_label = par_pop_label[0]
+            pop_label = par_pop_label[1]
+            par = self.getPar(par_label)    # Returns a parameter or characteristic as required.
+            
+            if isYFactor:
+                par.y_factor[pop_label] = par_vec[index]
+            else:
+                par.y[pop_label] = par_vec[index]
+            index += 1
             
         
 #        index = 0
@@ -321,26 +329,26 @@ class ParameterSet(object):
 #                # finally, update index count
 #                index += 1
                 
-        logger.info("Updated ParameterSet %s with new values"%self.name)
+        logger.info("Updated ParameterSet %s with new values." % self.name)
     
-    def updateEntryPoints(self,proj_settings,compartment_t0,charac_labels):
-        """
-        
-        
-        """
-        import optima_tb.settings as settings 
-        
-        index = 0 
-        for pop_id in self.pop_labels:
-            for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
-                if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
-                    if charac_labels[index] == charac_id:
-                        self.pars['characs'][j].y_factor[pop_id]= compartment_t0[index]
-                        #self.pars['characs'][j].y[pop_id][0] *= compartment_t0[index]
-                        #print "initial for %s is %g"%(charac_id,self.pars['characs'][j].y[pop_id][0] )
-                        index += 1
-                    else:
-                        logger.debug("Updating entry points: characteristic label for entry point doesn't match updated value [%s,%s]"%(charac_labels[index],charac_id))
+#    def updateEntryPoints(self,proj_settings,compartment_t0,charac_labels):
+#        """
+#        
+#        
+#        """
+#        import optima_tb.settings as settings 
+#        
+#        index = 0 
+#        for pop_id in self.pop_labels:
+#            for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
+#                if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
+#                    if charac_labels[index] == charac_id:
+#                        self.pars['characs'][j].y_factor[pop_id]= compartment_t0[index]
+#                        #self.pars['characs'][j].y[pop_id][0] *= compartment_t0[index]
+#                        #print "initial for %s is %g"%(charac_id,self.pars['characs'][j].y[pop_id][0] )
+#                        index += 1
+#                    else:
+#                        logger.debug("Updating entry points: characteristic label for entry point doesn't match updated value [%s,%s]"%(charac_labels[index],charac_id))
                         
         
     
