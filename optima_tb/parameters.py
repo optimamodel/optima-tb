@@ -290,36 +290,36 @@ class ParameterSet(object):
         return init_compartments,charac_labels
          
     
-    def update(self,paramvec,isYFactor=False):
+    def update(self,par_vec,par_labels,isYFactor=False):
         """
-        Update parameters from a list of values
-        
-        Params:
-            paramvec    new values
-            y_factor_vec
-        
-        TODO: improve this function to future proof it and make it more robust i.e. reference only by population and compartment id.
+        Update parameters from a list of values, given a corresponding list of parameter labels.
+
         TODO: extend function so that can also add years or format values
         TODO: remove index ...?
         """
         import optima_tb.settings as settings
         
-        index = 0
-        for (i,pop_id) in enumerate(self.pop_labels):
-            #for (j,casc_id) in enumerate(self.par_ids['cascade']): 
-            for (casc_id,j) in sorted(self.par_ids['cascade'].items(), key=operator.itemgetter(1)):
-                # perform checks
-                if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
-                    continue
-                if not isYFactor and len(self.pars['cascade'][j].y[pop_id]) != len(paramvec[index]):
-                    raise OptimaException("Could not update parameter set '%s' for pop=%s,cascade=%s as updated parameter has different length."%(self.name,pop_id,casc_id))
-                # update y or y_factor, based on parameters
-                if isYFactor:
-                    self.pars['cascade'][j].y_factor[pop_id] = paramvec[index]
-                else:
-                    self.pars['cascade'][j].y[pop_id] = paramvec[index]
-                # finally, update index count
-                index += 1
+        for (pop_id,pop_label) in enumerate(self.pop_labels):
+            for par_label in par_labels:
+                par = self.getPar(par_label)
+            
+        
+#        index = 0
+#        for (i,pop_id) in enumerate(self.pop_labels):
+#            #for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+#            for (casc_id,j) in sorted(self.par_ids['cascade'].items(), key=operator.itemgetter(1)):
+#                # perform checks
+#                if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
+#                    continue
+#                if not isYFactor and len(self.pars['cascade'][j].y[pop_id]) != len(paramvec[index]):
+#                    raise OptimaException("Could not update parameter set '%s' for pop=%s,cascade=%s as updated parameter has different length."%(self.name,pop_id,casc_id))
+#                # update y or y_factor, based on parameters
+#                if isYFactor:
+#                    self.pars['cascade'][j].y_factor[pop_id] = paramvec[index]
+#                else:
+#                    self.pars['cascade'][j].y[pop_id] = paramvec[index]
+#                # finally, update index count
+#                index += 1
                 
         logger.info("Updated ParameterSet %s with new values"%self.name)
     

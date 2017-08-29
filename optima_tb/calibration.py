@@ -155,12 +155,15 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     logger.info("Autofit: calibration settings = %s"%calibration_settings)
     metric = project.settings.fit_metric
     # setup for cascade parameters
-    paramvec,minmax,casc_labels = paramset.extract(getMinMax=True,getYFactor=useYFactor)  # array representation of initial values for p0, with bounds
+    paramvec,minmax,par_pop_labels = paramset.extract(getMinMax=True,getYFactor=useYFactor)  # array representation of initial values for p0, with bounds
     # setup for characteristics
-    compartment_init,charac_labels = paramset.extractEntryPoints(project.settings,useInitCompartments=useInitCompartments)
+    compartment_init,charac_pop_labels = paramset.extractEntryPoints(project.settings,useInitCompartments=useInitCompartments)
     # min maxes for compartments are always (0,None):
-    charac_minmax = [(0,None) for i in charac_labels]
+    charac_minmax = [(0,None) for i in charac_pop_labels]
     minmax += charac_minmax
+    
+    print par_pop_labels
+    print charac_pop_labels
     
     
     if len(paramvec)+len(compartment_init) == 0:
@@ -187,23 +190,17 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
         Function used by ASD algorithm to run and evaluate fit of parameter set.
         This function is placed here as ASD does not disaggregate its input vector, whereas autocalibration needs to differentiate parameters from characteristics.
         '''
-        print 'a'
-        if len_parvec > 0:
-            p_est = parvec_and_characs[:len_parvec]
-            print 'a1'
-            sample_param.update(p_est,isYFactor=useYFactor)
-        print 'b'
-        if len_parvec < len(parvec_and_characs):
-            compartment_est = parvec_and_characs[len_parvec:]
-            sample_param.updateEntryPoints(project.settings,compartment_est,charac_labels)
-        print 'c'
+        p_est = parvec_and_characs[:len_parvec]
+        sample_param.update(p_est,par_pop_labelsisYFactor=useYFactor)
+        compartment_est = parvec_and_characs[len_parvec:]
+        sample_param.updateEntryPoints(project.settings,compartment_est,charac_pop_labels)
         results = project.runSim(parset = sample_param, store_results = False)
         datapoints, _, _ = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,target_data_characs,metric)
         return score
     
     
-    try: parvecnew, fval, exitflag, output = asd.asd(calculateObjective, paramvec+compartment_init, args={'len_parvec':len(paramvec)}, xmin=mins, xmax=maxs, label=casc_labels+charac_labels, **calibration_settings)
+    try: parvecnew, fval, exitflag, output = asd.asd(calculateObjective, paramvec+compartment_init, args={'len_parvec':len(paramvec)}, xmin=mins, xmax=maxs, label=par_pop_labels+charac_pop_labels, **calibration_settings)
     except Exception as e: print repr(e)
     
     # Compare old and new values 
@@ -212,7 +209,7 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     print compartment_init
     print parvecnew[len(paramvec):]
     
-    sample_param.update(parvecnew,isYFactor=useYFactor)
+    sample_param.update(parvecnew,par_pop_labels,isYFactor=useYFactor)
 #    sample_param._updateFromYFactor()
     sample_param.name = new_parset_name
     

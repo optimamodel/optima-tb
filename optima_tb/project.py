@@ -297,7 +297,7 @@ class Project(object):
         return score
 
 
-    def runAutofitCalibration(self, new_parset_name=None, old_parset_name="default", target_characs=None, max_time=None, save_parset=True):
+    def runAutofitCalibration(self, parset=None, new_parset_name=None, old_parset_name="default", target_characs=None, max_time=None, save_parset=True):
         """
         Runs the autofitting calibration routine, as according to the parameter settings in the 
         settings.autofit_params configuration.
@@ -307,9 +307,10 @@ class Project(object):
             old_parset_name    name of the parset to use as a base. Default value="default"
         """
 
-        if not old_parset_name in self.parsets.keys():
-            self.makeParset(name=old_parset_name)
-        paramset = self.parsets[old_parset_name]
+        if parset is None:
+            if not old_parset_name in self.parsets.keys():
+                self.makeParset(name=old_parset_name)
+            parset = self.parsets[old_parset_name]
 
         if new_parset_name is None:
             # TODO: check that autofit doesn't already exist; if so, add suffix
@@ -320,7 +321,7 @@ class Project(object):
         if max_time is not None:    # Update autocalibration settings with new time limit...
             prev_max_time = self.settings.autofit_params['maxtime']
             self.settings.autofit_params['maxtime'] = max_time
-        try: new_parset = performAutofit(self, paramset, new_parset_name=new_parset_name, target_characs=target_characs, **self.settings.autofit_params)
+        try: new_parset = performAutofit(self, parset, new_parset_name=new_parset_name, target_characs=target_characs, **self.settings.autofit_params)
         except Exception as e: print repr(e)
         if max_time is not None:    # ...and revert.
             self.settings.autofit_params['maxtime'] = prev_max_time
