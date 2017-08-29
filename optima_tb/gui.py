@@ -789,13 +789,25 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             temp.setCheckState(qtc.Qt.Unchecked)
                         self.table_calibration.setItem(k * num_pops + pid, 0, temp)
 
+                        # Insert the actual values.
+#                        if par_type == 'cascade':
                         for eid in xrange(len(par.t[pid])):
-                            t = par.t[pid][eid]
-                            y = par.y[pid][eid]
+                            t = par.t[pop_label][eid]
+                            y = par.y[pop_label][eid]
                             temp = qtw.QTableWidgetItem()
                             temp.setText(str(y))
                             temp.setTextAlignment(qtc.Qt.AlignCenter)
                             self.table_calibration.setItem(k * num_pops + pid, 1 + int(t) - self.tvec[0], temp)
+#                        elif par_type == 'characs':         # TODO: Find more efficient ways of disabling rows or columns.
+#                            for j in xrange(len(self.tvec)):
+#                                temp = qtw.QTableWidgetItem()
+#                                if j == 0:
+#                                    y = par.interpolate(tvec = [self.tvec[0]], pop_label = pop_label)[0]
+#                                    temp.setText(str(y))
+#                                    temp.setTextAlignment(qtc.Qt.AlignCenter)
+#                                else:
+#                                    temp.setFlags(qtc.Qt.NoItemFlags)       # Disable the element.
+#                                self.table_calibration.setItem(k * num_pops + pid, 1 + j, temp)          
                     k += 1
         self.table_calibration.setVerticalHeaderLabels(custom_ids)
         self.table_calibration.setHorizontalHeaderLabels(['Scaling Factor\n(Autocalibration Checkbox)'] + [str(int(x)) for x in self.tvec])

@@ -53,6 +53,9 @@ class Parameter(object):
         If so, delete it and its y value, but only if others exist.
         Return a boolean flag for whether removal was a success.        
         '''
+        if not t in self.t[pop_label]:
+            return True     # Deleting a value for a timepoint that is not in the parameter is considered a successful deletion.
+        
         if len(self.t[pop_label]) > 1:
             k = 0
             for t_val in self.t[pop_label]:
