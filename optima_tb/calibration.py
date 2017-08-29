@@ -195,7 +195,10 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
 #        characs_est = parvec_and_characs[len_parvec:]
 #        sample_param.updateCharacteristics(characs_est, charac_pop_labels, isYFactor=useYFactor)
         sample_param.update(parvec_and_characs, par_pop_labels+charac_pop_labels, isYFactor=useYFactor)
-        results = project.runSim(parset = sample_param, store_results = False)
+        try: results = project.runSim(parset = sample_param, store_results = False)
+        except:
+            logger.warning("Autocalibration tested a parameter set that was invalid. Skipping iteration.")
+            return np.inf
         datapoints, _, _ = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints,results.t_observed_data,target_data_characs,metric)
         try: score = sum(score)
