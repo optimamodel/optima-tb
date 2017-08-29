@@ -257,7 +257,7 @@ def _turnOffBorder():
     pl.gca().yaxis.set_ticks_position('left')
 
 
-def plotResult(proj, result, value_labels, pop_labels=None, plot_total=False,
+def plotResult(proj, result, output_labels, pop_labels=None, plot_total=False,
                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None,
                title="", save_fig=False, fig_name=None):
@@ -295,16 +295,15 @@ def plotResult(proj, result, value_labels, pop_labels=None, plot_total=False,
         TBC
     
     TODO:
-        unit_tags
-        convert percentages
-        use_full_labels
-        titles
+        use_full_labels : flag is now included in plot_settings, but have to develop a method to obtain
+                            full label for compartment vs flow vs characteristic
     
     """
     # -------------------------------------------------------
     # extract relevant objects
-    plotdict = proj.settings.plot_settings
     data = proj.data
+    settings = proj.settings
+    plotdict = proj.settings.plot_settings
     charac_specs = proj.settings.charac_specs
     plot_over = (proj.settings.tvec_start, proj.settings.tvec_observed_end)
 
@@ -336,11 +335,12 @@ def plotResult(proj, result, value_labels, pop_labels=None, plot_total=False,
 
     # -------------------------------------------------------
     # loop over values to be plotted
-    for value_label in value_labels:
+    for value_label in output_labels:
         # reset reused variables
         ys = []
         ts = []
         dataobs = ([], [])
+        tmp_plotdict = dcp(plotdict)
 
         # get values
         if plot_total:
@@ -350,29 +350,39 @@ def plotResult(proj, result, value_labels, pop_labels=None, plot_total=False,
         else:
             for pop in pop_labels:
                 y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop, integrated=False)
+                y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
                 ys.append(y)
                 ts.append(t)
+
+        # convert from percentage
+        print "Change percentage"
+        print y
+        print y, unit_tag
+
         # get observed data points
         if plot_observed_data:
             dataobs = _extractDatapoint(data, value_label, pop_labels, charac_specs)
+            dataobs, _ = _convertPercentage(dataobs, value_label, pop_labels, charac_specs)
+
+        name = getName(value_label, settings)
 
         # setup for plot:
         final_dict = {
-#                   'unit_tag': unit_tags[i],
                   'xlabel':'Year',
-#                   'ylabel': name + unit_tags[i],
-#                   'x_ticks' : year_range,
-                    'title': '%s' % title,
-#                   'save_figname': '%s_%s' % (fig_name, name),
+                  'ylabel': name + unit_tag,
+                  'title': '%s' % title,
+                  'save_figname': '%s_%s' % (fig_name, name),
                   'y_hat': dataobs[1],
                   't_hat': dataobs[0]}
 
-        final_dict.update(plotdict)
 
+        tmp_plotdict.update(final_dict)
+        import pprint
+        print "final dict = ", pprint.pprint(tmp_plotdict)
         # plot values
         _plotLine(ys, ts, pop_labels, # y_bounds=yb,
                 save_fig=save_fig, colors=colors,
-                linestyles=linestyles, **final_dict)
+                linestyles=linestyles, **tmp_plotdict)
 
 
     # -------------------------------------------------------
@@ -384,7 +394,7 @@ def plotResult(proj, result, value_labels, pop_labels=None, plot_total=False,
         separateLegend(labels=pop_labels, colors=colors, fig_name=fig_name + "_Legend", **legendsettings)
 
 
-def plotCompareResult(proj, resultset, labels, pop_labels=None, plot_total=False, plot_observed_data=True,
+def plotCompareResult(proj, resultset, output_labels, pop_labels=None, plot_total=False, plot_observed_data=True,
                colormappings=None, colors=None, linestyles=None,
                title="", save_fig=False, fig_name=None):
     """
@@ -392,7 +402,7 @@ def plotCompareResult(proj, resultset, labels, pop_labels=None, plot_total=False
     """
     pass
 
-def plotStackedBarOutput(proj, resultset, labels, pop_labels=None, # plot_total=False, plot_observed_data=True,
+def plotStackedBarOutput(proj, resultset, output_labels, pop_labels=None, # plot_total=False, plot_observed_data=True,
                colormappings=None, colors=None, linestyles=None,
                title="", save_fig=False, fig_name=None):
     """
@@ -400,7 +410,7 @@ def plotStackedBarOutput(proj, resultset, labels, pop_labels=None, # plot_total=
     """
     pass
 
-def plotStackedValues(proj, resultset, labels, pop_labels=None, plot_total=False, plot_observed_data=True,
+def plotStackedValues(proj, resultset, output_labels, pop_labels=None, plot_total=False, plot_observed_data=True,
                colormappings=None, colors=None, linestyles=None,
                title="", save_fig=False, fig_name=None):
     """
@@ -1693,6 +1703,19 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
 
     return datapoints, pop_labels, comp_labels, dataobs
 
+def getName(output_id, settings):
+    if output_id in settings.charac_specs:
+        name = settings.charac_specs[output_id]['name']
+    elif output_id in settings.linkpar_specs:
+        name = settings.linkpar_specs[output_id]['name']
+    else:
+        try:
+            pass # [comp.label for comp in results.m_pops[0].comps]
+        except:
+            raise OptimaException('ERROR: Attempting to plot characteristic "%s" but cannot locate it in either characteristic or parameter specs.' % output_id)
+    return name
+
+
 def _extractDatapoint(data, value_label, pop_labels, charac_specs):
     print "Extract datapoint", value_label, pop_labels
     dataobs = None
@@ -1717,16 +1740,12 @@ def _sumDatapoints(dataobs):
     pass
 
 
-def _convertPercentage(datapoints, value_label, charac_specs):
-    unit_tag = []
-    if output_id in charac_specs and 'plot_percentage' in charac_specs[output_id].keys():
-        y_values = [datapoints[output_id][i] for i, p in enumerate(pop_labels)]
-        y_values = np.array(y_values)
-        y_values *= 100
-        datapoints[output_id] = y_values
-        unit_tags.append(' (%)')
+def _convertPercentage(datapoints, output_label, pop_labels, charac_specs):
+    if output_label in charac_specs and 'plot_percentage' in charac_specs[output_label].keys():
+        datapoints *= 100
+        unit_tags = ' (%)'
     else:
-        unit_tags.append('')
+        unit_tags = ''
 
     return datapoints, unit_tags
 
@@ -1999,12 +2018,9 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
         # TODO: error to be fixed
         return
 
-    ymin_val = np.min(ys[0])
     if xlim is None: xlim = (ts[0][0], ts[0][-1])
+    ymin_val = np.min(ys[0])
     indices = (ts[0] >= xlim[0]) * (ts[0] <= xlim[1])
-#     print indices
-#     print xlim
-#     print ts
     ymax_val = np.max(ys[0][indices])
 
     if colors is None or len(colors) < len(ys):
@@ -2021,13 +2037,14 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
     fig, ax = pl.subplots()
 
     if y_intercept is not None:
+        # TODO remove hardcoded values
         ax.hlines([y_intercept], np.min(ts[0]), np.max(ts[0]), colors='#AAAAAA', linewidth=0.75 * linewidth, linestyle='--')
 
 
     # plot ys, but reversed - and also reverse the labels (useful for scenarios, and optimizations):
     order_ys = range(len(ys))
     if reverse_order:
-#         print("Reversed order -----------------")
+        logger.info("Reversing order of plot lines")
         order_ys = order_ys[::-1]  # surely there are more elegant ways to do this ...
         labels = labels[::-1]
 
@@ -2040,7 +2057,6 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
             t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2]
             ax.fill_between(t_bound, y_min_bound, y_max_bound, facecolor=colors[k], alpha=alpha, linewidth=0.1, edgecolor=colors[k])
 
-
         # smooth line
         if smooth:
             yval = smoothfunc(yval, symmetric, repeats)
@@ -2048,6 +2064,7 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
         # plot line
         ax.plot(ts[k], yval, c=colors[k], ls=linestyles[k])
 
+        # identify ymin and ymax from line
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
         if np.max(yval[indices]) > ymax_val:
@@ -2057,17 +2074,23 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
         if len(y_hat) > 0 and len(y_hat[k]) > 0:  # i.e. we've seen observable data
 
             ax.scatter(t_hat[k], y_hat[k], marker=marker, edgecolors=colors[k], facecolors=facecolors, s=s, zorder=zorder, linewidth=linewidth)
+            # update min and max y based on observed datapoints
             try:
                 if np.min(y_hat[k]) < ymin_val:
                     ymin_val = np.min(y_hat[k])
             except:
                 pass
+            try:
+                if np.max(y_hat[k]) > ymax_val:
+                    ymax_val = np.max(y_hat[k])
+            except:
+                pass
 
-
+    # set position
     box = ax.get_position()
     ax.set_position([box.x0 + box.width * box_offset, box.y0, box.width * box_width, box.height])
 
-
+    # set title
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -2076,20 +2099,17 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
     if not legend_off:
         ax.legend(labels, **legendsettings)
 
-    ymin = ax.get_ylim()[0]
+#     ymin = ax.get_ylim()[0]
     # Set the ymin to be halfway between the ymin_val and current ymin.
     # This seems to get rid of the worst of bad choices for ylabels[0] = -5 when the real ymin=0
-    tmp_val = (ymin + ymin_val) / 2.
+#     tmp_val = (ymin + ymin_val) / 2.
+#     ax.set_ylim(ymin=tmp_val, ymax=ymax_val)
+    # Temporary choice (?) to enforce ylim = 0
+    ax.set_ylim(ymin=0)
 
-    ax.set_ylim(ymin=tmp_val, ymax=ymax_val)
-
-    ax.set_ylim(ymin=0)  ##### TMP
-
-
-
+    # overwrite with specified choice
     if ylim is not None:
         ax.set_ylim(ylim)
-
     if xlim is not None:
         ax.set_xlim(xlim)
 

@@ -404,7 +404,9 @@ class PlottingSettings():
                          'box_offset' : 0.,
                          # legend
                          'legend_off' : False, # I am legend
-                         'legendsettings': {'loc': 0 } # best location
+                         'legendsettings': {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1},
+                         # labels
+                         'use_full_labels' : False
                          }
 
     def devSettings(self):
@@ -418,6 +420,7 @@ class PlottingSettings():
         pl.rcParams['savefig.dpi'] = 300
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
         self.plotdict['legend_off'] = True
+        self.plotdict['use_full_labels'] = True
 
     def presentationSettings(self):
         pl.rcParams['font.size'] = 14
@@ -447,6 +450,7 @@ class PlottingSettings():
         self.plotdict['legend_off'] = True
         self.plotdict['title'] = ''  # No title when we have presentation quality
         self.plotdict['num_cols'] = 1
+        self.plotdict['use_full_labels'] = True
 
     def guiSettings(self):
         self.defaultSettings()
