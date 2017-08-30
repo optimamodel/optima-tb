@@ -383,6 +383,9 @@ class PlottingSettings():
         pl.rcParams['lines.linewidth'] = 3
         pl.rcParams['lines.marker'] = 'None'
 
+        # The following requires matplotlib 2.X
+#         pl.rcParams['hatch.linewidth'] = 1.
+
         # Non-standard list of parameters used in plotting
         self.plotdict = {  # scatter plotting values
                          'marker' : 'o',
