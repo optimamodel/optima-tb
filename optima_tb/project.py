@@ -286,10 +286,10 @@ class Project(object):
             metric = self.settings.fit_metric
 
         if results is None:
-            raise OptimaException('ERROR: no result is specified. Cannot calculate fit.')
+            raise OptimaException('ERROR: No result is specified. Cannot calculate fit.')
 
         if self.data is None or len(self.data) == 0:
-            raise OptimaException('ERROR: no data is specified. Cannot calculate fit.')
+            raise OptimaException('ERROR: No data is specified. Cannot calculate fit.')
 
         datapoints, _, _ = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints, results.t_observed_data, self.data['characs'], metric)
@@ -322,7 +322,8 @@ class Project(object):
             prev_max_time = self.settings.autofit_params['maxtime']
             self.settings.autofit_params['maxtime'] = max_time
         try: new_parset = performAutofit(self, parset, new_parset_name=new_parset_name, target_characs=target_characs, **self.settings.autofit_params)
-        except Exception as e: print repr(e)
+        except Exception as e:
+            raise OptimaException("ERROR: Autocalibration failed.")
         if max_time is not None:    # ...and revert.
             self.settings.autofit_params['maxtime'] = prev_max_time
         
@@ -421,7 +422,7 @@ class Project(object):
             elif vals['type'].lower() == 'coverage':
                 self.scenarios[scenario_name] = CoverageScenario(name=scenario_name, pop_labels=pop_labels, **vals)
             else:
-                raise NotImplementedError("ERROR: no corresponding Scenario type for scenario=%s" % scenario_name)
+                raise NotImplementedError("ERROR: No corresponding Scenario type for scenario=%s" % scenario_name)
 
         logger.info("Successfully created scenarios")
 
