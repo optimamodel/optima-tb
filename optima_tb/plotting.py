@@ -227,17 +227,7 @@ def getLinemapping(linestyle_dict):
             linedict[label] = tmp_list[i]
     return linedict
 
-
-def separateLegend(labels, colors, fig_name, reverse_order=False, linestyles=None, **legendsettings):
-
-    import matplotlib.pyplot as plt
-    import matplotlib.patches as mpatches
-
-
-    if reverse_order:
-        labels = labels[::-1]
-        colors = colors[::-1]
-
+def getHatchmapping(linestyles, labels):
     hatches = {}
     if linestyles is not None:
         for (i, lab) in enumerate(labels):
@@ -251,6 +241,20 @@ def separateLegend(labels, colors, fig_name, reverse_order=False, linestyles=Non
     else:
         for lab in labels:
             hatches[lab] = None
+    return hatches
+
+
+def separateLegend(labels, colors, fig_name, reverse_order=False, linestyles=None, **legendsettings):
+
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+
+
+    if reverse_order:
+        labels = labels[::-1]
+        colors = colors[::-1]
+
+    hatches = getHatchmapping(linestyles, labels)
 
     fig = plt.figure() # figsize=(5, 5))  # silly big
     patches = [  mpatches.Patch(color=color, label=label, ec='white', hatch=hatches[label]) for label, color in zip(labels, colors)]
@@ -327,7 +331,7 @@ def plotResult(proj, result, output_labels, pop_labels=None, plot_total=False,
         observed_data_label_dict
     
     """
-    innerPlotLine(proj, [result], output_labels, compare_results=False, pop_labels=pop_labels, plot_total=plot_total,
+    return innerPlotLine(proj, [result], output_labels, compare_results=False, pop_labels=pop_labels, plot_total=plot_total,
                plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                colormappings=colormappings, colors=colors, linestyles=linestyles,
                title=title, save_fig=save_fig, fig_name=fig_name)
@@ -340,7 +344,7 @@ def plotCompareResult(proj, resultset, output_labels, pop_labels=None, plot_tota
     TBW
     """
     if plot_total:
-        innerPlotLine(proj, resultset, output_labels, compare_results=True, pop_labels=pop_labels, plot_total=True,
+        return innerPlotLine(proj, resultset, output_labels, compare_results=True, pop_labels=pop_labels, plot_total=True,
                plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                colormappings=colormappings, colors=colors, linestyles=linestyles,
                title=title, save_fig=save_fig, fig_name=fig_name)
@@ -350,10 +354,12 @@ def plotCompareResult(proj, resultset, output_labels, pop_labels=None, plot_tota
             pop_labels = getPops(resultset[0])
         # plot for each population
         for pop in pop_labels:
-            innerPlotLine(proj, resultset, output_labels, compare_results=True, pop_labels=[pop], plot_total=True,
+            fig = innerPlotLine(proj, resultset, output_labels, compare_results=True, pop_labels=[pop], plot_total=True,
                plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                colormappings=colormappings, colors=colors, linestyles=linestyles,
                title=title, save_fig=save_fig, fig_name=fig_name + '_%s' % pop)
+        logger.info("Created multiple plots for plotCompareResults for multiple populations. Returning last plot created")
+        return fig
 
 
 def innerPlotLine(proj, resultset, output_labels, compare_results=False, pop_labels=None, plot_total=False,
@@ -387,11 +393,11 @@ def innerPlotLine(proj, resultset, output_labels, compare_results=False, pop_lab
         series_labels = pop_labels
 
     # -------------------------------------------------------
-    # generic setup for colors and line
+    # generic setup for colors, line and hatches
     if colormappings is not None:
         colors = []
         colors_dict, cat_colors = getCategoryColors(colormappings, 'sequential')
-        # reorder so that colors are same as expected for plotting the population
+        # extract colors so that they are in the same order as expected for plotting the population
         for (j, pop_label) in enumerate(series_labels):
             colors.append(colors_dict[pop_label])
     elif colors is not None and len(colors) >= len(series_labels):
@@ -403,7 +409,11 @@ def innerPlotLine(proj, resultset, output_labels, compare_results=False, pop_lab
     if linestyles is not None:
         # convert from odict (key: style) to odict (key: population)
         linestyles = getLinemapping(linestyles)
-        linestyles = [linestyles[pop] for pop in series_labels]
+        linestyles = [linestyles[pop] for pop in series_labels] # extract used linestyles from dict into list
+
+    hatches = getHatchmapping(linestyles, series_labels)
+    hatches = [hatches[pop] for pop in series_labels] # extract used hatches from dict into list
+
 
     # -------------------------------------------------------
     # loop over values to be plotted
@@ -457,9 +467,9 @@ def innerPlotLine(proj, resultset, output_labels, compare_results=False, pop_lab
 #         import pprint
 #         print "final dict = ", pprint.pprint(tmp_plotdict)
         # plot values
-        _plotLine(ys, ts, series_labels, # y_bounds=yb,
+        fig = _plotLine(ys, ts, series_labels, # y_bounds=yb,
                 save_fig=save_fig, colors=colors,
-                linestyles=linestyles, **tmp_plotdict)
+                linestyles=linestyles, hatches=hatches, **tmp_plotdict)
 
 
     # -------------------------------------------------------
@@ -470,7 +480,7 @@ def innerPlotLine(proj, resultset, output_labels, compare_results=False, pop_lab
         legendsettings = plotdict['legendsettings']
         separateLegend(labels=series_labels, colors=colors, fig_name=fig_name + "_Legend", linestyles=linestyles, **legendsettings)
 
-
+    return fig
 
 
 def plotStackedBarOutput(proj, resultset, output_labels, pop_labels=None, # plot_total=False, plot_observed_data=True,
@@ -2060,6 +2070,171 @@ def _plotStackedCompartments(tvec, comps, labels=None, datapoints=None, title=''
         logger.info("Saved figure: '%s'" % save_figname)
 
 
+
+def _plotLine2(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
+             legendsettings=None, title=None, xlabel=None, ylabel=None, xlim=None, ylim=None, y_ticks=None, x_ticks=None,
+             y_intercept=None, reverse_order=False, y_bounds=None, linestyles=None, hatches=None,
+             smooth=False, symmetric=False, repeats=5,
+             alpha=0.3, marker='o', s=40, facecolors='none', linewidth=3, zorder=10,
+             save_fig=False, save_figname=None, legend_off=False,
+             box_width=0.9, box_offset=0.0, **kwargs):
+    """
+    Plots multiple lines, with additional option of overlaying observed datapoints
+    
+    Params:
+        ys        list of values for ys, with each entry corresponding to a line
+        ts        list of values for xs, with each entry corresponding to a line
+        labels    list of labels for each line
+        colors    list of colors for each line
+        y_intercept
+        reverse_order
+        y_bounds    list of array for each ys entry, with format of (tbound, ybound_min, ybound_ymax), thus can be specified independently of ts
+        **kwargs    further keyword arguments, such as ylims, legend_off, edgecolors, etc.
+        
+        
+    TODO: merge this with original _plotLine and _plotStackedCompartments
+    """
+
+
+    if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}
+
+    if len(ys) == 0:
+        # TODO: error to be fixed
+        return
+
+    if xlim is None: xlim = (ts[0][0], ts[0][-1])
+    ymin_val = np.min(ys[0])
+    indices = (ts[0] >= xlim[0]) * (ts[0] <= xlim[1])
+    ymax_val = np.max(ys[0][indices])
+
+    if colors is None or len(colors) < len(ys):
+        colors = gridColorMap(len(ys))
+        logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
+
+    if linestyles is None or len(linestyles) < len(ys):
+        try: linestyles = [kwargs['default_linestyle']] * len(ys)
+        except: linestyles = ['-'] * len(ys)
+        logger.info("Plotting: setting linestyles to be default value, as not all lines had styles assigned")
+
+    if hatches is None or len(hatches) < len(ys):
+        try: hatches = [kwargs['default_hatch']] * len(ys)
+        except: linestyles = [None] * len(ys)
+        logger.info("Plotting: setting hatches to be default value, as not all hatches had styles assigned")
+
+
+    fig, ax = pl.subplots()
+    bottom = 0 * len(ts[0])
+
+    if y_intercept is not None:
+        # TODO remove hardcoded values
+        ax.hlines([y_intercept], np.min(ts[0]), np.max(ts[0]), colors='#AAAAAA', linewidth=0.75 * linewidth, linestyle='--')
+
+
+    # plot ys, but reversed - and also reverse the labels (useful for scenarios, and optimizations):
+    order_ys = range(len(ys))
+    if reverse_order:
+        logger.info("Reversing order of plot lines")
+        order_ys = order_ys[::-1]  # surely there are more elegant ways to do this ...
+        labels = labels[::-1]
+
+    for k in order_ys:
+
+        yval = ys[k]
+
+        # if there are confidence bounds, plot using fill_between
+        if y_bounds is not None:
+            t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2]
+            ax.fill_between(t_bound, y_min_bound, y_max_bound, facecolor=colors[k], alpha=alpha, linewidth=0.1, edgecolor=colors[k])
+
+        # smooth line
+        if smooth:
+            yval = smoothfunc(yval, symmetric, repeats)
+
+        # plot line
+#         ax.plot(ts[k], yval, c=colors[k], ls=linestyles[k])
+#     for (k, comp) in enumerate(comps):
+        top = bottom + yval
+        lw = 0.1
+        if hatches[k] is None:
+            ec = colors[k]
+        else:
+            ec = 'white' # TODO remove magic variable
+        ax.fill_between(ts[0], bottom, top, facecolor=colors[k], alpha=1, lw=lw, hatch=hatches[k], edgecolor=ec)  # for some reason, lw=0 leads to no plot if we then use fig.savefig()
+        reg, = ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)  # TODO fix this by using xlims and ylims appropriately
+
+        bottom = dcp(top)
+
+#
+#         # identify ymin and ymax from line
+#         if np.min(yval) < ymin_val:
+#             ymin_val = np.min(yval)
+#         if np.max(yval[indices]) > ymax_val:
+#             ymax_val = np.max(yval[indices])
+
+#         # scatter data points
+#         if len(y_hat) > 0:
+#             try:
+#                 if len(y_hat[k]) > 0:  # i.e. we've seen observable data
+#                     ax.scatter(t_hat[k], y_hat[k], marker=marker, edgecolors=colors[k], facecolors=facecolors, s=s, zorder=zorder, linewidth=linewidth)
+#                     # update min and max y based on observed datapoints
+#                     try:
+#                         if np.min(y_hat[k]) < ymin_val:
+#                             ymin_val = np.min(y_hat[k])
+#                     except:
+#                         pass
+#                     try:
+#                         if np.max(y_hat[k]) > ymax_val:
+#                             ymax_val = np.max(y_hat[k])
+#                     except:
+#                         pass
+#             except:
+#                 logger.debug("No data plottable for index k=%i, data=\n" % k)
+#                 logger.debug(y_hat)
+
+
+    # set position
+    box = ax.get_position()
+    ax.set_position([box.x0 + box.width * box_offset, box.y0, box.width * box_width, box.height])
+
+    # set title
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+
+    if not legend_off:
+        ax.legend(labels, **legendsettings)
+
+#     ymin = ax.get_ylim()[0]
+    # Set the ymin to be halfway between the ymin_val and current ymin.
+    # This seems to get rid of the worst of bad choices for ylabels[0] = -5 when the real ymin=0
+#     tmp_val = (ymin + ymin_val) / 2.
+#     ax.set_ylim(ymin=tmp_val, ymax=ymax_val)
+    # Temporary choice (?) to enforce ylim = 0
+    ax.set_ylim(ymin=0)
+
+    # overwrite with specified choice
+    if ylim is not None:
+        ax.set_ylim(ylim)
+    if xlim is not None:
+        ax.set_xlim(xlim)
+
+    ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
+
+
+    if x_ticks is not None:
+        ax.set_xticks(x_ticks[0])
+        ax.set_xticklabels(x_ticks[1])
+    if y_ticks is not None:
+        ax.set_yticks(y_ticks[0])
+        ax.set_yticklabels(y_ticks[1])
+
+    _turnOffBorder()
+    if save_fig:
+        fig.savefig('%s' % (save_figname))
+        logger.info("Saved figure: '%s'" % save_figname)
+
+    return fig
 
 
 def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
