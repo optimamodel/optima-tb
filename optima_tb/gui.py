@@ -10,6 +10,7 @@ import numpy as np
 from copy import deepcopy as dcp
 from matplotlib import pyplot as pp
 import pylab as pl
+import itertools as it
 pp.ioff()   # Turn off interactive mode.
 
 from optima_tb.project import Project
@@ -596,6 +597,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
 #        self.col_par_name = 0   # Column index for table calibration parameter names.
 #        self.col_pop_name = 1   # Column index for table calibration population names.
         self.calibration_id_dict = {}   # Dictionary that maps custom calibration-widget label to parameter and population labels.
+        self.fitted_characs_dict = {}   # Dictionary with characteristic-population label pairs as keys, denoting fitting metric inclusions for autocalibration.
 
 
     def refreshVisibility(self):
@@ -707,6 +709,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
     def loadCalibration(self, parset_name, delay_refresh=False):
         self.parset_name = str(parset_name)
         self.parset = dcp(self.project.parsets[self.parset_name])
+        self.fitted_characs_dict = {pair:True for pair in it.product(self.parset.par_ids['characs'].keys(), self.parset.pop_labels)}
         self.status = ('Status: Parameter set "%s" selected for editing' % self.parset_name)
         if not delay_refresh:
             self.refreshVisibility()
@@ -747,7 +750,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.status = ('Status: Autocalibrating checked selection of parameter set "%s" for %s seconds' % (self.parset_name, str(calibration_time)))
         self.refreshStatus()
         try: 
-            self.parset = self.project.runAutofitCalibration(parset = self.parset, max_time = calibration_time, save_parset = False)
+            self.parset = self.project.runAutofitCalibration(parset = self.parset, target_characs = self.fitted_characs_dict.keys(), max_time = calibration_time, save_parset = False)
             self.status = ('Status: Autocalibration complete (but unsaved) for parameter set "%s"' % self.parset_name)
         except Exception as e:
             self.status = ('Status: Autocalibration was unsuccessful, perhaps because no parameters were selected to calibrate')

@@ -145,6 +145,7 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
         project
         paramset
         new_parset_name     name of resulting parameterset
+        target_characs      a list of characteristic and population label pairs
         calibration_settings
         useYFactor            boolean of flag whether we should use yvalues directly, or y_factor
    
@@ -182,10 +183,10 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
         logger.info("Autofit: fitting to all characteristics")
     else:
         target_data_characs = odict()
-        for k in target_characs:
-            target_data_characs[k] = project.data['characs'][k]
-        logger.info("Autofit: fitting to the following target characteristics =[%s]"%(",".join(target_characs)))
-    
+        for pair in target_characs:
+            target_data_characs[pair[0]] = project.data['characs'][pair[0]]
+        logger.info("Autofit: fitting to the following target characteristics = [%s]"%(",".join(target_data_characs.keys())))
+    print target_data_characs.keys()
     
     def calculateObjective(parvec_and_characs):
         '''
