@@ -158,8 +158,8 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     paramvec,minmax,par_pop_labels = paramset.extract(getMinMax=True,getYFactor=useYFactor)  # array representation of initial values for p0, with bounds
     # setup for characteristics
     compartment_init,charac_pop_labels = paramset.extractEntryPoints(project.settings,useInitCompartments=useInitCompartments)
-    # min maxes for compartments are always (0,None):
-    charac_minmax = [(0,None) for i in charac_pop_labels]
+    # min maxes for compartments are always (0,np.inf):
+    charac_minmax = [(0,np.inf) for i in charac_pop_labels]
     minmax += charac_minmax
     
     print par_pop_labels
@@ -173,6 +173,8 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     sample_param = dcp(paramset)   # ParameterSet created just to be overwritten
     sample_param.name = "calibrating"
     
+    print mins
+    print maxs
     
     if target_characs is None: 
         # if no targets characteristics are supplied, then we autofit to all characteristics 

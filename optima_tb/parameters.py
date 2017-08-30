@@ -201,7 +201,7 @@ class ParameterSet(object):
         if y_format.lower() == 'fraction':
             return (0.,1.)
         elif y_format.lower() in ['number','proportion']:
-            return (0.,None)
+            return (0.,np.inf)
         else:
             raise OptimaException("Unknown y_format '%s' encountered while returning min-max bounds"%y_format)
     
@@ -253,15 +253,16 @@ class ParameterSet(object):
                     minmax_bounds = self.__getMinMax(self.pars['cascade'][j].y_format[pop_id])
                     if getYFactor and minmax_bounds[1] is not None:
                         # use the bounds to calculate the corresponding minmax values for the bounds: 
-                        # possibilities are (0.,1.) for fraction, and (0,None) for number and proportion.
-                        # - yfactor-min has to remain 0, so leave
-                        yval_max= np.max(self.pars['cascade'][j].y[pop_id])
-                        if yval_max == 0:
-                            logger.info("ParameterSet: max value of 0 observed for fraction for casc_id=%s"%casc_id)
-                            yval_max = settings.TOLERANCE
-                        tmp_upper = minmax_bounds[1]
-                        tmp_upper /= yval_max
-                        minmax_bounds = (minmax_bounds[0], tmp_upper)
+#                        # possibilities are (0.,1.) for fraction, and (0,None) for number and proportion.
+#                        # - yfactor-min has to remain 0, so leave
+#                        yval_max= np.max(self.pars['cascade'][j].y[pop_id])
+#                        if yval_max == 0:
+#                            logger.info("ParameterSet: max value of 0 observed for fraction for casc_id=%s"%casc_id)
+#                            yval_max = settings.TOLERANCE
+#                        tmp_upper = minmax_bounds[1]
+#                        tmp_upper /= yval_max
+#                        minmax_bounds = (minmax_bounds[0], tmp_upper)
+                        minmax_bounds = (0., np.inf)      # There is probably no reason to enforce bounds on y_factor in this layer as fraction ranges are handled in model.py.
                     # if we're grabbing the minmax values for the y-values directly, then use the values
                     minmax.append(minmax_bounds)
                     # also grab the cascade labels for debugging and logging purposes
