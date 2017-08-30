@@ -228,7 +228,7 @@ def getLinemapping(linestyle_dict):
     return linedict
 
 
-def separateLegend(labels, colors, fig_name, reverse_order=False, **legendsettings):
+def separateLegend(labels, colors, fig_name, reverse_order=False, linestyles=None, **legendsettings):
 
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
@@ -238,8 +238,22 @@ def separateLegend(labels, colors, fig_name, reverse_order=False, **legendsettin
         labels = labels[::-1]
         colors = colors[::-1]
 
+    hatches = {}
+    if linestyles is not None:
+        for (i, lab) in enumerate(labels):
+            if linestyles[i] == '-':
+                hatches[lab] = None
+            elif linestyles[i] == '--':
+                hatches[lab] = '///'
+            else:
+                logging.debug("Unknown linestyle used --> setting to unmapped hatch content")
+                hatches[lab] = '+'
+    else:
+        for lab in labels:
+            hatches[lab] = None
+
     fig = plt.figure() # figsize=(5, 5))  # silly big
-    patches = [  mpatches.Patch(color=color, label=label) for label, color in zip(labels, colors)]
+    patches = [  mpatches.Patch(color=color, label=label, ec='white', hatch=hatches[label]) for label, color in zip(labels, colors)]
     legendsettings['loc'] = 'center'
     legendsettings['frameon'] = False
     legendsettings['bbox_to_anchor'] = None
@@ -256,6 +270,228 @@ def _turnOffBorder():
     pl.gca().xaxis.set_ticks_position('bottom')
     pl.gca().yaxis.set_ticks_position('left')
 
+
+def plotResult(proj, result, output_labels, pop_labels=None, plot_total=False,
+               plot_observed_data=True, observed_data_label=None,
+               colormappings=None, colors=None, linestyles=None,
+               title="", save_fig=False, fig_name=None):
+    """
+    Plots either characteristics, compartment size, or flow rate, as line. 
+    
+    Supports plotting of:
+        - multiple populations
+        - plotting total across multiple populations
+        - plotting observed datapoints (where applicable)
+    
+    If neither colormappings or colors is specified, default color list is used from gridColorMap()
+    
+    Params:
+        proj            project object, containing plotting settings and observed data points
+        result          result object 
+        output_labels   list of compartment labels, flow rate labels, characteristics
+        pop_labels      populations to be plotted. Default (None) plots all populations.
+        plot_total      plot total across populations
+        plot_observed_data    add observed datapoints as scatter plot, if corresponding datapoints exist. See note.
+        observed_data_label_dict   dict of mappings of what 
+        colormappings   colormappings that should be used to generate colors for populations. Supercedes colors. 
+                        Format: odict with color / colormap as key, value = list of populations for corresponding key 
+        colors          list of colors that should be used for population. Superceded by colormappings.
+        linestyles      odict of (k,v): (linestypes, list of populations). Uses default linestyle if not supplied.
+        title           title for plot
+        save_fig        boolean flag, whether to save plot
+        fig_name        if plot is saved, filename
+        
+    Replaces:
+        plotCharacteristic
+        plotPopulationFlows
+    
+    Example:
+    output_labels = ['lt_inf', # characteristic
+                     'lt_prev', # characteristic which is a percentage
+                     'spdd', # compartment
+                     'infac_per100K'] # flow rate
+    subsetPop = ['15-64', '15-64 HIV+']
+    # plot per population for all populations, using colormappings
+    plotResult(proj, results, output_labels=output_labels, save_fig=save_results, fig_name=filename + '_PerPopulation',
+               colormappings=pop_colors, linestyles=linestyles)
+    # plot only a subset of populations
+    plotResult(proj, results, output_labels=output_labels, pop_labels=subsetPop, 
+                save_fig=save_results, fig_name=filename + '_15-64Only', colormappings=pop_colors, linestyles=linestyles)
+    # plot total across all populations
+    plotResult(proj, results, output_labels=output_labels, save_fig=save_results, fig_name=filename + '_Total', plot_total=True)
+    # plot total across subset of populations
+    plotResult(proj, results, output_labels=output_labels, pop_labels=subsetPop, 
+                save_fig=save_results, fig_name=filename + '_TotalFor15-64', plot_total=True)
+                
+    TODO:
+        observed_data_label_dict
+    
+    """
+    innerPlotLine(proj, [result], output_labels, compare_results=False, pop_labels=pop_labels, plot_total=plot_total,
+               plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
+               colormappings=colormappings, colors=colors, linestyles=linestyles,
+               title=title, save_fig=save_fig, fig_name=fig_name)
+
+def plotCompareResult(proj, resultset, output_labels, pop_labels=None, plot_total=False,
+                      plot_observed_data=True, observed_data_label=None,
+                      colormappings=None, colors=None, linestyles=None,
+                      title="", save_fig=False, fig_name=None):
+    """
+    TBW
+    """
+    if plot_total:
+        innerPlotLine(proj, resultset, output_labels, compare_results=True, pop_labels=pop_labels, plot_total=True,
+               plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
+               colormappings=colormappings, colors=colors, linestyles=linestyles,
+               title=title, save_fig=save_fig, fig_name=fig_name)
+    else:
+        logger.info("Plotting result set per population group")
+        if pop_labels is None:
+            pop_labels = getPops(resultset[0])
+        # plot for each population
+        for pop in pop_labels:
+            innerPlotLine(proj, resultset, output_labels, compare_results=True, pop_labels=[pop], plot_total=True,
+               plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
+               colormappings=colormappings, colors=colors, linestyles=linestyles,
+               title=title, save_fig=save_fig, fig_name=fig_name + '_%s' % pop)
+
+
+def innerPlotLine(proj, resultset, output_labels, compare_results=False, pop_labels=None, plot_total=False,
+               plot_observed_data=True, observed_data_label=None,
+               colormappings=None, colors=None, linestyles=None,
+               title="", save_fig=False, fig_name=None):
+    """
+    Core functionality
+    """
+    # -------------------------------------------------------
+    # extract relevant objects
+    data = proj.data
+    settings = proj.settings
+    plotdict = proj.settings.plot_settings
+    charac_specs = proj.settings.charac_specs
+    plot_over = (proj.settings.tvec_start, proj.settings.tvec_observed_end)
+
+    # -------------------------------------------------------
+    # generic setup for data
+    if pop_labels is None:
+        pop_labels = getPops(resultset[0])
+
+    if fig_name is None:
+        fig_name = "PlotValue"
+
+    if compare_results:
+        series_labels = resultset.keys()
+    elif plot_total:
+        series_labels = ['Total']
+    else:
+        series_labels = pop_labels
+
+    # -------------------------------------------------------
+    # generic setup for colors and line
+    if colormappings is not None:
+        colors = []
+        colors_dict, cat_colors = getCategoryColors(colormappings, 'sequential')
+        # reorder so that colors are same as expected for plotting the population
+        for (j, pop_label) in enumerate(series_labels):
+            colors.append(colors_dict[pop_label])
+    elif colors is not None and len(colors) >= len(series_labels):
+        pass  # colors as defined in the args should be used as is
+    else:
+        colors = gridColorMap(len(series_labels))
+        logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
+
+    if linestyles is not None:
+        # convert from odict (key: style) to odict (key: population)
+        linestyles = getLinemapping(linestyles)
+        linestyles = [linestyles[pop] for pop in series_labels]
+
+    # -------------------------------------------------------
+    # loop over values to be plotted
+    for value_label in output_labels:
+        # reset reused variables
+        ys = []
+        ts = []
+        dataobs = ([], [])
+        tmp_plotdict = dcp(plotdict)
+        unit_tag = ""
+
+        # get values
+        if compare_results:
+            # we loop over results for a single population set
+            for resultname in resultset.keys():
+                result = resultset[resultname]
+                y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
+                ys.append(y)
+                ts.append(t)
+        else: # alternatively, we loop over populations for a single result
+            result = resultset[0]
+            if plot_total:
+                y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
+                ys = [y]
+                ts = [t]
+            else:
+                for pop in pop_labels:
+                    y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop, integrated=False)
+                    y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
+                    ys.append(y)
+                    ts.append(t)
+
+        # get observed data points
+        if plot_observed_data:
+            dataobs = _extractDatapoint(data, value_label, pop_labels, charac_specs, plot_total=plot_total)
+            dataobs, _ = _convertPercentage(dataobs, value_label, pop_labels, charac_specs)
+
+        name = getName(value_label, settings)
+
+        # setup for plot:
+        final_dict = {
+                  'xlabel':'Year',
+                  'ylabel': name + unit_tag,
+                  'title': '%s' % title,
+                  'save_figname': '%s_%s' % (fig_name, name),
+                  'y_hat': dataobs[1],
+                  't_hat': dataobs[0]}
+
+
+        tmp_plotdict.update(final_dict)
+#         import pprint
+#         print "final dict = ", pprint.pprint(tmp_plotdict)
+        # plot values
+        _plotLine(ys, ts, series_labels, # y_bounds=yb,
+                save_fig=save_fig, colors=colors,
+                linestyles=linestyles, **tmp_plotdict)
+
+
+    # -------------------------------------------------------
+    if plotdict.has_key('legend_off') and plotdict['legend_off']:
+        # Do this separately to main iteration so that previous figure are not corrupted
+        # Note that colorlist may be different to colors, as it represents
+        # classes of compartments
+        legendsettings = plotdict['legendsettings']
+        separateLegend(labels=series_labels, colors=colors, fig_name=fig_name + "_Legend", linestyles=linestyles, **legendsettings)
+
+
+
+
+def plotStackedBarOutput(proj, resultset, output_labels, pop_labels=None, # plot_total=False, plot_observed_data=True,
+               colormappings=None, colors=None, linestyles=None,
+               title="", save_fig=False, fig_name=None):
+    """
+    To replace plotStackedBarOutputs using standardized function args
+    """
+    pass
+
+def plotStackedValues(proj, resultset, output_labels, pop_labels=None, plot_total=False, plot_observed_data=True,
+               colormappings=None, colors=None, linestyles=None,
+               title="", save_fig=False, fig_name=None):
+    """
+    To replace plotPopulation
+    """
+    pass
+
+
+
+# ------------- Retained for backwards compatability
 
 def isPlottableComp(comp_label, sim_settings, comp_specs):
     """ 
@@ -860,6 +1096,7 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
     
         
     """
+    logging.warn("DEPRECATED (plotCharacterstic): please replace usage with plotResult()")
     charac_specs = settings.charac_specs
     # setup:
     if outputIDs is None:
@@ -1537,6 +1774,55 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
 
     return datapoints, pop_labels, comp_labels, dataobs
 
+def getName(output_id, settings):
+    if output_id in settings.charac_specs:
+        name = settings.charac_specs[output_id]['name']
+    elif output_id in settings.linkpar_specs:
+        name = settings.linkpar_specs[output_id]['name']
+    else:
+        try:
+            # TODO get compartment label name from settings - using results, this was [comp.label for comp in results.m_pops[0].comps]
+            name = "Unknown_%s" % output_id
+        except:
+            raise OptimaException('ERROR: Attempting to plot characteristic "%s" but cannot locate it in either characteristic or parameter specs.' % output_id)
+    return name
+
+def getPops(result):
+    return [pop.label for pop in result.m_pops]
+
+
+def _extractDatapoint(data, value_label, pop_labels, charac_specs, plot_total=False):
+    dataobs = None
+    if value_label in data['characs'].keys():
+
+        ys = [data['characs'][value_label][poplabel]['y'] for poplabel in pop_labels]
+        ts = [data['characs'][value_label][poplabel]['t'] for poplabel in pop_labels]
+
+        if 'plot_percentage' in charac_specs[value_label].keys():
+            ys *= 100
+
+        if plot_total:
+            ys = np.array(ys)
+            ys = [ys.sum(axis=0)]
+
+    else:  # For the case when plottable characteristics were not in the databook and thus not converted to data.
+        logging.info("Could not find datapoints with label '%s'" % value_label)
+        ys = []
+        ts = []
+
+    dataobs = (ts, ys)
+    return dataobs
+
+
+def _convertPercentage(datapoints, output_label, pop_labels, charac_specs):
+    if output_label in charac_specs and 'plot_percentage' in charac_specs[output_label].keys():
+        datapoints *= 100
+        unit_tags = ' (%)'
+    else:
+        unit_tags = ''
+
+    return datapoints, unit_tags
+
 
 def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_labels=None, plot_observed_data=True, plot_total=False):
     """
@@ -1804,12 +2090,9 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
         # TODO: error to be fixed
         return
 
-    ymin_val = np.min(ys[0])
     if xlim is None: xlim = (ts[0][0], ts[0][-1])
+    ymin_val = np.min(ys[0])
     indices = (ts[0] >= xlim[0]) * (ts[0] <= xlim[1])
-#     print indices
-#     print xlim
-#     print ts
     ymax_val = np.max(ys[0][indices])
 
     if colors is None or len(colors) < len(ys):
@@ -1826,13 +2109,14 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
     fig, ax = pl.subplots()
 
     if y_intercept is not None:
+        # TODO remove hardcoded values
         ax.hlines([y_intercept], np.min(ts[0]), np.max(ts[0]), colors='#AAAAAA', linewidth=0.75 * linewidth, linestyle='--')
 
 
     # plot ys, but reversed - and also reverse the labels (useful for scenarios, and optimizations):
     order_ys = range(len(ys))
     if reverse_order:
-#         print("Reversed order -----------------")
+        logger.info("Reversing order of plot lines")
         order_ys = order_ys[::-1]  # surely there are more elegant ways to do this ...
         labels = labels[::-1]
 
@@ -1845,7 +2129,6 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
             t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2]
             ax.fill_between(t_bound, y_min_bound, y_max_bound, facecolor=colors[k], alpha=alpha, linewidth=0.1, edgecolor=colors[k])
 
-
         # smooth line
         if smooth:
             yval = smoothfunc(yval, symmetric, repeats)
@@ -1853,26 +2136,38 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
         # plot line
         ax.plot(ts[k], yval, c=colors[k], ls=linestyles[k])
 
+        # identify ymin and ymax from line
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
         if np.max(yval[indices]) > ymax_val:
             ymax_val = np.max(yval[indices])
 
         # scatter data points
-        if len(y_hat) > 0 and len(y_hat[k]) > 0:  # i.e. we've seen observable data
-
-            ax.scatter(t_hat[k], y_hat[k], marker=marker, edgecolors=colors[k], facecolors=facecolors, s=s, zorder=zorder, linewidth=linewidth)
+        if len(y_hat) > 0:
             try:
-                if np.min(y_hat[k]) < ymin_val:
-                    ymin_val = np.min(y_hat[k])
+                if len(y_hat[k]) > 0:  # i.e. we've seen observable data
+                    ax.scatter(t_hat[k], y_hat[k], marker=marker, edgecolors=colors[k], facecolors=facecolors, s=s, zorder=zorder, linewidth=linewidth)
+                    # update min and max y based on observed datapoints
+                    try:
+                        if np.min(y_hat[k]) < ymin_val:
+                            ymin_val = np.min(y_hat[k])
+                    except:
+                        pass
+                    try:
+                        if np.max(y_hat[k]) > ymax_val:
+                            ymax_val = np.max(y_hat[k])
+                    except:
+                        pass
             except:
-                pass
+                logger.debug("No data plottable for index k=%i, data=\n" % k)
+                logger.debug(y_hat)
 
 
+    # set position
     box = ax.get_position()
     ax.set_position([box.x0 + box.width * box_offset, box.y0, box.width * box_width, box.height])
 
-
+    # set title
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -1881,20 +2176,17 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
     if not legend_off:
         ax.legend(labels, **legendsettings)
 
-    ymin = ax.get_ylim()[0]
+#     ymin = ax.get_ylim()[0]
     # Set the ymin to be halfway between the ymin_val and current ymin.
     # This seems to get rid of the worst of bad choices for ylabels[0] = -5 when the real ymin=0
-    tmp_val = (ymin + ymin_val) / 2.
+#     tmp_val = (ymin + ymin_val) / 2.
+#     ax.set_ylim(ymin=tmp_val, ymax=ymax_val)
+    # Temporary choice (?) to enforce ylim = 0
+    ax.set_ylim(ymin=0)
 
-    ax.set_ylim(ymin=tmp_val, ymax=ymax_val)
-
-    ax.set_ylim(ymin=0)  ##### TMP
-
-
-
+    # overwrite with specified choice
     if ylim is not None:
         ax.set_ylim(ylim)
-
     if xlim is not None:
         ax.set_xlim(xlim)
 
