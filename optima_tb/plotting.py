@@ -336,7 +336,7 @@ def plotResult(proj, result, output_labels, pop_labels=None, plot_total=False,
                colormappings=colormappings, colors=colors, linestyles=linestyles,
                title=title, save_fig=save_fig, fig_name=fig_name)
 
-def plotCompareResult(proj, resultset, output_labels, pop_labels=None, plot_total=False,
+def plotCompareResults(proj, resultset, output_labels, pop_labels=None, plot_total=False,
                       plot_observed_data=True, observed_data_label=None,
                       colormappings=None, colors=None, linestyles=None,
                       title="", save_fig=False, fig_name=None):
@@ -424,6 +424,7 @@ def innerPlotLine(proj, resultset, output_labels, compare_results=False, pop_lab
         dataobs = ([], [])
         tmp_plotdict = dcp(plotdict)
         unit_tag = ""
+        name = value_label
 
         # get values
         if compare_results:
@@ -451,7 +452,8 @@ def innerPlotLine(proj, resultset, output_labels, compare_results=False, pop_lab
             dataobs = _extractDatapoint(data, value_label, pop_labels, charac_specs, plot_total=plot_total)
             dataobs, _ = _convertPercentage(dataobs, value_label, pop_labels, charac_specs)
 
-        name = getName(value_label, settings)
+        if plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
+            name = getName(value_label, settings)
 
         # setup for plot:
         final_dict = {
@@ -1789,6 +1791,8 @@ def getName(output_id, settings):
         name = settings.charac_specs[output_id]['name']
     elif output_id in settings.linkpar_specs:
         name = settings.linkpar_specs[output_id]['name']
+    elif output_id in settings.node_specs:
+        name = output_id # TODO update
     else:
         try:
             # TODO get compartment label name from settings - using results, this was [comp.label for comp in results.m_pops[0].comps]
