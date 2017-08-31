@@ -832,7 +832,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
             self.parset = self.project.runAutofitCalibration(parset=self.parset, target_characs=self.fitted_characs_dict.keys(), max_time=calibration_time, save_parset=False)
             self.status = ('Status: Autocalibration complete (but unsaved) for parameter set "%s"' % self.parset_name)
         except Exception as e:
-            self.status = ('Status: Autocalibration was unsuccessful, perhaps because no parameters were selected to calibrate')
+            self.status = ('Status: Autocalibration was unsuccessful, perhaps because no parameters were selected to calibrate or no parameter-associated data was chosen to fit against')
         self.refreshVisibility()
 
     def makeParsetTable(self):
@@ -854,7 +854,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
         custom_ids = []
         for par_type in ['characs', 'cascade']:
             for par in parset.pars[par_type]:
-                if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or (par_type == 'characs' and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
+                if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or 
+                    (par_type == 'characs')): #and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
                     for pid in xrange(len(parset.pop_labels)):
                         pop_label = parset.pop_labels[pid]
                         try:
@@ -870,13 +871,16 @@ class GUICalibration(GUIResultPlotterIntermediate):
                         
                         # Create autocalibration checkbox column.
                         temp = qtw.QTableWidgetItem()
-                        temp.setText(str(par.y_factor[pid]))
-                        temp.setTextAlignment(qtc.Qt.AlignCenter)
-                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable | qtc.Qt.ItemIsUserCheckable)
-                        if par.autocalibrate[pid]:
-                            temp.setCheckState(qtc.Qt.Checked)
+                        if par_type == 'characs' and 'entry_point' not in self.project.settings.charac_specs[par.label].keys():
+                            temp.setFlags(qtc.Qt.NoItemFlags)
                         else:
-                            temp.setCheckState(qtc.Qt.Unchecked)
+                            temp.setText(str(par.y_factor[pid]))
+                            temp.setTextAlignment(qtc.Qt.AlignCenter)
+                            temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable | qtc.Qt.ItemIsUserCheckable)
+                            if par.autocalibrate[pid]:
+                                temp.setCheckState(qtc.Qt.Checked)
+                            else:
+                                temp.setCheckState(qtc.Qt.Unchecked)
                         self.table_calibration.setItem(k * num_pops + pid, 0, temp)
                         
                         # Create data fitting checkbox column.
@@ -924,7 +928,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
                     self.guard_status = True
                     if self.check_option == 'all':
                         for other_row in xrange(self.table_calibration.rowCount()):
-                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
+                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
                     elif self.check_option == 'par':
                         for other_row in self.par_rows_dict[par_label].keys():
                             self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
@@ -935,7 +940,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
                     self.guard_status = True
                     if self.check_option == 'all':
                         for other_row in xrange(self.table_calibration.rowCount()):
-                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
+                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
                     elif self.check_option == 'par':
                         for other_row in self.par_rows_dict[par_label].keys():
                             self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
