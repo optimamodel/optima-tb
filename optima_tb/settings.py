@@ -456,10 +456,18 @@ class PlottingSettings():
         self.plotdict['use_full_labels'] = True
 
     def guiSettings(self):
-        self.defaultSettings()
+
+        pl.rcParams['lines.linewidth'] = 2
+        pl.rcParams['axes.linewidth'] = 1.5
+        pl.rcParams['axes.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['axes.titlesize'] = pl.rcParams['font.size']
+
+        pl.rcParams['legend.frameon'] = False
+
         self.plotdict['legendsettings'] = {'loc': 0 } # best ##{'loc': 4 } # lower right
-        self.plotdict['box_width'] = 0.95
-        self.plotdict['box_offset'] = 0.05
+        self.plotdict['box_width'] = 0.9
+        self.plotdict['box_offset'] = 0.1
+        self.plotdict['use_full_labels'] = True
 
 
 

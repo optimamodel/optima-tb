@@ -14,17 +14,16 @@ import itertools as it
 pp.ioff()   # Turn off interactive mode.
 
 from optima_tb.project import Project
-from optima_tb.plotting import plotScenarios # _plotLine
+from optima_tb.plotting import plotScenarios, plotCompareResults # _plotLine
 from optima_tb.dataio import saveObject, loadObject
 from optima_tb.defaults import defaultOptimOptions
 from optima_tb.utils import odict
-from optima_tb.settings import DO_NOT_SCALE, DEFAULT_YFACTOR
+from optima_tb.settings import PlottingSettings, DO_NOT_SCALE, DEFAULT_YFACTOR
 
 ##### TODO remove hardcoded from Belarus:
 colors = ['#8C8984',
           '#333399']
 #### /hardcoded ref
-
 
 
 # %% PyQt imports
@@ -215,6 +214,7 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         try:
             self.project = loadObject(filename=import_path)
             self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_end + 1.0 / 2)
+            PlottingSettings("gui") # updates rcParams for this instance
             self.acknowledgeProject()
             self.status = ('Status: Project "%s" successfully imported' % self.project.name)
         except:
@@ -256,7 +256,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.combo_result_dict = {}     # Dictionary that maps Result names to indices used in combo boxes.
         self.combo_charac_dict = {}     # Dictionary that maps Characteristic names to indices used in combo boxes.
         self.combo_pop_dict = {}        # Dictionary that maps Population names to indices used in combo boxes.
-        
+
         self.plot_window = None         # A new window for displaying plots.
 
 
@@ -391,13 +391,22 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             self.combo_charac_dict[charac_name] = cid
             self.combo_plotter_charac.addItem(charac_name)
             cid += 1
-            
+
         for flow_label in self.project.settings.linkpar_specs.keys():
+            """
             if 'tag' in self.project.settings.linkpar_specs[flow_label]:
                 flow_name = self.project.settings.linkpar_specs[flow_label]['name']
                 self.combo_charac_dict[flow_name] = cid
                 self.combo_plotter_charac.addItem(flow_name)
                 cid += 1
+            """
+            # Add flowrates that are publishable by 'output' tag
+            if 'output' in self.project.settings.linkpar_specs[flow_label] and self.project.settings.linkpar_specs[flow_label]['output'] == 'y':
+                flow_name = self.project.settings.linkpar_specs[flow_label]['name']
+                self.combo_charac_dict[flow_name] = cid
+                self.combo_plotter_charac.addItem(flow_name)
+                cid += 1
+
 
         self.combo_plotter_charac.setCurrentIndex(0)    # Should be triggered if there are no results.
 
@@ -409,6 +418,11 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.combo_pop_dict = {}
         self.combo_plotter_pop.clear()
         pid = 0
+        # <------------- Added total populations
+        self.combo_pop_dict['Total populations'] = pid
+        self.combo_plotter_pop.addItem('Total populations')
+        pid += 1
+        # <-------------
         for pop_name in self.project.data['pops']['name_labels'].keys():
             self.combo_pop_dict[pop_name] = pid
             self.combo_plotter_pop.addItem(pop_name)
@@ -463,44 +477,70 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
 
         if self.charac_plot_name is not None and self.pop_plot_name is not None:
 
-            pop_plot_label = self.project.data['pops']['name_labels'][self.pop_plot_name]
-            
+            try:
+                pop_plot_label = [self.project.data['pops']['name_labels'][self.pop_plot_name]]
+                plot_observed = True
+            except:
+                logger.info("Could not identify a population. Setting to total populations")
+                pop_plot_label = None
+                plot_observed = False
+
             result_set = odict()
             result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
             result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
-           
-            try: 
-                charac_plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
+
+            try:
+                plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
+                logger.info("GUI plot characteristic: %s" % plot_label)
+            except:
+                try:
+                    flow_plot_label = self.project.settings.linkpar_name_labels[self.charac_plot_name]
+                    # tag_plot_label = self.project.settings.linkpar_specs[flow_plot_label]['tag']
+                    plot_label = flow_plot_label
+                    logger.info("GUI plot link: %s" % plot_label)
+                except:
+                    logger.info("Unable to plot label=%s" % self.charac_plot_name)
+
 
 #                result_set = odict()
 #                result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
 #                result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
-                figure = plotScenarios(result_set, scen_labels=['%s' % self.result_1_plot_name, '%s' % self.result_2_plot_name],
-                                        settings=self.project.settings,
-                                        data=self.project.data,
-                                        plot_observed_data=True,
-                                        plot_charac=[charac_plot_label],
-                                        pop_labels=[pop_plot_label],
-                                        colors=colors,
-                                        save_fig=False)
+#                 figure = plotScenarios(result_set, scen_labels=['%s' % self.result_1_plot_name, '%s' % self.result_2_plot_name],
+#                                         settings=self.project.settings,
+#                                         data=self.project.data,
+#                                         plot_observed_data=True,
+#                                         plot_charac=[charac_plot_label],
+#                                         pop_labels=[pop_plot_label],
+#                                         colors=colors,
+#                                         save_fig=False)
 
-            except: 
-                flow_plot_label = self.project.settings.linkpar_name_labels[self.charac_plot_name]
-                flow_plot_tag = self.project.settings.linkpar_specs[flow_plot_label]['tag']
-                t_start = self.project.settings.tvec_start
-                t_end = self.project.settings.tvec_end
-                dt = self.project.settings.tvec_dt
 
-                figure, axes = pl.subplots()
-        
-                for result_label in result_set.keys():
-                    
-                    result = result_set[result_label]
-                    vals = result.getValuesAt(flow_plot_tag,t_start,t_end,pop_labels=[pop_plot_label])[0]
-                    
-                    axes.plot(np.arange(t_start,t_end,dt), vals, '-', label=result_label)
-                
-                axes.legend()
+            figure = plotCompareResults(self.project,
+                                       result_set,
+                                       output_labels=[plot_label],
+                                       pop_labels=pop_plot_label,
+                                       plot_observed_data=plot_observed,
+                                       plot_total=True,
+                                       colors=colors,
+                                       save_fig=False)
+
+#             except:
+#                 flow_plot_label = self.project.settings.linkpar_name_labels[self.charac_plot_name]
+#                 flow_plot_tag = self.project.settings.linkpar_specs[flow_plot_label]['tag']
+#                 t_start = self.project.settings.tvec_start
+#                 t_end = self.project.settings.tvec_end
+#                 dt = self.project.settings.tvec_dt
+#
+#                 figure, axes = pl.subplots()
+#
+#                 for result_label in result_set.keys():
+#
+#                     result = result_set[result_label]
+#                     vals = result.getValuesAt(flow_plot_tag, t_start, t_end, pop_labels=[pop_plot_label])[0]
+#
+#                     axes.plot(np.arange(t_start, t_end, dt), vals, '-', label=result_label)
+#
+#                 axes.legend()
 
 #            pop_plot_label = self.project.data['pops']['name_labels'][self.pop_plot_name]
             """
@@ -531,32 +571,32 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
 #                                    pop_labels=[pop_plot_label],
 #                                    colors=colors,
 #                                    save_fig=False)
-            
+
 #            figr, axr = pl.subplots()
-#    
+#
 #            for result_label in res_dict.keys():
-#                
+#
 #                result = res_dict[result_label]
 #                try: del vals
 #                except: pass
 #                for label in labels:
 #                    try: vals += result.getValuesAt(label,t_start,t_end,pop_labels=pop_labels)[0]
 #                    except: vals = result.getValuesAt(label,t_start,t_end,pop_labels=pop_labels)[0]
-#                    
+#
 #                try: del den_vals
 #                except: pass
 #                if not den_labels is None:
 #                    for label in den_labels:
 #                        try: den_vals += result.getValuesAt(label,t_start,t_end,pop_labels=pop_labels)[0]
 #                        except: den_vals = result.getValuesAt(label,t_start,t_end,pop_labels=pop_labels)[0]
-#                    
+#
 #                try: axr.plot(np.arange(t_start,t_end,dt), vals/den_vals, '-', label=result_label)
 #                except: axr.plot(np.arange(t_start,t_end,dt), vals, '-', label=result_label)
-#            
+#
 #            axr.legend()
-            
+
             canvas = FigureCanvasQTAgg(figure)
-            
+
             # Create new plotting window
             self.plot_window = qtw.QMainWindow(self)
             self.plot_window.setWindowTitle('%s - %s' % (self.charac_plot_name, self.pop_plot_name))
@@ -652,7 +692,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
         self.table_calibration = qtw.QTableWidget()
         self.table_calibration.cellChanged.connect(self.updateParset)
-        
+
         self.label_autocalibrate = qtw.QLabel('Autocalibration time in seconds... ')
         self.edit_autocalibrate = qtw.QLineEdit()
         self.edit_autocalibrate.setText(str(10))
@@ -713,7 +753,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.status = ('Status: Parameter set "%s" selected for editing' % self.parset_name)
         if not delay_refresh:
             self.refreshVisibility()
-            
+
     def saveCalibration(self):
         parset_name = str(self.edit_overwrite.text())
         if parset_name == '':
@@ -737,7 +777,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.acknowledgeResults()
         self.status = ('Status: Model successfully processed for parameter set "%s"' % self.parset_name)
         self.refreshVisibility()
-        
+
     def autocalibrate(self):
         try:
             calibration_time = float(str(self.edit_autocalibrate.text()))
@@ -749,8 +789,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
             return
         self.status = ('Status: Autocalibrating checked selection of parameter set "%s" for %s seconds' % (self.parset_name, str(calibration_time)))
         self.refreshStatus()
-        try: 
-            self.parset = self.project.runAutofitCalibration(parset = self.parset, target_characs = self.fitted_characs_dict.keys(), max_time = calibration_time, save_parset = False)
+        try:
+            self.parset = self.project.runAutofitCalibration(parset=self.parset, target_characs=self.fitted_characs_dict.keys(), max_time=calibration_time, save_parset=False)
             self.status = ('Status: Autocalibration complete (but unsaved) for parameter set "%s"' % self.parset_name)
         except Exception as e:
             self.status = ('Status: Autocalibration was unsuccessful, perhaps because no parameters were selected to calibrate')
@@ -813,7 +853,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
 #                                    temp.setTextAlignment(qtc.Qt.AlignCenter)
 #                                else:
 #                                    temp.setFlags(qtc.Qt.NoItemFlags)       # Disable the element.
-#                                self.table_calibration.setItem(k * num_pops + pid, 1 + j, temp)          
+#                                self.table_calibration.setItem(k * num_pops + pid, 1 + j, temp)
                     k += 1
         self.table_calibration.setVerticalHeaderLabels(custom_ids)
         self.table_calibration.setHorizontalHeaderLabels(['Scaling Factor\n(Autocalibration Checkbox)'] + [str(int(x)) for x in self.tvec])
@@ -828,7 +868,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         par_label = self.calibration_id_dict[custom_id]['par_label']
         pop_label = self.calibration_id_dict[custom_id]['pop_label']
         par = self.parset.getPar(par_label)
-        
+
         new_val_str = str(self.table_calibration.item(row, col).text())
         if col == 0:
             calib_prefix = ''
@@ -837,7 +877,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
             else:
                 par.autocalibrate[pop_label] = False
                 calib_prefix = 'un'
-            
+
             try:
                 new_val = float(new_val_str)
                 if new_val < 0:
@@ -873,7 +913,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
             par.insertValuePair(t=year, y=new_val, pop_label=pop_label)
             self.status = ('Status: Current edited parameter set uses value "%f" for parameter "%s", population "%s", year "%i"' % (new_val, par_label, pop_label, year))
         self.refreshStatus()
-            
+
 
 
 
