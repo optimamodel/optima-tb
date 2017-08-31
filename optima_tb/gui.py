@@ -825,6 +825,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
                         custom_id = par_name + '\n' + parset.pop_names[pid]
                         custom_ids.append(custom_id)
                         self.calibration_id_dict[custom_id] = {'par_label':par.label, 'pop_label':pop_label}
+                        
+                        # Create autocalibration checkbox column.
                         temp = qtw.QTableWidgetItem()
                         temp.setText(str(par.y_factor[pid]))
                         temp.setTextAlignment(qtc.Qt.AlignCenter)
@@ -834,29 +836,32 @@ class GUICalibration(GUIResultPlotterIntermediate):
                         else:
                             temp.setCheckState(qtc.Qt.Unchecked)
                         self.table_calibration.setItem(k * num_pops + pid, 0, temp)
+                        
+                        # Create data fitting checkbox column.
+                        temp = qtw.QTableWidgetItem()
+                        if par_type == 'characs':
+                            temp.setText(str(1))    # Until calibration weighting is implemented, the default uneditable value will be 1.
+                            temp.setTextAlignment(qtc.Qt.AlignCenter)
+                            temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsUserCheckable)
+                        else:
+                            temp.setFlags(qtc.Qt.NoItemFlags)
+                        if (par.label,pop_label) in self.fitted_characs_dict.keys():
+                            temp.setCheckState(qtc.Qt.Checked)
+                        else:
+                            temp.setCheckState(qtc.Qt.Unchecked)
+                        self.table_calibration.setItem(k * num_pops + pid, 1, temp)
 
                         # Insert the actual values.
-#                        if par_type == 'cascade':
                         for eid in xrange(len(par.t[pid])):
                             t = par.t[pop_label][eid]
                             y = par.y[pop_label][eid]
                             temp = qtw.QTableWidgetItem()
                             temp.setText(str(y))
                             temp.setTextAlignment(qtc.Qt.AlignCenter)
-                            self.table_calibration.setItem(k * num_pops + pid, 1 + int(t) - self.tvec[0], temp)
-#                        elif par_type == 'characs':         # TODO: Find more efficient ways of disabling rows or columns.
-#                            for j in xrange(len(self.tvec)):
-#                                temp = qtw.QTableWidgetItem()
-#                                if j == 0:
-#                                    y = par.interpolate(tvec = [self.tvec[0]], pop_label = pop_label)[0]
-#                                    temp.setText(str(y))
-#                                    temp.setTextAlignment(qtc.Qt.AlignCenter)
-#                                else:
-#                                    temp.setFlags(qtc.Qt.NoItemFlags)       # Disable the element.
-#                                self.table_calibration.setItem(k * num_pops + pid, 1 + j, temp)
+                            self.table_calibration.setItem(k * num_pops + pid, 2 + int(t) - self.tvec[0], temp)
                     k += 1
         self.table_calibration.setVerticalHeaderLabels(custom_ids)
-        self.table_calibration.setHorizontalHeaderLabels(['Scaling Factor\n(Autocalibration Checkbox)'] + [str(int(x)) for x in self.tvec])
+        self.table_calibration.setHorizontalHeaderLabels(['Parameter Scaling Factor\n(Tick: Autocalibrate Parameter)','Data Weighting Factor\n(Tick: Use in Fitting Metric)'] + [str(int(x)) for x in self.tvec])
         self.table_calibration.resizeColumnsToContents()
         self.table_calibration.resizeRowsToContents()
 
@@ -891,7 +896,17 @@ class GUICalibration(GUIResultPlotterIntermediate):
                 self.guard_status = False
                 return
             par.y_factor[pop_label] = new_val
-            self.status = ('Status: Current edited parameter set %smarked for autocalibration uses scaling factor "%f" for parameter "%s", population "%s"' % (calib_prefix, new_val, par_label, pop_label))
+            self.status = ('Status: Current edited parameter set has %smarked parameter "%s", population "%s", for autocalibration, with scaling factor "%f"' % (calib_prefix, par_label, pop_label, new_val))
+        elif col == 1:
+            calib_prefix = 'in'
+            if self.table_calibration.item(row, col).checkState() == qtc.Qt.Checked:
+                self.fitted_characs_dict[(par_label,pop_label)] = True
+            else:
+                try: del self.fitted_characs_dict[(par_label,pop_label)]
+                except: pass
+                calib_prefix = 'ex'
+
+            self.status = ('Status: Current edited parameter set has %scluded parameter "%s", population "%s", in the autocalibration data-fitting metric' % (calib_prefix, par_label, pop_label))
         else:
             year = float(str(self.table_calibration.horizontalHeaderItem(col).text()))
             try:

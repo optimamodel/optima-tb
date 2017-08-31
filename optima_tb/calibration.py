@@ -186,7 +186,7 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
         for pair in target_characs:
             target_data_characs[pair[0]] = project.data['characs'][pair[0]]
         logger.info("Autofit: fitting to the following target characteristics = [%s]"%(",".join(target_data_characs.keys())))
-    print target_data_characs.keys()
+    print target_characs
     
     def calculateObjective(parvec_and_characs):
         '''
