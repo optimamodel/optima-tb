@@ -633,11 +633,14 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.parset = None      # This is the ParameterSet object that stores all edits made in the GUI.
                                 # It should be an (edited) copy, not a reference, to an existing Project ParameterSet.
         self.parset_name = None
+        
         self.combo_parset_dict = {}     # Dictionary that maps Parset names to indices used in combo boxes.
-#        self.col_par_name = 0   # Column index for table calibration parameter names.
-#        self.col_pop_name = 1   # Column index for table calibration population names.
         self.calibration_id_dict = {}   # Dictionary that maps custom calibration-widget label to parameter and population labels.
+        self.par_rows_dict = {}         # Dictionary that maps parameter and characteristic label to the rows of the parset table dedicated to them.
         self.fitted_characs_dict = {}   # Dictionary with characteristic-population label pairs as keys, denoting fitting metric inclusions for autocalibration.
+
+        self.check_option = 'one'   # String that denotes how parset checkboxes will be ticked.
+                                    # Can be 'one', 'par' or 'all', depending whether selection is standard, grouped-across-populations or all-or-nothing.
 
 
     def refreshVisibility(self):
@@ -659,6 +662,10 @@ class GUICalibration(GUIResultPlotterIntermediate):
             self.makeParsetTable()
         else:
             self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+        self.label_check_options.setVisible(does_parset_exist)
+        self.radio_check_normal.setVisible(does_parset_exist)
+        self.radio_check_par.setVisible(does_parset_exist)
+        self.radio_check_all.setVisible(does_parset_exist)
         self.table_calibration.setVisible(does_parset_exist)
 
         self.label_autocalibrate.setVisible(does_parset_exist)
@@ -689,6 +696,15 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.label_parset = qtw.QLabel('Parameter set to edit: ')
         self.combo_parset = qtw.QComboBox(self)
         self.combo_parset.activated[str].connect(self.loadCalibration)
+        
+        self.label_check_options = qtw.QLabel('Toggle Checkbox Selection: ')
+        self.radio_check_normal = qtw.QRadioButton('Normally')
+        self.radio_check_normal.setChecked(True)
+        self.radio_check_normal.toggled.connect(lambda:self.checkOptionState(self.radio_check_normal))
+        self.radio_check_par = qtw.QRadioButton('Across Populations')
+        self.radio_check_par.toggled.connect(lambda:self.checkOptionState(self.radio_check_par))
+        self.radio_check_all = qtw.QRadioButton('By All Possible Parameters')
+        self.radio_check_all.toggled.connect(lambda:self.checkOptionState(self.radio_check_all))
 
         self.table_calibration = qtw.QTableWidget()
         self.table_calibration.cellChanged.connect(self.updateParset)
@@ -715,6 +731,14 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
         grid_parset_load.addWidget(self.label_parset, 0, 0)
         grid_parset_load.addWidget(self.combo_parset, 0, 1)
+        
+        grid_check_option = qtw.QGridLayout()
+        grid_check_option.setSpacing(10)
+        
+        grid_check_option.addWidget(self.label_check_options, 0, 0)
+        grid_check_option.addWidget(self.radio_check_normal, 0, 1)
+        grid_check_option.addWidget(self.radio_check_par, 1, 1)
+        grid_check_option.addWidget(self.radio_check_all, 2, 1)
 
         grid_parset_save = qtw.QGridLayout()
         grid_parset_save.setSpacing(10)
@@ -730,9 +754,24 @@ class GUICalibration(GUIResultPlotterIntermediate):
         grid_parset_save.addWidget(self.button_model_run, 2, 2)
 
         layout.addLayout(grid_parset_load)
+        layout.addLayout(grid_check_option)
         layout.addWidget(self.table_calibration)
         layout.addLayout(grid_parset_save)
 
+    def checkOptionState(self, button):
+        if button.text() == 'Normally':
+            if button.isChecked() == True:
+                self.status = ('Status: Parameters in the table will be ticked and unticked individually')
+                self.check_option = 'one'
+        elif button.text() == 'Across Populations':
+            if button.isChecked() == True:
+                self.status = ('Status: Parameters in the table will be ticked and unticked as a group across populations')
+                self.check_option = 'par'
+        elif button.text() == 'By All Possible Parameters':
+            if button.isChecked() == True:
+                self.status = ('Status: Parameters in the table will be ticked and unticked across the entire parset')
+                self.check_option = 'all'
+        self.refreshStatus()    
 
     def refreshParsetComboBox(self):
         self.combo_parset_dict = {}
@@ -825,6 +864,9 @@ class GUICalibration(GUIResultPlotterIntermediate):
                         custom_id = par_name + '\n' + parset.pop_names[pid]
                         custom_ids.append(custom_id)
                         self.calibration_id_dict[custom_id] = {'par_label':par.label, 'pop_label':pop_label}
+                        if par.label not in self.par_rows_dict.keys():
+                            self.par_rows_dict[par.label] = {}
+                        self.par_rows_dict[par.label][k * num_pops + pid] = True
                         
                         # Create autocalibration checkbox column.
                         temp = qtw.QTableWidgetItem()
@@ -843,12 +885,12 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             temp.setText(str(1))    # Until calibration weighting is implemented, the default uneditable value will be 1.
                             temp.setTextAlignment(qtc.Qt.AlignCenter)
                             temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsUserCheckable)
+                            if (par.label,pop_label) in self.fitted_characs_dict.keys():
+                                temp.setCheckState(qtc.Qt.Checked)
+                            else:
+                                temp.setCheckState(qtc.Qt.Unchecked)
                         else:
                             temp.setFlags(qtc.Qt.NoItemFlags)
-                        if (par.label,pop_label) in self.fitted_characs_dict.keys():
-                            temp.setCheckState(qtc.Qt.Checked)
-                        else:
-                            temp.setCheckState(qtc.Qt.Unchecked)
                         self.table_calibration.setItem(k * num_pops + pid, 1, temp)
 
                         # Insert the actual values.
@@ -878,8 +920,26 @@ class GUICalibration(GUIResultPlotterIntermediate):
         if col == 0:
             calib_prefix = ''
             if self.table_calibration.item(row, col).checkState() == qtc.Qt.Checked:
+                if not self.guard_status:   # Used here, this is a guard against recursion.
+                    self.guard_status = True
+                    if self.check_option == 'all':
+                        for other_row in xrange(self.table_calibration.rowCount()):
+                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
+                    elif self.check_option == 'par':
+                        for other_row in self.par_rows_dict[par_label].keys():
+                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
+                    self.guard_status = False
                 par.autocalibrate[pop_label] = True
             else:
+                if not self.guard_status:   # Used here, this is a guard against recursion.
+                    self.guard_status = True
+                    if self.check_option == 'all':
+                        for other_row in xrange(self.table_calibration.rowCount()):
+                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
+                    elif self.check_option == 'par':
+                        for other_row in self.par_rows_dict[par_label].keys():
+                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
+                    self.guard_status = False
                 par.autocalibrate[pop_label] = False
                 calib_prefix = 'un'
 
@@ -900,8 +960,28 @@ class GUICalibration(GUIResultPlotterIntermediate):
         elif col == 1:
             calib_prefix = 'in'
             if self.table_calibration.item(row, col).checkState() == qtc.Qt.Checked:
+                if not self.guard_status:   # Used here, this is a guard against recursion.
+                    self.guard_status = True
+                    if self.check_option == 'all':
+                        for other_row in xrange(self.table_calibration.rowCount()):
+                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
+                    elif self.check_option == 'par':
+                        for other_row in self.par_rows_dict[par_label].keys():
+                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
+                    self.guard_status = False
                 self.fitted_characs_dict[(par_label,pop_label)] = True
             else:
+                if not self.guard_status:   # Used here, this is a guard against recursion.
+                    self.guard_status = True
+                    if self.check_option == 'all':
+                        for other_row in xrange(self.table_calibration.rowCount()):
+                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
+                    elif self.check_option == 'par':
+                        for other_row in self.par_rows_dict[par_label].keys():
+                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
+                    self.guard_status = False
                 try: del self.fitted_characs_dict[(par_label,pop_label)]
                 except: pass
                 calib_prefix = 'ex'
