@@ -390,6 +390,8 @@ class PlottingSettings():
         self.plotdict = {  # scatter plotting values
                          'marker' : 'o',
                          'facecolors' : 'none',
+                         'marker_color': 'k',
+                         'hatch_bg' : 'white',
                          's' : 40,
                          # axes format
                          'year_inc':5,

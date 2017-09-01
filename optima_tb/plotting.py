@@ -21,6 +21,10 @@ CMAPS = ['Blues', 'Purples', 'Reds', 'Oranges', 'Greys', 'Greens', ]
 PLOTTYPE_LINE = "line"
 PLOTTYPE_STACKED = "stacked"
 
+COMPARETYPE_RESULT = 'result'
+COMPARETYPE_POP = 'pop'
+COMPARETYPE_VALUE = 'output'
+
 # %% Function to generate useful colormap for plots
 
 def gridColorMap(ncolors=10, limits=None, nsteps=10, asarray=False, doplot=False, newwindow=True):
@@ -340,7 +344,7 @@ def plotResult(proj, result, output_labels, pop_labels=None,
     
     """
     for out_label in output_labels:
-        fig = innerPlotTrend(proj, [result], [out_label], compare_results=False, pop_labels=pop_labels,
+        fig = innerPlotTrend(proj, [result], [out_label], compare_type=COMPARETYPE_POP, pop_labels=pop_labels,
                              plot_total=plot_total, plot_type=plot_type,
                              plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                              colormappings=colormappings, colors=colors, linestyles=linestyles,
@@ -402,7 +406,7 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
     """
     for out_label in output_labels:
         if plot_total:
-            return innerPlotTrend(proj, resultset, [out_label], compare_results=True, pop_labels=pop_labels, plot_total=True,
+            return innerPlotTrend(proj, resultset, [out_label], compare_type=COMPARETYPE_RESULT, pop_labels=pop_labels, plot_total=True,
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                    colormappings=colormappings, colors=colors, linestyles=linestyles,
                    title=title, save_fig=save_fig, fig_name=fig_name)
@@ -412,14 +416,14 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
                 pop_labels = getPops(resultset[0])
             # plot for each population
             for pop in pop_labels:
-                fig = innerPlotTrend(proj, resultset, [out_label], compare_results=True, pop_labels=[pop], plot_total=True,
+                fig = innerPlotTrend(proj, resultset, [out_label], compare_type=COMPARETYPE_RESULT, pop_labels=[pop], plot_total=True,
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                    colormappings=colormappings, colors=colors, linestyles=linestyles,
                    title=title, save_fig=save_fig, fig_name=fig_name + '_%s' % pop)
             logger.info("Created multiple plots for plotCompareResults for multiple populations. Returning last plot created")
     return fig # return last
 
-def innerPlotTrend(proj, resultset, output_labels, compare_results=False, compare_compartments=False,
+def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
                    pop_labels=None, plot_total=False, plot_type=None,
                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, cat_labels=None,
@@ -474,20 +478,28 @@ def innerPlotTrend(proj, resultset, output_labels, compare_results=False, compar
     if plot_type is None:
         plot_type = PLOTTYPE_LINE
 
-    if compare_results:
+
+    if compare_type == COMPARETYPE_RESULT:
         series_labels = resultset.keys()
-    elif compare_compartments:
+    elif compare_type == COMPARETYPE_VALUE:
         series_labels = output_labels
-    elif plot_total:
-        series_labels = ['Total']
+    elif compare_type == COMPARETYPE_POP:
+        if plot_total:
+            series_labels = ['Total']
+        else:
+            series_labels = pop_labels
     else:
+        logger.info("Plotting: compare_type not specified, assuming comparing populations")
         series_labels = pop_labels
+
+
+    if observed_data_label is None:
+        observed_data_label = output_labels[0]
 
     if cat_labels is not None:
         legend_labels = cat_labels
     else:
         legend_labels = series_labels
-    print "Legend labels ====", legend_labels
 
     if len(output_labels) == 1:
         name = output_labels[0]
@@ -531,8 +543,7 @@ def innerPlotTrend(proj, resultset, output_labels, compare_results=False, compar
     for value_label in output_labels:
 
         # get values
-        if compare_results:
-            print "A"
+        if compare_type == COMPARETYPE_RESULT:
             # we loop over results for a single population set
             for resultname in resultset.keys():
                 result = resultset[resultname]
@@ -540,8 +551,7 @@ def innerPlotTrend(proj, resultset, output_labels, compare_results=False, compar
                 ys.append(y)
                 ts.append(t)
 
-        elif compare_compartments:
-            print "B"
+        elif compare_type == COMPARETYPE_VALUE:
             result = resultset[0]
             y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
             y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
@@ -549,16 +559,14 @@ def innerPlotTrend(proj, resultset, output_labels, compare_results=False, compar
             ts.append(t)
 
         else: # alternatively, we loop over populations for a single result
-            print "C ---",
             result = resultset[0]
             if plot_total:
-                print "D"
+
                 y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
                 y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
                 ys = [y]
                 ts = [t]
             else:
-                print "E"
                 for pop in pop_labels:
                     y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop, integrated=False)
                     y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
@@ -567,10 +575,10 @@ def innerPlotTrend(proj, resultset, output_labels, compare_results=False, compar
 
     # get observed data points
     if plot_observed_data:
-        dataobs = _extractDatapoint(data, value_label, pop_labels, charac_specs, plot_total=plot_total)
+        dataobs = _extractDatapoint(data, observed_data_label, pop_labels, charac_specs, plot_total=plot_total)
         dataobs, unit_tag = _convertPercentage(dataobs, value_label, pop_labels, charac_specs)
 
-    fullname = getName(value_label, settings)
+    fullname = getName(observed_data_label, settings)
     if plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
         name = fullname
 
@@ -670,15 +678,13 @@ def plotScenarioBar (scen_results, scen_labels, settings, data, output_list=None
         # classes of budgets
         separateLegend(labels=output, colors=cat_colors, fig_name=fig_name, reverse_order=True, **legendsettings)
 
-def plotPop2(proj, results, output_labels=None, pop_labels=None,
+def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=None,
                plot_total=False, plot_type=None,
                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, cat_labels=None,
                title="", save_fig=False, fig_name=None):
     """
-    TODO:
-        ylabel
-        observed data label
+
     """
     sim_settings = results.sim_settings
     # setup: determine compartment indices to be plotted
@@ -690,9 +696,9 @@ def plotPop2(proj, results, output_labels=None, pop_labels=None,
 
     if plot_total:
         fig = innerPlotTrend(proj, [results], output_labels=output_labels,
-                   compare_results=False, compare_compartments=True,
-                   pop_labels=pop_labels, plot_total=True, plot_type='stacked',
-                   plot_observed_data=False, observed_data_label=['alive'],
+                   compare_type=COMPARETYPE_VALUE,
+                   pop_labels=pop_labels, plot_total=plot_total, plot_type='stacked',
+                   plot_observed_data=False, observed_data_label='alive',
                    colormappings=colormappings, colors=colors, cat_labels=cat_labels,
                    save_fig=save_fig, fig_name=fig_name)
     else:
@@ -701,13 +707,14 @@ def plotPop2(proj, results, output_labels=None, pop_labels=None,
             # plot for each population
         for pop in pop_labels:
             fig = innerPlotTrend(proj, [results], output_labels=output_labels,
-                   compare_results=False, compare_compartments=True,
-                   pop_labels=pop, plot_total=True, plot_type='stacked',
-                   plot_observed_data=False, observed_data_label=['alive'],
+                   compare_type=COMPARETYPE_VALUE,
+                   pop_labels=[pop], plot_total=plot_total, plot_type='stacked',
+                   plot_observed_data=True, observed_data_label='alive',
                    colormappings=colormappings, colors=colors, cat_labels=cat_labels,
                    save_fig=save_fig, fig_name="%s_%s" % (fig_name, pop))
         logger.info("Created multiple plots for plotCompareResults for multiple populations. Returning last plot created")
 
+    return True
 
 
 def plotPopulation(results, data, pop_labels=None, title='', colormappings=None,
@@ -1276,16 +1283,18 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
             # keep track of max y-value seen, as sometimes plotting can rescale
             if np.max(yval[indices]) > ymax_val:
                 ymax_val = np.max(yval[indices])
+            scatter_color = colors[k]
         elif plot_type == PLOTTYPE_STACKED:
             top = bottom + yval
-            lw = 0.1
+            lw = 1.
             if hatches[k] is None:
                 ec = colors[k]
             else:
-                ec = 'white' # TODO remove magic variable
+                ec = kwargs['hatch_bg'] # TODO remove magic variable
             ax.fill_between(ts[0], bottom, top, facecolor=colors[k], alpha=1, lw=lw, hatch=hatches[k], edgecolor=ec)  # for some reason, lw=0 leads to no plot if we then use fig.savefig()
             reg, = ax.plot((0, 0), (0, 0), color=colors[k], linewidth=10)  # TODO fix this by using xlims and ylims appropriately
             bottom = dcp(top)
+            scatter_color = kwargs['marker_color']
         else:
             logger.error("Unknown plot_type = %s. Aborting plotting" % plot_type)
 
@@ -1293,7 +1302,7 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
         if len(y_hat) > 0:
             try:
                 if len(y_hat[k]) > 0:  # i.e. we've seen observable data
-                    ax.scatter(t_hat[k], y_hat[k], marker=marker, edgecolors=colors[k], facecolors=facecolors, s=s, zorder=zorder, linewidth=linewidth)
+                    ax.scatter(t_hat[k], y_hat[k], marker=marker, edgecolors=scatter_color, facecolors=facecolors, s=s, zorder=zorder, linewidth=linewidth)
                     # update min and max y based on observed datapoints
                     try:
                         if np.min(y_hat[k]) < ymin_val:
