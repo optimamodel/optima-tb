@@ -393,15 +393,15 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             cid += 1
 
         for flow_label in self.project.settings.linkpar_specs.keys():
-            """
+            
             if 'tag' in self.project.settings.linkpar_specs[flow_label]:
                 flow_name = self.project.settings.linkpar_specs[flow_label]['name']
                 self.combo_charac_dict[flow_name] = cid
                 self.combo_plotter_charac.addItem(flow_name)
                 cid += 1
-            """
+            
             # Add flowrates that are publishable by 'output' tag
-            if 'output' in self.project.settings.linkpar_specs[flow_label] and self.project.settings.linkpar_specs[flow_label]['output'] == 'y':
+            elif 'output' in self.project.settings.linkpar_specs[flow_label] and self.project.settings.linkpar_specs[flow_label]['output'] == 'y':
                 flow_name = self.project.settings.linkpar_specs[flow_label]['name']
                 self.combo_charac_dict[flow_name] = cid
                 self.combo_plotter_charac.addItem(flow_name)
@@ -494,12 +494,16 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
                 logger.info("GUI plot characteristic: %s" % plot_label)
             except:
                 try:
-                    flow_plot_label = self.project.settings.linkpar_name_labels[self.charac_plot_name]
-                    # tag_plot_label = self.project.settings.linkpar_specs[flow_plot_label]['tag']
-                    plot_label = flow_plot_label
-                    logger.info("GUI plot link: %s" % plot_label)
+                    plot_label = self.project.settings.linkpar_name_labels[self.charac_plot_name]
+                    try:
+                        # Convert the parameter label to a transition tag if possible, so as to derive effective flow rate.
+                        # TODO: Sort out getValuesAt() structure at some point to avoid potential label/tag confusion.
+                        plot_label = self.project.settings.linkpar_specs[plot_label]['tag']
+                        logger.info("GUI plot effective flow: %s" % plot_label)
+                    except:
+                        logger.info("GUI plot 'output' parameter: %s" % plot_label)
                 except:
-                    logger.info("Unable to plot label=%s" % self.charac_plot_name)
+                    logger.info('Unable to plot for "%s"' % self.charac_plot_name)
 
 
 #                result_set = odict()
