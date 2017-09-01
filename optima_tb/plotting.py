@@ -1055,7 +1055,7 @@ def plotPopulation(results, data, pop_labels=None, title='', colormappings=None,
                            'ncol':ncol}
 
         _plotStackedCompartments(tvec, y_values[i][:], labels,
-                                 legendsettings=legendsettings, catlabels=cat_labels, catcolors=colors,
+                                 catlabels=cat_labels, catcolors=colors, # legendsettings=legendsettings,
                                  # save_fig=save_fig, save_figname=save_figname,
                                  **pdict)
 
