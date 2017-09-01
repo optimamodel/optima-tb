@@ -49,8 +49,11 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
             if 'pops_to_fit' in obs_data[char] and not pop in obs_data[char]['pops_to_fit']:
                 score.append(s*0.0)     # TODO: There must be an easier way to avoid fit calculations for deselected populations.
             else:
+#                print y_obs
+#                print y_fit
                 score.append(s)
-    
+#        print obs_data[char]['pops_to_fit']
+#    print score
     return np.concatenate(score).ravel()
     
 def _getFitscoreFunc(metric):
@@ -166,8 +169,8 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     charac_minmax = [(0,np.inf) for i in charac_pop_labels]
     minmax += charac_minmax
     
-    print par_pop_labels
-    print charac_pop_labels
+#    print par_pop_labels
+#    print charac_pop_labels
     
     
     if len(paramvec)+len(compartment_init) == 0:
@@ -189,7 +192,8 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     else:
         target_data_characs = odict()
         for pair in target_characs:
-            target_data_characs[pair[0]] = dcp(project.data['characs'][pair[0]])
+            if not pair[0] in target_data_characs:
+                target_data_characs[pair[0]] = dcp(project.data['characs'][pair[0]])
             if 'pops_to_fit' not in target_data_characs[pair[0]]:
                 target_data_characs[pair[0]]['pops_to_fit'] = {}
             target_data_characs[pair[0]]['pops_to_fit'][pair[1]] = True
@@ -211,7 +215,7 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
             logger.warning("Autocalibration tested a parameter set that was invalid. Skipping iteration.")
             return np.inf
         datapoints, _, _ = results.getCharacteristicDatapoints()
-        score = calculateFitFunc(datapoints,results.t_observed_data,target_data_characs,metric)
+        score = calculateFitFunc(datapoints,results.t_step,target_data_characs,metric)
         try: score = sum(score)
         except: pass
         return score
