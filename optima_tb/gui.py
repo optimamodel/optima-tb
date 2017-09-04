@@ -64,7 +64,7 @@ def sanitizedFileDialog(instance=None, which=None, title=None):
         raise Exception('The argument "which" must be either "open" or "save", not %s' % which)
     return path
 
-# %% GUI classes
+# %% Wrapper GUI class
 
 class GUI(qtw.QWidget):
 
@@ -77,8 +77,10 @@ class GUI(qtw.QWidget):
 
         self.setWindowTitle('GUI selection screen')
 
-        self.button_calibration = qtw.QPushButton('Exploring the epidemic', self)
+        self.button_calibration = qtw.QPushButton('Parameter Calibration', self)
         self.button_calibration.clicked.connect(self.runGUICalibration)
+        self.button_reconciliation = qtw.QPushButton('Progam Reconciliation', self)
+        self.button_reconciliation.clicked.connect(self.runGUIReconciliation)
         self.button_scenario_parameter = qtw.QPushButton('Parameter scenario', self)
         self.button_scenario_parameter.clicked.connect(self.runGUIParameterScenario)
         self.button_scenario_budget = qtw.QPushButton('Budget scenario', self)
@@ -97,6 +99,9 @@ class GUI(qtw.QWidget):
 
     def runGUICalibration(self):
         self.sub_gui = GUICalibration()
+        
+    def runGUIReconciliation(self):
+        self.sub_gui = GUIReconciliation()
 
     def runGUIParameterScenario(self):
         self.sub_gui = GUIParameterScenario()
@@ -104,6 +109,7 @@ class GUI(qtw.QWidget):
     def runGUIBudgetScenario(self):
         self.sub_gui = GUIBudgetScenario()
 
+# %% GUI class for project management
 
 # A base GUI class that enables project creation, import and export.
 class GUIProjectManagerBase(qtw.QMainWindow):
@@ -234,6 +240,7 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         if not self.guard_status:
             self.statusBar().showMessage(self.status)
 
+# %% GUI class for result plotting
 
 # An intermediate GUI class that extends project management and allows for result comparison.
 class GUIResultPlotterIntermediate(GUIProjectManagerBase):
@@ -459,21 +466,6 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         print self.result_1_plot_name
         print self.result_2_plot_name
         print "------"
-#        if self.result_1_plot_name is None or self.result_2_plot_name is None:
-#            self.status = ('Status: Plotting default selection(s)')
-#            self.refreshVisibility()
-#            try:
-#                print "Showing plot #61"
-#                defaultkey = self.project.results.keys()[61] # For Moldova workshop, choose Active prevalence
-#
-#            except:
-#                print "Showing default plot #0"
-#            defaultkey = self.project.results.keys()[0] # If not selected, just pick the first key
-#
-#            if self.result_1_plot_name is None:
-#                self.result_1_plot_name = defaultkey
-#            if self.result_2_plot_name is None:
-#                self.result_2_plot_name = defaultkey
 
         if self.charac_plot_name is not None and self.pop_plot_name is not None:
 
@@ -505,20 +497,6 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
                 except:
                     logger.info('Unable to plot for "%s"' % self.charac_plot_name)
 
-
-#                result_set = odict()
-#                result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
-#                result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
-#                 figure = plotScenarios(result_set, scen_labels=['%s' % self.result_1_plot_name, '%s' % self.result_2_plot_name],
-#                                         settings=self.project.settings,
-#                                         data=self.project.data,
-#                                         plot_observed_data=True,
-#                                         plot_charac=[charac_plot_label],
-#                                         pop_labels=[pop_plot_label],
-#                                         colors=colors,
-#                                         save_fig=False)
-
-
             figure = plotCompareResults(self.project,
                                        result_set,
                                        output_labels=[plot_label],
@@ -527,77 +505,6 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
                                        plot_total=True,
                                        colors=colors,
                                        save_fig=False)
-
-#             except:
-#                 flow_plot_label = self.project.settings.linkpar_name_labels[self.charac_plot_name]
-#                 flow_plot_tag = self.project.settings.linkpar_specs[flow_plot_label]['tag']
-#                 t_start = self.project.settings.tvec_start
-#                 t_end = self.project.settings.tvec_end
-#                 dt = self.project.settings.tvec_dt
-#
-#                 figure, axes = pl.subplots()
-#
-#                 for result_label in result_set.keys():
-#
-#                     result = result_set[result_label]
-#                     vals = result.getValuesAt(flow_plot_tag, t_start, t_end, pop_labels=[pop_plot_label])[0]
-#
-#                     axes.plot(np.arange(t_start, t_end, dt), vals, '-', label=result_label)
-#
-#                 axes.legend()
-
-#            pop_plot_label = self.project.data['pops']['name_labels'][self.pop_plot_name]
-            """
-            y_values_cur, t_values_cur = self.project.results[self.result_1_plot_name].getValuesAt(label=charac_plot_label, year_init=self.tvec[0], year_end=self.tvec[-1], pop_labels=[pop_plot_label])
-            y_values_com, t_values_com = self.project.results[self.result_2_plot_name].getValuesAt(label=charac_plot_label, year_init=self.tvec[0], year_end=self.tvec[-1], pop_labels=[pop_plot_label])
-
-            try: y_data = self.project.data['characs'][charac_plot_label][pop_plot_label]['y']
-            except: y_data = []
-            try: t_data = self.project.data['characs'][charac_plot_label][pop_plot_label]['t']
-            except: t_data = []
-
-            figure = _plotLine(ys=[y_values_cur, y_values_com], ts=[t_values_cur, t_values_com],
-                               title=self.charac_plot_name,
-                               labels=['%s' % self.result_1_plot_name, '%s' % self.result_2_plot_name],
-                               y_hat=[y_data, y_data], t_hat=[t_data, t_data])
-            """
-            # scen_results, scen_labels, settings, data, plot_charac=None, pop_labels=None,
-#                   percentage_relative_to=None, y_intercept=None, ylabel=None,
-#                   colormappings=None, colors=None, plot_observed_data=False, save_fig=False, fig_name=None
-#            result_set = odict()
-#            result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
-#            result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
-#            figure = plotScenarios(result_set, scen_labels=['%s' % self.result_1_plot_name, '%s' % self.result_2_plot_name],
-#                                    settings=self.project.settings,
-#                                    data=self.project.data,
-#                                    plot_observed_data=True,
-#                                    plot_charac=[charac_plot_label],
-#                                    pop_labels=[pop_plot_label],
-#                                    colors=colors,
-#                                    save_fig=False)
-
-#            figr, axr = pl.subplots()
-#
-#            for result_label in res_dict.keys():
-#
-#                result = res_dict[result_label]
-#                try: del vals
-#                except: pass
-#                for label in labels:
-#                    try: vals += result.getValuesAt(label,t_start,t_end,pop_labels=pop_labels)[0]
-#                    except: vals = result.getValuesAt(label,t_start,t_end,pop_labels=pop_labels)[0]
-#
-#                try: del den_vals
-#                except: pass
-#                if not den_labels is None:
-#                    for label in den_labels:
-#                        try: den_vals += result.getValuesAt(label,t_start,t_end,pop_labels=pop_labels)[0]
-#                        except: den_vals = result.getValuesAt(label,t_start,t_end,pop_labels=pop_labels)[0]
-#
-#                try: axr.plot(np.arange(t_start,t_end,dt), vals/den_vals, '-', label=result_label)
-#                except: axr.plot(np.arange(t_start,t_end,dt), vals, '-', label=result_label)
-#
-#            axr.legend()
 
             canvas = FigureCanvasQTAgg(figure)
 
@@ -612,8 +519,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             self.plot_window.setCentralWidget(canvas)
             self.plot_window.show()
 
-
-
+# %% GUI class for parameter calibration
 
 class GUICalibration(GUIResultPlotterIntermediate):
 
@@ -623,8 +529,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
 
     def initUICalibration(self):
-#         self.setWindowTitle('Manual calibration')
-        self.setWindowTitle('Exploring the epidemic')
+        self.setWindowTitle('Parameter calibration')
         self.resetAttributes()
         self.refreshVisibility()
         self.show()
@@ -1020,9 +925,411 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.refreshStatus()
 
 
+# %% GUI class for program reconciliation
+
+class GUIReconciliation(GUIResultPlotterIntermediate):
+
+    def __init__(self):
+        super(GUIReconciliation, self).__init__()
+        self.initUIReconciliation()
 
 
+    def initUIReconciliation(self):
+        self.setWindowTitle('Program reconciliation')
+        self.resetAttributes()
+        self.refreshVisibility()
+        self.show()
 
+
+    def resetAttributes(self):
+        self.resetAttributesProjectManager()
+        self.resetAttributesResultPlotter()
+
+        self.progset = None             # This is the ProgramSet object that stores all edits made in the GUI.
+                                        # It should be an (edited) copy, not a reference, to an existing Project ProgramSet.
+        
+        self.parset_name = None
+        self.progset_name = None
+        self.combo_parset_dict = {}     # Dictionary that maps ParameterSet names to indices used in combo boxes.
+        self.combo_progset_dict = {}    # Dictionary that maps ProgramSet names to indices used in combo boxes.
+
+    def refreshVisibility(self):
+        self.refreshVisibilityProjectManager()
+        self.refreshVisibilityResultPlotter()
+
+        is_project_loaded = self.project is not None
+        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
+        does_progset_exist = is_project_loaded and len(self.project.progsets.keys()) > 0
+
+        if is_project_loaded:
+            self.refreshParsetComboBox()
+        self.label_parset.setVisible(is_project_loaded)
+        self.combo_parset.setVisible(is_project_loaded)
+
+        policy_min = qtw.QSizePolicy.Minimum
+        policy_exp = qtw.QSizePolicy.Expanding
+        if does_progset_exist:
+            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_min)
+#            self.makeProgsetTable()
+        else:
+            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+        self.label_check_options.setVisible(does_parset_exist)
+#        self.radio_check_normal.setVisible(does_parset_exist)
+#        self.radio_check_par.setVisible(does_parset_exist)
+#        self.radio_check_all.setVisible(does_parset_exist)
+#        self.table_calibration.setVisible(does_parset_exist)
+#
+#        self.label_autocalibrate.setVisible(does_parset_exist)
+#        self.edit_autocalibrate.setVisible(does_parset_exist)
+#        self.button_autocalibrate.setVisible(does_parset_exist)
+        self.label_overwrite.setVisible(does_progset_exist)
+        self.edit_overwrite.setVisible(does_progset_exist)
+        self.button_overwrite.setVisible(does_progset_exist)
+        self.label_model_run.setVisible(does_progset_exist)
+        self.edit_model_run.setVisible(does_progset_exist)
+        self.button_model_run.setVisible(does_progset_exist)
+
+
+    def acknowledgeProject(self):
+        self.acknowledgeProjectProjectManager()
+        self.acknowledgeProjectResultPlotter()
+        if not self.project is None:
+            if len(self.project.parsets) < 1:
+                self.project.makeParset(name='default')
+            self.loadCalibration(self.project.parsets[0].name, delay_refresh=True)
+            if len(self.project.progsets) < 1:
+                self.project.makeProgset(name='default')
+            self.loadPrograms(self.project.progsets[0].name, delay_refresh=True)
+
+
+    # While UI initialisation can extend the interface, this method is where widgets for the core process should be set up.
+    def developLayout(self, layout):
+        self.developLayoutResultPlotter()
+
+        # Widgets.
+        self.label_parset = qtw.QLabel('Parameter set to edit: ')
+        self.combo_parset = qtw.QComboBox(self)
+        self.combo_parset.activated[str].connect(self.loadCalibration)
+        
+#        self.label_check_options = qtw.QLabel('Toggle Checkbox Selection: ')
+#        self.radio_check_normal = qtw.QRadioButton('Normally')
+#        self.radio_check_normal.setChecked(True)
+#        self.radio_check_normal.toggled.connect(lambda:self.checkOptionState(self.radio_check_normal))
+#        self.radio_check_par = qtw.QRadioButton('Across Populations')
+#        self.radio_check_par.toggled.connect(lambda:self.checkOptionState(self.radio_check_par))
+#        self.radio_check_all = qtw.QRadioButton('By All Possible Parameters')
+#        self.radio_check_all.toggled.connect(lambda:self.checkOptionState(self.radio_check_all))
+
+#        self.table_calibration = qtw.QTableWidget()
+#        self.table_calibration.cellChanged.connect(self.updateParset)
+
+#        self.label_autocalibrate = qtw.QLabel('Autocalibration time in seconds... ')
+#        self.edit_autocalibrate = qtw.QLineEdit()
+#        self.edit_autocalibrate.setText(str(10))
+#        self.button_autocalibrate = qtw.QPushButton('Autocalibrate Parameters', self)
+#        self.button_autocalibrate.clicked.connect(self.autocalibrate)
+
+        self.label_overwrite = qtw.QLabel('Save edits to... ')
+        self.edit_overwrite = qtw.QLineEdit()
+        self.button_overwrite = qtw.QPushButton('Save program set', self)
+        self.button_overwrite.clicked.connect(self.saveProgset)
+
+        self.label_model_run = qtw.QLabel('Run & save program-based model results as... ')
+        self.edit_model_run = qtw.QLineEdit()
+        self.button_model_run = qtw.QPushButton('Generate results', self)
+        self.button_model_run.clicked.connect(self.runProgset)
+
+        # Layout.
+        grid_parset_load = qtw.QGridLayout()
+        grid_parset_load.setSpacing(10)
+
+        grid_parset_load.addWidget(self.label_parset, 0, 0)
+        grid_parset_load.addWidget(self.combo_parset, 0, 1)
+        
+#        grid_check_option = qtw.QGridLayout()
+#        grid_check_option.setSpacing(10)
+#        
+#        grid_check_option.addWidget(self.label_check_options, 0, 0)
+#        grid_check_option.addWidget(self.radio_check_normal, 0, 1)
+#        grid_check_option.addWidget(self.radio_check_par, 1, 1)
+#        grid_check_option.addWidget(self.radio_check_all, 2, 1)
+
+        grid_progset_save = qtw.QGridLayout()
+        grid_progset_save.setSpacing(10)
+
+#        grid_parset_save.addWidget(self.label_autocalibrate, 0, 0)
+#        grid_parset_save.addWidget(self.edit_autocalibrate, 0, 1)
+#        grid_parset_save.addWidget(self.button_autocalibrate, 0, 2)
+        grid_parset_save.addWidget(self.label_overwrite, 1, 0)
+        grid_parset_save.addWidget(self.edit_overwrite, 1, 1)
+        grid_parset_save.addWidget(self.button_overwrite, 1, 2)
+        grid_parset_save.addWidget(self.label_model_run, 2, 0)
+        grid_parset_save.addWidget(self.edit_model_run, 2, 1)
+        grid_parset_save.addWidget(self.button_model_run, 2, 2)
+
+        layout.addLayout(grid_parset_load)
+#        layout.addLayout(grid_check_option)
+#        layout.addWidget(self.table_calibration)
+        layout.addLayout(grid_progset_save)
+
+#    def checkOptionState(self, button):
+#        if button.text() == 'Normally':
+#            if button.isChecked() == True:
+#                self.status = ('Status: Parameters in the table will be ticked and unticked individually')
+#                self.check_option = 'one'
+#        elif button.text() == 'Across Populations':
+#            if button.isChecked() == True:
+#                self.status = ('Status: Parameters in the table will be ticked and unticked as a group across populations')
+#                self.check_option = 'par'
+#        elif button.text() == 'By All Possible Parameters':
+#            if button.isChecked() == True:
+#                self.status = ('Status: Parameters in the table will be ticked and unticked across the entire parset')
+#                self.check_option = 'all'
+#        self.refreshStatus()    
+#
+#    def refreshParsetComboBox(self):
+#        self.combo_parset_dict = {}
+#        self.combo_parset.clear()
+#        pid = 0
+#        print self.project.parsets.keys()
+#        for parset_name in self.project.parsets.keys():
+#            self.combo_parset_dict[parset_name] = pid
+#            self.combo_parset.addItem(parset_name)
+#            pid += 1
+#        try: self.combo_parset.setCurrentIndex(self.combo_parset_dict[self.parset_name])
+#        except: pass
+#
+#    def loadCalibration(self, parset_name, delay_refresh=False):
+#        self.parset_name = str(parset_name)
+#        self.parset = dcp(self.project.parsets[self.parset_name])
+#        self.fitted_characs_dict = {pair:True for pair in it.product(self.parset.par_ids['characs'].keys(), self.parset.pop_labels)}
+#        self.status = ('Status: Parameter set "%s" selected for editing' % self.parset_name)
+#        if not delay_refresh:
+#            self.refreshVisibility()
+#
+#    def saveCalibration(self):
+#        parset_name = str(self.edit_overwrite.text())
+#        if parset_name == '':
+#            self.status = ('Status: Attempt to save parameter set failed, no name provided')
+#        else:
+#            if parset_name in self.project.parsets.keys():
+#                self.status = ('Status: Parameter set "%s" successfully overwritten' % parset_name)
+#            else:
+#                self.status = ('Status: New parameter set "%s" added to project' % parset_name)
+#            self.parset.name = parset_name
+#            self.project.parsets[parset_name] = dcp(self.parset)
+#        self.refreshVisibility()
+#
+#    def runCalibration(self):
+#        self.status = ('Status: Running model for parameter set "%s"' % self.parset_name)
+#        self.refreshStatus()
+#        result_name = str(self.edit_model_run.text())
+#        if result_name == '':
+#            result_name = None
+#        self.project.runSim(parset=self.parset, store_results=True, result_type='calibration', result_name=result_name)
+#        self.acknowledgeResults()
+#        self.status = ('Status: Model successfully processed for parameter set "%s"' % self.parset_name)
+#        self.refreshVisibility()
+#
+#    def autocalibrate(self):
+#        try:
+#            calibration_time = float(str(self.edit_autocalibrate.text()))
+#            if calibration_time < 0:
+#                raise Exception('autocalibration time cannot be negative')
+#        except Exception as E:
+#            self.status = ('Status: Autocalibration aborted because "%s"' % E.message)
+#            self.refreshStatus()
+#            return
+#        self.status = ('Status: Autocalibrating checked selection of parameter set "%s" for %s seconds' % (self.parset_name, str(calibration_time)))
+#        self.refreshStatus()
+#        try:
+#            self.parset = self.project.runAutofitCalibration(parset=self.parset, target_characs=self.fitted_characs_dict.keys(), max_time=calibration_time, save_parset=False)
+#            self.status = ('Status: Autocalibration complete (but unsaved) for parameter set "%s"' % self.parset_name)
+#        except Exception as e:
+#            self.status = ('Status: Autocalibration was unsuccessful, perhaps because no parameters were selected to calibrate or no parameter-associated data was chosen to fit against')
+#        self.refreshVisibility()
+#
+#    def makeParsetTable(self):
+#        self.table_calibration.setVisible(False)    # Resizing columns requires table to be hidden first.
+#        self.table_calibration.clear()
+#
+#        # Disconnect the calibration table from cell change signals to avoid signal flooding during connection.
+#        try: self.table_calibration.cellChanged.disconnect()
+#        except: pass
+#
+#        parset = self.parset
+#        num_pops = len(parset.pop_labels)
+#        row_count = num_pops * (len(parset.pars['cascade']) - len(self.project.settings.par_funcs))
+#        self.table_calibration.setRowCount(row_count)
+#        self.table_calibration.setColumnCount(len(self.tvec))
+#        self.calibration_items = []
+#
+#        k = 0
+#        custom_ids = []
+#        for par_type in ['characs', 'cascade']:
+#            for par in parset.pars[par_type]:
+#                if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or 
+#                    (par_type == 'characs')): #and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
+#                    for pid in xrange(len(parset.pop_labels)):
+#                        pop_label = parset.pop_labels[pid]
+#                        try:
+#                            par_name = self.project.settings.linkpar_specs[par.label]['name']
+#                        except:
+#                            par_name = self.project.settings.charac_specs[par.label]['name']
+#                        custom_id = par_name + '\n' + parset.pop_names[pid]
+#                        custom_ids.append(custom_id)
+#                        self.calibration_id_dict[custom_id] = {'par_label':par.label, 'pop_label':pop_label}
+#                        if par.label not in self.par_rows_dict.keys():
+#                            self.par_rows_dict[par.label] = {}
+#                        self.par_rows_dict[par.label][k * num_pops + pid] = True
+#                        
+#                        # Create autocalibration checkbox column.
+#                        temp = qtw.QTableWidgetItem()
+#                        if par_type == 'characs' and 'entry_point' not in self.project.settings.charac_specs[par.label].keys():
+#                            temp.setFlags(qtc.Qt.NoItemFlags)
+#                        else:
+#                            temp.setText(str(par.y_factor[pid]))
+#                            temp.setTextAlignment(qtc.Qt.AlignCenter)
+#                            temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable | qtc.Qt.ItemIsUserCheckable)
+#                            if par.autocalibrate[pid]:
+#                                temp.setCheckState(qtc.Qt.Checked)
+#                            else:
+#                                temp.setCheckState(qtc.Qt.Unchecked)
+#                        self.table_calibration.setItem(k * num_pops + pid, 0, temp)
+#                        
+#                        # Create data fitting checkbox column.
+#                        temp = qtw.QTableWidgetItem()
+#                        if par_type == 'characs':
+#                            temp.setText(str(1))    # Until calibration weighting is implemented, the default uneditable value will be 1.
+#                            temp.setTextAlignment(qtc.Qt.AlignCenter)
+#                            temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsUserCheckable)
+#                            if (par.label,pop_label) in self.fitted_characs_dict.keys():
+#                                temp.setCheckState(qtc.Qt.Checked)
+#                            else:
+#                                temp.setCheckState(qtc.Qt.Unchecked)
+#                        else:
+#                            temp.setFlags(qtc.Qt.NoItemFlags)
+#                        self.table_calibration.setItem(k * num_pops + pid, 1, temp)
+#
+#                        # Insert the actual values.
+#                        for eid in xrange(len(par.t[pid])):
+#                            t = par.t[pop_label][eid]
+#                            y = par.y[pop_label][eid]
+#                            temp = qtw.QTableWidgetItem()
+#                            temp.setText(str(y))
+#                            temp.setTextAlignment(qtc.Qt.AlignCenter)
+#                            self.table_calibration.setItem(k * num_pops + pid, 2 + int(t) - self.tvec[0], temp)
+#                    k += 1
+#        self.table_calibration.setVerticalHeaderLabels(custom_ids)
+#        self.table_calibration.setHorizontalHeaderLabels(['Parameter Scaling Factor\n(Tick: Autocalibrate Parameter)','Data Weighting Factor\n(Tick: Use in Fitting Metric)'] + [str(int(x)) for x in self.tvec])
+#        self.table_calibration.resizeColumnsToContents()
+#        self.table_calibration.resizeRowsToContents()
+#
+#        self.table_calibration.cellChanged.connect(self.updateParset)
+#
+#
+#    def updateParset(self, row, col):
+#        custom_id = str(self.table_calibration.verticalHeaderItem(row).text())
+#        par_label = self.calibration_id_dict[custom_id]['par_label']
+#        pop_label = self.calibration_id_dict[custom_id]['pop_label']
+#        par = self.parset.getPar(par_label)
+#
+#        new_val_str = str(self.table_calibration.item(row, col).text())
+#        if col == 0:
+#            calib_prefix = ''
+#            if self.table_calibration.item(row, col).checkState() == qtc.Qt.Checked:
+#                if not self.guard_status:   # Used here, this is a guard against recursion.
+#                    self.guard_status = True
+#                    if self.check_option == 'all':
+#                        for other_row in xrange(self.table_calibration.rowCount()):
+#                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+#                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
+#                    elif self.check_option == 'par':
+#                        for other_row in self.par_rows_dict[par_label].keys():
+#                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
+#                    self.guard_status = False
+#                par.autocalibrate[pop_label] = True
+#            else:
+#                if not self.guard_status:   # Used here, this is a guard against recursion.
+#                    self.guard_status = True
+#                    if self.check_option == 'all':
+#                        for other_row in xrange(self.table_calibration.rowCount()):
+#                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+#                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
+#                    elif self.check_option == 'par':
+#                        for other_row in self.par_rows_dict[par_label].keys():
+#                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
+#                    self.guard_status = False
+#                par.autocalibrate[pop_label] = False
+#                calib_prefix = 'un'
+#
+#            try:
+#                new_val = float(new_val_str)
+#                if new_val < 0:
+#                    raise Exception('scaling factor is negative')
+#            except Exception as E:
+#                self.status = ('Status: Attempt to edit scaling factor failed because "%s"' % E.message)
+#                new_val = DEFAULT_YFACTOR
+#                self.refreshStatus()
+#                self.guard_status = True
+#                self.table_calibration.item(row, col).setText(str(new_val))
+#                self.guard_status = False
+#                return
+#            par.y_factor[pop_label] = new_val
+#            self.status = ('Status: Current edited parameter set has %smarked parameter "%s", population "%s", for autocalibration, with scaling factor "%f"' % (calib_prefix, par_label, pop_label, new_val))
+#        elif col == 1:
+#            calib_prefix = 'in'
+#            if self.table_calibration.item(row, col).checkState() == qtc.Qt.Checked:
+#                if not self.guard_status:   # Used here, this is a guard against recursion.
+#                    self.guard_status = True
+#                    if self.check_option == 'all':
+#                        for other_row in xrange(self.table_calibration.rowCount()):
+#                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+#                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
+#                    elif self.check_option == 'par':
+#                        for other_row in self.par_rows_dict[par_label].keys():
+#                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
+#                    self.guard_status = False
+#                self.fitted_characs_dict[(par_label,pop_label)] = True
+#            else:
+#                if not self.guard_status:   # Used here, this is a guard against recursion.
+#                    self.guard_status = True
+#                    if self.check_option == 'all':
+#                        for other_row in xrange(self.table_calibration.rowCount()):
+#                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+#                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
+#                    elif self.check_option == 'par':
+#                        for other_row in self.par_rows_dict[par_label].keys():
+#                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
+#                    self.guard_status = False
+#                try: del self.fitted_characs_dict[(par_label,pop_label)]
+#                except: pass
+#                calib_prefix = 'ex'
+#
+#            self.status = ('Status: Current edited parameter set has %scluded parameter "%s", population "%s", in the autocalibration data-fitting metric' % (calib_prefix, par_label, pop_label))
+#        else:
+#            year = float(str(self.table_calibration.horizontalHeaderItem(col).text()))
+#            try:
+#                new_val = float(new_val_str)
+#            except:
+#                if new_val_str == '':
+#                    remove_success = par.removeValueAt(t=year, pop_label=pop_label)
+#                    if remove_success:
+#                        self.status = ('Status: Value successfully deleted from parameter set')
+#                        self.refreshStatus()
+#                        return
+#                    else: self.status = ('Status: Attempt to remove item in parameter set failed, at least one value per row required')
+#                else: self.status = ('Status: Attempt to edit item in parameter set failed, only numbers allowed')
+#                self.refreshStatus()
+#                self.guard_status = True
+#                self.table_calibration.item(row, col).setText(str(par.interpolate(tvec=[year], pop_label=pop_label)[0]))
+#                self.guard_status = False
+#                return
+#            par.insertValuePair(t=year, y=new_val, pop_label=pop_label)
+#            self.status = ('Status: Current edited parameter set uses value "%f" for parameter "%s", population "%s", year "%i"' % (new_val, par_label, pop_label, year))
+#        self.refreshStatus()
+
+# %% GUI class for running parameter scenarios
 
 class GUIParameterScenario(GUIResultPlotterIntermediate):
 
@@ -1329,8 +1636,8 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
             self.status = ('Status: Scenarios successfully run for parameter set "%s"' % (self.parset_name))
         self.refreshVisibility()
 
+# %% GUI class for running budget scenarios
 
-# DJK to CK: Do this one after the Parameter Scenario as I -might- get to it before you.
 class GUIBudgetScenario(GUIResultPlotterIntermediate):
 
     def __init__(self):
