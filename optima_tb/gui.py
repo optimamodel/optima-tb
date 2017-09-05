@@ -977,14 +977,15 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 
         policy_min = qtw.QSizePolicy.Minimum
         policy_exp = qtw.QSizePolicy.Expanding
-#        if do_options_exist:
-#            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_min)
-#        else:
-#            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
-#        self.scroll_area.setVisible(do_options_exist)
-
-#        self.label_year_start.setVisible(do_options_exist)
-#        self.edit_year_start.setVisible(do_options_exist)
+        if does_progset_exist:
+            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_min)
+            self.makeProgsetTable()
+        else:
+            self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+        self.table_reconciliation.setVisible(does_progset_exist)
+        
+#        self.label_year_start.setVisible(does_progset_exist)
+#        self.edit_year_start.setVisible(does_progset_exist)
         self.label_model_run.setVisible(does_parset_exist & does_progset_exist)
         self.edit_model_run.setVisible(does_parset_exist & does_progset_exist)
         self.button_model_run.setVisible(does_parset_exist & does_progset_exist)
@@ -1041,6 +1042,9 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         grid_progset_save.addWidget(self.label_model_run, 0, 0)
         grid_progset_save.addWidget(self.edit_model_run, 0, 1)
         grid_progset_save.addWidget(self.button_model_run, 0, 2)
+        
+        self.table_reconciliation = qtw.QTableWidget()
+#        self.table_reconciliation.cellChanged.connect(self.updateProgset)
 
 #        self.budget_layout = qtw.QGridLayout()
 #
@@ -1054,6 +1058,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 
         layout.addLayout(grid_progset_load)
 #        layout.addWidget(self.scroll_area)
+        layout.addWidget(self.table_reconciliation)
         layout.addLayout(grid_progset_save)
 
 
@@ -1108,17 +1113,96 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 
     def loadCalibration(self, parset_name, delay_refresh=False):
         self.parset_name = str(parset_name)
-        self.status = ('Status: Parameter set "%s" selected for budget scenario' % self.parset_name)
+        self.status = ('Status: Parameter set "%s" selected for program reconciliation' % self.parset_name)
         if not delay_refresh:
             self.refreshVisibility()
 
     def loadPrograms(self, progset_name, delay_refresh=False):
         self.progset_name = str(progset_name)
-        self.options = defaultOptimOptions(settings=self.project.settings, progset=self.project.progsets[self.progset_name])
+        self.progset = dcp(self.project.progsets[self.progset_name])
+#        self.options = defaultOptimOptions(settings=self.project.settings, progset=self.project.progsets[self.progset_name])
 #        self.refreshOptionWidgets()
-        self.status = ('Status: Program set "%s" selected for budget scenario' % self.progset_name)
+        self.status = ('Status: Program set "%s" selected for program reconciliation' % self.progset_name)
         if not delay_refresh:
             self.refreshVisibility()
+            
+    def makeProgsetTable(self):
+        self.table_reconciliation.setVisible(False)    # Resizing columns requires table to be hidden first.
+        self.table_reconciliation.clear()
+
+        # Disconnect the reconciliation table from cell change signals to avoid signal flooding during connection.
+        try: self.table_reconciliation.cellChanged.disconnect()
+        except: pass
+
+        progset = self.progset
+#        num_pops = len(parset.pop_labels)
+        row_count = len(progset.progs)
+        self.table_reconciliation.setRowCount(row_count)
+        self.table_reconciliation.setColumnCount(7)        # Unit cost and sigma, total budget and sigma, effective coverage, historical coverage, impact sigma.
+#        self.calibration_items = []
+
+#        k = 0
+#        custom_ids = []
+#        for par_type in ['characs', 'cascade']:
+#            for par in parset.pars[par_type]:
+#                if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or 
+#                    (par_type == 'characs')): #and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
+#                    for pid in xrange(len(parset.pop_labels)):
+#                        pop_label = parset.pop_labels[pid]
+#                        try:
+#                            par_name = self.project.settings.linkpar_specs[par.label]['name']
+#                        except:
+#                            par_name = self.project.settings.charac_specs[par.label]['name']
+#                        custom_id = par_name + '\n' + parset.pop_names[pid]
+#                        custom_ids.append(custom_id)
+#                        self.calibration_id_dict[custom_id] = {'par_label':par.label, 'pop_label':pop_label}
+#                        if par.label not in self.par_rows_dict.keys():
+#                            self.par_rows_dict[par.label] = {}
+#                        self.par_rows_dict[par.label][k * num_pops + pid] = True
+#                        
+#                        # Create autocalibration checkbox column.
+#                        temp = qtw.QTableWidgetItem()
+#                        if par_type == 'characs' and 'entry_point' not in self.project.settings.charac_specs[par.label].keys():
+#                            temp.setFlags(qtc.Qt.NoItemFlags)
+#                        else:
+#                            temp.setText(str(par.y_factor[pid]))
+#                            temp.setTextAlignment(qtc.Qt.AlignCenter)
+#                            temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable | qtc.Qt.ItemIsUserCheckable)
+#                            if par.autocalibrate[pid]:
+#                                temp.setCheckState(qtc.Qt.Checked)
+#                            else:
+#                                temp.setCheckState(qtc.Qt.Unchecked)
+#                        self.table_calibration.setItem(k * num_pops + pid, 0, temp)
+#                        
+#                        # Create data fitting checkbox column.
+#                        temp = qtw.QTableWidgetItem()
+#                        if par_type == 'characs':
+#                            temp.setText(str(1))    # Until calibration weighting is implemented, the default uneditable value will be 1.
+#                            temp.setTextAlignment(qtc.Qt.AlignCenter)
+#                            temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsUserCheckable)
+#                            if (par.label,pop_label) in self.fitted_characs_dict.keys():
+#                                temp.setCheckState(qtc.Qt.Checked)
+#                            else:
+#                                temp.setCheckState(qtc.Qt.Unchecked)
+#                        else:
+#                            temp.setFlags(qtc.Qt.NoItemFlags)
+#                        self.table_calibration.setItem(k * num_pops + pid, 1, temp)
+#
+#                        # Insert the actual values.
+#                        for eid in xrange(len(par.t[pid])):
+#                            t = par.t[pop_label][eid]
+#                            y = par.y[pop_label][eid]
+#                            temp = qtw.QTableWidgetItem()
+#                            temp.setText(str(y))
+#                            temp.setTextAlignment(qtc.Qt.AlignCenter)
+#                            self.table_calibration.setItem(k * num_pops + pid, 2 + int(t) - self.tvec[0], temp)
+#                    k += 1
+#        self.table_calibration.setVerticalHeaderLabels(custom_ids)
+        self.table_reconciliation.setHorizontalHeaderLabels(['Unit Cost','Unit Cost\nSigma','Total Budget','Total Budget\nSigma','Effective Coverage','Historical Coverage','Impact Sigma'])
+        self.table_reconciliation.resizeColumnsToContents()
+        self.table_reconciliation.resizeRowsToContents()
+
+#        self.table_reconciliation.cellChanged.connect(self.updateProgset)
 
 #    def runBudgetScenario(self):
 #        if not self.updateOptions():
