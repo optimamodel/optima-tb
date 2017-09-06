@@ -409,7 +409,9 @@ class PlottingSettings():
                          'box_offset' : 0.,
                          # legend
                          'legend_off' : False, # I am legend
-                         'legendsettings': {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1},
+                         'legendsettings': {'loc':'center left',
+                                            'bbox_to_anchor':(1.05, 0.5),
+                                            'ncol':1},
                          # labels
                          'use_full_labels' : False
                          }
