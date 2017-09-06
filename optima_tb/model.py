@@ -983,6 +983,42 @@ class Model(object):
                             for par in pars:
                                 par.vals[ti] = new_val
 
+                    # Sum over all entries weighted by the value specified in 'Interaction Impact Weights'
+                    elif rule == 'sum_reduce':
+                        from_list = self.contacts['into'][pop.label].keys()
+
+                        # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
+                        if not ((len(from_list) == 1 and from_list[0] == pop.label)):
+                            old_vals = np.ones(len(from_list)) * np.nan
+                            weights = np.ones(len(from_list)) * np.nan
+                            if len(from_list) == 0:
+                                new_val = 0.0
+                            else:
+                                k = 0
+                                for from_pop in from_list:
+                                    # All transition links with the same par_label are identically valued. For calculations, only one is needed for reference.
+                                    if par_label in settings.par_deps:
+                                        par = self.getPop(from_pop).getDep(par_label)
+                                    else:
+                                        par = self.getPop(from_pop).getLinks(settings.linkpar_specs[par_label]['tag'])[0]
+
+                                    old_vals[k] = par.vals_old[ti]
+                                    weights[k] = self.contacts['into'][pop.label][from_pop]
+                                    k += 1
+
+                                new_val = np.dot(old_vals, weights)
+                                if abs(new_val) < project_settings.TOLERANCE:
+                                    new_val = 0.0
+
+                            # Need to update all untagged/tagged links with the new value, hence the list of links.
+                            pars = []
+                            if par_label in settings.par_deps:
+                                pars.append(pop.getDep(par_label))
+                            else:
+                                pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
+                            for par in pars:
+                                par.vals[ti] = new_val
+
 
 
     def calculateOutputs(self, settings):
