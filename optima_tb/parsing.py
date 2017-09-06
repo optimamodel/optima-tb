@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 from pyparsing import Word, Literal, Optional, alphanums, nums, ZeroOrMore, Group, Forward
 import operator
 from copy import deepcopy as dcp
+import math
 
 
 #%% Parser for functions written as strings
@@ -42,20 +43,30 @@ class FunctionParser(object):
         rpar  = Literal(')').suppress()
         num = Word(nums + ".")
         var = Word(alphanums + "_")
+        sep = Literal(",")
+        func = Word(alphanums)
         
         self.op_dict = {"+": operator.add,
                         "-": operator.sub,
                         "*": operator.mul,
                         "/": operator.truediv,
                         "^": operator.pow}
+
+        # unary functions
+        self.ufn_dict = {'exp': math.exp}
+
+        # binary functions
+        self.bfn_dict = {'min': min,
+                         'max': max}
+
         
         self.grammar = Forward()
-        primary = (neg + ((num | var.setParseAction(self.noteVariable)).setParseAction(self.pushFirst) | Group(lpar + self.grammar + rpar))).setParseAction(self.pushUnaryMinus)        
+        primary = (neg + ((num | func + lpar + self.grammar + rpar | func + lpar + self.grammar + sep + self.grammar + rpar | var.setParseAction(self.noteVariable)).setParseAction(self.pushFirst) | Group(lpar + self.grammar + rpar))).setParseAction(self.pushUnaryMinus)
         factor = Forward()      # Making sure chain-exponentiation tokens are evaluated from right to left.
         factor << primary + ZeroOrMore((expop + factor).setParseAction(self.pushFirst))
         term = factor + ZeroOrMore((multop + factor).setParseAction(self.pushFirst))
         self.grammar << term + ZeroOrMore((addop + term).setParseAction(self.pushFirst))
-        
+
     def pushFirst(self, s, loc, toks):
         ''' Used to push tokens into an evaluation (FILO) stack. '''
         self.expr_stack.append(toks[0])
@@ -76,7 +87,7 @@ class FunctionParser(object):
         val = self.grammar.parseString(string)
         expr_stack = dcp(self.expr_stack)
         var_dict = dcp(self.var_dict)
-        
+
         # Delete stack and variable dictioary attributes after processing, just in case.
         self.expr_stack = []
         self.var_dict = {}
@@ -108,6 +119,12 @@ class FunctionParser(object):
             op1 = self.evaluateStack(stack, deps = deps, level = level + 1)
             if self.debug: print('Level %i: %s %s %s = %s' % (level, op1, op, op2, self.op_dict[op](op1, op2)))
             return self.op_dict[op](op1, op2)
+        elif op in self.ufn_dict:
+            return self.ufn_dict[op](self.evaluateStack(stack, deps=deps, level=level+1))
+        elif op in self.bfn_dict:
+            op2 = self.evaluateStack(stack, deps=deps, level=level + 1)
+            op1 = self.evaluateStack(stack, deps=deps, level=level + 1)
+            return self.bfn_dict[op](op1, op2)
         elif op[0].isalpha():
             try:
                 opval = deps[op]
