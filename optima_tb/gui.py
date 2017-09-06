@@ -758,7 +758,6 @@ class GUICalibration(GUIResultPlotterIntermediate):
         row_count = num_pops * (len(parset.pars['cascade']) - len(self.project.settings.par_funcs))
         self.table_calibration.setRowCount(row_count)
         self.table_calibration.setColumnCount(len(self.tvec))
-        self.calibration_items = []
 
         k = 0
         custom_ids = []
@@ -1126,6 +1125,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         if not delay_refresh:
             self.refreshVisibility()
             
+    # TODO: Remove magic numbers once layout design is more stable.
     def makeProgsetTable(self):
         self.table_reconciliation.setVisible(False)    # Resizing columns requires table to be hidden first.
         self.table_reconciliation.clear()
@@ -1135,16 +1135,13 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         except: pass
 
         progset = self.progset
-#        num_pops = len(parset.pop_labels)
         row_count = len(progset.progs)
         self.table_reconciliation.setRowCount(row_count)
         self.table_reconciliation.setColumnCount(7)        # Unit cost and sigma, total budget and sigma, effective coverage, historical coverage, impact sigma.
-#        self.calibration_items = []
 
-#        k = 0
-#        custom_ids = []
-#        for par_type in ['characs', 'cascade']:
-#            for par in parset.pars[par_type]:
+        row_id = 0
+        custom_ids = []
+        for prog in progset.progs:
 #                if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or 
 #                    (par_type == 'characs')): #and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
 #                    for pid in xrange(len(parset.pop_labels)):
@@ -1154,7 +1151,29 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 #                        except:
 #                            par_name = self.project.settings.charac_specs[par.label]['name']
 #                        custom_id = par_name + '\n' + parset.pop_names[pid]
-#                        custom_ids.append(custom_id)
+            custom_ids.append(prog.name)
+            for col_id in xrange(7):
+                temp = qtw.QTableWidgetItem()
+                if prog.func_specs['type'] == 'cost_only' and col_id != 2:
+                    temp.setFlags(qtc.Qt.NoItemFlags)
+                else:
+                    if col_id in [1,3,6]:
+                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable | qtc.Qt.ItemIsUserCheckable)
+                        temp.setText(str(0))
+                    else:
+                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)
+                    
+                    if col_id == 0:
+                        temp.setText(str(prog.func_specs['pars']['unit_cost']))
+                    elif col_id == 2:
+                        temp.setText(str(prog.getDefaultBudget()))
+                    elif col_id == 4:
+                        temp.setText(str(prog.getCoverage(prog.getDefaultBudget())))
+                    elif col_id == 5:
+                        temp.setText(str(prog.interpolate(tvec=[2015], attributes=['cov'])['cov'][-1]))
+                        
+                        
+                self.table_reconciliation.setItem(row_id, col_id, temp)
 #                        self.calibration_id_dict[custom_id] = {'par_label':par.label, 'pop_label':pop_label}
 #                        if par.label not in self.par_rows_dict.keys():
 #                            self.par_rows_dict[par.label] = {}
@@ -1196,8 +1215,8 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 #                            temp.setText(str(y))
 #                            temp.setTextAlignment(qtc.Qt.AlignCenter)
 #                            self.table_calibration.setItem(k * num_pops + pid, 2 + int(t) - self.tvec[0], temp)
-#                    k += 1
-#        self.table_calibration.setVerticalHeaderLabels(custom_ids)
+            row_id += 1
+        self.table_reconciliation.setVerticalHeaderLabels(custom_ids)
         self.table_reconciliation.setHorizontalHeaderLabels(['Unit Cost','Unit Cost\nSigma','Total Budget','Total Budget\nSigma','Effective Coverage','Historical Coverage','Impact Sigma'])
         self.table_reconciliation.resizeColumnsToContents()
         self.table_reconciliation.resizeRowsToContents()
