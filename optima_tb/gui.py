@@ -1017,6 +1017,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 
         self.label_year_start = qtw.QLabel('Year to reconcile calibration with fixed-budget programs... ')
         self.edit_year_start = qtw.QLineEdit()
+        self.edit_year_start.textChanged[str].connect(self.updateStartYear)
 
         self.label_model_run = qtw.QLabel('Run & save program-based simulation results as... ')
         self.edit_model_run = qtw.QLineEdit()
@@ -1060,6 +1061,13 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         layout.addWidget(self.table_reconciliation)
         layout.addLayout(grid_progset_save)
 
+    def updateStartYear(self, progs_start):
+        try:    self.options['progs_start'] = float(str(self.edit_year_start.text()))
+        except:
+            self.status = ('Status: An invalid program start-year was chosen, so the value has reverted to default')
+            self.options['progs_start'] = defaultOptimOptions(settings=self.project.settings, progset=self.progset)['progs_start']
+            self.refreshOptionWidgets()
+        self.refreshVisibility()
 
     # Updates all options-related widgets to display values from the options dictionary.
     # Generally should only be called when a default options dictionary is initialised.
@@ -1119,7 +1127,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
     def loadPrograms(self, progset_name, delay_refresh=False):
         self.progset_name = str(progset_name)
         self.progset = dcp(self.project.progsets[self.progset_name])
-        self.options = defaultOptimOptions(settings=self.project.settings, progset=self.project.progsets[self.progset_name])
+        self.options = defaultOptimOptions(settings=self.project.settings, progset=self.progset)
         self.refreshOptionWidgets()
         self.status = ('Status: Program set "%s" selected for program reconciliation' % self.progset_name)
         if not delay_refresh:
