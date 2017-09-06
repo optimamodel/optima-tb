@@ -953,7 +953,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.combo_parset_dict = {}     # Dictionary that maps ParameterSet names to indices used in combo boxes.
         self.combo_progset_dict = {}    # Dictionary that maps ProgramSet names to indices used in combo boxes.
 
-#        self.options = None     # The options dictionary for running a budget scenario.
+        self.options = None             # The options dictionary for running a budget scenario, i.e. a standard simulation with program-based parameter overwrites.
 #        self.widget_budget_dict = {}    # Dictionary that maps Program names to indices marking their position in a scrolling list of budget widgets.
 
 
@@ -964,7 +964,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         is_project_loaded = self.project is not None
         does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
         does_progset_exist = is_project_loaded and len(self.project.progsets.keys()) > 0
-#        do_options_exist = self.options is not None
+        do_options_exist = self.options is not None
 
         if is_project_loaded:
             self.refreshParsetComboBox()
@@ -983,8 +983,8 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
             self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
         self.table_reconciliation.setVisible(does_progset_exist)
         
-#        self.label_year_start.setVisible(does_progset_exist)
-#        self.edit_year_start.setVisible(does_progset_exist)
+        self.label_year_start.setVisible(does_progset_exist)
+        self.edit_year_start.setVisible(does_progset_exist)
         self.label_model_run.setVisible(does_parset_exist & does_progset_exist)
         self.edit_model_run.setVisible(does_parset_exist & does_progset_exist)
         self.button_model_run.setVisible(does_parset_exist & does_progset_exist)
@@ -1015,13 +1015,13 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.combo_progset = qtw.QComboBox(self)
         self.combo_progset.activated[str].connect(self.loadPrograms)
 
-#        self.label_year_start = qtw.QLabel('Start year for program budgets... ')
-#        self.edit_year_start = qtw.QLineEdit()
+        self.label_year_start = qtw.QLabel('Year to reconcile calibration with fixed-budget programs... ')
+        self.edit_year_start = qtw.QLineEdit()
 
         self.label_model_run = qtw.QLabel('Run & save program-based simulation results as... ')
         self.edit_model_run = qtw.QLineEdit()
         self.button_model_run = qtw.QPushButton('Generate results', self)
-#        self.button_model_run.clicked.connect(self.runBudgetScenario)
+        self.button_model_run.clicked.connect(self.runProgsetSim)
 
         # Layout.
         grid_progset_load = qtw.QGridLayout()
@@ -1032,8 +1032,8 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         grid_progset_load.addWidget(self.label_progset, 1, 0)
         grid_progset_load.addWidget(self.combo_progset, 1, 1)
 
-#        grid_progset_load.addWidget(self.label_year_start, 2, 0)
-#        grid_progset_load.addWidget(self.edit_year_start, 2, 1)
+        grid_progset_load.addWidget(self.label_year_start, 2, 0)
+        grid_progset_load.addWidget(self.edit_year_start, 2, 1)
 
         grid_progset_save = qtw.QGridLayout()
         grid_progset_save.setSpacing(10)
@@ -1061,10 +1061,10 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         layout.addLayout(grid_progset_save)
 
 
-#    # Updates all options-related widgets to display values from the options dictionary.
-#    # Generally should only be called when a default options dictionary is initialised.
-#    def refreshOptionWidgets(self):
-#
+    # Updates all options-related widgets to display values from the options dictionary.
+    # Generally should only be called when a default options dictionary is initialised.
+    def refreshOptionWidgets(self):
+
 #        # Clear out all widgets in the budget layout.
 #        # TODO: Make more efficient by only clearing when absolutely necessary.
 #        for i in reversed(range(self.budget_layout.count())):
@@ -1085,8 +1085,8 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 #            current_id = self.widget_budget_dict[prog_name]
 #            widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
 #            widget.setText(str("%.0f" % self.options['init_alloc'][prog_label]))
-#
-#        self.edit_year_start.setText(str(self.options['progs_start']))
+
+        self.edit_year_start.setText(str(self.options['progs_start']))
 
     def refreshParsetComboBox(self):
         self.combo_parset_dict = {}
@@ -1119,8 +1119,8 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
     def loadPrograms(self, progset_name, delay_refresh=False):
         self.progset_name = str(progset_name)
         self.progset = dcp(self.project.progsets[self.progset_name])
-#        self.options = defaultOptimOptions(settings=self.project.settings, progset=self.project.progsets[self.progset_name])
-#        self.refreshOptionWidgets()
+        self.options = defaultOptimOptions(settings=self.project.settings, progset=self.project.progsets[self.progset_name])
+        self.refreshOptionWidgets()
         self.status = ('Status: Program set "%s" selected for program reconciliation' % self.progset_name)
         if not delay_refresh:
             self.refreshVisibility()
@@ -1157,20 +1157,23 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                 if prog.func_specs['type'] == 'cost_only' and col_id != 2:
                     temp.setFlags(qtc.Qt.NoItemFlags)
                 else:
+                    temp.setTextAlignment(qtc.Qt.AlignCenter)
                     if col_id in [1,3,6]:
-                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable | qtc.Qt.ItemIsUserCheckable)
                         temp.setText(str(0))
-                    else:
-                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)
-                    
-                    if col_id == 0:
+                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable | qtc.Qt.ItemIsUserCheckable)
+                        temp.setCheckState(qtc.Qt.Unchecked)
+                    elif col_id == 0:
                         temp.setText(str(prog.func_specs['pars']['unit_cost']))
+                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)
                     elif col_id == 2:
                         temp.setText(str(prog.getDefaultBudget()))
+                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)
                     elif col_id == 4:
                         temp.setText(str(prog.getCoverage(prog.getDefaultBudget())))
+                        temp.setFlags(qtc.Qt.ItemIsEnabled)
                     elif col_id == 5:
                         temp.setText(str(prog.interpolate(tvec=[2015], attributes=['cov'])['cov'][-1]))
+                        temp.setFlags(qtc.Qt.ItemIsEnabled)
                         
                         
                 self.table_reconciliation.setItem(row_id, col_id, temp)
@@ -1223,38 +1226,38 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 
 #        self.table_reconciliation.cellChanged.connect(self.updateProgset)
 
-#    def runBudgetScenario(self):
-#        if not self.updateOptions():
-#            self.status = ('Status: User-specified options could not be read into budget scenario, so options are being reverted')
-#            self.refreshOptionWidgets()
-#        else:
-#            self.status = ('Status: Running model for Parset "%s" and Progset "%s"' % (self.parset_name, self.progset_name))
-#            self.refreshStatus()
-#            result_name = str(self.edit_model_run.text())
-#            if result_name == '':
-#                result_name = None
-#            self.project.runSim(parset_name=self.parset_name, progset_name=self.progset_name, options=self.options, store_results=True, result_type='scen_budget', result_name=result_name)
-#            self.acknowledgeResults()
-#            self.status = ('Status: Model successfully processed for parameter set "%s" and program set "%s"' % (self.parset_name, self.progset_name))
-#        self.refreshVisibility()
+    def runProgsetSim(self):
+        if not self.updateOptions():
+            self.status = ('Status: User-specified options could not be read into program-based simulation, so options are being reverted')
+            self.refreshOptionWidgets()
+        else:
+            self.status = ('Status: Running model for Parset "%s" and currently-displayed Progset "%s"' % (self.parset_name, self.progset.name))
+            self.refreshStatus()
+            result_name = str(self.edit_model_run.text())
+            if result_name == '':
+                result_name = None
+            self.project.runSim(parset_name=self.parset_name, progset=self.progset, options=self.options, store_results=True, result_type='sim_progbased', result_name=result_name)
+            self.acknowledgeResults()
+            self.status = ('Status: Model successfully processed for parameter set "%s" and program set "%s"' % (self.parset_name, self.progset_name))
+        self.refreshVisibility()
 
-#    # Scans through widgets and updates options dict appropriately.
-#    # Return True if successful or False if there was an error.
-#    def updateOptions(self):
-#        if self.options is None:
-#            return False
-#        else:
-#            try:
-#                self.options['progs_start'] = float(str(self.edit_year_start.text()))
-#
+    # Scans through widgets and updates options dict appropriately.
+    # Return True if successful or False if there was an error.
+    def updateOptions(self):
+        if self.options is None:
+            return False
+        else:
+            try:
+                self.options['progs_start'] = float(str(self.edit_year_start.text()))
+
 #                for prog_name in self.widget_budget_dict.keys():
 #                    current_id = self.widget_budget_dict[prog_name]
 #                    widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
 #                    prog_label = self.project.data['meta']['progs']['name_labels'][prog_name]
 #                    self.options['init_alloc'][prog_label] = float(str(widget.text()))
-#
-#            except: return False
-#            return True
+
+            except: return False
+            return True
 
 # %% GUI class for running parameter scenarios
 
