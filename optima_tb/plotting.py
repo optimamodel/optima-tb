@@ -1197,7 +1197,8 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
             yb = y_bounds[i]
 
         _plotLine(y_values[output_id][:], np.tile(tvec, (len(labels), 1)), labels, y_bounds=yb,
-                legendsettings=None, save_fig=save_fig, colors=colors, # ylim=(0, 1900000),
+                # legendsettings=None,
+                save_fig=save_fig, colors=colors, # ylim=(0, 1900000),
                   linestyles=linestyles, **final_dict)
 
     if final_dict.has_key('legend_off') and final_dict['legend_off']:
