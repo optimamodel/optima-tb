@@ -426,7 +426,7 @@ class PlottingSettings():
         pl.rcParams['figure.figsize'] = (15, 10)
         pl.rcParams['savefig.dpi'] = 300
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
-        self.plotdict['legend_off'] = True
+        self.plotdict['legend_off'] = False
         self.plotdict['use_full_labels'] = True
 
     def presentationSettings(self):

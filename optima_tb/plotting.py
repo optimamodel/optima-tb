@@ -29,6 +29,7 @@ COMPARETYPE_RESULT = 'result'
 COMPARETYPE_POP = 'pop'
 COMPARETYPE_VALUE = 'output'
 COMPARETYPE_YEAR = 'year'
+COMPARETYPE_CASCADE = 'cascade'
 
 # %% Function to generate useful colormap for plots
 
@@ -281,7 +282,7 @@ def setupStylings(colormappings, colors, linestyles, series_labels):
     hatches = getHatchmapping(linestyles, series_labels)
     hatches = [hatches[pop] for pop in series_labels] # extract used hatches from dict into list
 
-    return colors, linestyles, hatches
+    return colors, linestyles, hatches, cat_colors
 
 
 
@@ -486,9 +487,21 @@ def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None
                        title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
     return fig
 
+def plotCascade(proj, result, output_labels, pop_labels=None, year_period=None,
+                plot_total=False,
+               colormappings=None, colors=None, linestyles=None, y_intercept=None,
+               title="", save_fig=False, fig_name=None, **kwargs):
+    """
+    """
+    fig = innerPlotBar(proj, [result], year_periods=year_period, output_labels=output_labels,
+                       compare_type=COMPARETYPE_CASCADE, pop_labels=pop_labels, ylabel="Number of cases",
+                       colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=None,
+                       title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
+
 
 def plotCompsBar(proj, result, output_labels, pop_labels=None, year_period=None,
-#                plot_total=False, plot_type=None,
+                plot_total=False,
+#                 plot_type=None,
 #                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, y_intercept=None,
                title="", save_fig=False, fig_name=None, **kwargs):
@@ -508,10 +521,21 @@ def plotCompsBar(proj, result, output_labels, pop_labels=None, year_period=None,
         # in and out flows to a compartment
     
     """
-    fig = innerPlotBar(proj, [result], year_periods=year_period, output_labels=output_labels,
-                       compare_type=COMPARETYPE_VALUE, pop_labels=pop_labels,
+    ylabel = 'Number of cases'
+    if plot_total:
+        fig = innerPlotBar(proj, [result], year_periods=year_period, output_labels=output_labels,
+                       compare_type=COMPARETYPE_VALUE, pop_labels=pop_labels, ylabel=ylabel,
                        colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=None,
                        title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
+    else:
+        if pop_labels is None:
+            pop_labels = getPops(result)
+        for pop in pop_labels:
+            fig = innerPlotBar(proj, [result], year_periods=year_period, output_labels=output_labels,
+                       compare_type=COMPARETYPE_VALUE, pop_labels=[pop], ylabel=ylabel,
+                       colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=None,
+                       title=title, save_fig=save_fig, fig_name=fig_name + "_%s" % pop, **kwargs)
+
     return fig
 
 
@@ -664,14 +688,13 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
         logger.info("Plotting: compare_type not specified, assuming comparing populations")
         series_labels = pop_labels
 
-
-    if observed_data_label is None:
-        observed_data_label = output_labels[0]
-
     if cat_labels is not None:
         legend_labels = cat_labels
     else:
         legend_labels = series_labels
+
+    if observed_data_label is None:
+        observed_data_label = output_labels[0]
 
     if len(output_labels) == 1:
         name = output_labels[0]
@@ -680,7 +703,7 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
 
     # -------------------------------------------------------
     # generic setup for colors, line and hatches
-    colors, linestyles, hatches = setupStylings(colormappings, colors, linestyles, series_labels)
+    colors, linestyles, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, series_labels)
 
     # -------------------------------------------------------
     # loop over values to be plotted
@@ -766,6 +789,7 @@ def getYearLabels(timeperiods):
 
 def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                  compare_type=None, plot_type=None, plot_total=False,
+                 plot_observed_data=True, observed_data_label=None, ylabel=None,
                  pop_labels=None, colormappings=None, colors=None, linestyles=None, plot_relative=None,
                  cat_labels=None, title=None, save_fig=False, fig_name=None, **kwargs):
     """
@@ -833,6 +857,8 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
 
     # -------------------------------------------------------
     # generic setup for data
+    unit_tag = ""
+
     if plot_type is None:
         plot_type = PLOTTYPE_BARSTACKED
 
@@ -847,7 +873,7 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
     if isinstance(output_labels, odict):
         if not isinstance(output_labels[0], list):
             raise OptimaException("Plotting: error must ")
-        if compare_type != COMPARETYPE_VALUE:
+        if not (compare_type == COMPARETYPE_VALUE or compare_type == COMPARETYPE_CASCADE):
             raise OptimaException("Plotting: odict only valid for comparing values. Current attempt for compare_type=%s" % compare_type)
 
     if pop_labels is None:
@@ -866,10 +892,24 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
         color_labels = pop_labels
     elif compare_type == COMPARETYPE_VALUE:
         if isinstance(output_labels, odict):
+            color_labels = []
+            series_labels = output_labels.keys()
+            for series in series_labels:
+                color_labels += output_labels[series]
+        else:
+            series_labels = output_labels
+            color_labels = output_labels
+    elif compare_type == COMPARETYPE_CASCADE:
+        if isinstance(output_labels, odict):
             series_labels = output_labels.keys()
         else:
             series_labels = output_labels
-        color_labels = range(10) # TODO fix
+
+        if isinstance(pop_labels, dict):
+            color_labels = pop_labels.keys()
+        else:
+            color_labels = pop_labels
+
     elif compare_type == COMPARETYPE_YEAR:
         series_labels = getYearLabels(year_periods)
         color_labels = output_labels
@@ -883,27 +923,43 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
         logger.info("Plotting: compare_type not specified, assuming comparing populations")
         series_labels = pop_labels
         color_labels = pop_labels
+    print ">>>>>>>>"
+    print series_labels
+    print color_labels
+    print ">>>>>>>>>>"
 
 
     if cat_labels is not None:
         legend_labels = cat_labels # TODO revisit
-    else:
-        legend_labels = series_labels
+    elif plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
+        print "------", color_labels
+        legend_labels = [getName(lab, settings) for lab in color_labels]
+        print "------", legend_labels
 
-#     if len(output_labels) == 1:
-#         name = output_labels[0]
-#     else:
-#         name = "Combined_%s_%s" % (output_labels[0], output_labels[-1])
+    else:
+        legend_labels = color_labels
+
+    if observed_data_label is None:
+        observed_data_label = output_labels[0]
+
+
+    if len(output_labels) == 1:
+        name = output_labels[0]
+    else:
+        name = "Combined_%s_%s" % (output_labels[0], output_labels[-1])
+
+    print "111", name
 
 
     # -------------------------------------------------------
     # generic setup for colors, line and hatches
+#     print color_labels
     print "Setting up colors: color_labels = ", color_labels
     print "Setting up legend labels: legend_labels = ", legend_labels
-    colors, lines, hatches = setupStylings(colormappings, colors, linestyles, color_labels)
-    print colors
-    print lines
-    print hatches
+    colors, lines, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, color_labels)
+#     print colors
+#     print lines
+#     print hatches
 
     # -------------------------------------------------------
     # setup values
@@ -926,17 +982,48 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
 
     elif compare_type == COMPARETYPE_VALUE:
         # TODO work out how to loop either over pop or over comp
-        time_period = year_periods[0]
-        result = resultset[0]
+        time_period = year_periods[0] # TODO confirm that only one time period required
+        result = resultset[0] # TODO confirm that only one time period required
         for output_key in output_labels.keys():
             output_group = output_labels[output_key]
             ys = []
-            for value_label in output_group:
-                y, _ = result.getValuesAt(value_label, year_init=time_period[0], year_end=time_period[1], pop_labels=pop_labels, integrated=True)
-                y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
-                print y
+            for value_label in color_labels:
+                if value_label in output_group:
+                    y, _ = result.getValuesAt(value_label, year_init=time_period[0], year_end=time_period[1], pop_labels=pop_labels, integrated=True)
+                    y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
+#                     print value_label, time_period, pop_labels, y
+                else:
+                    y = 0
                 ys.append(y)
             values.append(ys)
+
+    elif compare_type == COMPARETYPE_CASCADE:
+        # similar to COMPARETYPE_VALUE, but we aggregate over populations
+        time_period = year_periods[0] # TODO confirm that only one time period required
+        result = resultset[0] # TODO confirm that only one time period required
+        for output_key in output_labels.keys():
+            output_group = output_labels[output_key]
+            ys = []
+
+            if isinstance(pop_labels, dict):
+
+                for pop_lab, pop_set in pop_labels.iteritems():
+                    count = 0
+                    for lab in output_group:
+                        y, _ = result.getValuesAt(lab, year_init=time_period[0], year_end=time_period[1], pop_labels=pop_set, integrated=True)
+                        print lab, time_period, pop_set, y
+                        count += y
+                    ys.append(count)
+            else:
+                for pop in pop_labels:
+                    count = 0
+                    for lab in output_group:
+                        y, _ = result.getValuesAt(lab, year_init=time_period[0], year_end=time_period[1], pop_labels=[pop], integrated=True)
+                        print lab, time_period, pop, y
+                        count += y
+                    ys.append(count)
+            values.append(ys)
+        print values
 
     elif compare_type == COMPARETYPE_YEAR:
         # loop over values, over year periods
@@ -955,7 +1042,7 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                 ys.append(y)
             values.append(ys)
 
-    else: # compare_type == COMPARETYPE_POP
+    elif compare_type == COMPARETYPE_POP:
         value_label = output_labels[0] # TODO check that output_labels len == 1
         result = resultset[0]
         for time_period in year_periods:
@@ -969,27 +1056,33 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                 y, unit_tag = _convertPercentage(y, value_label, [pop], charac_specs)
                 ys.append(y)
             values.append(ys)
+    else:
+        logger.warn("Non valid type") # TODO raise exception
 
-
-    print values
-    print series_labels
+    if ylabel is None:
+        ylabel = getName(observed_data_label, settings) + unit_tag
+    if plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
+        name = getName(observed_data_label, settings)
 
     final_dict = {'title':  '',
-                  'ylabel': "",
+                  'ylabel': ylabel,
                   'plot_stacked': plot_stacked,
                   'barwidth': 0.8,
                   'save_figname': fig_name}
-#     final_dict.update(final_dict2)
 
-#     final_dict.update(plotdict)
     plotdict.update(final_dict)
-    print plotdict
-    print len(colors), colors
-    print linestyles
+
 #     print plot_type
-    _plotBars(values, labels=color_labels, colors=colors,
+    _plotBars(values, labels=legend_labels, colors=colors,
             linestyles=linestyles, hatches=hatches, xlabels=series_labels, # legendsettings=legendsettings,
             save_fig=save_fig, **plotdict)
+
+    if plotdict.has_key('legend_off') and plotdict['legend_off']:
+        # Note that color list may be different to colors, as it represents
+        # classes of compartments i.e. ['Latent disease states','Active disease states']
+        legendsettings = plotdict['legendsettings']
+        separateLegend(labels=legend_labels, colors=cat_colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
+
 
     return None
 
@@ -1310,7 +1403,9 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
             separateLegend(labels=cat_labels, colors=cat_colors, fig_name=fig_name, reverse_order=True,)
 
 def getName(output_id, settings):
-    if output_id in settings.charac_specs:
+    if isinstance(output_id, list):
+        name = "List_(%s,%s)" % (output_id[0], output_id[-1])
+    elif output_id in settings.charac_specs:
         name = settings.charac_specs[output_id]['name']
     elif output_id in settings.linkpar_specs:
         name = settings.linkpar_specs[output_id]['name']
@@ -1567,13 +1662,13 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     if inds is None:
         inds = np.arange(num_bars) + bar_offset
 
-    print "Plot Bars"
-    print num_bars
-    print num_cats
-    print inds
-    print plot_stacked
-    print "labels =", labels
-    print "-------"
+#     print "Plot Bars"
+#     print num_bars
+#     print num_cats
+#     print inds
+#     print plot_stacked
+#     print "labels =", labels
+#     print "-------"
 
     if plot_stacked:
         xinds = np.arange(num_bars) + bar_offset + barwidth / 2.
@@ -1601,7 +1696,6 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}
 
 
-
     # preprocessing to make our lives easier:
     cat_values = map(list, zip(*values))
 
@@ -1618,14 +1712,12 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         cat_values = values
         num_cats = num_bars
 
-
-
-    print "---------//////////////----"
-    print cat_values
-    print num_cats
-    print "----"
-    print colors
-    print "----"
+#     print "---------//////////////----"
+#     print cat_values
+#     print num_cats
+#     print "----"
+#     print colors
+#     print "----"
 #     print len(cat_values), len(cat_values[0]), len(colors)
 
 
@@ -1642,10 +1734,11 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         else:
             indices = inds[k]
 
-        print indices
-        print cat_values[k]
-        print colors[k]
-        print hatches[k]
+#         print indices
+#         print cat_values[k]
+#         print colors[k]
+#         print hatches[k]
+#         print labels[k]
 
         lw = 0.
         if hatches[k] is None:
@@ -1654,11 +1747,11 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
             ec = kwargs['hatch_bg']
 
         if k == 0:
-            ax.bar(indices, cat_values[k], color=colors[k], hatch=hatches[k], edgecolor=ec, width=barwidth, alpha=alphas[k], lw=lw)
+            ax.bar(indices, cat_values[k], color=colors[k], hatch=hatches[k], edgecolor=ec, width=barwidth, alpha=alphas[k], lw=lw, label=labels[k])
         elif plot_stacked:
-            ax.bar(indices, cat_values[k], color=colors[k], hatch=hatches[k], edgecolor=ec, width=barwidth, bottom=cumulative, alpha=alphas[k], lw=lw)
+            ax.bar(indices, cat_values[k], color=colors[k], hatch=hatches[k], edgecolor=ec, width=barwidth, bottom=cumulative, alpha=alphas[k], lw=lw, label=labels[k])
         else:
-            ax.bar(indices, cat_values[k], color=colors[k], hatch=hatches[k], edgecolor=ec, width=barwidth, alpha=alphas[k], lw=lw)
+            ax.bar(indices, cat_values[k], color=colors[k], hatch=hatches[k], edgecolor=ec, width=barwidth, alpha=alphas[k], lw=lw, label=labels[k])
 
         if plot_stacked:
             cumulative += cat_values[k]
@@ -1676,7 +1769,11 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         ax.yaxis.set_major_formatter(formatter)
 
     if not legend_off:
-        ax.legend(labels, **legendsettings)
+        handles, labels_leg = ax.get_legend_handles_labels()
+#         print handles
+#         print labels_leg
+        # TODO: this doesn't actually display as reversed - requires fixing
+        ax.legend(handles=handles[::-1], labels=labels_leg[::-1], **legendsettings)
 
     if x_ticks is not None:
         ax.set_xticks(x_ticks[0])
