@@ -414,7 +414,8 @@ class PlottingSettings():
                                             'ncol':1},
                          # labels
                          'use_full_labels' : False,
-                         'effective_rate': "Effective number"
+                         'effective_rate': "Effective number",
+                         'default_ylabel' : "Number of cases"
                          }
 
     def devSettings(self):
@@ -425,7 +426,7 @@ class PlottingSettings():
     def printSettings(self):
 
         pl.rcParams['figure.figsize'] = (15, 10)
-        pl.rcParams['savefig.dpi'] = 300
+        pl.rcParams['savefig.dpi'] = 200
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
         self.plotdict['legend_off'] = False
         self.plotdict['use_full_labels'] = True

@@ -1,8 +1,6 @@
 # %% Imports
 import logging
 from matplotlib.pyplot import plot
-from CodeWarrior.Standard_Suite import lines, line
-from __builtin__ import False
 
 logger = logging.getLogger(__name__)
 
@@ -306,6 +304,10 @@ def separateLegend(labels, colors, fig_name, reverse_order=False, linestyles=Non
         labels = labels[::-1]
         colors = colors[::-1]
 
+    print "////////"
+    print linestyles
+    print labels
+    print "\\\\\\"
     hatches = getHatchmapping(linestyles, labels)
 
     fig = plt.figure() # figsize=(5, 5))  # silly big
@@ -491,6 +493,7 @@ def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None
         
         
     """
+
     fig = innerPlotBar(proj, [result], year_periods=year_periods, output_labels=output_labels,
                        compare_type=COMPARETYPE_YEAR, pop_labels=pop_labels, ylabel=ylabel,
                        colormappings=colormappings, colors=colors, linestyles=linestyles, # plot_relative=None,
@@ -498,19 +501,19 @@ def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None
     return fig
 
 def plotCascade(proj, result, output_labels, pop_labels=None, year_period=None,
-                plot_total=False,
+                plot_total=False, plot_relative=False,
                colormappings=None, colors=None, linestyles=None, y_intercept=None,
                title="", save_fig=False, fig_name=None, **kwargs):
     """
     """
     fig = innerPlotBar(proj, [result], year_periods=year_period, output_labels=output_labels,
                        compare_type=COMPARETYPE_CASCADE, pop_labels=pop_labels, ylabel="Number of cases",
-                       colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=None,
+                       colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=plot_relative,
                        title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
 
 
 def plotCompsBar(proj, result, output_labels, pop_labels=None, year_period=None,
-                plot_total=False,
+                plot_total=False, plot_relative=False,
 #                 plot_type=None,
 #                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, y_intercept=None,
@@ -535,7 +538,7 @@ def plotCompsBar(proj, result, output_labels, pop_labels=None, year_period=None,
     if plot_total:
         fig = innerPlotBar(proj, [result], year_periods=year_period, output_labels=output_labels,
                        compare_type=COMPARETYPE_VALUE, pop_labels=pop_labels, ylabel=ylabel,
-                       colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=None,
+                       colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=plot_relative,
                        title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
     else:
         if pop_labels is None:
@@ -543,7 +546,7 @@ def plotCompsBar(proj, result, output_labels, pop_labels=None, year_period=None,
         for pop in pop_labels:
             fig = innerPlotBar(proj, [result], year_periods=year_period, output_labels=output_labels,
                        compare_type=COMPARETYPE_VALUE, pop_labels=[pop], ylabel=ylabel,
-                       colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=None,
+                       colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=plot_relative,
                        title=title, save_fig=save_fig, fig_name=fig_name + "_%s" % pop, **kwargs)
 
     return fig
@@ -586,7 +589,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
         fig = innerPlotTrend(proj, [results], output_labels=output_labels,
                    compare_type=COMPARETYPE_VALUE,
                    pop_labels=pop_labels, plot_total=plot_total, plot_type='stacked',
-                   plot_observed_data=False, observed_data_label='alive',
+                   plot_observed_data=plot_observed_data, observed_data_label='alive',
                    colormappings=colormappings, colors=colors, cat_labels=cat_labels,
                    save_fig=save_fig, fig_name=fig_name)
     else:
@@ -673,6 +676,7 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
     plotdict = proj.settings.plot_settings
     charac_specs = proj.settings.charac_specs
     plot_over = (proj.settings.tvec_start, proj.settings.tvec_observed_end)
+    tmp_plotdict = dcp(plotdict)
 
     # -------------------------------------------------------
     # generic setup for data
@@ -722,7 +726,6 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
     ys = []
     ts = []
     dataobs = ([], [])
-    tmp_plotdict = dcp(plotdict)
     unit_tag = ""
 
     for value_label in output_labels:
@@ -733,14 +736,14 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
             for resultname in resultset.keys():
                 result = resultset[resultname]
                 y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
-                y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
+                y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 ys.append(y)
                 ts.append(t)
 
         elif compare_type == COMPARETYPE_VALUE:
             result = resultset[0]
             y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
-            y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
+            y, unit_tag = _convertPercentage(y, value_label, charac_specs)
             ys.append(y)
             ts.append(t)
 
@@ -749,22 +752,22 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
             if plot_total:
 
                 y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
-                y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
+                y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 ys = [y]
                 ts = [t]
             else:
                 for pop in pop_labels:
                     y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop, integrated=False)
-                    y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
+                    y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                     ys.append(y)
                     ts.append(t)
 
     # get observed data points
     if plot_observed_data:
         dataobs = _extractDatapoint(data, observed_data_label, pop_labels, charac_specs, plot_total=plot_total)
-        dataobs, unit_tag = _convertPercentage(dataobs, value_label, pop_labels, charac_specs)
+        dataobs, unit_tag = _convertPercentage(dataobs, value_label, charac_specs)
 
-    fullname = getName(observed_data_label, settings)
+    fullname = getName(observed_data_label, proj)
     if plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
         name = fullname
 
@@ -865,6 +868,7 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
     plotdict = proj.settings.plot_settings
     charac_specs = proj.settings.charac_specs
     plot_over = (proj.settings.tvec_start, proj.settings.tvec_observed_end)
+    tmp_plotdict = dcp(plotdict)
 
     # -------------------------------------------------------
     # generic setup for data
@@ -937,38 +941,32 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
         logger.info("Plotting: compare_type not specified, assuming comparing populations")
         series_labels = pop_labels
         color_labels = pop_labels
-    print ">>>>>>>>"
-    print series_labels
-    print color_labels
-    print ">>>>>>>>>>"
+#     print ">>>>>>>>"
+#     print series_labels
+#     print color_labels
+#     print ">>>>>>>>>>"
 
 
     if cat_labels is not None:
         legend_labels = cat_labels # TODO revisit
     elif plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
-        print "------", color_labels
-        legend_labels = [getName(lab, settings) for lab in color_labels]
-        print "------", legend_labels
-
+#         print "------", color_labels
+        legend_labels = [getName(lab, proj) for lab in color_labels]
+#         print "------", legend_labels
     else:
         legend_labels = color_labels
 
-    if observed_data_label is None:
-        observed_data_label = output_labels[0]
+#     if observed_data_label is None:
+#         observed_data_label = output_labels[0]
 
-
-    if len(output_labels) == 1:
-        name = output_labels[0]
-    else:
-        name = "Combined_%s_%s" % (output_labels[0], output_labels[-1])
 
     # -------------------------------------------------------
     # generic setup for colors, line and hatches
-    print color_labels
-    print "Setting up colors: color_labels = ", color_labels
-    print "Setting up legend labels: legend_labels = ", legend_labels
-    colors, lines, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, color_labels, plotdict)
-    print colors
+#     print color_labels
+#     print "Setting up colors: color_labels = ", color_labels
+#     print "Setting up legend labels: legend_labels = ", legend_labels
+    colors, linestyles, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, color_labels, plotdict)
+#     print colors
 #     print lines
 #     print hatches
 
@@ -988,7 +986,7 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                 else:
                     y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=pop_labels, integrated=False)
                     y = y[0]
-                y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
+                y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 ys.append(y)
             else:
                 for pop in pop_labels:
@@ -997,7 +995,7 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                     else:
                         y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=[pop], integrated=False)
                         y = y[0]
-                    y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
+                    y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                     ys.append(y)
             values.append(ys)
 
@@ -1010,7 +1008,7 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
             for value_label in color_labels:
                 if value_label in output_group:
                     y, _ = result.getValuesAt(value_label, year_init=time_period[0], year_end=time_period[1], pop_labels=pop_labels, integrated=True)
-                    y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
+                    y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 else:
                     y = 0
                 ys.append(y)
@@ -1038,7 +1036,6 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                         count += y
                     ys.append(count)
             values.append(ys)
-        print values
 
     elif compare_type == COMPARETYPE_YEAR:
         # loop over values, over year periods
@@ -1051,7 +1048,7 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                 else:
                     y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=pop_labels, integrated=False)
                     y = y[0]
-                y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
+                y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 ys.append(y)
             values.append(ys)
 
@@ -1066,16 +1063,21 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                 else:
                     y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=[pop], integrated=False)
                     y = y[0]
-                y, unit_tag = _convertPercentage(y, value_label, [pop], charac_specs)
+                y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 ys.append(y)
             values.append(ys)
     else:
-        logger.warn("Non valid type") # TODO raise exception
+        logger.warn("Non valid type")
+        raise OptimaException("Unknown plotting type:") # TODO complete exception message
+
 
     if ylabel is None:
-        ylabel = getName(observed_data_label, settings) + unit_tag
-    if plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
-        name = getName(observed_data_label, settings)
+        if observed_data_label is not None:
+            ylabel = getName(observed_data_label, proj) + unit_tag
+        elif len(output_labels) == 1:
+            ylabel = getName(output_labels[0], proj) + unit_tag
+        else:
+            ylabel = getName(None, proj) + unit_tag
 
     final_dict = {'title':  '',
                   'ylabel': ylabel,
@@ -1083,21 +1085,24 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                   'barwidth': 0.8,
                   'save_figname': fig_name}
 
-    plotdict.update(final_dict)
+    tmp_plotdict.update(final_dict)
 
 #     print plot_type
-    _plotBars(values, labels=legend_labels, colors=colors,
+    fig = _plotBars(values, labels=legend_labels, colors=colors,
             linestyles=linestyles, hatches=hatches, xlabels=series_labels, # legendsettings=legendsettings,
-            save_fig=save_fig, **plotdict)
+            save_fig=save_fig, **tmp_plotdict)
 
     if plotdict.has_key('legend_off') and plotdict['legend_off']:
         # Note that color list may be different to colors, as it represents
         # classes of compartments i.e. ['Latent disease states','Active disease states']
         legendsettings = plotdict['legendsettings']
+#         print "----------->>>>>>>"
+#         print linestyles
+#         print cat_colors
         separateLegend(labels=legend_labels, colors=cat_colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
 
 
-    return None
+    return fig
 
 #
 # def plotScenarioBar (scen_results, scen_labels, settings, data, output_list=None, year=None, pop_labels=None, legendsettings=None,
@@ -1415,17 +1420,34 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
         else:
             separateLegend(labels=cat_labels, colors=cat_colors, fig_name=fig_name, reverse_order=True,)
 
-def getName(output_id, settings):
+def getName(output_id, proj):
+    """
+    For a given output_id, returns the user-friendly version of the name. 
+    
+    This works for:
+    - characteristic labels
+    - compartment labels
+    - parameter labels
+    - parameter tags
+    
+    Specifying output_id = None will return the default ylabel as specified in settings.plot_settings dict 
+    """
+    settings = proj.settings
     if isinstance(output_id, list):
         name = "List_(%s,%s)" % (output_id[0], output_id[-1])
-    elif output_id in settings.charac_specs:
+    elif output_id in settings.charac_specs: # characteristic
         name = settings.charac_specs[output_id]['name']
-    elif output_id in settings.linkpar_specs:
+    elif output_id in settings.linkpar_specs: # parameter
         name = settings.linkpar_specs[output_id]['name']
-    elif output_id in settings.node_specs:
+    elif output_id in settings.node_specs: # compartment
         name = settings.node_specs[output_id]['name']
+    elif output_id in proj.data['pops']['label_names'].keys(): # population label
+        name = output_id
+    elif output_id is None: # default label, as user hasn't specified ylabel for aggregate value
+        name = settings.plot_settings["default_ylabel"]
     else:
         try:
+            # this is a parameter specified by tag, rather than by parameter label
             # TODO: propose that this could more effective by moving the tag->label dict into settings, and generated upon init
             tags = {settings.linkpar_specs[label]['tag']: label for label in settings.linkpar_specs.keys() if settings.linkpar_specs[label].has_key('tag')}
             tmp_id = tags[output_id]
@@ -1436,9 +1458,27 @@ def getName(output_id, settings):
     return name
 
 def getPops(result):
+    """
+    Returns the full list of populations
+    """
     return [pop.label for pop in result.m_pops]
 
 def _extractDatapoint(data, value_label, pop_labels, charac_specs, plot_total=False):
+    """
+    Extract the characteristic datapoints for populations
+    
+    Param:
+        data     proj.data
+        value_label     string for characteristic label
+        pop_labels    list of populations
+        charac_specs    
+        plot_total    sums over observed datapoints
+        
+    Returns
+        tuple with (timepoints, y-values) for each population
+        
+    TODO: make proj parameters, so that charac_specs and data are encapsulated
+    """
     dataobs = None
     if value_label in data['characs'].keys():
 
@@ -1460,10 +1500,22 @@ def _extractDatapoint(data, value_label, pop_labels, charac_specs, plot_total=Fa
     dataobs = (ts, ys)
     return dataobs
 
-def _convertPercentage(datapoints, output_label, pop_labels, charac_specs):
+def _convertPercentage(datapoints, output_label, charac_specs):
+    """
+    Converts data points to percentage i.e. 0.02 to 2 (%). 
+    
+    Params:
+        datapoints
+        output_label
+        charac_specs
+        
+    Returns:
+        datapoint
+        unittags
+    """
     if output_label in charac_specs and 'plot_percentage' in charac_specs[output_label].keys():
         datapoints *= 100
-        unit_tags = ' (%)'
+        unit_tags = ' (%)' # TODO remove magic string
     else:
         unit_tags = ''
 
