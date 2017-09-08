@@ -413,7 +413,8 @@ class PlottingSettings():
                                             'bbox_to_anchor':(1.05, 0.5),
                                             'ncol':1},
                          # labels
-                         'use_full_labels' : False
+                         'use_full_labels' : False,
+                         'effective_rate': "Effective number"
                          }
 
     def devSettings(self):

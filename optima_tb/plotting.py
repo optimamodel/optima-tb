@@ -258,14 +258,20 @@ def getHatchmapping(linestyles, labels):
     return hatches
 
 
-def setupStylings(colormappings, colors, linestyles, series_labels):
+def setupStylings(colormappings, colors, linestyles, series_labels, plotdict):
     # generic setup for colors, line and hatches
     if colormappings is not None:
         colors = []
         colors_dict, cat_colors = getCategoryColors(colormappings, 'sequential')
         # extract colors so that they are in the same order as expected for plotting the population
-        for (j, pop_label) in enumerate(series_labels):
-            colors.append(colors_dict[pop_label])
+        try:
+            for (j, pop_label) in enumerate(series_labels):
+                colors.append(colors_dict[pop_label])
+        except Exception as e:
+            colors = gridColorMap(len(series_labels))
+            cat_colors = colors
+            logging.warn("Had to set default colormap as labels didn't match colormappings")
+            logging.warn(e)
     elif colors is not None and len(colors) >= len(series_labels):
         # colors as defined in the args should be used as is
         cat_colors = colors
@@ -277,7 +283,11 @@ def setupStylings(colormappings, colors, linestyles, series_labels):
     if linestyles is not None:
         # convert from odict (key: style) to odict (key: population)
         linestyles = getLinemapping(linestyles)
-        linestyles = [linestyles[pop] for pop in series_labels] # extract used linestyles from dict into list
+        try:
+            linestyles = [linestyles[pop] for pop in series_labels] # extract used linestyles from dict into list
+        except Exception as e:
+            linestyles = [plotdict['default_linestyle']] * len(series_labels)
+            logging.warn("Had to use default linestyle as labels didn't match linestyles")
 
     hatches = getHatchmapping(linestyles, series_labels)
     hatches = [hatches[pop] for pop in series_labels] # extract used hatches from dict into list
@@ -461,7 +471,7 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
 
 
 def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None,
-               plot_total=False, plot_type=None,
+               plot_total=False, plot_type=None, ylabel=None,
                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, y_intercept=None,
                title="", save_fig=False, fig_name=None, **kwargs):
@@ -482,8 +492,8 @@ def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None
         
     """
     fig = innerPlotBar(proj, [result], year_periods=year_periods, output_labels=output_labels,
-                       compare_type=COMPARETYPE_YEAR, pop_labels=pop_labels,
-                       colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=None,
+                       compare_type=COMPARETYPE_YEAR, pop_labels=pop_labels, ylabel=ylabel,
+                       colormappings=colormappings, colors=colors, linestyles=linestyles, # plot_relative=None,
                        title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
     return fig
 
@@ -551,7 +561,8 @@ def plotCompareResultsBar(proj, resultset, output_labels, pop_labels=None, year_
         fig = innerPlotBar(proj, resultset, year_periods=year_periods, output_labels=output_labels,
                            compare_type=COMPARETYPE_RESULT, plot_total=plot_total,
                            pop_labels=pop_labels,
-                           colormappings=None, colors=None, linestyles=None, plot_relative=None,
+                           colormappings=colormappings, colors=colors, linestyles=linestyles,
+                           # plot_relative=plot_relative,
                            title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
     return fig
 
@@ -703,7 +714,7 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
 
     # -------------------------------------------------------
     # generic setup for colors, line and hatches
-    colors, linestyles, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, series_labels)
+    colors, linestyles, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, series_labels, plotdict)
 
     # -------------------------------------------------------
     # loop over values to be plotted
@@ -768,8 +779,8 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
 
     tmp_plotdict.update(final_dict)
     # plot values
-    fig = _plotTrends(ys, ts, series_labels, plot_type=plot_type,
-            save_fig=save_fig, colors=colors,
+    fig = _plotTrends(ys, ts, legend_labels, plot_type=plot_type,
+            save_fig=save_fig, colors=colors, cat_colors=cat_colors,
             linestyles=linestyles, hatches=hatches, **tmp_plotdict)
 
     # plot separate legend
@@ -889,7 +900,10 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
 
     if compare_type == COMPARETYPE_RESULT:
         series_labels = resultset.keys()
-        color_labels = pop_labels
+        if plot_total:
+            color_labels = ['Total']
+        else:
+            color_labels = pop_labels
     elif compare_type == COMPARETYPE_VALUE:
         if isinstance(output_labels, odict):
             color_labels = []
@@ -948,16 +962,13 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
     else:
         name = "Combined_%s_%s" % (output_labels[0], output_labels[-1])
 
-    print "111", name
-
-
     # -------------------------------------------------------
     # generic setup for colors, line and hatches
-#     print color_labels
+    print color_labels
     print "Setting up colors: color_labels = ", color_labels
     print "Setting up legend labels: legend_labels = ", legend_labels
-    colors, lines, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, color_labels)
-#     print colors
+    colors, lines, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, color_labels, plotdict)
+    print colors
 #     print lines
 #     print hatches
 
@@ -966,11 +977,12 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
     values = []
     if compare_type == COMPARETYPE_RESULT:
         value_label = output_labels[0]
+        time_period = year_periods[0]
+        print time_period
         for resultname in resultset.keys():
+            result = resultset[resultname]
             ys = []
-            for time_period in year_periods:
-                result = resultset[resultname]
-                print time_period
+            if plot_total:
                 if isinstance(time_period, list) and len(time_period) == 2: # TODO make more robust / graceful
                     y, _ = result.getValuesAt(value_label, year_init=time_period[0], year_end=time_period[1], pop_labels=pop_labels, integrated=True)
                 else:
@@ -978,10 +990,18 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                     y = y[0]
                 y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
                 ys.append(y)
+            else:
+                for pop in pop_labels:
+                    if isinstance(time_period, list) and len(time_period) == 2: # TODO make more robust / graceful
+                        y, _ = result.getValuesAt(value_label, year_init=time_period[0], year_end=time_period[1], pop_labels=[pop], integrated=True)
+                    else:
+                        y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=[pop], integrated=False)
+                        y = y[0]
+                    y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
+                    ys.append(y)
             values.append(ys)
 
     elif compare_type == COMPARETYPE_VALUE:
-        # TODO work out how to loop either over pop or over comp
         time_period = year_periods[0] # TODO confirm that only one time period required
         result = resultset[0] # TODO confirm that only one time period required
         for output_key in output_labels.keys():
@@ -991,7 +1011,6 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                 if value_label in output_group:
                     y, _ = result.getValuesAt(value_label, year_init=time_period[0], year_end=time_period[1], pop_labels=pop_labels, integrated=True)
                     y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
-#                     print value_label, time_period, pop_labels, y
                 else:
                     y = 0
                 ys.append(y)
@@ -1004,14 +1023,11 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
         for output_key in output_labels.keys():
             output_group = output_labels[output_key]
             ys = []
-
             if isinstance(pop_labels, dict):
-
                 for pop_lab, pop_set in pop_labels.iteritems():
                     count = 0
                     for lab in output_group:
                         y, _ = result.getValuesAt(lab, year_init=time_period[0], year_end=time_period[1], pop_labels=pop_set, integrated=True)
-                        print lab, time_period, pop_set, y
                         count += y
                     ys.append(count)
             else:
@@ -1019,7 +1035,6 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                     count = 0
                     for lab in output_group:
                         y, _ = result.getValuesAt(lab, year_init=time_period[0], year_end=time_period[1], pop_labels=[pop], integrated=True)
-                        print lab, time_period, pop, y
                         count += y
                     ys.append(count)
             values.append(ys)
@@ -1029,7 +1044,6 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
         # loop over values, over year periods
         result = resultset[0]
         for time_period in year_periods:
-
             ys = []
             for value_label in output_labels: # TODO extend so that it returns per pop_labels
                 if isinstance(time_period, list) and len(time_period) == 2: # TODO make more robust / graceful
@@ -1037,7 +1051,6 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                 else:
                     y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=pop_labels, integrated=False)
                     y = y[0]
-                print y
                 y, unit_tag = _convertPercentage(y, value_label, pop_labels, charac_specs)
                 ys.append(y)
             values.append(ys)
@@ -1410,13 +1423,16 @@ def getName(output_id, settings):
     elif output_id in settings.linkpar_specs:
         name = settings.linkpar_specs[output_id]['name']
     elif output_id in settings.node_specs:
-        name = output_id # TODO update
+        name = settings.node_specs[output_id]['name']
     else:
         try:
-            # TODO get compartment label name from settings - using results, this was [comp.label for comp in results.m_pops[0].comps]
-            name = "Unknown_%s" % output_id
+            # TODO: propose that this could more effective by moving the tag->label dict into settings, and generated upon init
+            tags = {settings.linkpar_specs[label]['tag']: label for label in settings.linkpar_specs.keys() if settings.linkpar_specs[label].has_key('tag')}
+            tmp_id = tags[output_id]
+            name = settings.linkpar_specs[tmp_id]['name'] + " (%s)" % settings.plot_settings['effective_rate']
         except:
-            raise OptimaException('ERROR: Attempting to plot characteristic "%s" but cannot locate it in either characteristic or parameter specs.' % output_id)
+            name = "Unknown_%s" % output_id
+            logging.warn('ERROR: Attempting to plot characteristic "%s" but cannot locate it in either characteristic or parameter specs.' % output_id)
     return name
 
 def getPops(result):
@@ -1470,7 +1486,7 @@ def isPlottableComp(comp_label, sim_settings, comp_specs):
         return False
     return True
 
-def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
+def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None, cat_colors=None,
              legendsettings=None, title=None, xlabel=None, ylabel=None, xlim=None, ylim=None, y_ticks=None, x_ticks=None,
              y_intercept=None, reverse_order=False, y_bounds=None, linestyles=None, hatches=None,
              smooth=False, symmetric=False, repeats=5,
@@ -1614,7 +1630,13 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
         ax.yaxis.set_major_formatter(formatter)
 
     if not legend_off:
-        ax.legend(labels, **legendsettings)
+        if cat_colors is not None:
+            # TODO improve
+            import matplotlib.patches as mpatches
+            patches = [  mpatches.Patch(color=color, label=label, ec='white') for label, color in zip(labels, cat_colors)]
+            ax.legend(patches, labels, **legendsettings)
+        else:
+            ax.legend(labels, **legendsettings)
 
     # automatic choices for setting ylim bounds
     ax.set_ylim(ymin=0)
