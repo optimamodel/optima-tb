@@ -802,11 +802,37 @@ class Model(object):
                                 prog = progset.getProg(prog_label)
                                 prog_type = prog.prog_type
 
+                                special = ''
+
                                 # Make sure the population in the loop is a target of this program.
                                 if pop.label not in prog.target_pops:
                                     continue
-                                if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']):
+                                if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings[
+                                    'init_alloc']):
                                     continue
+
+                                # added an exception to clarify why programme crashes if pars[0] ist not a type 'Link'
+                                if not isinstance(pars[0], Link):
+                                    raise OptimaException(
+                                        'ERROR: Program impact parameters must be transitions. "%s" is not a transition.' % (
+                                        par_label))
+
+                                try:
+                                    # decompose special tag word by word (string separated by whitespaces)
+                                    words = settings.progtype_specs[prog_type]['special'].split()
+                                    # first word is the tag
+                                    special = words[0]
+                                    # other words must be impact parameters which are subsumed in a list; sanity check below
+                                    scale_pars = words[1:]
+                                except: pass
+
+                                # check if all the provided parameters are indeed impact parameters
+                                if special != '' and len(scale_pars) > 0:
+                                    for w in scale_pars: # check if impact parameters and passed words coincide
+                                        if not w in progset.getProg(prog_label).target_pars.keys():
+                                            raise OptimaException(
+                                                'ERROR: Parameters passed in the \'special tag\' field after \'%s\' must be impact parameters. \'%s\' is not in list [%s].'
+                                                % (special, w, ' '.join(progset.getProg(prog_label).target_pars.keys())))
 
                                 # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
                                 source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
@@ -848,6 +874,11 @@ class Model(object):
                                             impact = 0.0
                                         else:
                                             impact = net_impact * source_element_size / source_set_size
+                                            # make sure impact is not bigger than the number of available entities
+                                            if impact > source_element_size:
+                                                impact = source_element_size
+                                                logger.warn("In population '%s', Program '%s'  has an impact on more entities than contained in '%s'. Truncating value to number of entities."
+                                                            % (pop.label, prog_label, pars[0].label_from))
 
                                 # Calculate how excessive program coverage is for the provided budgets.
                                 # If coverage is a fraction, excess is compared to unity.
@@ -884,9 +915,28 @@ class Model(object):
 #                                        print
 
                                 if first_prog:
-                                    new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
                                     first_prog = False
+                                    if special == 'replace' or special == '':
+                                        new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
 #                                new_val += impact
+
+                                if special == 'scale_prop' and par_label in scale_pars:
+                                    # determine total population
+                                    total_pop = sum([p.getDep('h_alive').vals[ti] for p in self.pops])
+                                    impacts = [] # impacts are treated as fractions!
+                                    # TODO allow impact numbers, too
+
+                                    # find all programs of the same type as current one and weigh its impact proportional
+                                    # to the population size before summing up
+                                    for p in progset.progs:
+                                        if p.prog_type == progset.getProg(prog_label).prog_type:
+                                            try: imp = self.prog_vals[p.label]['impact'][par_label][ti] # identical for each population
+                                            except: imp = self.prog_vals[p.label]['impact'][par_label][0]
+                                            pop_sizes = [self.getPop(p).getDep('h_alive').vals[ti] for p in prog.target_pops]
+                                            impacts.append(np.dot([imp] * len(pop_sizes), pop_sizes) / total_pop)
+
+                                    impact = sum(impacts)
+
                                 impact_list.append(impact)
 
 #                            print overflow_list
@@ -897,7 +947,12 @@ class Model(object):
                                 impact_list = np.multiply(impact_list, 1 / sum(overflow_list))
 
 
-                            new_val += np.sum(impact_list)
+                            if special == '' or special == 'replace':
+                                new_val += np.sum(impact_list)
+                            elif special == 'scale' or special == 'scale_prop':
+                                new_val *= 1.0 + np.sum(impact_list)
+                            else:
+                                pass
 
                             # Handle impact constraints.
                             # Note: This applies to any parameter that is impacted by the progset, not just for programs that are in the allocation.

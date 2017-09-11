@@ -541,7 +541,10 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                         special_tag = str(ws_progtypes.cell_value(row_id, cid_special))
                         if special_tag not in ['']:
                             settings.progtype_specs[current_label]['special'] = special_tag
-                
+                        else:
+                            # give each untagged program type the replace special rule, which is the default behaviour
+                            settings.progtype_specs[current_label]['special'] = 'replace'
+
                 if not current_label is None:
                     if not None in [cid_attlabel, cid_attname]:
                         attrib_label = str(ws_progtypes.cell_value(row_id, cid_attlabel))
