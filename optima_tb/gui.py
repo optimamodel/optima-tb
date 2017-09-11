@@ -985,6 +985,9 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         
         self.label_year_start.setVisible(does_progset_exist)
         self.edit_year_start.setVisible(does_progset_exist)
+        self.label_overwrite.setVisible(does_progset_exist)
+        self.edit_overwrite.setVisible(does_progset_exist)
+        self.button_overwrite.setVisible(does_progset_exist)
         self.label_model_run.setVisible(does_parset_exist & does_progset_exist)
         self.edit_model_run.setVisible(does_parset_exist & does_progset_exist)
         self.button_model_run.setVisible(does_parset_exist & does_progset_exist)
@@ -1018,6 +1021,11 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.label_year_start = qtw.QLabel('Year to reconcile calibration with fixed-budget programs... ')
         self.edit_year_start = qtw.QLineEdit()
         self.edit_year_start.returnPressed.connect(self.updateStartYear)
+        
+        self.label_overwrite = qtw.QLabel('Save edits to... ')
+        self.edit_overwrite = qtw.QLineEdit()
+        self.button_overwrite = qtw.QPushButton('Save program set', self)
+        self.button_overwrite.clicked.connect(self.savePrograms)
 
         self.label_model_run = qtw.QLabel('Run & save program-based simulation results as... ')
         self.edit_model_run = qtw.QLineEdit()
@@ -1039,9 +1047,12 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         grid_progset_save = qtw.QGridLayout()
         grid_progset_save.setSpacing(10)
 
-        grid_progset_save.addWidget(self.label_model_run, 0, 0)
-        grid_progset_save.addWidget(self.edit_model_run, 0, 1)
-        grid_progset_save.addWidget(self.button_model_run, 0, 2)
+        grid_progset_save.addWidget(self.label_overwrite, 0, 0)
+        grid_progset_save.addWidget(self.edit_overwrite, 0, 1)
+        grid_progset_save.addWidget(self.button_overwrite, 0, 2)
+        grid_progset_save.addWidget(self.label_model_run, 1, 0)
+        grid_progset_save.addWidget(self.edit_model_run, 1, 1)
+        grid_progset_save.addWidget(self.button_model_run, 1, 2)
         
         self.table_reconciliation = qtw.QTableWidget()
 #        self.table_reconciliation.cellChanged.connect(self.updateProgset)
@@ -1134,6 +1145,19 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         if not delay_refresh:
             self.refreshVisibility()
             
+    def savePrograms(self):
+        progset_name = str(self.edit_overwrite.text())
+        if progset_name == '':
+            self.status = ('Status: Attempt to save program set failed, no name provided')
+        else:
+            if progset_name in self.project.progsets.keys():
+                self.status = ('Status: Program set "%s" successfully overwritten' % progset_name)
+            else:
+                self.status = ('Status: New program set "%s" added to project' % progset_name)
+            self.progset.name = progset_name
+            self.project.progsets[progset_name] = dcp(self.progset)
+        self.refreshVisibility()
+            
     # TODO: Remove magic numbers once layout design is more stable.
     def makeProgsetTable(self):
         self.table_reconciliation.setVisible(False)    # Resizing columns requires table to be hidden first.
@@ -1181,7 +1205,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                 self.table_reconciliation.setItem(row_id, col_id, temp)
             row_id += 1
         self.table_reconciliation.setVerticalHeaderLabels(custom_ids)
-        self.table_reconciliation.setHorizontalHeaderLabels(['Unit Cost','Unit Cost\nSigma','Total Budget\n(Year: %s)' % self.options['progs_start'],'Total Budget\nSigma','Effective Coverage\n(Year: %s)' % self.options['progs_start'],'Databook Coverage\n(Year: %s)' % self.options['progs_start'],'Impact Sigma'])
+        self.table_reconciliation.setHorizontalHeaderLabels(['Unit Cost','Unit Cost\nSigma','Program Budget\n(Year: %s)' % self.options['progs_start'],'Program Budget\nSigma','Effective Coverage\n(Year: %s)' % self.options['progs_start'],'Databook Coverage\n(Year: %s)' % self.options['progs_start'],'Impact Sigma'])
         self.table_reconciliation.resizeColumnsToContents()
         self.table_reconciliation.resizeRowsToContents()
 
@@ -1285,25 +1309,8 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
             return
         
         if col == 0:
-#            year = float(str(self.table_calibration.horizontalHeaderItem(col).text()))
-            try:
-                new_val = float(new_val_str)
-            except:
-#                if new_val_str == '':
-#                    remove_success = par.removeValueAt(t=year, pop_label=pop_label)
-#                    if remove_success:
-#                        self.status = ('Status: Value successfully deleted from parameter set')
-#                        self.refreshStatus()
-#                        return
-#                    else: self.status = ('Status: Attempt to remove item in parameter set failed, at least one value per row required')
-#                else: 
-                self.status = ('Status: Attempt to edit unit cost in program set failed, only numbers allowed')
-                self.refreshStatus()
-                self.guard_status = True
-                self.table_reconciliation.item(row, col).setText(str(prog.func_specs['pars']['unit_cost']))
-                self.guard_status = False
-                return
             prog.func_specs['pars']['unit_cost'] = new_val
+            self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
             self.status = ('Status: Current edited program set uses unit cost "%f" for program "%s"' % (new_val, prog_label))
         self.refreshStatus()
 
