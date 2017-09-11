@@ -184,15 +184,14 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         project_name, project_name_chosen = qtw.QInputDialog.getText(self, 'Create project', 'Enter project name:')
         if project_name_chosen:
             cascade_path = sanitizedFileDialog(self, 'open', 'Select cascade file')
-            # try:
-            if True:
+            try:
                 self.project = Project(name=project_name, cascade_path=cascade_path, validation_level='avert', plotting_level='gui')
                 self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_observed_end + 1.0 / 2)
                 self.status = ('Status: Project "%s" generated, cascade settings loaded' % self.project.name)
-            # except Exception as E:
-                # self.status = ('Status: Attempt to generate project failed (%s)' % E.__repr__())
-                # self.refreshVisibility()
-                # return
+            except Exception as E:
+                self.status = ('Status: Attempt to generate project failed (%s)' % E.__repr__())
+                self.refreshVisibility()
+                return
 
             # set year ##### TODO remove hardcoded references
             plot_over = [2000, 2035]
@@ -1017,7 +1016,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 
         self.label_year_start = qtw.QLabel('Year to reconcile calibration with fixed-budget programs... ')
         self.edit_year_start = qtw.QLineEdit()
-        self.edit_year_start.textChanged[str].connect(self.updateStartYear)
+        self.edit_year_start.returnPressed.connect(self.updateStartYear)
 
         self.label_model_run = qtw.QLabel('Run & save program-based simulation results as... ')
         self.edit_model_run = qtw.QLineEdit()
@@ -1061,8 +1060,9 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         layout.addWidget(self.table_reconciliation)
         layout.addLayout(grid_progset_save)
 
-    def updateStartYear(self, progs_start):
-        try:    self.options['progs_start'] = float(str(self.edit_year_start.text()))
+    def updateStartYear(self):
+        try:    
+            self.options['progs_start'] = float(str(self.edit_year_start.text()))
         except:
             self.status = ('Status: An invalid program start-year was chosen, so the value has reverted to default')
             self.options['progs_start'] = defaultOptimOptions(settings=self.project.settings, progset=self.progset)['progs_start']
@@ -1174,13 +1174,13 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                         temp.setText(str(prog.func_specs['pars']['unit_cost']))
                         temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)
                     elif col_id == 2:
-                        temp.setText(str(prog.getDefaultBudget()))
+                        temp.setText(str(prog.getDefaultBudget(year=self.options['progs_start'])))
                         temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)
                     elif col_id == 4:
-                        temp.setText(str(prog.getCoverage(prog.getDefaultBudget())))
+                        temp.setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
                         temp.setFlags(qtc.Qt.ItemIsEnabled)
                     elif col_id == 5:
-                        temp.setText(str(prog.interpolate(tvec=[2015], attributes=['cov'])['cov'][-1]))
+                        temp.setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=['cov'])['cov'][-1]))
                         temp.setFlags(qtc.Qt.ItemIsEnabled)
                         
                         
@@ -1228,7 +1228,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 #                            self.table_calibration.setItem(k * num_pops + pid, 2 + int(t) - self.tvec[0], temp)
             row_id += 1
         self.table_reconciliation.setVerticalHeaderLabels(custom_ids)
-        self.table_reconciliation.setHorizontalHeaderLabels(['Unit Cost','Unit Cost\nSigma','Total Budget','Total Budget\nSigma','Effective Coverage','Historical Coverage','Impact Sigma'])
+        self.table_reconciliation.setHorizontalHeaderLabels(['Unit Cost','Unit Cost\nSigma','Total Budget\n(Year: %s)' % self.options['progs_start'],'Total Budget\nSigma','Effective Coverage\n(Year: %s)' % self.options['progs_start'],'Databook Coverage\n(Year: %s)' % self.options['progs_start'],'Impact Sigma'])
         self.table_reconciliation.resizeColumnsToContents()
         self.table_reconciliation.resizeRowsToContents()
 
