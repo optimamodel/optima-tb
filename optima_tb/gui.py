@@ -1312,6 +1312,8 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
             prog.func_specs['pars']['unit_cost'] = new_val
             self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
             self.status = ('Status: Current edited program set uses unit cost "%f" for program "%s"' % (new_val, prog_label))
+        elif col == 2:
+            pass
         self.refreshStatus()
 
     def runProgsetSim(self):
