@@ -397,7 +397,7 @@ class PlottingSettings():
                          'year_inc':5,
                          # colormapping for category lists
                          'colormapping_order':'alternate3',  # as we have triplets in undiagnosed --> diagnosed --> on treatment
-                         'formatter': FuncFormatter(self.PopSuffixFormatter), # KMSuffixFormatter) ,
+                         'formatter': None, # FuncFormatter(self.PopSuffixFormatter), # KMSuffixFormatter) ,
                          'barwidth': 0.8,
                          'bar_offset': 0.2,
                          # alpha for fill-between
@@ -415,7 +415,9 @@ class PlottingSettings():
                          # labels
                          'use_full_labels' : False,
                          'effective_rate': "Effective number",
-                         'default_ylabel' : "Number of cases"
+                         'default_ylabel' : "Number of cases",
+                         'default_year' : 2016., # TODO change so that it's last year,
+                         'title' : None
                          }
 
     def devSettings(self):

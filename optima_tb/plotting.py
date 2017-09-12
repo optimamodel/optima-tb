@@ -1,6 +1,7 @@
 # %% Imports
 import logging
 from matplotlib.pyplot import plot
+from docutils.nodes import legend
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,7 @@ from copy import deepcopy as dcp
 import matplotlib.cm as cmx
 import matplotlib.colors as colors
 from random import shuffle
+import numbers
 
 
 CMAPS = ['Blues', 'Purples', 'Reds', 'Oranges', 'Greys', 'Greens', ]
@@ -476,7 +478,7 @@ def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None
                plot_total=False, plot_type=None, ylabel=None,
                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, y_intercept=None,
-               title="", save_fig=False, fig_name=None, **kwargs):
+               title=None, save_fig=False, fig_name=None, **kwargs):
     """
     Plot a collection of outlabels per population set, over a range of years
     
@@ -500,24 +502,24 @@ def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None
                        title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
     return fig
 
-def plotCascade(proj, result, output_labels, pop_labels=None, year_period=None,
+def plotCascade(proj, result, output_labels, pop_labels=None, year_periods=None,
                 plot_total=False, plot_relative=False,
                colormappings=None, colors=None, linestyles=None, y_intercept=None,
-               title="", save_fig=False, fig_name=None, **kwargs):
+               title=None, save_fig=False, fig_name=None, **kwargs):
     """
     """
-    fig = innerPlotBar(proj, [result], year_periods=year_period, output_labels=output_labels,
+    fig = innerPlotBar(proj, [result], year_periods=year_periods, output_labels=output_labels,
                        compare_type=COMPARETYPE_CASCADE, pop_labels=pop_labels, ylabel="Number of cases",
                        colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=plot_relative,
                        title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
 
 
-def plotCompsBar(proj, result, output_labels, pop_labels=None, year_period=None,
+def plotCompsBar(proj, result, output_labels, pop_labels=None, year_periods=None,
                 plot_total=False, plot_relative=False,
 #                 plot_type=None,
 #                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, y_intercept=None,
-               title="", save_fig=False, fig_name=None, **kwargs):
+               title=None, save_fig=False, fig_name=None, **kwargs):
     """
     Plots a collection of different compartments in different bars.
     
@@ -536,7 +538,7 @@ def plotCompsBar(proj, result, output_labels, pop_labels=None, year_period=None,
     """
     ylabel = 'Number of cases'
     if plot_total:
-        fig = innerPlotBar(proj, [result], year_periods=year_period, output_labels=output_labels,
+        fig = innerPlotBar(proj, [result], year_periods=year_periods, output_labels=output_labels,
                        compare_type=COMPARETYPE_VALUE, pop_labels=pop_labels, ylabel=ylabel,
                        colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=plot_relative,
                        title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
@@ -544,7 +546,7 @@ def plotCompsBar(proj, result, output_labels, pop_labels=None, year_period=None,
         if pop_labels is None:
             pop_labels = getPops(result)
         for pop in pop_labels:
-            fig = innerPlotBar(proj, [result], year_periods=year_period, output_labels=output_labels,
+            fig = innerPlotBar(proj, [result], year_periods=year_periods, output_labels=output_labels,
                        compare_type=COMPARETYPE_VALUE, pop_labels=[pop], ylabel=ylabel,
                        colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=plot_relative,
                        title=title, save_fig=save_fig, fig_name=fig_name + "_%s" % pop, **kwargs)
@@ -556,7 +558,7 @@ def plotCompsBar(proj, result, output_labels, pop_labels=None, year_period=None,
 def plotCompareResultsBar(proj, resultset, output_labels, pop_labels=None, year_periods=None,
                        plot_total=False, plot_observed_data=True, observed_data_label=None,
                        colormappings=None, colors=None, linestyles=None, y_intercept=None,
-                       title="", save_fig=False, fig_name=None, **kwargs):
+                       title=None, save_fig=False, fig_name=None, **kwargs):
     """
     
     """
@@ -566,14 +568,14 @@ def plotCompareResultsBar(proj, resultset, output_labels, pop_labels=None, year_
                            pop_labels=pop_labels,
                            colormappings=colormappings, colors=colors, linestyles=linestyles,
                            # plot_relative=plot_relative,
-                           title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
+                           title=title, save_fig=save_fig + "_%s" % (out_label), fig_name=fig_name, **kwargs)
     return fig
 
 def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=None,
                plot_total=False, plot_type=None,
                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, cat_labels=None,
-               title="", save_fig=False, fig_name=None):
+               title=None, save_fig=False, fig_name=None):
     """
 
     """
@@ -611,7 +613,7 @@ def plotPopulationCrossSectionBar(proj, results, output_labels, pop_labels=None,
                        plot_total=False, plot_observed_data=True, observed_data_label=None,
                        plot_type=None,
                        colormappings=None, colors=None, linestyles=None, y_intercept=None,
-                       title="", save_fig=False, fig_name=None, **kwargs):
+                       title=None, save_fig=False, fig_name=None, **kwargs):
     """
     
     TODO:
@@ -632,8 +634,9 @@ def plotPopulationCrossSectionBar(proj, results, output_labels, pop_labels=None,
 def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
                    pop_labels=None, plot_total=False, plot_type=None,
                plot_observed_data=True, observed_data_label=None,
-               colormappings=None, colors=None, linestyles=None, cat_labels=None, y_intercept=None,
-               title="", save_fig=False, fig_name=None):
+               y_intercept=None, plot_relative=None,
+               colormappings=None, colors=None, linestyles=None, cat_labels=None,
+               title=None, save_fig=False, fig_name=None):
     """
     Common functionality, used by plotResult and plotCompareResults
     
@@ -667,6 +670,7 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
     TODO: 
         y_intercept
         relative_to
+        title
         
     """
     # -------------------------------------------------------
@@ -715,6 +719,10 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
         name = output_labels[0]
     else:
         name = "Combined_%s_%s" % (output_labels[0], output_labels[-1])
+
+    print ">>>>>>>>>"
+    print plot_over
+    print "<<<<<<<<<"
 
     # -------------------------------------------------------
     # generic setup for colors, line and hatches
@@ -796,16 +804,17 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
     return fig
 
 def getYearLabels(timeperiods):
-    # TODO implement
-    len_yrs = len(timeperiods)
-    return range(2000, 2000 + len_yrs)
+
+    return ['%g' % yr for yr in timeperiods]
 
 
-def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
-                 compare_type=None, plot_type=None, plot_total=False,
-                 plot_observed_data=True, observed_data_label=None, ylabel=None,
-                 pop_labels=None, colormappings=None, colors=None, linestyles=None, plot_relative=None,
-                 cat_labels=None, title=None, save_fig=False, fig_name=None, **kwargs):
+def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods=None,
+                 pop_labels=None, plot_total=False, plot_type=None,
+                 # plot_observed_data=False,
+                 observed_data_label=None,
+                 ylabel=None, y_intercept=None, plot_relative=None,
+                 colormappings=None, colors=None, linestyles=None, cat_labels=None,
+                 title=None, save_fig=False, fig_name=None, **kwargs):
     """
     Params:
         proj
@@ -860,7 +869,6 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
     """
     print "----------", kwargs
 
-
  # -------------------------------------------------------
     # extract relevant objects
     data = proj.data
@@ -876,7 +884,6 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
 
     if plot_type is None:
         plot_type = PLOTTYPE_BARSTACKED
-
     if plot_type == PLOTTYPE_BAR:
         plot_stacked = False
     elif plot_type == PLOTTYPE_BARSTACKED:
@@ -891,16 +898,47 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
         if not (compare_type == COMPARETYPE_VALUE or compare_type == COMPARETYPE_CASCADE):
             raise OptimaException("Plotting: odict only valid for comparing values. Current attempt for compare_type=%s" % compare_type)
 
+
+    # should be a list with at least two elements
+    if year_periods is None:
+        year_periods = [plotdict['default_year']] # TODO: include year_inc
+    elif isinstance(year_periods, numbers.Real):
+        year_periods = [year_periods]
+    elif isinstance(year_periods, list):
+        if len(year_periods) > 2 and (compare_type == COMPARETYPE_RESULT or compare_type == COMPARETYPE_VALUE or compare_type == COMPARETYPE_CASCADE):
+            logging.warn("Multiple years chosen; unable to determine which year set to be used from year=%s" % (str(year_periods)))
+            logging.warn("Note that will be comparing over period = (%g, %g)" % (year_periods[0], year_periods[-1]))
+    else:
+        raise OptimaException("Unknown time format for year_periods:" + year_periods)
+
+    if ylabel is None:
+        if observed_data_label is not None:
+            ylabel = getName(observed_data_label, proj) + unit_tag
+        elif len(output_labels) == 1:
+            ylabel = getName(output_labels[0], proj) + unit_tag
+        else:
+            ylabel = getName(None, proj) + unit_tag
+
+    if title is None:
+        title = ylabel
+    if pop_labels is None:
+        pop = "All populations"
+    elif pop_labels is dict:
+        pop = ' vs '.join(pop_labels.keys())
+    else:
+        pop = ' vs '.join(pop_labels)
+    years = "%g" % year_periods[0]
+    if len(year_periods) >= 2:
+        years += " to %g" % year_periods[-1]
+    title = "%s\n%s, %s" % (title, pop, years)
+
     if pop_labels is None:
         pop_labels = getPops(resultset[0])
 
-    if year_periods is None:
-        # TODO fix - tvec start and end?
-        year_periods = [[2005, 2007], [2010, 2012]]
+
 
     if fig_name is None:
         fig_name = "PlotBars"
-
 
     if compare_type == COMPARETYPE_RESULT:
         series_labels = resultset.keys()
@@ -941,74 +979,48 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
         logger.info("Plotting: compare_type not specified, assuming comparing populations")
         series_labels = pop_labels
         color_labels = pop_labels
-#     print ">>>>>>>>"
-#     print series_labels
-#     print color_labels
-#     print ">>>>>>>>>>"
 
 
     if cat_labels is not None:
         legend_labels = cat_labels # TODO revisit
     elif plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
-#         print "------", color_labels
         legend_labels = [getName(lab, proj) for lab in color_labels]
-#         print "------", legend_labels
     else:
         legend_labels = color_labels
-
-#     if observed_data_label is None:
-#         observed_data_label = output_labels[0]
 
 
     # -------------------------------------------------------
     # generic setup for colors, line and hatches
-#     print color_labels
-#     print "Setting up colors: color_labels = ", color_labels
-#     print "Setting up legend labels: legend_labels = ", legend_labels
     colors, linestyles, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, color_labels, plotdict)
-#     print colors
-#     print lines
-#     print hatches
+
 
     # -------------------------------------------------------
     # setup values
     values = []
     if compare_type == COMPARETYPE_RESULT:
         value_label = output_labels[0]
-        time_period = year_periods[0]
-        print time_period
+        time_period = year_periods
         for resultname in resultset.keys():
             result = resultset[resultname]
             ys = []
             if plot_total:
-                if isinstance(time_period, list) and len(time_period) == 2: # TODO make more robust / graceful
-                    y, _ = result.getValuesAt(value_label, year_init=time_period[0], year_end=time_period[1], pop_labels=pop_labels, integrated=True)
-                else:
-                    y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=pop_labels, integrated=False)
-                    y = y[0]
-                y, unit_tag = _convertPercentage(y, value_label, charac_specs)
+                y = getValueHandler(proj, result, value_label, time_period, pop_labels)
                 ys.append(y)
             else:
                 for pop in pop_labels:
-                    if isinstance(time_period, list) and len(time_period) == 2: # TODO make more robust / graceful
-                        y, _ = result.getValuesAt(value_label, year_init=time_period[0], year_end=time_period[1], pop_labels=[pop], integrated=True)
-                    else:
-                        y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=[pop], integrated=False)
-                        y = y[0]
-                    y, unit_tag = _convertPercentage(y, value_label, charac_specs)
+                    y = getValueHandler(proj, result, value_label, time_period, [pop])
                     ys.append(y)
             values.append(ys)
 
     elif compare_type == COMPARETYPE_VALUE:
-        time_period = year_periods[0] # TODO confirm that only one time period required
+        time_period = year_periods # TODO confirm that only one time period required
         result = resultset[0] # TODO confirm that only one time period required
         for output_key in output_labels.keys():
             output_group = output_labels[output_key]
             ys = []
             for value_label in color_labels:
                 if value_label in output_group:
-                    y, _ = result.getValuesAt(value_label, year_init=time_period[0], year_end=time_period[1], pop_labels=pop_labels, integrated=True)
-                    y, unit_tag = _convertPercentage(y, value_label, charac_specs)
+                    y = getValueHandler(proj, result, value_label, time_period, pop_labels)
                 else:
                     y = 0
                 ys.append(y)
@@ -1016,7 +1028,7 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
 
     elif compare_type == COMPARETYPE_CASCADE:
         # similar to COMPARETYPE_VALUE, but we aggregate over populations
-        time_period = year_periods[0] # TODO confirm that only one time period required
+        time_period = year_periods # TODO confirm that only one time period required
         result = resultset[0] # TODO confirm that only one time period required
         for output_key in output_labels.keys():
             output_group = output_labels[output_key]
@@ -1025,14 +1037,14 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
                 for pop_lab, pop_set in pop_labels.iteritems():
                     count = 0
                     for lab in output_group:
-                        y, _ = result.getValuesAt(lab, year_init=time_period[0], year_end=time_period[1], pop_labels=pop_set, integrated=True)
+                        y = getValueHandler(proj, result, lab, time_period, pop_set)
                         count += y
                     ys.append(count)
             else:
                 for pop in pop_labels:
                     count = 0
                     for lab in output_group:
-                        y, _ = result.getValuesAt(lab, year_init=time_period[0], year_end=time_period[1], pop_labels=[pop], integrated=True)
+                        y = getValueHandler(proj, result, lab, time_period, [pop])
                         count += y
                     ys.append(count)
             values.append(ys)
@@ -1043,11 +1055,8 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
         for time_period in year_periods:
             ys = []
             for value_label in output_labels: # TODO extend so that it returns per pop_labels
-                if isinstance(time_period, list) and len(time_period) == 2: # TODO make more robust / graceful
-                    y, _ = result.getValuesAt(value_label, year_init=time_period[0], year_end=time_period[1], pop_labels=pop_labels, integrated=True)
-                else:
-                    y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=pop_labels, integrated=False)
-                    y = y[0]
+                y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=pop_labels, integrated=False)
+                y = y[0]
                 y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 ys.append(y)
             values.append(ys)
@@ -1058,51 +1067,53 @@ def innerPlotBar(proj, resultset, year_periods=None, output_labels=None,
         for time_period in year_periods:
             ys = []
             for pop in pop_labels:
-                if isinstance(time_period, list) and len(time_period) == 2: # TODO make more robust / graceful
-                    y, _ = result.getValuesAt(value_label, year_init=time_period[0], year_end=time_period[1], pop_labels=[pop], integrated=True)
-                else:
-                    y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=[pop], integrated=False)
-                    y = y[0]
+                y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=[pop], integrated=False)
+                y = y[0]
                 y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 ys.append(y)
             values.append(ys)
     else:
-        logger.warn("Non valid type")
+        logger.error("Non valid type encountered")
         raise OptimaException("Unknown plotting type:") # TODO complete exception message
 
-
-    if ylabel is None:
-        if observed_data_label is not None:
-            ylabel = getName(observed_data_label, proj) + unit_tag
-        elif len(output_labels) == 1:
-            ylabel = getName(output_labels[0], proj) + unit_tag
-        else:
-            ylabel = getName(None, proj) + unit_tag
-
-    final_dict = {'title':  '',
-                  'ylabel': ylabel,
+    # update (and selective update) the plotting dict
+    final_dict = {'ylabel': ylabel,
                   'plot_stacked': plot_stacked,
-                  'barwidth': 0.8,
                   'save_figname': fig_name}
-
+    print "/////", ylabel
+    # 'title':  title,
     tmp_plotdict.update(final_dict)
+    if tmp_plotdict.has_key('title') and tmp_plotdict['title'] is None:
+        tmp_plotdict['title'] = title
+    print tmp_plotdict['title']
 
-#     print plot_type
     fig = _plotBars(values, labels=legend_labels, colors=colors,
-            linestyles=linestyles, hatches=hatches, xlabels=series_labels, # legendsettings=legendsettings,
+            linestyles=linestyles, hatches=hatches, xlabels=series_labels,
             save_fig=save_fig, **tmp_plotdict)
 
     if plotdict.has_key('legend_off') and plotdict['legend_off']:
         # Note that color list may be different to colors, as it represents
         # classes of compartments i.e. ['Latent disease states','Active disease states']
         legendsettings = plotdict['legendsettings']
-#         print "----------->>>>>>>"
-#         print linestyles
-#         print cat_colors
         separateLegend(labels=legend_labels, colors=cat_colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
 
-
     return fig
+
+
+def getValueHandler(proj, result, value_label, year_period, pop_labels):
+    """
+    
+    """
+    charac_specs = proj.settings.charac_specs
+    if len(year_period) >= 2: # TODO make more robust / graceful
+        y, _ = result.getValuesAt(value_label, year_init=year_period[0], year_end=year_period[-1], pop_labels=pop_labels, integrated=True)
+    else:
+        y, _ = result.getValuesAt(value_label, year_init=year_period[0], pop_labels=pop_labels, integrated=False)
+        y = y[0]
+    y, unit_tag = _convertPercentage(y, value_label, charac_specs)
+    return y
+
+
 
 #
 # def plotScenarioBar (scen_results, scen_labels, settings, data, output_list=None, year=None, pop_labels=None, legendsettings=None,
@@ -1730,6 +1741,10 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     TODO
         extend code to normalize along y-axis 
     """
+
+    print "xlim = ", xlim
+
+
     # setup
     num_bars = len(values)
     num_cats = len(values[0])  # label categories
@@ -1859,6 +1874,10 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
 #     ax.set_xlim(xlim)
     if ylim is not None:
         ax.set_ylim(ylim)
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    else:
+        ax.set_xlim(xmin=indices[0] - 0.25, xmax=indices[-1] + 0.25 + barwidth)
 
     _turnOffBorder()
     if save_fig:
