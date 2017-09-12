@@ -807,15 +807,14 @@ class Model(object):
                                 # Make sure the population in the loop is a target of this program.
                                 if pop.label not in prog.target_pops:
                                     continue
-                                if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings[
-                                    'init_alloc']):
+                                if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']):
                                     continue
 
                                 # added an exception to clarify why programme crashes if pars[0] ist not a type 'Link'
                                 if not isinstance(pars[0], Link):
                                     raise OptimaException(
-                                        'ERROR: Program impact parameters must be transitions. "%s" is not a transition.' % (
-                                        par_label))
+                                        'ERROR: Program impact parameters must be transitions. "%s" is not a transition.'
+                                        % (par_label))
 
                                 try:
                                     # decompose special tag word by word (string separated by whitespaces)
@@ -917,7 +916,10 @@ class Model(object):
                                 if first_prog:
                                     first_prog = False
                                     if special == 'replace' or special == '':
-                                        new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
+                                        # new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
+                                        # if value is to be overwritten, do it now and append 0 to impact list
+                                        new_val = impact
+                                        impact = 0.
 #                                new_val += impact
 
                                 if special == 'scale_prop' and par_label in scale_pars:
@@ -935,7 +937,10 @@ class Model(object):
                                             pop_sizes = [self.getPop(p).getDep('h_alive').vals[ti] for p in prog.target_pops]
                                             impacts.append(np.dot([imp] * len(pop_sizes), pop_sizes) / total_pop)
 
-                                    impact = sum(impacts)
+                                    impact = np.sum(impacts)
+                                # split program contribution among affected entities
+                                elif special == 'split':
+                                    impact *= source_element_size / source_set_size
 
                                 impact_list.append(impact)
 
@@ -949,8 +954,13 @@ class Model(object):
 
                             if special == '' or special == 'replace':
                                 new_val += np.sum(impact_list)
-                            elif special == 'scale' or special == 'scale_prop':
-                                new_val *= 1.0 + np.sum(impact_list)
+                            elif special == 'scale' or special == 'scale_prop' or special == 'split':
+                                # update a number, but make sure it does not exceed number of entities
+                                if pars[0].val_format == 'number':
+                                    new_val = min(new_val + np.sum(impact_list), source_element_size)
+                                # update a fraction
+                                else:
+                                    new_val *= 1.0 + np.sum(impact_list)
                             else:
                                 pass
 
