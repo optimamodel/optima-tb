@@ -416,6 +416,8 @@ class PlottingSettings():
                          'use_full_labels' : False,
                          'effective_rate': "Effective number",
                          'default_ylabel' : "Number of cases",
+                         'default_pops' : "All populations",
+                         'default_figname' : "Figname",
                          'default_year' : 2016., # TODO change so that it's last year,
                          'title' : None
                          }

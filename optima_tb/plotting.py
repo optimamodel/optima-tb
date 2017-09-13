@@ -1,7 +1,6 @@
 # %% Imports
 import logging
 from matplotlib.pyplot import plot
-from docutils.nodes import legend
 
 logger = logging.getLogger(__name__)
 
@@ -331,7 +330,7 @@ def _turnOffBorder():
     pl.gca().yaxis.set_ticks_position('left')
 
 
-def plotResult(proj, result, output_labels, pop_labels=None,
+def plotResult(proj, result, output_labels=None, pop_labels=None,
                plot_total=False, plot_type=None,
                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, y_intercept=None,
@@ -393,6 +392,10 @@ def plotResult(proj, result, output_labels, pop_labels=None,
         y_intercept
     
     """
+    if output_labels is None:
+        logging.error("No output label specified for plotting")
+        return None
+
     for out_label in output_labels:
         fig = innerPlotTrend(proj, [result], [out_label], compare_type=COMPARETYPE_POP, pop_labels=pop_labels,
                              plot_total=plot_total, plot_type=plot_type,
@@ -573,7 +576,7 @@ def plotCompareResultsBar(proj, resultset, output_labels, pop_labels=None, year_
 
 def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=None,
                plot_total=False, plot_type=None,
-               plot_observed_data=True, observed_data_label=None,
+               plot_observed_data=True, observed_data_label="alive",
                colormappings=None, colors=None, linestyles=None, cat_labels=None,
                title=None, save_fig=False, fig_name=None):
     """
@@ -591,7 +594,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
         fig = innerPlotTrend(proj, [results], output_labels=output_labels,
                    compare_type=COMPARETYPE_VALUE,
                    pop_labels=pop_labels, plot_total=plot_total, plot_type='stacked',
-                   plot_observed_data=plot_observed_data, observed_data_label='alive',
+                   plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                    colormappings=colormappings, colors=colors, cat_labels=cat_labels,
                    save_fig=save_fig, fig_name=fig_name)
     else:
@@ -602,7 +605,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
             fig = innerPlotTrend(proj, [results], output_labels=output_labels,
                    compare_type=COMPARETYPE_VALUE,
                    pop_labels=[pop], plot_total=plot_total, plot_type='stacked',
-                   plot_observed_data=True, observed_data_label='alive',
+                   plot_observed_data=True, observed_data_label=observed_data_label,
                    colormappings=colormappings, colors=colors, cat_labels=cat_labels,
                    save_fig=save_fig, fig_name="%s_%s" % (fig_name, pop))
         logger.info("Created multiple plots for plotCompareResults for multiple populations. Returning last plot created")
@@ -867,7 +870,6 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
         relative_to
 
     """
-    print "----------", kwargs
 
  # -------------------------------------------------------
     # extract relevant objects
@@ -882,26 +884,27 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
     # generic setup for data
     unit_tag = ""
 
-    if plot_type is None:
-        plot_type = PLOTTYPE_BARSTACKED
-    if plot_type == PLOTTYPE_BAR:
-        plot_stacked = False
-    elif plot_type == PLOTTYPE_BARSTACKED:
-        plot_stacked = True
-    else:
-        raise OptimaException("Plotting: only plot_type=%s or %s allowed; plot_type=%s supplied" % (PLOTTYPE_BAR, PLOTTYPE_BARSTACKED, plot_type))
+#     if plot_type is None:
+#         plot_type = PLOTTYPE_BARSTACKED
+#     if plot_type == PLOTTYPE_BAR:
+#         plot_stacked = False
+#     elif plot_type == PLOTTYPE_BARSTACKED:
+#         plot_stacked = True
+#     else:
+#         raise OptimaException("Plotting: only plot_type=%s or %s allowed; plot_type=%s supplied" % (PLOTTYPE_BAR, PLOTTYPE_BARSTACKED, plot_type))
+    plot_stacked = True # TODO implement non-stacked bar plots, update this and uncomment the above code
 
-    # TODO enforce that output_labels = odict of lists iff compare_type = COMPARETYPE_VALUES
+
     if isinstance(output_labels, odict):
         if not isinstance(output_labels[0], list):
-            raise OptimaException("Plotting: error must ")
+            raise OptimaException("Plotting: output_labels structure must have values provided as a list ")
         if not (compare_type == COMPARETYPE_VALUE or compare_type == COMPARETYPE_CASCADE):
             raise OptimaException("Plotting: odict only valid for comparing values. Current attempt for compare_type=%s" % compare_type)
 
 
-    # should be a list with at least two elements
+    # should be a list with at least one year
     if year_periods is None:
-        year_periods = [plotdict['default_year']] # TODO: include year_inc
+        year_periods = [plotdict['default_year']]
     elif isinstance(year_periods, numbers.Real):
         year_periods = [year_periods]
     elif isinstance(year_periods, list):
@@ -911,7 +914,7 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
     else:
         raise OptimaException("Unknown time format for year_periods:" + year_periods)
 
-    if ylabel is None:
+    if ylabel is None: # string on y-axis
         if observed_data_label is not None:
             ylabel = getName(observed_data_label, proj) + unit_tag
         elif len(output_labels) == 1:
@@ -919,27 +922,29 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
         else:
             ylabel = getName(None, proj) + unit_tag
 
+    # components of the overall title
     if title is None:
         title = ylabel
-    if pop_labels is None:
-        pop = "All populations"
+    if pop_labels is None: # detail what populations
+        pop = plotdict['default_pops']
     elif pop_labels is dict:
         pop = ' vs '.join(pop_labels.keys())
     else:
         pop = ' vs '.join(pop_labels)
-    years = "%g" % year_periods[0]
+    years = "%g" % year_periods[0] # detail what years
     if len(year_periods) >= 2:
         years += " to %g" % year_periods[-1]
+    # update title to include population and year details
     title = "%s\n%s, %s" % (title, pop, years)
 
-    if pop_labels is None:
+    if pop_labels is None: # explicitly update populations
         pop_labels = getPops(resultset[0])
 
-
-
     if fig_name is None:
-        fig_name = "PlotBars"
+        fig_name = plotdict['default_figname']
 
+    # set series (x-axis labels) and color labels (colormapping/legend elements),
+    # dependent on plot type
     if compare_type == COMPARETYPE_RESULT:
         series_labels = resultset.keys()
         if plot_total:
@@ -970,7 +975,7 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
         series_labels = getYearLabels(year_periods)
         color_labels = output_labels
     elif compare_type == COMPARETYPE_POP:
-        if plot_total: # and not plot_stacked
+        if plot_total or plot_stacked :
             series_labels = getYearLabels(year_periods)
         else:
             series_labels = pop_labels
@@ -980,7 +985,7 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
         series_labels = pop_labels
         color_labels = pop_labels
 
-
+    # category labels
     if cat_labels is not None:
         legend_labels = cat_labels # TODO revisit
     elif plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
@@ -993,9 +998,8 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
     # generic setup for colors, line and hatches
     colors, linestyles, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, color_labels, plotdict)
 
-
     # -------------------------------------------------------
-    # setup values
+    # extract values from results for plotting
     values = []
     if compare_type == COMPARETYPE_RESULT:
         value_label = output_labels[0]
@@ -1080,12 +1084,11 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
     final_dict = {'ylabel': ylabel,
                   'plot_stacked': plot_stacked,
                   'save_figname': fig_name}
-    print "/////", ylabel
-    # 'title':  title,
+
     tmp_plotdict.update(final_dict)
+    # separately update the title, to allow if the plot settings would allow for plots
     if tmp_plotdict.has_key('title') and tmp_plotdict['title'] is None:
         tmp_plotdict['title'] = title
-    print tmp_plotdict['title']
 
     fig = _plotBars(values, labels=legend_labels, colors=colors,
             linestyles=linestyles, hatches=hatches, xlabels=series_labels,
@@ -1102,10 +1105,10 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
 
 def getValueHandler(proj, result, value_label, year_period, pop_labels):
     """
-    
+    Simple wrapper around getValues for usage within innerPlotBar
     """
     charac_specs = proj.settings.charac_specs
-    if len(year_period) >= 2: # TODO make more robust / graceful
+    if len(year_period) >= 2:
         y, _ = result.getValuesAt(value_label, year_init=year_period[0], year_end=year_period[-1], pop_labels=pop_labels, integrated=True)
     else:
         y, _ = result.getValuesAt(value_label, year_init=year_period[0], pop_labels=pop_labels, integrated=False)
@@ -1576,7 +1579,7 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
     TODO
         formatter
     """
-
+    print ys
 
     if len(ys) == 0:
         # TODO: error to raise OptimaException
@@ -1647,7 +1650,8 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
             scatter_color = colors[k]
         elif plot_type == PLOTTYPE_STACKED:
             top = bottom + yval
-            lw = 0.2
+            lw = 1.
+            print "hatches = ", hatches[k]
             if hatches[k] is None:
                 ec = colors[k]
             else:
@@ -1743,7 +1747,7 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     """
 
     print "xlim = ", xlim
-
+    print values
 
     # setup
     num_bars = len(values)
