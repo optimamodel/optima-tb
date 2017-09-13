@@ -698,7 +698,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                             else:  # Assume attributes have unique formats. No need to store at this time.
                                 pass
 #                                data['progs'][prog_label]['attributes']['%s_format' % tag] = str(ws_progval.cell_value(row_id, col_id)).lower()
-                        if col_id > 2 and isinstance(ws_progval.cell_value(row_id, col_id), Number):
+                        elif col_id > 2 and isinstance(ws_progval.cell_value(row_id, col_id), Number):
                             val = ws_progval.cell_value(row_id, col_id)
 
                             if not isinstance(ws_progval.cell_value(prog_row_id + 1, col_id), Number):
@@ -711,6 +711,16 @@ def loadSpreadsheetFunc(settings, databook_path):
                                 tval = str(ws_progval.cell_value(prog_row_id + 1, col_id))
                                 if tval not in temp[prog_label].keys(): temp[prog_label][tval] = dict()
                                 temp[prog_label][tval][tag] = val
+                        # special rule: assumption may also specify string referring to another program
+                        elif col_id == 3 and ws_progval.cell_value(row_id, col_id) in temp.keys():
+                            val = ws_progval.cell_value(row_id, col_id)
+                            tval = str(ws_progval.cell_value(prog_row_id + 1, col_id + 2))
+                            temp[prog_label]['t_assumption'] = tval
+                            if ('%s_assumption' % tag) not in temp[prog_label].keys():
+                                temp[prog_label]['%s_assumption' % tag] = dict()
+                            temp[prog_label]['%s_assumption' % tag] = val
+                            break
+
 
 
 
@@ -766,7 +776,10 @@ def loadSpreadsheetFunc(settings, databook_path):
                     if attrib_label in temp[prog_label][tval]:
                         attrib = float(temp[prog_label][tval][attrib_label])
                     elif attrib_label + '_assumption' in temp[prog_label]:
-                        attrib = float(temp[prog_label][attrib_label + '_assumption'])
+                        if attrib_label.startswith('$ref_'): # special case of programs cross-referencing other programs
+                            attrib = temp[prog_label][attrib_label + '_assumption']
+                        else:
+                            attrib = float(temp[prog_label][attrib_label + '_assumption'])
                     list_attribs[aid].append(attrib)
 
 

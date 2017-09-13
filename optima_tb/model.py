@@ -295,7 +295,10 @@ class Model(object):
                     do_full_tvec_check = {}
                     for att_label in prog.attributes.keys():
                         att_vals = prog.attributes[att_label]
-                        if len(set(att_vals[~np.isnan(att_vals)])) <= 1:
+                        # special case if programs reference other programs: only strings contained in list
+                        if all(isinstance(item, basestring) for item in att_vals):
+                            do_full_tvec_check[att_label] = False
+                        elif len(set(att_vals[~np.isnan(att_vals)])) <= 1:
                             do_full_tvec_check[att_label] = False
                         else:
                             do_full_tvec_check[att_label] = True
@@ -916,10 +919,7 @@ class Model(object):
                                 if first_prog:
                                     first_prog = False
                                     if special == 'replace' or special == '':
-                                        # new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
-                                        # if value is to be overwritten, do it now and append 0 to impact list
-                                        new_val = impact
-                                        impact = 0.
+                                        new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
 #                                new_val += impact
 
                                 if special == 'scale_prop' and par_label in scale_pars:
@@ -940,7 +940,39 @@ class Model(object):
                                     impact = np.sum(impacts)
                                 # split program contribution among affected entities
                                 elif special == 'split':
-                                    impact *= source_element_size / source_set_size
+                                    if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
+                                        impact *= source_element_size / source_set_size
+
+                                elif special == 'supp':
+                                    impacts = []
+                                    # extract all attributes which refer to another program
+                                    refs = filter(lambda x: x.startswith('$ref_'), prog.attributes.keys())
+                                    # list of all attributes other than programs
+                                    var = list(set(prog.attributes.keys()).difference(set(refs)))
+
+                                    # loop over all referenced programs and increase their impact on impact parameters
+                                    for p in refs:
+                                        # label of referenced program
+                                        ref_prog = prog.attributes[p][0]
+                                        # suffix of the program, everything after the last '_' in program label (incl. '_')
+                                        suff = p[p.rfind('_'):]
+
+                                        if ref_prog in self.prog_vals.keys() and par_label in self.prog_vals[ref_prog]['impact'].keys():
+                                            # all parameters specified in the spreadsheet are multiplied
+                                            coeff = 1.
+                                            for f in filter(lambda x: x.endswith(suff), var):
+                                                try: coeff *= prog.attributes[f][ti]
+                                                except: coeff *= prog.attributes[f]
+
+                                            # obtain coverage of referencedd program..
+                                            try: cov = self.prog_vals[ref_prog]['cov'][ti]
+                                            except: cov = self.prog_vals[ref_prog]['cov']
+                                            # .. and determine the minimum coverage for the impact
+                                            net_cov = min(cov, net_cov)
+
+                                            # apply impact
+                                            impacts.append(self.prog_vals[ref_prog]['impact'][par_label] / net_cov * impact * coeff)
+                                    impact = np.sum(impacts)
 
                                 impact_list.append(impact)
 
@@ -954,7 +986,7 @@ class Model(object):
 
                             if special == '' or special == 'replace':
                                 new_val += np.sum(impact_list)
-                            elif special == 'scale' or special == 'scale_prop' or special == 'split':
+                            elif special == 'scale' or special == 'scale_prop' or special == 'split' or special == 'supp':
                                 # update a number, but make sure it does not exceed number of entities
                                 if pars[0].val_format == 'number':
                                     new_val = min(new_val + np.sum(impact_list), source_element_size)
