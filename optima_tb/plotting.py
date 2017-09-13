@@ -775,7 +775,7 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
 
     # get observed data points
     if plot_observed_data:
-        dataobs = _extractDatapoint(data, observed_data_label, pop_labels, charac_specs, plot_total=plot_total)
+        dataobs = _extractDatapoint(result, data, observed_data_label, pop_labels, charac_specs, plot_total=plot_total)
         dataobs, unit_tag = _convertPercentage(dataobs, value_label, charac_specs)
 
     fullname = getName(observed_data_label, proj)
@@ -1477,7 +1477,7 @@ def getPops(result):
     """
     return [pop.label for pop in result.m_pops]
 
-def _extractDatapoint(data, value_label, pop_labels, charac_specs, plot_total=False):
+def _extractDatapoint(results, data, value_label, pop_labels, charac_specs, plot_total=False):
     """
     Extract the characteristic datapoints for populations
     
@@ -1506,12 +1506,49 @@ def _extractDatapoint(data, value_label, pop_labels, charac_specs, plot_total=Fa
             ys = np.array(ys)
             ys = [ys.sum(axis=0)]
 
-    else:  # For the case when plottable characteristics were not in the databook and thus not converted to data.
-        logging.info("Could not find datapoints with label '%s'" % value_label)
-        ys = []
-        ts = []
+    else: # elif value_label in data['linkpars'].keys():
+        try:
+#         if True:
+
+            tobs = results.t_observed_data
+#             print tobs
+            ys, ts = [], []
+            if not plot_total:
+                for poplabel in pop_labels:
+#                     print poplabel, tobs[0], tobs[-1], value_label
+                    ytmp, ttmp = results.getValuesAt(value_label, year_init=tobs[0], year_end=tobs[-1], pop_labels=[poplabel])
+
+                    idx = np.nonzero(np.in1d(ttmp, tobs))[0]
+#                     print idx
+                    ys.append(ytmp[idx])
+                    ts.append(ttmp[idx])
+            else:
+                ytmp, ttmp = results.getValuesAt(value_label, year_init=tobs[0], year_end=tobs[-1], pop_labels=pop_labels)
+                idx = np.nonzero(np.in1d(ttmp, tobs))[0]
+                ys = ytmp[idx]
+                ts = ttmp[idx]
+        except:
+            ys = []
+            ts = []
+
+#         ys = [data['linkpars'][value_label][poplabel]['y'] for poplabel in pop_labels]
+#         ts = [data['linkpars'][value_label][poplabel]['t'] for poplabel in pop_labels]
+#
+#         # TODO implement
+# #         if 'plot_percentage' in charac_specs[value_label].keys():
+# #             ys *= 100
+#
+#         if plot_total:
+#             ys = np.array(ys)
+#             ys = [ys.sum(axis=0)]
+#
+#     else:  # For the case when plottable characteristics were not in the databook and thus not converted to data.
+#         logging.info("Could not find datapoints with label '%s'" % value_label)
+#         ys = []
+#         ts = []
 
     dataobs = (ts, ys)
+#     print dataobs, value_label
     return dataobs
 
 def _convertPercentage(datapoints, output_label, charac_specs):
@@ -1579,7 +1616,6 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
     TODO
         formatter
     """
-    print ys
 
     if len(ys) == 0:
         # TODO: error to raise OptimaException

@@ -109,13 +109,13 @@ class ResultSet(object):
         return output
 
 
-    def extractSimulationData(self):
-        """
-        
-        Currently, only extract the simulated data for characteristics, as we should only use
-        this in fitting for calibration.
-        """
-        pass
+#     def extractSimulationData(self):
+#         """
+#
+#         Currently, only extract the simulated data for characteristics, as we should only use
+#         this in fitting for calibration.
+#         """
+#         pass
 
     def __generateLabelNames(self, labels, names):
         """
