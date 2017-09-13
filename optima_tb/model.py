@@ -805,7 +805,16 @@ class Model(object):
                                 prog = progset.getProg(prog_label)
                                 prog_type = prog.prog_type
 
+                                # TODO move try-except-block to programs and store special as attribute
                                 special = ''
+                                try:
+                                    # decompose special tag word by word (string separated by whitespaces)
+                                    words = settings.progtype_specs[prog_type]['special'].split()
+                                    # first word is the tag
+                                    special = words[0]
+                                    # other words must be impact parameters which are subsumed in a list; sanity check below
+                                    scale_pars = words[1:]
+                                except: pass
 
                                 # Make sure the population in the loop is a target of this program.
                                 if pop.label not in prog.target_pops:
@@ -819,14 +828,7 @@ class Model(object):
                                         'ERROR: Program impact parameters must be transitions. "%s" is not a transition.'
                                         % (par_label))
 
-                                try:
-                                    # decompose special tag word by word (string separated by whitespaces)
-                                    words = settings.progtype_specs[prog_type]['special'].split()
-                                    # first word is the tag
-                                    special = words[0]
-                                    # other words must be impact parameters which are subsumed in a list; sanity check below
-                                    scale_pars = words[1:]
-                                except: pass
+
 
                                 # check if all the provided parameters are indeed impact parameters
                                 if special != '' and len(scale_pars) > 0:
@@ -922,6 +924,7 @@ class Model(object):
                                         new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
 #                                new_val += impact
 
+                                # TODO move to a function for individual value treatment by flag
                                 if special == 'scale_prop' and par_label in scale_pars:
                                     # determine total population
                                     total_pop = sum([p.getDep('h_alive').vals[ti] for p in self.pops])
@@ -964,7 +967,7 @@ class Model(object):
                                                 try: coeff *= prog.attributes[f][ti]
                                                 except: coeff *= prog.attributes[f]
 
-                                            # obtain coverage of referencedd program..
+                                            # obtain coverage of referenced program ..
                                             try: cov = self.prog_vals[ref_prog]['cov'][ti]
                                             except: cov = self.prog_vals[ref_prog]['cov']
                                             # .. and determine the minimum coverage for the impact
@@ -983,9 +986,11 @@ class Model(object):
                             if len(overflow_list) > 0 and sum(overflow_list) > 1:
                                 impact_list = np.multiply(impact_list, 1 / sum(overflow_list))
 
-
+                            # TODO move to function summarising the impacts
+                            # replace existing value with current impacts
                             if special == '' or special == 'replace':
                                 new_val += np.sum(impact_list)
+                            # scale existing value by the current impacts
                             elif special == 'scale' or special == 'scale_prop' or special == 'split' or special == 'supp':
                                 # update a number, but make sure it does not exceed number of entities
                                 if pars[0].val_format == 'number':
@@ -994,6 +999,7 @@ class Model(object):
                                 else:
                                     new_val *= 1.0 + np.sum(impact_list)
                             else:
+                                # TODO error handling?
                                 pass
 
                             # Handle impact constraints.
