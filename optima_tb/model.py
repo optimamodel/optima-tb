@@ -456,12 +456,35 @@ class Model(object):
                         self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
                         self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
                         self.getPop(pop_label).links[link_id].scale_factor = par.y_factor[pop_label]
+                        
+                if 'min' in settings.linkpar_specs[par.label]:
+                    for pop_label in parset.pop_labels:
+                        for link_id in self.getPop(pop_label).link_ids[tag]:
+                            vals = self.getPop(pop_label).links[link_id].vals
+                            self.getPop(pop_label).links[link_id].vals[vals < settings.linkpar_specs[par.label]['min']] = settings.linkpar_specs[par.label]['min']
+                if 'max' in settings.linkpar_specs[par.label]:
+                    for pop_label in parset.pop_labels:
+                        for link_id in self.getPop(pop_label).link_ids[tag]:
+                            vals = self.getPop(pop_label).links[link_id].vals
+                            self.getPop(pop_label).links[link_id].vals[vals > settings.linkpar_specs[par.label]['max']] = settings.linkpar_specs[par.label]['max']
+
             else:
                 for pop_label in parset.pop_labels:
                     dep_id = self.getPop(pop_label).dep_ids[par.label]          # Map dependency label to dependency id in ModelPop.
                     self.getPop(pop_label).deps[dep_id].vals = par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
                     self.getPop(pop_label).deps[dep_id].val_format = par.y_format[pop_label]
                     self.getPop(pop_label).deps[dep_id].scale_factor = par.y_factor[pop_label]
+                    
+                if 'min' in settings.linkpar_specs[par.label]:
+                    for pop_label in parset.pop_labels:
+                        dep_id = self.getPop(pop_label).dep_ids[par.label]
+                        vals = self.getPop(pop_label).deps[dep_id].vals
+                        self.getPop(pop_label).deps[dep_id].vals[vals < settings.linkpar_specs[par.label]['min']] = settings.linkpar_specs[par.label]['min']
+                if 'max' in settings.linkpar_specs[par.label]:
+                    for pop_label in parset.pop_labels:
+                        dep_id = self.getPop(pop_label).dep_ids[par.label]
+                        vals = self.getPop(pop_label).deps[dep_id].vals
+                        self.getPop(pop_label).deps[dep_id].vals[vals > settings.linkpar_specs[par.label]['max']] = settings.linkpar_specs[par.label]['max']
 
 
         # Propagating transfer parameter parset values into Model object.
@@ -565,6 +588,13 @@ class Model(object):
                         comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
 
                         converted_amt = 0
+                        
+#                        # TODO: Make this range check more efficient by pre-validating. Could use extra validation for user error.
+#                        if link.label in settings.linkpar_specs.keys():
+#                            if 'min' in settings.linkpar_specs[link.label].keys() and settings.linkpar_specs[link.label]['min'] > link.vals[ti]:
+#                                link.vals[ti] = settings.linkpar_specs[link.label]['min']
+#                            if 'max' in settings.linkpar_specs[link.label].keys() and settings.linkpar_specs[link.label]['max'] < link.vals[ti]:
+#                                link.vals[ti] = settings.linkpar_specs[link.label]['max']
 
                         transition = link.vals[ti]
 
@@ -767,6 +797,7 @@ class Model(object):
         # 1st:  Any parameter that is a function of others (i.e. of previously calculated dependencies).
         # 2nd:  Any parameter that is overwritten by a program-based cost-coverage-impact transformation.
         # 3rd:  Any parameter that is overwritten by a special rule, e.g. averaging across populations.
+        # 4th:  Any parameter that is restricted within a range of values, i.e. by min/max values.
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
         for par_label in (settings.par_funcs.keys() + self.sim_settings['impact_pars_not_func']):
             for pop in self.pops:
@@ -991,6 +1022,29 @@ class Model(object):
                                 pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
                             for par in pars:
                                 par.vals[ti] = new_val
+            
+            # Do a final range check on a parameter, if applicable, and restrict its value.
+            # TODO: Explore efficiency gains.                
+            if 'min' in settings.linkpar_specs[par_label].keys():
+                for pop in self.pops:
+                    pars = []
+                    if par_label in settings.par_deps:
+                        pars.append(pop.getDep(par_label))
+                    else:
+                        pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
+                    for par in pars:
+                        if settings.linkpar_specs[par_label]['min'] > par.vals[ti]:
+                            par.vals[ti] = settings.linkpar_specs[par_label]['min']
+            if 'max' in settings.linkpar_specs[par_label].keys():
+                for pop in self.pops:
+                    pars = []
+                    if par_label in settings.par_deps:
+                        pars.append(pop.getDep(par_label))
+                    else:
+                        pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
+                    for par in pars:
+                        if settings.linkpar_specs[par_label]['max'] < par.vals[ti]:
+                            par.vals[ti] = settings.linkpar_specs[par_label]['max']
 
 
 
