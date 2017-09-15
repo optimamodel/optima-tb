@@ -149,36 +149,36 @@ class ModelPopulation(Node):
         '''
         for k, label in enumerate(settings.node_specs.keys()):
             self.comps.append(ModelCompartment(label=label, index=(self.index, k)))
-            if 'tag_birth' in settings.node_specs[label].keys():
+            if 'tag_birth' in settings.node_specs[label]:
                 self.comps[-1].tag_birth = True
-            if 'tag_dead' in settings.node_specs[label].keys():
+            if 'tag_dead' in settings.node_specs[label]:
                 self.comps[-1].tag_dead = True
-            if 'junction' in settings.node_specs[label].keys():
+            if 'junction' in settings.node_specs[label]:
                 self.comps[-1].junction = True
             self.comp_ids[label] = k
 
         k = 0
         # Create actual link objects for parameters with tags, a.k.a. transitions.
-        for label in settings.linkpar_specs.keys():
+        for label in settings.linkpar_specs:
             if 'tag' in settings.linkpar_specs[label]:
                 tag = settings.linkpar_specs[label]['tag']
                 for pair in settings.links[tag]:
                     self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]), link_index=(self.id, k), link_label=label))
-                    if not tag in self.link_ids.keys():
+                    if not tag in self.link_ids:
                         self.link_ids[tag] = []
                     self.link_ids[tag].append(k)
                     k += 1
 
         k = 0
         # Now create variable objects for dependencies, starting with characteristics.
-        for label in settings.charac_specs.keys():
+        for label in settings.charac_specs:
             if 'par_dependency' in settings.charac_specs[label]:
                 self.deps.append(Variable(label=label))
                 self.dep_ids[label] = k
                 k += 1
 
         # Finish dependencies with untagged parameters, i.e. ones that are not considered transition flow rates.
-        for label in settings.par_deps.keys():
+        for label in settings.par_deps:
             self.deps.append(Variable(label=label))
             self.dep_ids[label] = k
             k += 1
@@ -293,7 +293,7 @@ class Model(object):
 
                     # Check if program attributes have multiple distinct values across time.
                     do_full_tvec_check = {}
-                    for att_label in prog.attributes.keys():
+                    for att_label in prog.attributes:
                         att_vals = prog.attributes[att_label]
                         if len(set(att_vals[~np.isnan(att_vals)])) <= 1:
                             do_full_tvec_check[att_label] = False
@@ -306,7 +306,7 @@ class Model(object):
                     for par_label in prog.target_pars:
                         do_full_tvec = False
                         if 'attribs' in prog.target_pars[par_label] and np.sum(cov) > project_settings.TOLERANCE:
-                            for att_label in prog.target_pars[par_label]['attribs'].keys():
+                            for att_label in prog.target_pars[par_label]['attribs']:
                                 if att_label in do_full_tvec_check and do_full_tvec_check[att_label] is True:
                                     do_full_tvec = True
                         if do_full_tvec is True:
@@ -340,8 +340,8 @@ class Model(object):
                 else: self.sim_settings['alloc_is_coverage'] = False
                 if 'saturate_with_default_budgets' in options:
                     self.sim_settings['saturate_with_default_budgets'] = options['saturate_with_default_budgets']
-                for impact_label in progset.impacts.keys():
-                    if impact_label not in settings.par_funcs.keys():
+                for impact_label in progset.impacts:
+                    if impact_label not in settings.par_funcs:
                         self.sim_settings['impact_pars_not_func'].append(impact_label)
 
                 self.preCalculateProgsetVals(settings=settings, progset=progset)   # For performance.
@@ -369,7 +369,7 @@ class Model(object):
         # All compartments are either characteristic entry-points or contain zero people.
         # First, generate a dictionary of prospective values to seed compartments with, all assumed to be zero.
         # Assume the values for all compartments have been calculated.
-        for node_label in settings.node_specs.keys():
+        for node_label in settings.node_specs:
             seed_dict[node_label] = odict()
             calc_done[node_label] = True    # Values are technically already settled for nodes if a node is not an entry-point.
                                             # Alternatively, the node can be an entry-point of a characteristic including only the entry-point.
@@ -381,8 +381,8 @@ class Model(object):
         # For inclusions of only the entry-point and nothing else, its seeding value is simply updated with the interpolated value of the characteristic.
         # For inclusions of more compartments (once flattened out), calculations are more difficult.
         # The characteristic seeding value is still updated, but the entry-point must be removed from the dictionary that tracks calculated compartments.
-        for charac_label in settings.charac_specs.keys():
-            if 'entry_point' in settings.charac_specs[charac_label].keys():
+        for charac_label in settings.charac_specs:
+            if 'entry_point' in settings.charac_specs[charac_label]:
                 ep_label = settings.charac_specs[charac_label]['entry_point']
                 flat_list, dep_list = flattenDict(input_dict=settings.charac_specs, base_key=charac_label, sub_keys=['includes'])
                 flat_list.remove(ep_label)
@@ -396,9 +396,9 @@ class Model(object):
 
         # Loop through and handle prevalences (i.e. characteristics with denominators).
         # The denominator value will be drawn from the parset, not the seed dictionary, so beware a prevalence as a denominator.
-        for charac_label in settings.charac_specs.keys():
-            if 'entry_point' in settings.charac_specs[charac_label].keys():
-                if 'denom' in settings.charac_specs[charac_label].keys():
+        for charac_label in settings.charac_specs:
+            if 'entry_point' in settings.charac_specs[charac_label]:
+                if 'denom' in settings.charac_specs[charac_label]:
                     ep_label = settings.charac_specs[charac_label]['entry_point']
                     denom_label = settings.charac_specs[charac_label]['denom']
                     par = parset.pars['characs'][parset.par_ids['characs'][denom_label]]
@@ -412,12 +412,12 @@ class Model(object):
         # With no more inclusions to keep track of, this entry-point is considered fully calculated and can be subtracted from other 'uncalculated entry-points'.
         # Eventually there will be no inclusions left for any entry-point, meaning all initial values are calculated.
         review_count = 0
-        while len(include_dict.keys()) > 0:
+        while len(include_dict) > 0:
             for entry_point in dcp(include_dict.keys()):
                 for include in dcp(include_dict[entry_point]):
 
                     # Subtract the values of any included already-calculated nodes from the value of an entry-point.
-                    if include in calc_done.keys():
+                    if include in calc_done:
                         for pop_label in parset.pop_labels:
                             val = seed_dict[entry_point][pop_label] - seed_dict[include][pop_label]
                             if val < 0 and abs(val) > project_settings.TOLERANCE:
@@ -431,11 +431,11 @@ class Model(object):
                         calc_done[entry_point] = True
                         del include_dict[entry_point]
             review_count += 1
-            if review_count > len(settings.node_specs.keys()):
+            if review_count > len(settings.node_specs):
                 raise OptimaException('ERROR: Calculation phase for initial compartment values has looped more times than the number of compartments. Something is likely wrong with characteristic definitions.')
 
         # Now initialise all model compartments with these calculated values.
-        for seed_label in seed_dict.keys():
+        for seed_label in seed_dict:
             for pop_label in parset.pop_labels:
                 val = seed_dict[seed_label][pop_label]
                 if abs(val) < project_settings.TOLERANCE:
@@ -488,9 +488,9 @@ class Model(object):
 
 
         # Propagating transfer parameter parset values into Model object.
-        for trans_type in parset.transfers.keys():
+        for trans_type in parset.transfers:
             if parset.transfers[trans_type]:
-                for pop_source in parset.transfers[trans_type].keys():
+                for pop_source in parset.transfers[trans_type]:
                     par = parset.transfers[trans_type][pop_source]
 
                     for pop_target in par.y:
@@ -520,7 +520,7 @@ class Model(object):
         self.sim_settings['tag_birth'] = []
         self.sim_settings['tag_death'] = []
         self.sim_settings['tag_no_plot'] = []
-        for node_label in settings.node_specs.keys():
+        for node_label in settings.node_specs:
             for tag in ['tag_birth', 'tag_death', 'tag_no_plot']:
                 if tag in settings.node_specs[node_label]:
                     self.sim_settings[tag] = node_label
@@ -590,10 +590,10 @@ class Model(object):
                         converted_amt = 0
                         
 #                        # TODO: Make this range check more efficient by pre-validating. Could use extra validation for user error.
-#                        if link.label in settings.linkpar_specs.keys():
-#                            if 'min' in settings.linkpar_specs[link.label].keys() and settings.linkpar_specs[link.label]['min'] > link.vals[ti]:
+#                        if link.label in settings.linkpar_specs:
+#                            if 'min' in settings.linkpar_specs[link.label] and settings.linkpar_specs[link.label]['min'] > link.vals[ti]:
 #                                link.vals[ti] = settings.linkpar_specs[link.label]['min']
-#                            if 'max' in settings.linkpar_specs[link.label].keys() and settings.linkpar_specs[link.label]['max'] < link.vals[ti]:
+#                            if 'max' in settings.linkpar_specs[link.label] and settings.linkpar_specs[link.label]['max'] < link.vals[ti]:
 #                                link.vals[ti] = settings.linkpar_specs[link.label]['max']
 
                         transition = link.vals[ti]
@@ -625,7 +625,7 @@ class Model(object):
                             logging.debug("Empty compartment: no change made for link from=%g,to=%g" % (did_from, did_to))
                             converted_amt = 0
 
-                        elif did_from in modified_compartment.keys():
+                        elif did_from in modified_compartment:
                             # during validation, we encountered an outflow from a compartment that was more than the population size
                             logging.debug("Modifying flow amount for link (from=%g,to=%g) by %g: prev amount = %g, new amount = %g" % (did_from, did_to, modified_compartment[did_from], converted_amt, modified_compartment[did_from] * converted_amt))
                             converted_amt *= modified_compartment[did_from]
@@ -757,20 +757,20 @@ class Model(object):
 
             # Characteristics that are dependencies first...
             for dep in pop.deps:
-                if dep.label in settings.charac_deps.keys():
+                if dep.label in settings.charac_deps:
                     dep.vals[ti] = 0
 
                     # Sum up all relevant compartment popsizes (or previously calculated characteristics).
                     for inc_label in settings.charac_specs[dep.label]['includes']:
-                        if inc_label in pop.comp_ids.keys():
+                        if inc_label in pop.comp_ids:
                             val = pop.getComp(inc_label).popsize[ti]
-                        elif inc_label in pop.dep_ids.keys():    # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
+                        elif inc_label in pop.dep_ids:    # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
                             val = pop.getDep(inc_label).vals[ti]
                         else:
 #                            print inc_label
 #                            print settings.charac_specs[dep.label]['includes']
-#                            print pop.comp_ids.keys()
-#                            print pop.dep_ids.keys()
+#                            print pop.comp_ids
+#                            print pop.dep_ids
                             raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
 
                         dep.vals[ti] += val
@@ -778,9 +778,9 @@ class Model(object):
                     # Divide by relevant compartment popsize (or previously calculated characteristic).
                     if 'denom' in settings.charac_specs[dep.label]:
                         den_label = settings.charac_specs[dep.label]['denom']
-                        if den_label in pop.dep_ids.keys():  # NOTE: See above note for avoiding parameter-type dependencies.
+                        if den_label in pop.dep_ids:  # NOTE: See above note for avoiding parameter-type dependencies.
                             val = pop.getDep(den_label).vals[ti]
-                        elif den_label in pop.comp_ids.keys():
+                        elif den_label in pop.comp_ids:
                             val = pop.getComp(den_label).popsize[ti]
                         else:
                             raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
@@ -809,11 +809,11 @@ class Model(object):
                 specs = settings.linkpar_specs[par_label]
 
                 # Calculate the value of a parameter from its function if it exists, otherwise maintain the current value.
-                if 'f_stack' in specs.keys():
+                if 'f_stack' in specs:
                     f_stack = dcp(specs['f_stack'])
                     deps = dcp(specs['deps'])
-                    for dep_label in deps.keys():
-                        if dep_label in settings.par_deps.keys() or dep_label in settings.charac_deps.keys():
+                    for dep_label in deps:
+                        if dep_label in settings.par_deps or dep_label in settings.charac_deps:
                             val = pop.getDep(dep_label).vals[ti]
                         else:
                             val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti]    # As links are duplicated for the same tag, can pull values from the zeroth one.
@@ -825,7 +825,7 @@ class Model(object):
                 # WARNING: CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
                 if 'progs_start' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start']:
                     if not ('progs_end' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_end']):
-                        if par_label in progset.impacts.keys():
+                        if par_label in progset.impacts:
                             first_prog = True   # True if program in prog_label loop is the first one in the impact dict list.
                             impact_list = []    # Notes for each program what its impact would be before coverage limitations.
                             overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
@@ -840,7 +840,7 @@ class Model(object):
                                     continue
 
                                 # If a program target is a transition parameter, its coverage must be distributed and format-converted.
-                                if 'tag' in settings.linkpar_specs[par_label].keys():
+                                if 'tag' in settings.linkpar_specs[par_label]:
                                     # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
                                     source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
                                     source_set_size = 0
@@ -963,16 +963,16 @@ class Model(object):
                     par.vals[ti] = new_val
 
                     # Backup the values of parameters that are tagged with special rules.
-                    if 'rules' in settings.linkpar_specs[par_label].keys():
+                    if 'rules' in settings.linkpar_specs[par_label]:
                         if par.vals_old is None: par.vals_old = dcp(par.vals)
                         par.vals_old[ti] = new_val
 
             # Handle parameters tagged with special rules. Overwrite vals if necessary.
-            if do_special and 'rules' in settings.linkpar_specs[par_label].keys():
+            if do_special and 'rules' in settings.linkpar_specs[par_label]:
                 rule = settings.linkpar_specs[par_label]['rules']
                 for pop in self.pops:
                     if rule == 'avg_contacts_in':
-                        from_list = self.contacts['into'][pop.label].keys()
+                        from_list = self.contacts['into'][pop.label]
 
                         # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
                         if not ((len(from_list) == 1 and from_list[0] == pop.label)):
@@ -1025,7 +1025,7 @@ class Model(object):
             
             # Do a final range check on a parameter, if applicable, and restrict its value.
             # TODO: Explore efficiency gains.                
-            if 'min' in settings.linkpar_specs[par_label].keys():
+            if 'min' in settings.linkpar_specs[par_label]:
                 for pop in self.pops:
                     pars = []
                     if par_label in settings.par_deps:
@@ -1035,7 +1035,7 @@ class Model(object):
                     for par in pars:
                         if settings.linkpar_specs[par_label]['min'] > par.vals[ti]:
                             par.vals[ti] = settings.linkpar_specs[par_label]['min']
-            if 'max' in settings.linkpar_specs[par_label].keys():
+            if 'max' in settings.linkpar_specs[par_label]:
                 for pop in self.pops:
                     pars = []
                     if par_label in settings.par_deps:
@@ -1058,7 +1058,7 @@ class Model(object):
         outputs = odict()
 
         # For characteristics...
-        for cid in settings.charac_specs.keys():
+        for cid in settings.charac_specs:
             outputs[cid] = odict()
             for pop in self.pops:
                 outputs[cid][pop.label] = None
@@ -1066,7 +1066,7 @@ class Model(object):
                 # Sum up all relevant compartment popsizes (or previously calculated characteristics).
                 # TODO: Don't recalculate if characteristic was calculated as a dependency.
                 for inc_label in settings.charac_specs[cid]['includes']:
-                    if inc_label in self.getPop(pop.label).comp_ids.keys():
+                    if inc_label in self.getPop(pop.label).comp_ids:
                         vals = self.getPop(pop.label).getComp(inc_label).popsize
                     elif inc_label in outputs.keys()[:-1]:
                         vals = outputs[inc_label][pop.label]
@@ -1083,7 +1083,7 @@ class Model(object):
                     den_label = settings.charac_specs[cid]['denom']
                     if den_label in outputs.keys()[:-1]:
                         vals = outputs[den_label][pop.label]
-                    elif den_label in self.getPop(pop.label).comp_ids.keys():
+                    elif den_label in self.getPop(pop.label).comp_ids:
                         vals = self.getPop(pop.label).getComp(den_label).popsize
                     else:
                         raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
@@ -1097,7 +1097,7 @@ class Model(object):
                 if 'tag' in settings.linkpar_specs[cid]:    # If a parameter is a transition, grab values from its (first, if duplicated,) link object.
                     tag = settings.linkpar_specs[cid]['tag']
                     outputs[cid][pop.label] = pop.getLinks(tag)[0].vals
-                elif cid in pop.dep_ids.keys():             # If a parameter is a dependency, grab values from the dependency object.
+                elif cid in pop.dep_ids:             # If a parameter is a dependency, grab values from the dependency object.
                     outputs[cid][pop.label] = pop.getDep(cid).vals
                 else:
                     raise OptimaException('ERROR: Output parameter "%s" was not calculated as a "dependency" during the model run.' % cid)
@@ -1114,7 +1114,7 @@ class Model(object):
         """
         Returns True if comp_label is label for a compartment tagged as births. 
         """
-        if 'tag_birth' in settings.node_specs[comp_id].keys():
+        if 'tag_birth' in settings.node_specs[comp_id]:
             return True
         return False
 
@@ -1123,7 +1123,7 @@ class Model(object):
         Returns True if comp_label is label for a compartment tagged as dead. 
     
         """
-        if 'tag_dead' in settings.node_specs[comp_id].keys():
+        if 'tag_dead' in settings.node_specs[comp_id]:
             return True
         return False
 
