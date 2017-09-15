@@ -1571,7 +1571,7 @@ def plotSingleCompartmentFlow(results, settings, comp_labels=None, comp_titles=N
                 logger.warn("No flows selected for plotting")
 
 
-def plotPopulationFlows(results, settings, comp_labels=None, comp_titles=None, pop_labels=None,
+def plotPopulationFlows(results, settings, comp_labels=None, comp_titles=None, pop_labels=None, y_bounds=None,
               link_labels=None, include_link_not_exclude=True, link_legend=None, sum_total=False, sum_population=False,
               plot_inflows=True, plot_outflows=True, exclude_transfers=False, observed_data=None,
               save_fig=False, fig_name=None, colors=None, colormappings=None, linestyles=None):
@@ -1709,6 +1709,11 @@ def plotPopulationFlows(results, settings, comp_labels=None, comp_titles=None, p
         else:
             labels = pop_labels
 
+        if y_bounds is not None:
+            yb = y_bounds[i]
+        else:
+            yb = None
+
         final_dict = {
           'ylim' : 0,
           'xlabel':'Year',
@@ -1724,10 +1729,11 @@ def plotPopulationFlows(results, settings, comp_labels=None, comp_titles=None, p
         final_dict.update(plotdict)
 
         if len(rates) > 0:
-            _plotLine(ys=rates, ts=tvecs, labels=labels, colors=colors, linestyles=linestyles,
+            _plotLine(ys=rates, ts=tvecs, labels=labels, colors=colors, linestyles=linestyles, y_bounds=yb,
                       save_fig=save_fig, **final_dict)
         else:
             logger.warn("No flows selected for plotting")
+    return None # return last fig
 
     # TODO: plot separate legend
 
@@ -2306,6 +2312,7 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
 
         # if there are confidence bounds, plot using fill_between
         if y_bounds is not None:
+            print y_bounds[k]
             t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2]
             ax.fill_between(t_bound, y_min_bound, y_max_bound, facecolor=colors[k], alpha=alpha, linewidth=0.1, edgecolor=colors[k])
 
