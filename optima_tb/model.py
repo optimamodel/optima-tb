@@ -804,6 +804,7 @@ class Model(object):
                             for prog_label in progset.impacts[par_label]:
                                 prog = progset.getProg(prog_label)
                                 prog_type = prog.prog_type
+                                impact = 0.0
 
                                 # TODO move try-except-block to programs and store special as attribute
                                 special = ''
@@ -816,107 +817,107 @@ class Model(object):
                                     scale_pars = words[1:]
                                 except: pass
 
-                                # Make sure the population in the loop is a target of this program.
-                                if pop.label not in prog.target_pops:
-                                    continue
-                                if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']):
-                                    continue
+                                if not (special == 'scale_prop_g' and pop.label not in prog.target_pops):
+                                    # Make sure the population in the loop is a target of this program.
+                                    if pop.label not in prog.target_pops:
+                                        continue
 
-                                # added an exception to clarify why programme crashes if pars[0] ist not a type 'Link'
-                                if not isinstance(pars[0], Link):
-                                    raise OptimaException(
-                                        'ERROR: Program impact parameters must be transitions. "%s" is not a transition.'
-                                        % (par_label))
+                                    # TODO: special tag of last program impacting this parameter is going to be used to combine all impacts: may cause some trouble
+                                    if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']):
+                                        continue
 
+                                    if not isinstance(pars[0], Link):
+                                        try: impact = self.prog_vals[prog_label]['impact'][par_label][ti]
+                                        except: impact = self.prog_vals[prog_label]['impact'][par_label]
 
-
-                                # check if all the provided parameters are indeed impact parameters
-                                if special != '' and len(scale_pars) > 0:
-                                    for w in scale_pars: # check if impact parameters and passed words coincide
-                                        if not w in progset.getProg(prog_label).target_pars.keys():
-                                            raise OptimaException(
-                                                'ERROR: Parameters passed in the \'special tag\' field after \'%s\' must be impact parameters. \'%s\' is not in list [%s].'
-                                                % (special, w, ' '.join(progset.getProg(prog_label).target_pars.keys())))
-
-                                # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
-                                source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
-                                source_set_size = 0
-                                for from_pop in prog.target_pops:
-                                    source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
-
-                                # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
-                                # NOTE: This might be a place to improve performance.
-                                if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
-                                    group_label = settings.progtype_specs[prog_type]['impact_pars'][par_label]['group']
-                                    for alt_par_label in settings.progtype_specs[prog_type]['impact_par_groups'][group_label]:
-                                        if not alt_par_label == par_label:
-                                            alt_pars = pop.getLinks(settings.linkpar_specs[alt_par_label]['tag'])
-                                            for from_pop in prog.target_pops:
-                                                source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]
-
-                                # Impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
-                                # Makes sure that the right value is selected.
-                                try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
-                                except: net_impact = self.prog_vals[prog_label]['impact'][par_label]
-
-                                # Make sure each program impact is in the format of the parameter it affects.
-                                # NOTE: Can be compressed. Currently left explicit.
-                                if pars[0].val_format == 'fraction':
-                                    if prog.cov_format == 'fraction':
-                                        impact = net_impact
-                                    elif prog.cov_format == 'number':
-                                        if source_element_size <= project_settings.TOLERANCE:
-                                            impact = 0.0
-                                        else:
-                                            impact = net_impact / source_set_size
-    #                                    if impact > 1.0: impact = 1.0   # Maximum fraction allowable due to timestep conversion.
-                                elif pars[0].val_format == 'number':
-                                    if prog.cov_format == 'fraction':
-                                        impact = net_impact * source_element_size
-                                    elif prog.cov_format == 'number':
-                                        if source_element_size <= project_settings.TOLERANCE:
-                                            impact = 0.0
-                                        else:
-                                            impact = net_impact * source_element_size / source_set_size
-                                            # make sure impact is not bigger than the number of available entities
-                                            if impact > source_element_size:
-                                                impact = source_element_size
-                                                logger.warn("In population '%s', Program '%s'  has an impact on more entities than contained in '%s'. Truncating value to number of entities."
-                                                            % (pop.label, prog_label, pars[0].label_from))
-
-                                # Calculate how excessive program coverage is for the provided budgets.
-                                # If coverage is a fraction, excess is compared to unity.
-                                # If coverage is a number, excess is compared to the total number of people available for coverage.
-                                overflow_factor = 0
-                                try: net_cov = self.prog_vals[prog_label]['cov'][ti]
-                                except: net_cov = self.prog_vals[prog_label]['cov']
-                                if prog.cov_format == 'fraction':
-                                    overflow_factor = net_cov
-                                elif prog.cov_format == 'number':
-                                    if float(source_set_size) <= project_settings.TOLERANCE:
-                                        overflow_factor = np.inf
                                     else:
-                                        overflow_factor = net_cov / float(source_set_size)
-                                overflow_list.append(overflow_factor)
+                                        # check if all the provided parameters are indeed impact parameters
+                                        if special != '' and len(scale_pars) > 0:
+                                            for w in scale_pars: # check if impact parameters and passed words coincide
+                                                if not w in progset.getProg(prog_label).target_pars.keys():
+                                                    raise OptimaException(
+                                                        'ERROR: Parameters passed in the \'special tag\' field after \'%s\' must be impact parameters. \'%s\' is not in list [%s].'
+                                                        % (special, w, ' '.join(progset.getProg(prog_label).target_pars.keys())))
 
-#                                year_check = 2015   # Hard-coded check.
-#                                par_check = ['spdno_rate','sndno_rate']#['spdsuc_rate','spdno_rate']
-#                                if par_label in par_check:
-#                                    if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
-#                                        print('Year: %s' % self.sim_settings['tvec'][ti])
-#                                        print('Program Name: %s' % prog.name)
-#                                        print('Program %s: %f' % ('Coverage' if self.sim_settings['alloc_is_coverage'] else 'Budget', self.prog_vals[prog_label]['cost']))
-#                                        print('Target Population: %s' % pop.label)
-#                                        print('Target Parameter: %s' % par_label)
-#                                        print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
-#                                        print('Program Coverage: %f' % self.prog_vals[prog_label]['cov'])
-#                                        print('Program Impact: %f' % net_impact)
-#                                        print('Program Impact Format: %s' % prog.cov_format)
-#                                        print('Source Compartment Size (Target Pop): %f' % source_element_size)
-#                                        print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
-#                                        print('Converted Impact: %f' % impact)
-#                                        print('Converted Impact Format: %s' % pars[0].val_format)
-#                                        print
+                                        # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
+                                        source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
+                                        source_set_size = 0
+                                        for from_pop in prog.target_pops:
+                                            source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
+
+                                        # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
+                                        # NOTE: This might be a place to improve performance.
+                                        if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
+                                            group_label = settings.progtype_specs[prog_type]['impact_pars'][par_label]['group']
+                                            for alt_par_label in settings.progtype_specs[prog_type]['impact_par_groups'][group_label]:
+                                                if not alt_par_label == par_label:
+                                                    alt_pars = pop.getLinks(settings.linkpar_specs[alt_par_label]['tag'])
+                                                    for from_pop in prog.target_pops:
+                                                        source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]
+
+                                        # Impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
+                                        # Makes sure that the right value is selected.
+                                        try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
+                                        except: net_impact = self.prog_vals[prog_label]['impact'][par_label]
+
+                                        # Make sure each program impact is in the format of the parameter it affects.
+                                        # NOTE: Can be compressed. Currently left explicit.
+                                        if pars[0].val_format == 'fraction':
+                                            if prog.cov_format == 'fraction':
+                                                impact = net_impact
+                                            elif prog.cov_format == 'number':
+                                                if source_element_size <= project_settings.TOLERANCE:
+                                                    impact = 0.0
+                                                else:
+                                                    impact = net_impact / source_set_size
+            #                                    if impact > 1.0: impact = 1.0   # Maximum fraction allowable due to timestep conversion.
+                                        elif pars[0].val_format == 'number':
+                                            if prog.cov_format == 'fraction':
+                                                impact = net_impact * source_element_size
+                                            elif prog.cov_format == 'number':
+                                                if source_element_size <= project_settings.TOLERANCE:
+                                                    impact = 0.0
+                                                else:
+                                                    impact = net_impact * source_element_size / source_set_size
+                                                    # make sure impact is not bigger than the number of available entities
+                                                    if impact > source_element_size:
+                                                        impact = source_element_size
+                                                        # logger.warn("In population '%s', Program '%s'  has an impact on more entities than contained in '%s'. Truncating value to number of entities."
+                                                        #             % (pop.label, prog_label, pars[0].label_from))
+
+                                        # Calculate how excessive program coverage is for the provided budgets.
+                                        # If coverage is a fraction, excess is compared to unity.
+                                        # If coverage is a number, excess is compared to the total number of people available for coverage.
+                                        overflow_factor = 0
+                                        try: net_cov = self.prog_vals[prog_label]['cov'][ti]
+                                        except: net_cov = self.prog_vals[prog_label]['cov']
+                                        if prog.cov_format == 'fraction':
+                                            overflow_factor = net_cov
+                                        elif prog.cov_format == 'number':
+                                            if float(source_set_size) <= project_settings.TOLERANCE:
+                                                overflow_factor = np.inf
+                                            else:
+                                                overflow_factor = net_cov / float(source_set_size)
+                                        overflow_list.append(overflow_factor)
+
+        #                                year_check = 2015   # Hard-coded check.
+        #                                par_check = ['spdno_rate','sndno_rate']#['spdsuc_rate','spdno_rate']
+        #                                if par_label in par_check:
+        #                                    if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
+        #                                        print('Year: %s' % self.sim_settings['tvec'][ti])
+        #                                        print('Program Name: %s' % prog.name)
+        #                                        print('Program %s: %f' % ('Coverage' if self.sim_settings['alloc_is_coverage'] else 'Budget', self.prog_vals[prog_label]['cost']))
+        #                                        print('Target Population: %s' % pop.label)
+        #                                        print('Target Parameter: %s' % par_label)
+        #                                        print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
+        #                                        print('Program Coverage: %f' % self.prog_vals[prog_label]['cov'])
+        #                                        print('Program Impact: %f' % net_impact)
+        #                                        print('Program Impact Format: %s' % prog.cov_format)
+        #                                        print('Source Compartment Size (Target Pop): %f' % source_element_size)
+        #                                        print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
+        #                                        print('Converted Impact: %f' % impact)
+        #                                        print('Converted Impact Format: %s' % pars[0].val_format)
+        #                                        print
 
                                 if first_prog:
                                     first_prog = False
@@ -925,7 +926,7 @@ class Model(object):
 #                                new_val += impact
 
                                 # TODO move to a function for individual value treatment by flag
-                                if special == 'scale_prop' and par_label in scale_pars:
+                                if special.startswith('scale_prop') and par_label in scale_pars:
                                     # determine total population
                                     total_pop = sum([p.getDep('h_alive').vals[ti] for p in self.pops])
                                     impacts = [] # impacts are treated as fractions!
@@ -934,11 +935,11 @@ class Model(object):
                                     # find all programs of the same type as current one and weigh its impact proportional
                                     # to the population size before summing up
                                     for p in progset.progs:
-                                        if p.prog_type == progset.getProg(prog_label).prog_type:
+                                        if p.prog_type == progset.getProg(prog_label).prog_type and p.label in self.prog_vals:
                                             try: imp = self.prog_vals[p.label]['impact'][par_label][ti] # identical for each population
                                             except: imp = self.prog_vals[p.label]['impact'][par_label][0]
-                                            pop_sizes = [self.getPop(p).getDep('h_alive').vals[ti] for p in prog.target_pops]
-                                            impacts.append(np.dot([imp] * len(pop_sizes), pop_sizes) / total_pop)
+                                            pop_sizes = [self.getPop(pp).getDep('h_alive').vals[ti] for pp in p.target_pops]
+                                            impacts.append(imp * np.sum(pop_sizes) / total_pop)
 
                                     impact = np.sum(impacts)
                                 # split program contribution among affected entities
