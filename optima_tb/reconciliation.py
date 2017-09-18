@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma = 0.05, attribute_sigma = 0.20, impact_pars = None, budget_allocation = None, orig_tvec_end = None):
+def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma = 0.05, attribute_sigma = 0.20, impact_pars = None, budget_allocation = None, orig_tvec_end = None, max_time = None):
         """
         Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standard deviation sigma
         
@@ -46,7 +46,7 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
             new_pars = [z for z in impact_pars if z in progset.impacts.keys()]
             impact_pars = dcp(new_pars)
         
-        results = proj.runSim(parset_name=parset_name)
+        results = proj.runSim(parset_name=parset_name, store_results=False)
         
         #Get original comparison between progset and parset
         impact['original'] = compareOutcomesFunc(proj=proj, parset_name=parset_name, progset_name=progset_name, year=reconcile_for_year, compareoutcome=True, display=False)
@@ -76,14 +76,16 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
         
         optim_args = {
                      'stepsize': proj.settings.autofit_params['stepsize'], 
-                     'maxiters': 300,#proj.settings.autofit_params['maxiters'],
+                     'maxiters': proj.settings.autofit_params['maxiters'],
                      'maxtime': proj.settings.autofit_params['maxtime'],
                      'sinc': proj.settings.autofit_params['sinc'],
                      'sdec': proj.settings.autofit_params['sdec'], 
                      'fulloutput': False,
                      'reltol': None
                      }
-      
+        
+        if not max_time is None:
+            optim_args['maxtime'] = max_time      
         
         best_attribute_list = asd(reconciliationMetric, attribute_list, args, xmin = xmin, xmax = xmax, **optim_args)
         best_attribute_dict = regenerateAttributesDict(attribute_list = best_attribute_list, orig_attribute_dict = attribute_dict)
@@ -150,7 +152,7 @@ def compareOutcomesFunc(proj, year, parset_name=None, progset_name=None, budget_
     #Setup compareOutcomes kwargs
     parset  = proj.parsets[parset_name].pars['cascade']
     progset = proj.progsets[progset_name]
-    results = proj.runSim(parset_name=parset_name)
+    results = proj.runSim(parset_name=parset_name, store_results=False)
     #Declare impact parameters to use for display (use all)
     impact_pars = progset.impacts.keys()
     #use reconcilemetric to get desired result

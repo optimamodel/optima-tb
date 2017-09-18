@@ -740,7 +740,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         try:
             self.parset = self.project.runAutofitCalibration(parset=self.parset, target_characs=self.fitted_characs_dict.keys(), max_time=calibration_time, save_parset=False)
             self.status = ('Status: Autocalibration complete (but unsaved) for parameter set "%s"' % self.parset.name)
-        except Exception as e:
+        except Exception as E:
             self.status = ('Status: Autocalibration was unsuccessful, perhaps because no parameters were selected to calibrate or no parameter-associated data was chosen to fit against')
         self.refreshVisibility()
 
@@ -1182,10 +1182,12 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.status = ('Status: Reconciling checked selection of program set "%s" with parameter set "%s" for %s seconds' % (self.progset.name, self.parset_name, str(reconciliation_time)))
         self.refreshStatus()
         try:
-#            self.parset = self.project.runAutofitCalibration(parset=self.parset, target_characs=self.fitted_characs_dict.keys(), max_time=reconciliation_time, save_parset=False)
+            print 'START'
+            self.progset = self.project.reconcile(parset_name=self.parset_name, progset=self.progset, overwrite=True, max_time=reconciliation_time, save_progset=False)
+            print 'END'
             self.status = ('Status: Reconciliation process complete (but unsaved) for program set "%s"' % self.progset.name)
-        except Exception as e:
-            self.status = ('Status: Reconciliation process was unsuccessful')#, perhaps because no parameters were selected to calibrate or no parameter-associated data was chosen to fit against')
+        except Exception as E:
+            self.status = ('Status: Reconciliation process was unsuccessful because "%s"' % E.message)#, perhaps because no parameters were selected to calibrate or no parameter-associated data was chosen to fit against')
         self.refreshVisibility()
             
     # TODO: Remove magic numbers once layout design is more stable.

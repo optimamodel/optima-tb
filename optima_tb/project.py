@@ -197,7 +197,7 @@ class Project(object):
         self.progsets[name] = ProgramSet(name=name)
         self.progsets[name].makeProgs(data=self.data, settings=self.settings)
 
-    def reconcile(self, parset_name=None, progset_name=None, reconcile_for_year=2017, unitcost_sigma=0.05, attribute_sigma=0.20, impact_pars=None, budget_allocation=None, overwrite=True):
+    def reconcile(self, parset_name=None, progset=None, progset_name=None, reconcile_for_year=2017, unitcost_sigma=0.05, attribute_sigma=0.20, impact_pars=None, budget_allocation=None, overwrite=True, max_time=None, save_progset=True):
         '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible
            Default behaviour is to overwrite existing progset
         '''
@@ -210,6 +210,23 @@ class Project(object):
                 logger.info('Parameter set was not identified for reconciliation, using parameter set: "%s"' % parset_name)
             except:
                 raise OptimaException('No valid parameter sets exist within the project')
+
+        # If a progset is provided, it is assumed temporary and a reference is implanted into the current project to be deleted after reconciliation.
+        # TODO: Make Project.reconcile() and similar methods much more aligned in handling parsets/progsets by label or by reference.
+        link_progset_temporarily = False
+        temp_progset_name = ''
+        if not progset is None:
+            link_progset_temporarily = True
+            k = -1
+            while link_progset_temporarily:
+                if k == -1: temp_progset_name = progset.name
+                elif k == 0: temp_progset_name = 'temp'
+                else: temp_progset_name = 'temp'+str(k)
+                if not temp_progset_name in self.progsets:
+                    self.progsets[temp_progset_name] = progset
+                    progset_name = temp_progset_name
+                    break
+                k += 1
 
         if progset_name is None:
             try:
@@ -227,11 +244,22 @@ class Project(object):
         logger.info('Reconciling progset "%s" as overwrite is set as "%s"' % (progset_name, overwrite))
 
         # Run reconcile functionality
-        self.progsets[progset_name] = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
+        reconciled_progset = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
                                                     parset_name=parset_name, progset_name=progset_name,
                                                     unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma,
                                                     impact_pars=impact_pars, orig_tvec_end=orig_tvec_end,
-                                                    budget_allocation=budget_allocation)
+                                                    budget_allocation=budget_allocation, max_time=max_time)
+        
+        if save_progset:
+            self.progsets[progset_name] = reconciled_progset
+        
+        # Deletes temporary progset reference.
+        if link_progset_temporarily:
+            del self.progsets[temp_progset_name]
+            try: del self.progsets[progset_name]    # In case overwrite is False delete the 'reconcile' version of the temp progset. TODO: Rethink all the logic.
+            except: pass
+            
+        return reconciled_progset
 
 
     def compareOutcomes(self, parset_name=None, progset_name=None, budget_allocation=None, year=2017):
