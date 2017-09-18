@@ -621,7 +621,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.label_autocalibrate = qtw.QLabel('Autocalibration time in seconds... ')
         self.edit_autocalibrate = qtw.QLineEdit()
         self.edit_autocalibrate.setText(str(10))
-        self.button_autocalibrate = qtw.QPushButton('Autocalibrate Parameters', self)
+        self.button_autocalibrate = qtw.QPushButton('Autocalibrate parameters', self)
         self.button_autocalibrate.clicked.connect(self.autocalibrate)
 
         self.label_overwrite = qtw.QLabel('Save edits to... ')
@@ -735,11 +735,11 @@ class GUICalibration(GUIResultPlotterIntermediate):
             self.status = ('Status: Autocalibration aborted because "%s"' % E.message)
             self.refreshStatus()
             return
-        self.status = ('Status: Autocalibrating checked selection of parameter set "%s" for %s seconds' % (self.parset_name, str(calibration_time)))
+        self.status = ('Status: Autocalibrating checked selection of parameter set "%s" for %s seconds' % (self.parset.name, str(calibration_time)))
         self.refreshStatus()
         try:
             self.parset = self.project.runAutofitCalibration(parset=self.parset, target_characs=self.fitted_characs_dict.keys(), max_time=calibration_time, save_parset=False)
-            self.status = ('Status: Autocalibration complete (but unsaved) for parameter set "%s"' % self.parset_name)
+            self.status = ('Status: Autocalibration complete (but unsaved) for parameter set "%s"' % self.parset.name)
         except Exception as e:
             self.status = ('Status: Autocalibration was unsuccessful, perhaps because no parameters were selected to calibrate or no parameter-associated data was chosen to fit against')
         self.refreshVisibility()
@@ -985,6 +985,9 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         
         self.label_year_start.setVisible(does_progset_exist)
         self.edit_year_start.setVisible(does_progset_exist)
+        self.label_reconcile.setVisible(does_parset_exist & does_progset_exist)
+        self.edit_reconcile.setVisible(does_parset_exist & does_progset_exist)
+        self.button_reconcile.setVisible(does_parset_exist & does_progset_exist)
         self.label_overwrite.setVisible(does_progset_exist)
         self.edit_overwrite.setVisible(does_progset_exist)
         self.button_overwrite.setVisible(does_progset_exist)
@@ -1022,6 +1025,12 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.edit_year_start = qtw.QLineEdit()
         self.edit_year_start.returnPressed.connect(self.updateStartYear)
         
+        self.label_reconcile = qtw.QLabel('Automatic reconciliation time in seconds... ')
+        self.edit_reconcile = qtw.QLineEdit()
+        self.edit_reconcile.setText(str(10))
+        self.button_reconcile = qtw.QPushButton('Reconcile parameters and programs', self)
+        self.button_reconcile.clicked.connect(self.reconcile)
+        
         self.label_overwrite = qtw.QLabel('Save edits to... ')
         self.edit_overwrite = qtw.QLineEdit()
         self.button_overwrite = qtw.QPushButton('Save program set', self)
@@ -1047,12 +1056,15 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         grid_progset_save = qtw.QGridLayout()
         grid_progset_save.setSpacing(10)
 
-        grid_progset_save.addWidget(self.label_overwrite, 0, 0)
-        grid_progset_save.addWidget(self.edit_overwrite, 0, 1)
-        grid_progset_save.addWidget(self.button_overwrite, 0, 2)
-        grid_progset_save.addWidget(self.label_model_run, 1, 0)
-        grid_progset_save.addWidget(self.edit_model_run, 1, 1)
-        grid_progset_save.addWidget(self.button_model_run, 1, 2)
+        grid_progset_save.addWidget(self.label_reconcile, 0, 0)
+        grid_progset_save.addWidget(self.edit_reconcile, 0, 1)
+        grid_progset_save.addWidget(self.button_reconcile, 0, 2)
+        grid_progset_save.addWidget(self.label_overwrite, 1, 0)
+        grid_progset_save.addWidget(self.edit_overwrite, 1, 1)
+        grid_progset_save.addWidget(self.button_overwrite, 1, 2)
+        grid_progset_save.addWidget(self.label_model_run, 2, 0)
+        grid_progset_save.addWidget(self.edit_model_run, 2, 1)
+        grid_progset_save.addWidget(self.button_model_run, 2, 2)
         
         self.table_reconciliation = qtw.QTableWidget()
 #        self.table_reconciliation.cellChanged.connect(self.updateProgset)
@@ -1156,6 +1168,24 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                 self.status = ('Status: New program set "%s" added to project' % progset_name)
             self.progset.name = progset_name
             self.project.progsets[progset_name] = dcp(self.progset)
+        self.refreshVisibility()
+        
+    def reconcile(self):
+        try:
+            reconciliation_time = float(str(self.edit_reconcile.text()))
+            if reconciliation_time < 0:
+                raise Exception('reconciliation time cannot be negative')
+        except Exception as E:
+            self.status = ('Status: Reconciliation process aborted because "%s"' % E.message)
+            self.refreshStatus()
+            return
+        self.status = ('Status: Reconciling checked selection of program set "%s" with parameter set "%s" for %s seconds' % (self.progset.name, self.parset_name, str(reconciliation_time)))
+        self.refreshStatus()
+        try:
+#            self.parset = self.project.runAutofitCalibration(parset=self.parset, target_characs=self.fitted_characs_dict.keys(), max_time=reconciliation_time, save_parset=False)
+            self.status = ('Status: Reconciliation process complete (but unsaved) for program set "%s"' % self.progset.name)
+        except Exception as e:
+            self.status = ('Status: Reconciliation process was unsuccessful')#, perhaps because no parameters were selected to calibrate or no parameter-associated data was chosen to fit against')
         self.refreshVisibility()
             
     # TODO: Remove magic numbers once layout design is more stable.
@@ -1328,7 +1358,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
             result_name = str(self.edit_model_run.text())
             if result_name == '':
                 result_name = None
-            self.project.runSim(parset_name=self.parset_name, progset=self.progset, options=self.options, store_results=True, result_type='sim_progbased', result_name=result_name)
+            self.project.runSim(parset_name=self.parset_name, progset=self.progset, options=self.options, store_results=True, result_type='progsim', result_name=result_name)
             self.acknowledgeResults()
             self.status = ('Status: Model successfully processed for parameter set "%s" and program set "%s"' % (self.parset_name, self.progset_name))
         self.refreshVisibility()
