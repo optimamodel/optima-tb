@@ -843,7 +843,11 @@ class Model(object):
                                         source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
                                         source_set_size = 0
                                         for from_pop in prog.target_pops:
-                                            source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
+                                            if special != 'split':
+                                                source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
+                                            else:
+                                                if pop.label == from_pop:
+                                                    source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
 
                                         # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
                                         # NOTE: This might be a place to improve performance.
@@ -853,7 +857,11 @@ class Model(object):
                                                 if not alt_par_label == par_label:
                                                     alt_pars = pop.getLinks(settings.linkpar_specs[alt_par_label]['tag'])
                                                     for from_pop in prog.target_pops:
-                                                        source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]
+                                                        if special != 'split':
+                                                            source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]
+                                                        else:
+                                                            if pop.label == from_pop:
+                                                                source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]
 
                                         # Impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
                                         # Makes sure that the right value is selected.
@@ -945,6 +953,7 @@ class Model(object):
                                 # split program contribution among affected entities
                                 elif special == 'split':
                                     if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
+                                        assert(0. <= source_element_size / source_set_size <= 1.)
                                         impact *= source_element_size / source_set_size
 
                                 elif special == 'supp':
@@ -994,8 +1003,9 @@ class Model(object):
                             # scale existing value by the current impacts
                             elif special == 'scale' or special == 'scale_prop' or special == 'split' or special == 'supp':
                                 # update a number, but make sure it does not exceed number of entities
-                                if pars[0].val_format == 'number':
-                                    new_val = min(new_val + np.sum(impact_list), source_element_size)
+                                if pars[0].val_format == 'number' and isinstance(pars[0], Link): # 'and'-clause is used to distinguish between transitions and non-transitions:
+                                    # new_val = min(new_val + np.sum(impact_list), source_element_size)
+                                    new_val += np.sum(impact_list)
                                 # update a fraction
                                 else:
                                     new_val *= 1.0 + np.sum(impact_list)
