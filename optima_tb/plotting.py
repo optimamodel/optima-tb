@@ -879,7 +879,8 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
     charac_specs = proj.settings.charac_specs
     plot_over = (proj.settings.tvec_start, proj.settings.tvec_observed_end)
     tmp_plotdict = dcp(plotdict)
-
+    tmp_kwargs = dcp(kwargs)
+    tmp_plotdict.update(kwargs)
     # -------------------------------------------------------
     # generic setup for data
     unit_tag = ""
@@ -923,8 +924,6 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
             ylabel = getName(None, proj) + unit_tag
 
     # components of the overall title
-    if title is None:
-        title = ylabel
     if pop_labels is None: # detail what populations
         pop = plotdict['default_pops']
     elif pop_labels is dict:
@@ -935,7 +934,9 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
     if len(year_periods) >= 2:
         years += " to %g" % year_periods[-1]
     # update title to include population and year details
-    title = "%s\n%s, %s" % (title, pop, years)
+    if title is None:
+        title = ylabel
+        title = "%s\n%s, %s" % (title, pop, years)
 
     if pop_labels is None: # explicitly update populations
         pop_labels = getPops(resultset[0])
@@ -1090,6 +1091,7 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
     if tmp_plotdict.has_key('title') and tmp_plotdict['title'] is None:
         tmp_plotdict['title'] = title
 
+
     fig = _plotBars(values, labels=legend_labels, colors=colors,
             linestyles=linestyles, hatches=hatches, xlabels=series_labels,
             save_fig=save_fig, **tmp_plotdict)
@@ -1098,6 +1100,7 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
         # Note that color list may be different to colors, as it represents
         # classes of compartments i.e. ['Latent disease states','Active disease states']
         legendsettings = plotdict['legendsettings']
+        # TODO: fix usage when legend should use colors rather than cat_colors
         separateLegend(labels=legend_labels, colors=cat_colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
 
     return fig
