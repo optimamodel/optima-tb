@@ -787,10 +787,8 @@ class Model(object):
         rel_progs = filter(lambda x: x.prog_type == progset.getProg(prog_label).prog_type, progset.progs)
         rel_progs = filter(lambda x: x.label in self.prog_vals, rel_progs)
         for p in rel_progs:
-            try:
-                imp = self.prog_vals[p.label]['impact'][par_label][ti]  # identical for each population
-            except:
-                imp = self.prog_vals[p.label]['impact'][par_label][0]
+            try: imp = self.prog_vals[p.label]['impact'][par_label][ti]  # identical for each population
+            except: imp = self.prog_vals[p.label]['impact'][par_label][0]
             pop_sizes = [self.getPop(pp).getDep('h_alive').vals[ti] for pp in p.target_pops]
             impacts.append(imp * np.sum(pop_sizes) / total_pop)
 
@@ -980,7 +978,10 @@ class Model(object):
                                     impact = self._processSuppTag(impact, par_label, prog, ti)
 
                                 if special != '' and special != 'replace':
-                                    impact = new_val * (1. + impact)
+                                    if pars[0].val_format == 'number' and isinstance(pars[0], Link):
+                                        impact += new_val
+                                    else:
+                                        impact = new_val * (1. + impact)
 
                                 impact_list.append(impact)
 
