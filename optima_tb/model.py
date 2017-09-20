@@ -786,6 +786,7 @@ class Model(object):
         # to the population size before summing up
         rel_progs = filter(lambda x: x.prog_type == progset.getProg(prog_label).prog_type, progset.progs)
         rel_progs = filter(lambda x: x.label in self.prog_vals, rel_progs)
+
         for p in rel_progs:
             try: imp = self.prog_vals[p.label]['impact'][par_label][ti]  # identical for each population
             except: imp = self.prog_vals[p.label]['impact'][par_label][0]
@@ -830,6 +831,44 @@ class Model(object):
                 impacts.append(self.prog_vals[ref_prog]['impact'][par_label] / net_cov * impact * coeff)
 
         return np.sum(impacts)
+
+
+    def _getProgTypeFromTag(self, tag, settings, progset):
+        specs = settings.progtype_specs # just an alias
+        # extract all program types which have the passed 'tag'
+        prog_types = filter(lambda x: specs[x]['special'].startswith(tag), specs)
+
+        prog_names = {}
+        # group all programs together by program type in a dict
+        for pt in prog_types:
+            # first, filter all programs which are of the required type. second, get the label of programs
+            prog_names[pt] = [item.label for item in filter(lambda x: x.prog_type == pt, progset.progs)]
+
+        return prog_names
+
+
+    def _buildRelevantProgs(self, par_label, pop_label, imp_prog_label, glob_prog_label, progset):
+        rel_prog_label = set(imp_prog_label) # applicable programs with coverage
+
+        # each item in the list of programs invokes _processScalePropsTag() which by itself operates across populations.
+        # so in the loop only one program of a type is left in rel_prog_label which ensures that _processScalePropsTag()
+        # is only called once per across-population-program-type
+        for labels in glob_prog_label.values():
+            # remove programs which do not affect this population
+            tmp = filter(lambda x: pop_label in progset.getProg(x).target_pops, labels)
+            # remove programs which do not affect this parameter
+            tmp = filter(lambda x: par_label in progset.getProg(x).target_pars, tmp)
+
+            # if there are no programs applicable, move on
+            if not tmp:
+                continue
+
+            # if already a program of the across population program type is called, move on:
+            # if not, add the first (it does not matter which one) item of labels to list
+            if not rel_prog_label.intersection(set(tmp)):
+                rel_prog_label.update([tmp[0]])
+
+        return list(rel_prog_label)
 
 
     def updateValues(self, settings, progset=None, do_special=True):
@@ -917,15 +956,18 @@ class Model(object):
                             impact_list = []    # Notes for each program what its impact would be before coverage limitations.
                             overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
 
+                            # get all program types which influence parameters across populations
+                            glob_prog_types = self._getProgTypeFromTag('scale_prop ', settings, progset)
                             # get all the relevant programs for the current parameter in the current population
-                            rel_progs = filter(lambda x: x in self.prog_vals.keys() and pop.label in progset.getProg(x).target_pops, progset.impacts[par_label])
+                            rel_prog_labels = filter(lambda x: x in self.prog_vals.keys() and pop.label in progset.getProg(x).target_pops, progset.impacts[par_label])
+                            # add programs from programs which have a global impact but are not covered in this population
+                            rel_prog_labels = self._buildRelevantProgs(par_label, pop.label, rel_prog_labels, glob_prog_types, progset)
 
-                            for prog_label in rel_progs:
+                            for prog_label in rel_prog_labels:
                                 prog = progset.getProg(prog_label)
                                 prog_type = prog.prog_type
 
-                                special, scale_pars = self._parseSpecialTag(
-                                    settings.progtype_specs[prog_type]['special'])
+                                special, scale_pars = self._parseSpecialTag(settings.progtype_specs[prog_type]['special'])
                                 # check if all the provided parameters are indeed impact parameters
                                 if special != '' and len(scale_pars) > 0:
                                     for w in scale_pars:  # check if impact parameters and passed words coincide
@@ -934,11 +976,21 @@ class Model(object):
                                                 'ERROR: Parameters passed in the \'special tag\' field after \'%s\' must be impact parameters. \'%s\' is not in list [%s].'
                                                 % (special, w, ' '.join(progset.getProg(prog_label).target_pars.keys())))
 
-                                # # Make sure the population in the loop is a target of this program.
-                                # if pop.label not in prog.target_pops:
-                                #     continue
-                                # if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']):
-                                #     continue
+                                # if no prog_val is encountered, the program is not covered but has been 'artificially'
+                                # added because of its global impact. since there is no impact associated with it, simply
+                                # add the impact of the other programs before moving on
+                                if prog_label not in self.prog_vals:
+                                    # double check if the program is correct
+                                    if special == 'scale_prop' and par_label in scale_pars:
+                                        impact = self._processScalePropsTag(par_label, prog_label, progset, ti)
+                                        if special != '' and special != 'replace':
+                                            if pars[0].val_format == 'number' and isinstance(pars[0], Link):
+                                                impact += new_val
+                                            else:
+                                                impact = new_val * (1. + impact)
+                                        impact_list.append(impact)
+
+                                    continue
 
                                 # Impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
                                 # Makes sure that the right value is selected.
