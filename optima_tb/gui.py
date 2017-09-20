@@ -1182,8 +1182,27 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.status = ('Status: Reconciling checked selection of program set "%s" with parameter set "%s" for %s seconds' % (self.progset.name, self.parset_name, str(reconciliation_time)))
         self.refreshStatus()
         try:
-            self.progset = self.project.reconcile(parset_name=self.parset_name, progset=self.progset, reconcile_for_year = self.options['progs_start'], unitcost_sigma = 1.5, budget_sigma = 0.0, attribute_sigma = 0.0, overwrite=True, max_time=reconciliation_time, save_progset=False)
+            self.progset, output = self.project.reconcile(parset_name=self.parset_name, progset=self.progset, reconcile_for_year = self.options['progs_start'], unitcost_sigma = 1.5, budget_sigma = 0.0, attribute_sigma = 0.0, overwrite=True, max_time=reconciliation_time, save_progset=False)
             self.status = ('Status: Reconciliation process complete (but unsaved) for program set "%s"' % self.progset.name)
+            
+            # Print reconciliation output to a new window.
+            # TODO: Consider redesign so that all extra-window widgets use common specifications.
+            self.output_window = qtw.QMainWindow(self)
+            self.output_window.setWindowTitle('Reconciliation Output')
+            widget = qtw.QDesktopWidget()
+            screen = widget.availableGeometry()
+            self.output_window.resize(screen.width() * 4.0 / 10.0, screen.height() * 4.0 / 10.0)
+            self.output_window.setGeometry((screen.width() - self.output_window.width()) / 2, (screen.height() - self.output_window.height()) / 2,
+                                         self.output_window.width(), self.output_window.height())
+            
+            log_output = qtw.QTextEdit(self.output_window)
+            log_output.setReadOnly(True)
+            log_output.setLineWrapMode(qtw.QTextEdit.NoWrap)
+            
+            log_output.insertPlainText(output)
+            
+            self.output_window.setCentralWidget(log_output)
+            self.output_window.show()
         except Exception as E:
             self.status = ('Status: Reconciliation process was unsuccessful because "%s"' % E.message)#, perhaps because no parameters were selected to calibrate or no parameter-associated data was chosen to fit against')
         self.refreshVisibility()

@@ -29,7 +29,7 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
             
         Returns:
             progset                 Updated progset with reconciled values
-            impact                  dictionary of original and reconciled parset/progset impact comparison
+            outcome                 A string denoting original and reconciled parset/progset impact comparison
             
         """
 
@@ -114,10 +114,10 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
 #                    print impact['reconciled'][par_label][popkey].keys()
                     outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact['original'][par_label][popkey]['parset_impact_value'], impact['original'][par_label][popkey]['progset_impact_capped'], impact['reconciled'][par_label][popkey]['progset_impact_capped'])
                 outcome += '\n'
-        print outcome
+#        print outcome
         #Reset back to original runSim durations
         proj.setYear([2000, orig_tvec_end], False)
-        return progset
+        return progset, outcome
 
 def compareOutcomesFunc(proj, year, parset_name=None, progset_name=None, budget_allocation=None, compareoutcome=None, display=True, constrain_budget=True):
     """

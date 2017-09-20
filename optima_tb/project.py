@@ -244,11 +244,11 @@ class Project(object):
         logger.info('Reconciling progset "%s" as overwrite is set as "%s"' % (progset_name, overwrite))
 
         # Run reconcile functionality
-        reconciled_progset = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
-                                                    parset_name=parset_name, progset_name=progset_name,
-                                                    unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
-                                                    impact_pars=impact_pars,orig_tvec_end=orig_tvec_end,
-                                                    budget_allocation=budget_allocation, constrain_budget=constrain_budget, max_time=max_time)
+        reconciled_progset, reconciled_output = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
+                                                                parset_name=parset_name, progset_name=progset_name,
+                                                                unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
+                                                                impact_pars=impact_pars,orig_tvec_end=orig_tvec_end,
+                                                                budget_allocation=budget_allocation, constrain_budget=constrain_budget, max_time=max_time)
         
         if save_progset:
             self.progsets[progset_name] = reconciled_progset
@@ -259,7 +259,7 @@ class Project(object):
             try: del self.progsets[progset_name]    # In case overwrite is False delete the 'reconcile' version of the temp progset. TODO: Rethink all the logic.
             except: pass
             
-        return reconciled_progset
+        return reconciled_progset, reconciled_output
 
 
     def compareOutcomes(self, parset_name=None, progset_name=None, budget_allocation=None, year=2017):

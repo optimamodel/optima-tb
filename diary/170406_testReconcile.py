@@ -31,7 +31,7 @@ for prog in proj.progsets[progset_name].prog_ids:
     values['original'][prog]['budget'] = proj.progsets[progset_name].progs[index].getDefaultBudget(year=reconcile_for_year)
 
 #test normal reconciliation
-progset      = reconcileFunc(proj=proj, reconcile_for_year=reconcile_for_year, 
+progset, output      = reconcileFunc(proj=proj, reconcile_for_year=reconcile_for_year, 
                              parset_name=parset_name, progset_name= progset_name,
                              unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, budget_sigma = budget_sigma,
                              impact_pars=None, constrain_budget = False, orig_tvec_end=proj.settings.tvec_end)
