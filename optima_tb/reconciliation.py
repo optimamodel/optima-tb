@@ -308,7 +308,7 @@ def updateProgset(new_pars_dict, progset, year):
             progset.progs[index].insertValuePair(t=year, y=new_pars_dict[prog_label]['budget'], attribute='cost')
     return progset
 
-def rescaleAllocation(rescaled_dict, proposed_dict):
+def rescaleAllocation(proposed_dict, original_dict):
     '''This function normalises the proposed allocated budget to make sure that the total allowable budget is maintained
     '''
     proposed_total_budget = 0.
@@ -316,15 +316,15 @@ def rescaleAllocation(rescaled_dict, proposed_dict):
     constrained_total_budget = 0.
     
     for prog_name in proposed_dict.keys():
-        orig_total_budget += rescaled_dict[prog_name]['budget']
+        orig_total_budget += original_dict[prog_name]['budget']
         proposed_total_budget += proposed_dict[prog_name]['budget']
     
     for prog_name in proposed_dict.keys():
-        scale_factor = proposed_dict[prog_name]['budget'] / proposed_total_budget 
-        rescaled_dict[prog_name]['budget'] = scale_factor * orig_total_budget
-        constrained_total_budget += rescaled_dict[prog_name]['budget']
+#        scale_factor = proposed_dict[prog_name]['budget'] / proposed_total_budget 
+        proposed_dict[prog_name]['budget'] = proposed_dict[prog_name]['budget'] * orig_total_budget / proposed_total_budget
+        constrained_total_budget += proposed_dict[prog_name]['budget']
         
-    return rescaled_dict, orig_total_budget, proposed_total_budget, constrained_total_budget
+    return proposed_dict, orig_total_budget, proposed_total_budget, constrained_total_budget
 
 def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, impact_pars, results, attribute_dict, reconcile_for_year, compareoutcome, prog_budget_alloc, constrain_budget):
     '''Objective function for reconciliation process, is used to compare outcomes as well as they use the same logic
@@ -349,12 +349,12 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
     if compareoutcome == False:
         proposed_dict = regenerateAttributesDict(new_attributes, attribute_dict)
         if constrain_budget: 
-            constrained_dict, orig_total_budget, proposed_total_budget, constrained_total_budget = rescaleAllocation(attribute_dict, proposed_dict)
+            constrained_dict, orig_total_budget, proposed_total_budget, constrained_total_budget = rescaleAllocation(proposed_dict, attribute_dict)
             new_dict = constrained_dict
         else: new_dict = proposed_dict
         progset = updateProgset(new_dict, progset, year=reconcile_for_year)
         if constrain_budget:
-            print('Total Budget: %g\tProposed Budget: %g\tConstrained Budged: %g\n' %(orig_total_budget, proposed_total_budget, constrained_total_budget))
+            print('Total Budget: %g\tProposed Budget: %g\tConstrained Budget: %g\n' %(orig_total_budget, proposed_total_budget, constrained_total_budget))
             for key in attribute_dict.keys():
                 print('Program: %s\n  Original Unit Cost: %g\tProposed Unit Cost: %g\tConstrained Unit Cost: %g' %(key, attribute_dict[key]['unit_cost'], proposed_dict[key]['unit_cost'], constrained_dict[key]['unit_cost']))
                 print('  Original Budget: %g\tProposed Budget: %g\tConstrained Budget: %g\n' %(attribute_dict[key]['budget'], proposed_dict[key]['budget'], constrained_dict[key]['budget']))
@@ -525,6 +525,10 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 impact[par_label][popkey]['progset_impact_uncapped'] = prog_attributes[popkey][par_label]['Original Impact Value']
                 impact[par_label][popkey]['progset_impact_capped'] = prog_attributes[popkey][par_label]['Coverage Cap Impact Value']
                 impact[par_label][popkey]['overflow_list'] = prog_attributes[popkey][par_label]['overflow_list']
+#                print impact[par_label][popkey]['parset_impact_value']
+#                print impact[par_label][popkey]['progset_impact_uncapped']
+#                print impact[par_label][popkey]['progset_impact_capped']
+#                print impact[par_label][popkey]['overflow_list']
 #=======
 #                try: impact[par_label][popkey]['parset_impact_value'] = par_attributes[popkey][par_label]['Impact Value'][-1]
 #                except:  impact[par_label][popkey]['parset_impact_value'] = par_attributes[popkey][par_label]['Impact Value']

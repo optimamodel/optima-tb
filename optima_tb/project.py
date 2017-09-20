@@ -246,7 +246,7 @@ class Project(object):
         # Run reconcile functionality
         reconciled_progset, reconciled_output = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
                                                                 parset_name=parset_name, progset_name=progset_name,
-                                                                unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma, 
+                                                                unitcost_sigma=unitcost_sigma, budget_sigma = budget_sigma, attribute_sigma=attribute_sigma, 
                                                                 impact_pars=impact_pars,orig_tvec_end=orig_tvec_end,
                                                                 budget_allocation=budget_allocation, constrain_budget=constrain_budget, max_time=max_time)
         
