@@ -110,7 +110,9 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
                 outcome += '%s\n' %(par_label)
                 for popkey in impact['original'][par_label]:
                     #print('Pop key: %s, Par_label: %s\nType(original parset value): %s\nType(original progset value): %s\nType(reconciled parset value): %s\nType(reconciled progset value): %s\n' %(popkey, par_label, impact['original'][par_label][popkey]['parset_impact_value'], impact['original'][par_label][popkey]['progset_impact_value'], impact['reconciled'][par_label][popkey]['parset_impact_value'], impact['reconciled'][par_label][popkey]['progset_impact_value']))
-                    outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact['original'][par_label][popkey]['parset_impact_value'], impact['original'][par_label][popkey]['progset_impact_value'], impact['reconciled'][par_label][popkey]['progset_impact_value'])
+#                    print impact['original'][par_label][popkey].keys()
+#                    print impact['reconciled'][par_label][popkey].keys()
+                    outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact['original'][par_label][popkey]['parset_impact_value'], impact['original'][par_label][popkey]['progset_impact_capped'], impact['reconciled'][par_label][popkey]['progset_impact_capped'])
                 outcome += '\n'
         print outcome
         #Reset back to original runSim durations
