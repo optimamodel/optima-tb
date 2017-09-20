@@ -94,7 +94,8 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
         
         best_attribute_list = asd(reconciliationMetric, attribute_list, args, xmin = xmin, xmax = xmax, **optim_args)
         best_attribute_dict = regenerateAttributesDict(attribute_list = best_attribute_list, orig_attribute_dict = attribute_dict)
-        progset = updateProgset(new_pars_dict=best_attribute_dict, progset=progset)
+        print best_attribute_dict
+        progset = updateProgset(new_pars_dict=best_attribute_dict, progset=progset, year=reconcile_for_year)
         impact['reconciled'] = compareOutcomesFunc(proj=proj, parset_name=parset_name, progset_name=progset_name, year=reconcile_for_year, compareoutcome=True, display=False)
 #        print impact['original']['snmno_rate']
 #        print impact['reconciled'].keys()
@@ -275,8 +276,8 @@ def regenerateAttributesDict(attribute_list, orig_attribute_dict):
             index += 1
     return attribute_dict
 
-def updateProgset(new_pars_dict, progset):
-    '''Update the progset with the new values as obtained from reconciliation process, only updates the last known value
+def updateProgset(new_pars_dict, progset, year):
+    '''Update the progset with the new values as obtained from reconciliation process, but only for the reconciled year
     
        Params:
             new_pars_dict          Dictionary form of the optimized list which is used to update progset
@@ -288,14 +289,23 @@ def updateProgset(new_pars_dict, progset):
     for prog_label in progset.prog_ids.keys():
         if prog_label not in new_pars_dict.keys(): continue
         else:
+            print prog_label
             index = progset.prog_ids[prog_label]
             for attribute in new_pars_dict[prog_label].keys():
                 if attribute in progset.progs[index].attributes.keys():
-                    progset.progs[index].attributes[attribute][-1] = new_pars_dict[prog_label][attribute]
+#                    progset.progs[index].attributes[attribute][-1] = new_pars_dict[prog_label][attribute]
+#                    print year
+#                    print new_pars_dict[prog_label]['budget']
+#                    print attribute
+                    progset.progs[index].insertValuePair(t=year, y=new_pars_dict[prog_label][attribute], attribute=attribute)
                 else:
                     continue
             progset.progs[index].func_specs['pars']['unit_cost'] = new_pars_dict[prog_label]['unit_cost']
-            progset.progs[index].cost[-1] = new_pars_dict[prog_label]['budget']
+#            progset.progs[index].cost[-1] = new_pars_dict[prog_label]['budget']
+#            print year
+#            print new_pars_dict[prog_label]['budget']
+#            print 'cost'
+            progset.progs[index].insertValuePair(t=year, y=new_pars_dict[prog_label]['budget'], attribute='cost')
     return progset
 
 def rescaleAllocation(rescaled_dict, proposed_dict):
@@ -342,11 +352,12 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
             constrained_dict, orig_total_budget, proposed_total_budget, constrained_total_budget = rescaleAllocation(attribute_dict, proposed_dict)
             new_dict = constrained_dict
         else: new_dict = proposed_dict
-        progset = updateProgset(new_dict, progset)
+        progset = updateProgset(new_dict, progset, year=reconcile_for_year)
         if constrain_budget:
             print('Total Budget: %g\tProposed Budget: %g\tConstrained Budged: %g\n' %(orig_total_budget, proposed_total_budget, constrained_total_budget))
             for key in attribute_dict.keys():
-                print('Program: %s\n  Original Budget: %g\tProposed Budget: %g\tConstrained Budget: %g\n' %(key, attribute_dict[key]['budget'], proposed_dict[key]['budget'], constrained_dict[key]['budget']))
+                print('Program: %s\n  Original Unit Cost: %g\tProposed Unit Cost: %g\tConstrained Unit Cost: %g' %(key, attribute_dict[key]['unit_cost'], proposed_dict[key]['unit_cost'], constrained_dict[key]['unit_cost']))
+                print('  Original Budget: %g\tProposed Budget: %g\tConstrained Budget: %g\n' %(attribute_dict[key]['budget'], proposed_dict[key]['budget'], constrained_dict[key]['budget']))
             
     par_attributes = odict()
     prog_attributes = odict()
