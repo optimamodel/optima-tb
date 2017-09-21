@@ -367,6 +367,8 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     cid_sheet = None
     cid_default = None
     cid_order = None
+    cid_min = None
+    cid_max = None
     cid_function = None
     cid_yfactor = None
     cid_rules = None
@@ -378,6 +380,8 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_pars.cell_value(0, col_id) == 'Sheet Label': cid_sheet = col_id
         if ws_pars.cell_value(0, col_id) == 'Default Value': cid_default = col_id
         if ws_pars.cell_value(0, col_id) == 'Databook Order': cid_order = col_id
+        if ws_pars.cell_value(0, col_id) == 'Minimum Value': cid_min = col_id
+        if ws_pars.cell_value(0, col_id) == 'Maximum Value': cid_max = col_id
         if ws_pars.cell_value(0, col_id) == 'Function': cid_function = col_id
         if ws_pars.cell_value(0, col_id) == 'Autocalibrate': cid_yfactor = col_id
         if ws_pars.cell_value(0, col_id) == 'Special Rules': cid_rules = col_id
@@ -431,7 +435,19 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 val = str(ws_pars.cell_value(row_id, cid_default))
                 if val not in ['']:
                     settings.linkpar_specs[label]['default'] = float(val)
-
+                    
+            # Store parameter minimum value if available.
+            if not cid_min is None:
+                val = str(ws_pars.cell_value(row_id, cid_min))
+                if val not in ['']:
+                    settings.linkpar_specs[label]['min'] = float(val)
+                    
+            # Store parameter maximum value if available.
+            if not cid_max is None:
+                val = str(ws_pars.cell_value(row_id, cid_max))
+                if val not in ['']:
+                    settings.linkpar_specs[label]['max'] = float(val)
+                    
             # Store the token stack corresponding to a custom function that defines this parameter, if available.
             if not cid_function is None:
                 val = str(ws_pars.cell_value(row_id, cid_function))

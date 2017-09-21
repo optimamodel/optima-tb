@@ -11,7 +11,7 @@ import numpy as np
 
 #%% General interpolation wrapper
 
-def interpolateFunc(x, y, xnew, method = 'pchip'):
+def interpolateFunc(x, y, xnew, method = 'pchip', extrapolate_nan = False):
     '''
     Function that interpolates and extrapolates (x,y) coordinates along the domain subset of xnew, according to a chosen method.
     Works with numpy arrays to standardise output types. Input must be numpy array compatible.    
@@ -46,6 +46,11 @@ def interpolateFunc(x, y, xnew, method = 'pchip'):
     
     else:
         raise OptimaException('ERROR: Interpolation method "%s" not understood.' % method)
+        
+    # Replace extrapolated values with np.nan if this tag is marked True.
+    if extrapolate_nan:
+        ynew[xnew<x[0]] = np.nan
+        ynew[xnew>x[-1]] = np.nan
     
     return ynew
     
