@@ -197,7 +197,7 @@ class Project(object):
         self.progsets[name] = ProgramSet(name = name)
         self.progsets[name].makeProgs(data = self.data, settings = self.settings)
     
-    def reconcile(self, parset_name = None, progset = None, progset_name = None, reconcile_for_year = 2017, unitcost_sigma = 0.05, attribute_sigma = 0.20, budget_sigma = 0.0, impact_pars = None, budget_allocation = None, constrain_budget = True, overwrite = True, max_time = None, save_progset = True):
+    def reconcile(self, parset_name = None, progset = None, progset_name = None, reconcile_for_year = 2017, sigma_dict = None, unitcost_sigma = 0.05, attribute_sigma = 0.20, budget_sigma = 0.0, impact_pars = None, budget_allocation = None, constrain_budget = True, overwrite = True, max_time = None, save_progset = True):
         '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible
            Default behaviour is to overwrite existing progset
         '''
@@ -245,7 +245,7 @@ class Project(object):
 
         # Run reconcile functionality
         reconciled_progset, reconciled_output = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
-                                                                parset_name=parset_name, progset_name=progset_name,
+                                                                parset_name=parset_name, progset_name=progset_name, sigma_dict = sigma_dict,
                                                                 unitcost_sigma=unitcost_sigma, budget_sigma = budget_sigma, attribute_sigma=attribute_sigma, 
                                                                 impact_pars=impact_pars,orig_tvec_end=orig_tvec_end,
                                                                 budget_allocation=budget_allocation, constrain_budget=constrain_budget, max_time=max_time)

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_sigma = 0.05, attribute_sigma = 0.20, budget_sigma = 0.0, impact_pars = None, constrain_budget=True, budget_allocation = None, orig_tvec_end = None, max_time = None):
+def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, sigma_dict = None, unitcost_sigma = 0.05, attribute_sigma = 0.20, budget_sigma = 0.0, impact_pars = None, constrain_budget=True, budget_allocation = None, orig_tvec_end = None, max_time = None):
         """
         Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standard deviation sigma
         
@@ -20,6 +20,8 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
             reconcile_for_year      Year for which reconciliation needs to be done to ensure continuity of parset/progset (type: int)
             parset_name             Parameter set name to match/reconcile  (type: string)
             progset_name            Program set name to match/reconcile  (type: string)
+            sigma_dict              Dictionary that links program labels with sigmas for 'unit_cost', 'budget' and 'attribute' (type: dict)
+                                    If not provided, sigmas default across all programs to the ones provided by the other kwargs
             unitcost_sigma          Standard deviation allowable for Unit Cost (type: float)
             attribute_sigma         Standard deviation allowable for attributes identified in impact_pars (type: float)
             budget_sigma            Standard deviation allowable for budget for program (type: float)
@@ -29,7 +31,7 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
             
         Returns:
             progset                 Updated progset with reconciled values
-            outcome                 A string denoting original and reconciled parset/progset impact comparison
+            outcome                 String denoting original and reconciled parset/progset impact comparison
             
         """
 
@@ -55,22 +57,34 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
         
         #Convert into an optimisable list
         attribute_dict = createAttributeDict(settings=proj.settings, progset=progset)
-        attribute_list, unitcost_index, budget_index = createAttributeList(attribute_dict=attribute_dict)
+#        attribute_list, unitcost_index, budget_index = createAttributeList(attribute_dict=attribute_dict)
+        attribute_list, index_dict = createAttributeList(attribute_dict=attribute_dict)
         #Setup min-max bounds for optimisation
         xmin, xmax = dcp(attribute_list), dcp(attribute_list)
         
         #Setup xmin and xmax conditions, unit_cost indexes are used in case unit_costs have a difference standard deviation value
         for index in range(len(attribute_list)):
-            if index in unitcost_index:
-                xmin[index] *= (1-unitcost_sigma)
-                xmax[index] *= (1+unitcost_sigma)
-            elif index in budget_index:
-                xmin[index] *= (1-budget_sigma)
-                xmax[index] *= (1+budget_sigma)
+            par_type = index_dict[index]['type']
+            if sigma_dict is None:
+                if par_type == 'unit_cost':
+                    xmin[index] *= (1-unitcost_sigma)
+                    xmax[index] *= (1+unitcost_sigma)
+                elif par_type == 'budget':
+                    xmin[index] *= (1-budget_sigma)
+                    xmax[index] *= (1+budget_sigma)
+                else:
+                    xmin[index] *= (1-attribute_sigma)
+                    xmax[index] *= (1+attribute_sigma)
+                    if xmax[index] > 1.: xmax[index] = 1.   # TODO: Work out if this restriction is necessary here.
             else:
-                xmin[index] *= (1-attribute_sigma)
-                xmax[index] *= (1+attribute_sigma)
-                if xmax[index] > 1.: xmax[index] = 1.
+                prog_label = index_dict[index]['prog_label']
+                if not par_type in ['unit_cost','budget']:
+                    par_type = 'attribute'
+                try: sigma = sigma_dict[prog_label][par_type]
+                except Exception as E: raise OptimaException('ERROR: Sigma dictionary has been provided to program reconciliation process in incomplete form.\nDETAILS: %s' % repr(E))
+                xmin[index] *= (1-sigma)
+                xmax[index] *= (1+sigma)
+                
             
             if xmin[index] <= 0.: xmin[index] = settings.TOLERANCE
         
@@ -240,23 +254,26 @@ def createAttributeList(attribute_dict):
             
         Returns:
             attribute_list          A list form of the attributes dictionary
-            unitcost_index          Index of locations where unit_costs exist in the list
+            index_dict              Maps indices of the attribute_list to program labels by key 'prog_label' and attribute type by key 'type'
     '''
     attribute_list = []
-    unitcost_index = []
-    budget_index = []
+    index_dict = {}
+#    unitcost_index = []
+#    budget_index = []
     index = 0
-    for prog_label in attribute_dict.keys():
+    for prog_label in attribute_dict:
         for par in attribute_dict[prog_label]:
             attribute_list.append(attribute_dict[prog_label][par])
-            if par == 'unit_cost':
-                unitcost_index.append(index)
-                index += 1
-            elif par == 'budget':
-                budget_index.append(index)            
-                index += 1
-            else: index += 1
-    return attribute_list, unitcost_index, budget_index
+            index_dict[index] = {'prog_label':prog_label,'type':par}
+#            if par == 'unit_cost':
+#                unitcost_index.append(index)
+#                index += 1
+#            elif par == 'budget':
+#                budget_index.append(index)            
+#                index += 1
+#            else: index += 1
+            index += 1
+    return attribute_list, index_dict #unitcost_index, budget_index
 
 def regenerateAttributesDict(attribute_list, orig_attribute_dict):
     '''Reverse process, where the attributes list is converted back into the attributes dictionary after optimization/reconciliation

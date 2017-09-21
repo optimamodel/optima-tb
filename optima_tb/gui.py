@@ -1182,7 +1182,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.status = ('Status: Reconciling checked selection of program set "%s" with parameter set "%s" for %s seconds' % (self.progset.name, self.parset_name, str(reconciliation_time)))
         self.refreshStatus()
         try:
-            self.progset, output = self.project.reconcile(parset_name=self.parset_name, progset=self.progset, reconcile_for_year = self.options['progs_start'], unitcost_sigma = 1.5, budget_sigma = 0.0, attribute_sigma = 0.0, overwrite=True, max_time=reconciliation_time, save_progset=False)
+            self.progset, output = self.project.reconcile(parset_name=self.parset_name, progset=self.progset, reconcile_for_year = self.options['progs_start'], unitcost_sigma = 0.0, budget_sigma = 0.0, attribute_sigma = 1.5, overwrite=True, max_time=reconciliation_time, save_progset=False)
             self.status = ('Status: Reconciliation process complete (but unsaved) for program set "%s"' % self.progset.name)
             
             # Print reconciliation output to a new window.
