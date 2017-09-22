@@ -984,9 +984,10 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
             self.makeProgsetTable()
         else:
             self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
-        self.label_check_options.setVisible(does_progset_exist)
-        self.radio_check_normal.setVisible(does_progset_exist)
-        self.radio_check_all.setVisible(does_progset_exist)
+#        self.label_check_options.setVisible(does_progset_exist)
+#        self.radio_check_normal.setVisible(does_progset_exist)
+#        self.radio_check_all.setVisible(does_progset_exist)
+        self.checkbox_align_sigmas.setVisible(does_progset_exist)
         self.table_reconciliation.setVisible(does_progset_exist)
         
         self.label_year_start.setVisible(does_progset_exist)
@@ -1031,19 +1032,25 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.edit_year_start = qtw.QLineEdit()
         self.edit_year_start.returnPressed.connect(self.updateStartYear)
         
-        self.label_check_options = qtw.QLabel('Toggle checkbox selection and edit sigmas: ')
-        self.radio_check_normal = qtw.QRadioButton('Normally')
-        self.radio_check_normal.setChecked(True)
-        self.radio_check_normal.toggled.connect(lambda:self.checkOptionState(self.radio_check_normal))
-        self.radio_check_all = qtw.QRadioButton('Across all programs')
-        self.radio_check_all.toggled.connect(lambda:self.checkOptionState(self.radio_check_all))
+#        self.label_check_options = qtw.QLabel('Toggle checkbox selection and edit sigmas: ')
+#        self.radio_check_normal = qtw.QRadioButton('Normally')
+#        self.radio_check_normal.setChecked(True)
+#        self.radio_check_normal.toggled.connect(lambda:self.checkOptionState(self.radio_check_normal))
+#        self.radio_check_all = qtw.QRadioButton('Across all programs')
+#        self.radio_check_all.toggled.connect(lambda:self.checkOptionState(self.radio_check_all))
+        
+        self.checkbox_align_sigmas = qtw.QCheckBox('Duplicate sigma checkbox choices and values across programs')
+        print 0
+        self.checkbox_align_sigmas.stateChanged.connect(self.checkOptionState)
+        print 1
 
         grid_check_option = qtw.QGridLayout()
         grid_check_option.setSpacing(10)
+        grid_check_option.addWidget(self.checkbox_align_sigmas, 0, 0)
         
-        grid_check_option.addWidget(self.label_check_options, 0, 0)
-        grid_check_option.addWidget(self.radio_check_normal, 0, 1)
-        grid_check_option.addWidget(self.radio_check_all, 1, 1)
+#        grid_check_option.addWidget(self.label_check_options, 0, 0)
+#        grid_check_option.addWidget(self.radio_check_normal, 0, 1)
+#        grid_check_option.addWidget(self.radio_check_all, 1, 1)
         
         self.label_reconcile = qtw.QLabel('Automatic reconciliation time in seconds... ')
         self.edit_reconcile = qtw.QLineEdit()
@@ -1104,15 +1111,21 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         layout.addWidget(self.table_reconciliation)
         layout.addLayout(grid_progset_save)
         
-    def checkOptionState(self, button):
-        if button.text() == 'Normally':
-            if button.isChecked() == True:
-                self.status = ('Status: Unit-cost, budget and attribute sigmas for programs will be ticked, unticked and edited individually')
-                self.check_option = 'one'
-        elif button.text() == 'Across all programs':
-            if button.isChecked() == True:
-                self.status = ('Status: Unit-cost, budget and attribute sigmas for programs will be ticked, unticked and edited by type across the entire progset')
-                self.check_option = 'all'
+    def checkOptionState(self, state):
+#        if button.text() == 'Normally':
+#            if button.isChecked() == True:
+#                self.status = ('Status: Unit-cost, budget and attribute sigmas for programs will be ticked, unticked and edited individually')
+#                self.check_option = 'one'
+#        elif button.text() == 'Across all programs':
+#            if button.isChecked() == True:
+#                self.status = ('Status: Unit-cost, budget and attribute sigmas for programs will be ticked, unticked and edited by type across the entire progset')
+#                self.check_option = 'all'
+        if not state == qtc.Qt.Checked:
+            self.status = ('Status: Unit-cost, budget and attribute sigmas for programs will be ticked, unticked and edited individually')
+            self.check_option = 'one'
+        elif state == qtc.Qt.Checked:
+            self.status = ('Status: Unit-cost, budget and attribute sigmas, for the individual type being edited, will be duplicated across all programs in terms of selection and value')
+            self.check_option = 'all'
         self.refreshStatus()
 
     def updateStartYear(self):
@@ -1308,7 +1321,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 
         new_val_str = str(self.table_reconciliation.item(row, col).text())
         if col in [1,3,6]:      # Hardcoded column values corresponding to checkable sigmas.
-        
+                  
             # Extract value from the table first, whether entered in or whether the accompanying checkbox was triggered.
             try:
                 new_val = float(new_val_str)
@@ -1323,7 +1336,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                 self.guard_status = False
                 return
             
-            # If edit of a sigma was a success, edit all others if the relevant option is chosen.
+            # Duplicate the sigma value if the relevant option is chosen.
             if not self.guard_status:   # Used here, this is a guard against recursion.
                 self.guard_status = True
                 if self.check_option == 'all':
