@@ -712,6 +712,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                                 if tval not in temp[prog_label].keys(): temp[prog_label][tval] = dict()
                                 temp[prog_label][tval][tag] = val
                         # special rule: assumption may also specify string referring to another program
+                        # IMPORTANT NOTE: referenced programs must have been defined before!
                         elif col_id == 3 and ws_progval.cell_value(row_id, col_id) in temp.keys():
                             val = ws_progval.cell_value(row_id, col_id)
                             tval = str(ws_progval.cell_value(prog_row_id + 1, col_id + 2))
@@ -720,6 +721,15 @@ def loadSpreadsheetFunc(settings, databook_path):
                                 temp[prog_label]['%s_assumption' % tag] = dict()
                             temp[prog_label]['%s_assumption' % tag] = val
                             break
+                        elif col_id == 3:
+                            attr = ws_progval.cell_value(row_id, col_id - 2)
+                            if attr not in settings.progtype_specs[progtype_label]['attribute_name_labels']:
+                                continue
+                            lab = settings.progtype_specs[progtype_label]['attribute_name_labels'][attr]
+                            if lab.startswith('$ref_'):
+                                logger.warn('If \'%s\' is to refer to the program \'%s\', it must be defined in the databook before %s. Ignoring entry; this may result in unpredictable behaviour.'
+                                        % (prog_label, ws_progval.cell_value(row_id, col_id), prog_label))
+
 
 
 
