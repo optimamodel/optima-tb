@@ -1288,8 +1288,8 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                     temp.setTextAlignment(qtc.Qt.AlignCenter)
                     if col_id in [1,3,6]:
                         temp.setText(str(0))
-                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable | qtc.Qt.ItemIsUserCheckable)
-                        temp.setCheckState(qtc.Qt.Unchecked)
+                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)# | qtc.Qt.ItemIsUserCheckable)
+#                        temp.setCheckState(qtc.Qt.Unchecked)
                     elif col_id == 0:
                         temp.setText(str(prog.func_specs['pars']['unit_cost']))
                         temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)
@@ -1346,29 +1346,30 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                 self.guard_status = False
             
                   
-            # A ticked checkbox will determine whether the accompanying sigma will be used for reconciliation.
-            recon_prefix = ''
-            if self.table_reconciliation.item(row, col).checkState() == qtc.Qt.Checked:
-                if not self.guard_status:   # Used here, this is a guard against recursion.
-                    self.guard_status = True
-                    if self.check_option == 'all':
-                        for other_row in xrange(self.table_reconciliation.rowCount()):
-                            if not self.table_reconciliation.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
-                                self.table_reconciliation.item(other_row, col).setCheckState(qtc.Qt.Checked)
-                    self.guard_status = False
-                self.sigma_dict[prog_label][col_to_sigma[col]] = new_val
-            else:
-                if not self.guard_status:   # Used here, this is a guard against recursion.
-                    self.guard_status = True
-                    if self.check_option == 'all':
-                        for other_row in xrange(self.table_reconciliation.rowCount()):
-                            if not self.table_reconciliation.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
-                                self.table_reconciliation.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
-                    self.guard_status = False
-                self.sigma_dict[prog_label][col_to_sigma[col]] = 0.0
-                recon_prefix = 'dis'
+#            # A ticked checkbox will determine whether the accompanying sigma will be used for reconciliation.
+#            recon_prefix = ''
+#            if self.table_reconciliation.item(row, col).checkState() == qtc.Qt.Checked:
+#                if not self.guard_status:   # Used here, this is a guard against recursion.
+#                    self.guard_status = True
+#                    if self.check_option == 'all':
+#                        for other_row in xrange(self.table_reconciliation.rowCount()):
+#                            if not self.table_reconciliation.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+#                                self.table_reconciliation.item(other_row, col).setCheckState(qtc.Qt.Checked)
+#                    self.guard_status = False
+#                self.sigma_dict[prog_label][col_to_sigma[col]] = new_val
+#            else:
+#                if not self.guard_status:   # Used here, this is a guard against recursion.
+#                    self.guard_status = True
+#                    if self.check_option == 'all':
+#                        for other_row in xrange(self.table_reconciliation.rowCount()):
+#                            if not self.table_reconciliation.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+#                                self.table_reconciliation.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
+#                    self.guard_status = False
+#                self.sigma_dict[prog_label][col_to_sigma[col]] = 0.0
+#                recon_prefix = 'dis'
                 
-            self.status = ('Status: Program reconciliation will %sallow program "%s" to vary in "%s" value by up to %f%%' % (recon_prefix, prog_label, col_to_sigma[col], new_val*100))
+            self.sigma_dict[prog_label][col_to_sigma[col]] = new_val
+            self.status = ('Status: Program reconciliation will allow program "%s" to vary in "%s" value by up to %f%%' % (prog_label, col_to_sigma[col], new_val*100))
 
         else:
             try:
