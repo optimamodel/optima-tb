@@ -955,7 +955,10 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.options = None                 # The options dictionary for running a budget scenario, i.e. a standard simulation with program-based parameter overwrites.
         self.reconciliation_id_dict = {}    # Dictionary that maps custom reconciliation-widget label to program label.
         self.sigma_dict = {}                # Dictionary that maps program labels with 'unit_cost', 'budget' and 'attribute' sigmas for program reconciliation.
-        
+        self.attribute_labels = []          # A list of attribute labels relevant to programs with a loaded ProgramSet.
+        self.attribute_names = []           # A corresponding list of attribute names, assuming that each label/name pair is unique.
+                                            # TODO: Reconsider this assumption.
+                          
         self.check_option = 'one'   # String that denotes how progset checkboxes will be ticked.
                                     # Can be 'one' or 'all', depending whether selection is standard, grouped-across-populations or all-or-nothing.
                                    
@@ -1040,9 +1043,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 #        self.radio_check_all.toggled.connect(lambda:self.checkOptionState(self.radio_check_all))
         
         self.checkbox_align_sigmas = qtw.QCheckBox('Duplicate sigma checkbox choices and values across programs')
-        print 0
         self.checkbox_align_sigmas.stateChanged.connect(self.checkOptionState)
-        print 1
 
         grid_check_option = qtw.QGridLayout()
         grid_check_option.setSpacing(10)
@@ -1137,33 +1138,6 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
             self.edit_year_start.setText(str(self.options['progs_start']))
         self.refreshVisibility()
 
-#    # Updates all options-related widgets to display values from the options dictionary.
-#    # Generally should only be called when a default options dictionary is initialised.
-#    def refreshOptionWidgets(self):
-#
-##        # Clear out all widgets in the budget layout.
-##        # TODO: Make more efficient by only clearing when absolutely necessary.
-##        for i in reversed(range(self.budget_layout.count())):
-##            self.budget_layout.itemAt(i).widget().setParent(None)
-##
-##        self.widget_budget_dict = {}
-##        for prog_label in self.options['init_alloc']:
-##            prog_name = self.project.data['meta']['progs']['label_names'][prog_label]
-##            if prog_name not in self.widget_budget_dict.keys():
-##                try: last_id = max(self.widget_budget_dict.values())    # TODO: Make more efficient by storing max id rather than calculating all the time.
-##                except: last_id = -1
-##                label_budget = qtw.QLabel(prog_name)
-##                edit_budget = qtw.QLineEdit()
-##                self.budget_layout.addWidget(label_budget, last_id + 1, 0)
-##                self.budget_layout.addWidget(edit_budget, last_id + 1, 1)
-##                self.widget_budget_dict[prog_name] = last_id + 1
-##
-##            current_id = self.widget_budget_dict[prog_name]
-##            widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
-##            widget.setText(str("%.0f" % self.options['init_alloc'][prog_label]))
-#
-#        self.edit_year_start.setText(str(self.options['progs_start']))
-
     def refreshParsetComboBox(self):
         self.combo_parset_dict = {}
         self.combo_parset.clear()
@@ -1197,11 +1171,17 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.progset = dcp(self.project.progsets[self.progset_name])
         self.options = defaultOptimOptions(settings=self.project.settings, progset=self.progset)
         
-        # Generate a zero-value sigma dictionary for any progset reload.
+        # Generate a zero-value sigma dictionary and progset attribute list for any progset reload.
         self.sigma_dict = {}
+        attribute_label_dict = {}
         for prog in self.progset.progs:
             if not prog.func_specs['type'] == 'cost_only':
                 self.sigma_dict[prog.label] = {'unit_cost':0.0, 'budget':0.0, 'attribute':0.0}
+            for attribute_label in prog.attributes:
+                if not attribute_label in attribute_label_dict:
+                    attribute_label_dict[attribute_label] = self.project.settings.progtype_specs[prog.prog_type]['attribute_label_names'][attribute_label]
+        self.attribute_labels = attribute_label_dict.keys()
+        self.attribute_names = [attribute_label_dict[x] for x in self.attribute_labels]
                     
         self.edit_year_start.setText(str(self.options['progs_start']))
         self.status = ('Status: Program set "%s" selected for program reconciliation' % self.progset_name)
@@ -1270,7 +1250,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         progset = self.progset
         row_count = len(progset.progs)
         self.table_reconciliation.setRowCount(row_count)
-        self.table_reconciliation.setColumnCount(7)        # Unit cost and sigma, total budget and sigma, effective coverage, historical coverage, impact sigma.
+        self.table_reconciliation.setColumnCount(7+len(self.attribute_labels))        # Unit cost and sigma, total budget and sigma, effective coverage, historical coverage, impact sigma.
 
         row_id = 0
         custom_ids = []
@@ -1303,9 +1283,18 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                         temp.setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=['cov'])['cov'][-1]))
                         temp.setFlags(qtc.Qt.ItemIsEnabled)
                 self.table_reconciliation.setItem(row_id, col_id, temp)
+            for attribute_id in xrange(len(self.attribute_labels)):
+                attribute_label = self.attribute_labels[attribute_id]
+                col_id = attribute_id + 7
+                temp = qtw.QTableWidgetItem()
+                temp.setTextAlignment(qtc.Qt.AlignCenter)
+                if attribute_label in prog.attributes:
+                    temp.setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=[attribute_label])[attribute_label][-1]))
+                temp.setFlags(qtc.Qt.ItemIsEnabled)
+                self.table_reconciliation.setItem(row_id, col_id, temp)
             row_id += 1
         self.table_reconciliation.setVerticalHeaderLabels(custom_ids)
-        self.table_reconciliation.setHorizontalHeaderLabels(['Unit Cost','Unit Cost\nSigma','Program Budget\n(Year: %s)' % self.options['progs_start'],'Program Budget\nSigma','Effective Coverage\n(Year: %s)' % self.options['progs_start'],'Databook Coverage\n(Year: %s)' % self.options['progs_start'],'Impact Sigma'])
+        self.table_reconciliation.setHorizontalHeaderLabels(['Unit Cost','Unit Cost\nSigma','Program Budget\n(Year: %s)' % self.options['progs_start'],'Program Budget\nSigma','Effective Coverage\n(Year: %s)' % self.options['progs_start'],'Databook Coverage\n(Year: %s)' % self.options['progs_start'],'Attribute Sigma']+self.attribute_labels)
         self.table_reconciliation.resizeColumnsToContents()
         self.table_reconciliation.resizeRowsToContents()
 
@@ -1344,29 +1333,6 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                         if not self.table_reconciliation.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
                             self.table_reconciliation.item(other_row, col).setText(str(new_val))
                 self.guard_status = False
-            
-                  
-#            # A ticked checkbox will determine whether the accompanying sigma will be used for reconciliation.
-#            recon_prefix = ''
-#            if self.table_reconciliation.item(row, col).checkState() == qtc.Qt.Checked:
-#                if not self.guard_status:   # Used here, this is a guard against recursion.
-#                    self.guard_status = True
-#                    if self.check_option == 'all':
-#                        for other_row in xrange(self.table_reconciliation.rowCount()):
-#                            if not self.table_reconciliation.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
-#                                self.table_reconciliation.item(other_row, col).setCheckState(qtc.Qt.Checked)
-#                    self.guard_status = False
-#                self.sigma_dict[prog_label][col_to_sigma[col]] = new_val
-#            else:
-#                if not self.guard_status:   # Used here, this is a guard against recursion.
-#                    self.guard_status = True
-#                    if self.check_option == 'all':
-#                        for other_row in xrange(self.table_reconciliation.rowCount()):
-#                            if not self.table_reconciliation.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
-#                                self.table_reconciliation.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
-#                    self.guard_status = False
-#                self.sigma_dict[prog_label][col_to_sigma[col]] = 0.0
-#                recon_prefix = 'dis'
                 
             self.sigma_dict[prog_label][col_to_sigma[col]] = new_val
             self.status = ('Status: Program reconciliation will allow program "%s" to vary in "%s" value by up to %f%%' % (prog_label, col_to_sigma[col], new_val*100))
@@ -1423,13 +1389,6 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         else:
             try:
                 self.options['progs_start'] = float(str(self.edit_year_start.text()))
-
-#                for prog_name in self.widget_budget_dict.keys():
-#                    current_id = self.widget_budget_dict[prog_name]
-#                    widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
-#                    prog_label = self.project.data['meta']['progs']['name_labels'][prog_name]
-#                    self.options['init_alloc'][prog_label] = float(str(widget.text()))
-
             except: return False
             return True
 
