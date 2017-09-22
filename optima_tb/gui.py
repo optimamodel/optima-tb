@@ -610,9 +610,9 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.radio_check_normal = qtw.QRadioButton('Normally')
         self.radio_check_normal.setChecked(True)
         self.radio_check_normal.toggled.connect(lambda:self.checkOptionState(self.radio_check_normal))
-        self.radio_check_par = qtw.QRadioButton('Across Populations')
+        self.radio_check_par = qtw.QRadioButton('Across populations')
         self.radio_check_par.toggled.connect(lambda:self.checkOptionState(self.radio_check_par))
-        self.radio_check_all = qtw.QRadioButton('By All Possible Parameters')
+        self.radio_check_all = qtw.QRadioButton('By all possible parameters')
         self.radio_check_all.toggled.connect(lambda:self.checkOptionState(self.radio_check_all))
 
         self.table_calibration = qtw.QTableWidget()
@@ -672,11 +672,11 @@ class GUICalibration(GUIResultPlotterIntermediate):
             if button.isChecked() == True:
                 self.status = ('Status: Parameters in the table will be ticked and unticked individually')
                 self.check_option = 'one'
-        elif button.text() == 'Across Populations':
+        elif button.text() == 'Across populations':
             if button.isChecked() == True:
                 self.status = ('Status: Parameters in the table will be ticked and unticked as a group across populations')
                 self.check_option = 'par'
-        elif button.text() == 'By All Possible Parameters':
+        elif button.text() == 'By all possible parameters':
             if button.isChecked() == True:
                 self.status = ('Status: Parameters in the table will be ticked and unticked across the entire parset')
                 self.check_option = 'all'
@@ -954,8 +954,11 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 
         self.options = None                 # The options dictionary for running a budget scenario, i.e. a standard simulation with program-based parameter overwrites.
         self.reconciliation_id_dict = {}    # Dictionary that maps custom reconciliation-widget label to program label.
-#        self.widget_budget_dict = {}        # Dictionary that maps Program names to indices marking their position in a scrolling list of budget widgets.
-
+        self.sigma_dict = {}                # Dictionary that maps program labels with 'unit_cost', 'budget' and 'attribute' sigmas for program reconciliation.
+        
+        self.check_option = 'one'   # String that denotes how progset checkboxes will be ticked.
+                                    # Can be 'one' or 'all', depending whether selection is standard, grouped-across-populations or all-or-nothing.
+                                   
 
     def refreshVisibility(self):
         self.refreshVisibilityProjectManager()
@@ -964,7 +967,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         is_project_loaded = self.project is not None
         does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
         does_progset_exist = is_project_loaded and len(self.project.progsets.keys()) > 0
-        do_options_exist = self.options is not None
+#        do_options_exist = self.options is not None
 
         if is_project_loaded:
             self.refreshParsetComboBox()
@@ -981,6 +984,9 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
             self.makeProgsetTable()
         else:
             self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+        self.label_check_options.setVisible(does_progset_exist)
+        self.radio_check_normal.setVisible(does_progset_exist)
+        self.radio_check_all.setVisible(does_progset_exist)
         self.table_reconciliation.setVisible(does_progset_exist)
         
         self.label_year_start.setVisible(does_progset_exist)
@@ -1024,6 +1030,20 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.label_year_start = qtw.QLabel('Year to reconcile calibration with fixed-budget programs... ')
         self.edit_year_start = qtw.QLineEdit()
         self.edit_year_start.returnPressed.connect(self.updateStartYear)
+        
+        self.label_check_options = qtw.QLabel('Toggle checkbox selection and edit sigmas: ')
+        self.radio_check_normal = qtw.QRadioButton('Normally')
+        self.radio_check_normal.setChecked(True)
+        self.radio_check_normal.toggled.connect(lambda:self.checkOptionState(self.radio_check_normal))
+        self.radio_check_all = qtw.QRadioButton('Across all programs')
+        self.radio_check_all.toggled.connect(lambda:self.checkOptionState(self.radio_check_all))
+
+        grid_check_option = qtw.QGridLayout()
+        grid_check_option.setSpacing(10)
+        
+        grid_check_option.addWidget(self.label_check_options, 0, 0)
+        grid_check_option.addWidget(self.radio_check_normal, 0, 1)
+        grid_check_option.addWidget(self.radio_check_all, 1, 1)
         
         self.label_reconcile = qtw.QLabel('Automatic reconciliation time in seconds... ')
         self.edit_reconcile = qtw.QLineEdit()
@@ -1080,9 +1100,20 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 
 
         layout.addLayout(grid_progset_load)
-#        layout.addWidget(self.scroll_area)
+        layout.addLayout(grid_check_option)
         layout.addWidget(self.table_reconciliation)
         layout.addLayout(grid_progset_save)
+        
+    def checkOptionState(self, button):
+        if button.text() == 'Normally':
+            if button.isChecked() == True:
+                self.status = ('Status: Unit-cost, budget and attribute sigmas for programs will be ticked, unticked and edited individually')
+                self.check_option = 'one'
+        elif button.text() == 'Across all programs':
+            if button.isChecked() == True:
+                self.status = ('Status: Unit-cost, budget and attribute sigmas for programs will be ticked, unticked and edited by type across the entire progset')
+                self.check_option = 'all'
+        self.refreshStatus()
 
     def updateStartYear(self):
         try:    
@@ -1152,6 +1183,13 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.progset_name = str(progset_name)
         self.progset = dcp(self.project.progsets[self.progset_name])
         self.options = defaultOptimOptions(settings=self.project.settings, progset=self.progset)
+        
+        # Generate a zero-value sigma dictionary for any progset reload.
+        self.sigma_dict = {}
+        for prog in self.progset.progs:
+            if not prog.func_specs['type'] == 'cost_only':
+                self.sigma_dict[prog.label] = {'unit_cost':0.0, 'budget':0.0, 'attribute':0.0}
+                    
         self.edit_year_start.setText(str(self.options['progs_start']))
         self.status = ('Status: Program set "%s" selected for program reconciliation' % self.progset_name)
         if not delay_refresh:
@@ -1182,7 +1220,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.status = ('Status: Reconciling checked selection of program set "%s" with parameter set "%s" for %s seconds' % (self.progset.name, self.parset_name, str(reconciliation_time)))
         self.refreshStatus()
         try:
-            self.progset, output = self.project.reconcile(parset_name=self.parset_name, progset=self.progset, reconcile_for_year = self.options['progs_start'], unitcost_sigma = 0.0, budget_sigma = 0.0, attribute_sigma = 1.5, overwrite=True, max_time=reconciliation_time, save_progset=False)
+            self.progset, output = self.project.reconcile(parset_name=self.parset_name, progset=self.progset, reconcile_for_year = self.options['progs_start'], sigma_dict=self.sigma_dict, overwrite=True, max_time=reconciliation_time, save_progset=False)
             self.status = ('Status: Reconciliation process complete (but unsaved) for program set "%s"' % self.progset.name)
             
             # Print reconciliation output to a new window.
@@ -1265,106 +1303,87 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         custom_id = str(self.table_reconciliation.verticalHeaderItem(row).text())
         prog_label = self.reconciliation_id_dict[custom_id]['prog_label']
         prog = self.progset.getProg(prog_label)
+        
+        col_to_sigma = {1:'unit_cost', 3:'budget', 6:'attribute'}
 
         new_val_str = str(self.table_reconciliation.item(row, col).text())
-#        if col == 0:
-#            calib_prefix = ''
-#            if self.table_calibration.item(row, col).checkState() == qtc.Qt.Checked:
-#                if not self.guard_status:   # Used here, this is a guard against recursion.
-#                    self.guard_status = True
-#                    if self.check_option == 'all':
-#                        for other_row in xrange(self.table_calibration.rowCount()):
-#                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
-#                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
-#                    elif self.check_option == 'par':
-#                        for other_row in self.par_rows_dict[par_label].keys():
-#                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
-#                    self.guard_status = False
-#                par.autocalibrate[pop_label] = True
-#            else:
-#                if not self.guard_status:   # Used here, this is a guard against recursion.
-#                    self.guard_status = True
-#                    if self.check_option == 'all':
-#                        for other_row in xrange(self.table_calibration.rowCount()):
-#                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
-#                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
-#                    elif self.check_option == 'par':
-#                        for other_row in self.par_rows_dict[par_label].keys():
-#                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
-#                    self.guard_status = False
-#                par.autocalibrate[pop_label] = False
-#                calib_prefix = 'un'
-#
-#            try:
-#                new_val = float(new_val_str)
-#                if new_val < 0:
-#                    raise Exception('scaling factor is negative')
-#            except Exception as E:
-#                self.status = ('Status: Attempt to edit scaling factor failed because "%s"' % E.message)
-#                new_val = DEFAULT_YFACTOR
-#                self.refreshStatus()
-#                self.guard_status = True
-#                self.table_calibration.item(row, col).setText(str(new_val))
-#                self.guard_status = False
-#                return
-#            par.y_factor[pop_label] = new_val
-#            self.status = ('Status: Current edited parameter set has %smarked parameter "%s", population "%s", for autocalibration, with scaling factor "%f"' % (calib_prefix, par_label, pop_label, new_val))
-#        elif col == 1:
-#            calib_prefix = 'in'
-#            if self.table_calibration.item(row, col).checkState() == qtc.Qt.Checked:
-#                if not self.guard_status:   # Used here, this is a guard against recursion.
-#                    self.guard_status = True
-#                    if self.check_option == 'all':
-#                        for other_row in xrange(self.table_calibration.rowCount()):
-#                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
-#                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
-#                    elif self.check_option == 'par':
-#                        for other_row in self.par_rows_dict[par_label].keys():
-#                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
-#                    self.guard_status = False
-#                self.fitted_characs_dict[(par_label,pop_label)] = True
-#            else:
-#                if not self.guard_status:   # Used here, this is a guard against recursion.
-#                    self.guard_status = True
-#                    if self.check_option == 'all':
-#                        for other_row in xrange(self.table_calibration.rowCount()):
-#                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
-#                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
-#                    elif self.check_option == 'par':
-#                        for other_row in self.par_rows_dict[par_label].keys():
-#                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
-#                    self.guard_status = False
-#                try: del self.fitted_characs_dict[(par_label,pop_label)]
-#                except: pass
-#                calib_prefix = 'ex'
-#
-#            self.status = ('Status: Current edited parameter set has %scluded parameter "%s", population "%s", in the autocalibration data-fitting metric' % (calib_prefix, par_label, pop_label))
-        try:
-            try: new_val = float(new_val_str)
-            except: raise Exception('as only number inputs are allowed')
-            if new_val < 0:
-                raise Exception('as values must be positive')
-            if (col == 0 and new_val == 0):
-                raise Exception('as unit cost cannot be zero')
-        except Exception as E:
-            self.status = ('Status: Attempt to edit program set failed, %s' % E.message)
-            self.refreshStatus()
-            self.guard_status = True
-            if col == 0:
-                self.table_reconciliation.item(row, col).setText(str(prog.func_specs['pars']['unit_cost']))
-            elif col == 2:
-                self.table_reconciliation.item(row, col).setText(str(prog.getDefaultBudget(year=self.options['progs_start'])))
-            self.guard_status = False
-            return
+        if col in [1,3,6]:      # Hardcoded column values corresponding to checkable sigmas.
         
-        if col == 0:
-            prog.func_specs['pars']['unit_cost'] = new_val
-            self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
-            self.status = ('Status: Current edited program set uses unit cost "%f" for program "%s"' % (new_val, prog_label))
-        elif col == 2:
-            prog.insertValuePair(self.options['progs_start'], new_val, 'cost')
-            self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
-            self.status = ('Status: Current edited program set associates program "%s" with a budget of "%f" in "%f"' % (prog_label, new_val, self.options['progs_start']))
+            # Extract value from the table first, whether entered in or whether the accompanying checkbox was triggered.
+            try:
+                new_val = float(new_val_str)
+                if new_val < 0:
+                    raise Exception('sigma is negative')
+            except Exception as E:
+                self.status = ('Status: Attempt to edit sigma failed because "%s"' % E.message)
+                new_val = 0.0
+                self.refreshStatus()
+                self.guard_status = True
+                self.table_reconciliation.item(row, col).setText(str(new_val))
+                self.guard_status = False
+                return
+            
+            # If edit of a sigma was a success, edit all others if the relevant option is chosen.
+            if not self.guard_status:   # Used here, this is a guard against recursion.
+                self.guard_status = True
+                if self.check_option == 'all':
+                    for other_row in xrange(self.table_reconciliation.rowCount()):
+                        if not self.table_reconciliation.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+                            self.table_reconciliation.item(other_row, col).setText(str(new_val))
+                self.guard_status = False
+            
+                  
+            # A ticked checkbox will determine whether the accompanying sigma will be used for reconciliation.
+            recon_prefix = ''
+            if self.table_reconciliation.item(row, col).checkState() == qtc.Qt.Checked:
+                if not self.guard_status:   # Used here, this is a guard against recursion.
+                    self.guard_status = True
+                    if self.check_option == 'all':
+                        for other_row in xrange(self.table_reconciliation.rowCount()):
+                            if not self.table_reconciliation.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+                                self.table_reconciliation.item(other_row, col).setCheckState(qtc.Qt.Checked)
+                    self.guard_status = False
+                self.sigma_dict[prog_label][col_to_sigma[col]] = new_val
+            else:
+                if not self.guard_status:   # Used here, this is a guard against recursion.
+                    self.guard_status = True
+                    if self.check_option == 'all':
+                        for other_row in xrange(self.table_reconciliation.rowCount()):
+                            if not self.table_reconciliation.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+                                self.table_reconciliation.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
+                    self.guard_status = False
+                self.sigma_dict[prog_label][col_to_sigma[col]] = 0.0
+                recon_prefix = 'dis'
+                
+            self.status = ('Status: Program reconciliation will %sallow program "%s" to vary in "%s" value by up to %f%%' % (recon_prefix, prog_label, col_to_sigma[col], new_val*100))
+
+        else:
+            try:
+                try: new_val = float(new_val_str)
+                except: raise Exception('as only number inputs are allowed')
+                if new_val < 0:
+                    raise Exception('as values must be positive')
+                if (col == 0 and new_val == 0):
+                    raise Exception('as unit cost cannot be zero')
+            except Exception as E:
+                self.status = ('Status: Attempt to edit program set failed, %s' % E.message)
+                self.refreshStatus()
+                self.guard_status = True
+                if col == 0:
+                    self.table_reconciliation.item(row, col).setText(str(prog.func_specs['pars']['unit_cost']))
+                elif col == 2:
+                    self.table_reconciliation.item(row, col).setText(str(prog.getDefaultBudget(year=self.options['progs_start'])))
+                self.guard_status = False
+                return
+        
+            if col == 0:
+                prog.func_specs['pars']['unit_cost'] = new_val
+                self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
+                self.status = ('Status: Current edited program set uses unit cost "%f" for program "%s"' % (new_val, prog_label))
+            elif col == 2:
+                prog.insertValuePair(self.options['progs_start'], new_val, 'cost')
+                self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
+                self.status = ('Status: Current edited program set associates program "%s" with a budget of "%f" in "%f"' % (prog_label, new_val, self.options['progs_start']))
         self.refreshStatus()
 
     def runProgsetSim(self):
