@@ -13,7 +13,7 @@ cascade_path = os.path.abspath('.//cascade-m-170918.xlsx')
 databook_path = os.path.abspath('.//databook-m-170918.xlsx')
 
 sim_step = 365.
-sim_start = -3000.
+sim_start = 2000.
 sim_stop = 3825.
 
 np.seterr(all='raise')
@@ -70,7 +70,9 @@ def setup_project():
 
 # wrapper function for plotResults
 def visualize(proj, res_dict):
-    outputs = ['t_hinf']
+    # outputs = ['t_hinf', 't_hdi', 't_htreat', 't_hwan', 'h_prevx']
+    outputs = ['t_hex', 't_mex', 't_md']
+    # outputs = ['h_prevx']
 
     start = 2000
     stop = sim_stop
@@ -79,7 +81,7 @@ def visualize(proj, res_dict):
         for output in outputs:
             fig = plotResults(res_dict=res_dict, dt=proj.settings.tvec_dt, t_start=start, t_end=stop, labels=[output],
                               pop_labels=[pop_label])
-            fig.suptitle('Impact of all programs on ' + pop_label)
+            fig.suptitle('Impact on \'%s\' in population \'%s\'' % (output,pop_label))
 
     pl.show()
 
@@ -90,12 +92,13 @@ if __name__ == "__main__":
 
 
     # define various program combinations
+    # values from spreadsheet
     opt_all = {'progs_start': 2000., 'progs_end': sim_stop, 'alloc_is_coverage': True,
                'init_alloc': {'TXg': 1.0, 'TXp': 1.0, 'TXc': 1.0,
                               'BCCg': 0.99, 'BCCp': 0.99, 'BCCc': 0.99,
-                              'IPTp': 0.61, 'IRS': 0.036, 'LAV': 0.05,
+                              'IPTp': 0.61, 'IRS': 0.036, 'LAV': 0.0,
                               'LLINg': 0.201, 'LLINp': 0.655, 'LLINc': 0.63,
-                              'MDA': 0.064, 'SMC': 0.05}}
+                              'MDA': 0.064, 'SMC': 0.0}}
 
     opt_TX = {'progs_start': 2000., 'progs_end': sim_stop, 'alloc_is_coverage': True,
                'init_alloc': {'TXg': 1.0, 'TXp': 1.0, 'TXc': 1.0}}
@@ -113,11 +116,11 @@ if __name__ == "__main__":
     opt_MDA = {'progs_start': 2000., 'progs_end': sim_stop, 'alloc_is_coverage': True,
                'init_alloc': {'MDA': 0.064}}
     opt_SMC = {'progs_start': 2000., 'progs_end': sim_stop, 'alloc_is_coverage': True,
-               'init_alloc': {'SMC': 0.05}}
+               'init_alloc': {'SMC': 0.1}}
 
     opt_BCC_LLIN = {'progs_start': 2000., 'progs_end': sim_stop, 'alloc_is_coverage': True,
                'init_alloc': {'BCCg': 0.99, 'BCCp': 0.99, 'BCCc': 0.99,
-                              'LLINg': 0.201, 'LLINp': 0.655, 'LLINc': 0.63}}
+                              'LLINg': 0.201, 'LLINc': 0.63}}
     opt_BCC_IPTp = {'progs_start': 2000., 'progs_end': sim_stop, 'alloc_is_coverage': True,
                'init_alloc': {'BCCg': 0.99, 'BCCp': 0.99, 'BCCc': 0.99, 'IPTp': 0.61}}
     opt_BCC_IPTp_LLIN = {'progs_start': 2000., 'progs_end': sim_stop, 'alloc_is_coverage': True,
@@ -126,12 +129,12 @@ if __name__ == "__main__":
 
     res_dict = odict()
     res_dict['no_progs'] = proj.runSim(parset_name='default')
-    res_dict['all_progs'] = proj.runSim(parset_name='default', progset_name='default', options=opt_all)
+    # res_dict['all_progs'] = proj.runSim(parset_name='default', progset_name='default', options=opt_all)
     # res_dict['TX'] = proj.runSim(parset_name='default', progset_name='default', options=opt_TX)
     # res_dict['BCC'] = proj.runSim(parset_name='default', progset_name='default', options=opt_BCC) # will not have any effect
     # res_dict['IPTp'] = proj.runSim(parset_name='default', progset_name='default', options=opt_IPTp)
     # res_dict['IRS'] = proj.runSim(parset_name='default', progset_name='default', options=opt_IRS)
-    # res_dict['LAV'] = proj.runSim(parset_name='default', progset_name='default', options=opt_LAV)
+    res_dict['LAV'] = proj.runSim(parset_name='default', progset_name='default', options=opt_LAV)
     # res_dict['LLIN'] = proj.runSim(parset_name='default', progset_name='default', options=opt_LLIN)
     # res_dict['MDA'] = proj.runSim(parset_name='default', progset_name='default', options=opt_MDA)
     # res_dict['SMC'] = proj.runSim(parset_name='default', progset_name='default', options=opt_SMC)

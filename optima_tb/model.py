@@ -712,16 +712,28 @@ class Model(object):
 
             review_count += 1
 
-    def _parseSpecialTag(self, tag):
+
+    # expects a 'special tag' of a program. The passed string is split at whitespaces. The first word defines the
+    # special behaviour of the program, the other words are put in a list because they are specific for the special
+    # behaviour of the program. At the end a sanity check is performed if prog != None
+    def _parseSpecialTag(self, tag, prog = None):
         # decompose special tag word by word (string separated by whitespaces)
         words = tag.split()
-        # first word is the tag
-        special = words[0]
-        # other words must be impact parameters which are subsumed in a list; sanity check below
-        scale_pars = words[1:]
 
-        return special, scale_pars
+        if prog == None:
+            return words[0], words[1:]
 
+        # check if all the provided parameters are indeed impact parameters
+        if words[0] != '' and len(words[1:]) > 0:
+            for w in words[1:]:  # check if impact parameters and passed words coincide
+                if not w in prog.target_pars:
+                    raise OptimaException(
+                        'ERROR: Parameters passed in the \'special tag\' field after \'%s\' must be impact parameters. \'%s\' is not in list [%s].'
+                        % (words[0], w, ' '.join(prog.target_pars.keys())))
+
+        return words[0], words[1:]
+
+    # if grouping is provided for the program, account for that
     def _processGrouping(self, link, par_label, prog, pop, settings, tag, ti):
         # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
         source_element_size = self.pops[link.index_from[0]].comps[link.index_from[1]].popsize[ti]
@@ -749,6 +761,7 @@ class Model(object):
 
         return source_element_size, source_set_size
 
+    # convert a parameter to a fraction
     def _processParameterType(self, net_impact, link, prog, spec_size, tot_size):
         # Make sure each program impact is in the format of the parameter it affects.
         # NOTE: Can be compressed. Currently left explicit.
@@ -772,11 +785,10 @@ class Model(object):
                     # make sure impact is not bigger than the number of available entities
                     if impact > spec_size:
                         impact = spec_size
-                        # logger.warn("In population '%s', Program '%s'  has an impact on more entities than contained in '%s'. Truncating value to number of entities."
-                        #             % (pop.label, prog_label, pars[0].label_from))
 
         return impact
 
+    # special behaviour for programs with the tag 'scale_props'
     def _processScalePropsTag(self, par_label, settings, progset, ti):
         # determine total population
         total_pop = sum([p.getDep('h_alive').vals[ti] for p in self.pops])
@@ -788,8 +800,8 @@ class Model(object):
         # find all programs of the same type as current one and weigh its impact proportional
         # to the population size before summing up
         rel_progs = progset.impacts[par_label] # all programs impacting considered parameter
-        gp_progs = self._getProgTypeFromTag('scale_prop', settings, progset).values()[0] # all GPs
-        sop_progs = self._getProgTypeFromTag('supp', settings, progset).values()[0] # all SOPs
+        gp_progs = self._getProgNamesFromTag('scale_prop', settings, progset).values()[0] # all GPs
+        sop_progs = self._getProgNamesFromTag('supp', settings, progset).values()[0] # all SOPs
 
         # any(x == _ for _ in gp_progs) checks if the string x is contained in the list of strings gp_progs
         rel_progs = filter(lambda x: any(x == _ for _ in gp_progs) or any(x == _ for _ in sop_progs), rel_progs) # remove programs which are not GP or SOP
@@ -797,17 +809,19 @@ class Model(object):
 
         for p in rel_progs:
             imp = 0.0
-            pop_sizes = [self.getPop(pp).getDep('h_alive').vals[ti] for pp in progset.getProg(p).target_pops]
+            target_pop_size = np.sum([self.getPop(pp).getDep('h_alive').vals[ti] for pp in progset.getProg(p).target_pops])
             if any(p == _ for _ in gp_progs): # currently works only for one dict-entry
                 try: imp = self.prog_vals[p]['impact'][par_label][ti]  # identical for each population
                 except: imp = self.prog_vals[p]['impact'][par_label][0]
             elif any(p == _ for _ in sop_progs): # currently works only for one dict-entry
                 imp = self._processSuppTag(par_label, progset.getProg(p), ti)
 
-            impacts.append(imp * np.sum(pop_sizes) / total_pop)
+            impacts.append(imp * target_pop_size / total_pop)
 
         return np.sum(impacts)
 
+
+    # special behaviour of program with the tag 'supp'
     def _processSuppTag(self, par_label, prog, ti):
         impacts = []
         # extract all attributes which refer to another program
@@ -846,7 +860,8 @@ class Model(object):
         return np.sum(impacts)
 
 
-    def _getProgTypeFromTag(self, tag, settings, progset):
+    # obtain program labels which a the pass 'tag'
+    def _getProgNamesFromTag(self, tag, settings, progset):
         specs = settings.progtype_specs # just an alias
         # extract all program types which have the passed 'tag'
         prog_types = filter(lambda x: specs[x]['special'].startswith(tag), specs)
@@ -860,6 +875,21 @@ class Model(object):
         return prog_names
 
 
+    # obtain target parameters of all programs with a given 'tag'
+    def _getTargetParsFromTag(self, tag, settings):
+        specs = settings.progtype_specs  # just an alias
+        # extract all program types which have the passed 'tag'
+        prog_types = filter(lambda x: specs[x]['special'].startswith(tag), specs)
+
+        target_pars = []
+        for pn in prog_types:
+            target_pars.extend(self._parseSpecialTag(settings.progtype_specs[pn]['special'])[1])
+        return target_pars
+
+
+    # create a list of program labels of programs which are defined and have a coverage. In the case of global programs,
+    # a global program is added to the list if none is present to ensure that this population is also affected by the
+    # global program
     def _buildRelevantProgs(self, par_label, pop_label, imp_prog_label, glob_prog_label, progset):
         rel_prog_label = set(imp_prog_label) # applicable programs with coverage
 
@@ -970,7 +1000,7 @@ class Model(object):
                             overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
 
                             # get all program types which influence parameters across populations
-                            glob_prog_types = self._getProgTypeFromTag('scale_prop ', settings, progset)
+                            glob_prog_types = self._getProgNamesFromTag('scale_prop ', settings, progset)
                             # get all the relevant programs for the current parameter in the current population
                             rel_prog_labels = filter(lambda x: x in self.prog_vals.keys() and pop.label in progset.getProg(x).target_pops, progset.impacts[par_label])
                             # add programs from programs which have a global impact but are not covered in this population
@@ -980,14 +1010,7 @@ class Model(object):
                                 prog = progset.getProg(prog_label)
                                 prog_type = prog.prog_type
 
-                                special, scale_pars = self._parseSpecialTag(settings.progtype_specs[prog_type]['special'])
-                                # check if all the provided parameters are indeed impact parameters
-                                if special != '' and len(scale_pars) > 0:
-                                    for w in scale_pars:  # check if impact parameters and passed words coincide
-                                        if not w in progset.getProg(prog_label).target_pars.keys():
-                                            raise OptimaException(
-                                                'ERROR: Parameters passed in the \'special tag\' field after \'%s\' must be impact parameters. \'%s\' is not in list [%s].'
-                                                % (special, w, ' '.join(progset.getProg(prog_label).target_pars.keys())))
+                                special, scale_pars = self._parseSpecialTag(settings.progtype_specs[prog_type]['special'], progset.getProg(prog_label))
 
                                 # if no prog_val is encountered, the program is not covered but has been 'artificially'
                                 # added because of its global impact. since there is no impact associated with it, simply
@@ -1044,8 +1067,8 @@ class Model(object):
                                 elif special == 'supp':
                                     # only apply impact if the paramter is not influenced by GPs; skip otherwise:
                                     # if the intersection of impacting programs, GPs and available programs is empty or no global impact parameter is referenced, apply changes
-                                    if not set(progset.impacts[par_label]).intersection(set(glob_prog_types)).intersection(set(self.prog_vals.keys()))\
-                                        and any(par_label == _ for _ in self._parseSpecialTag(settings.progtype_specs[prog_type]['special'])[1]):
+                                    if not set(progset.impacts[par_label]).intersection(set(glob_prog_types)).intersection(set(self.prog_vals.keys())) \
+                                        and not any(par_label == _ for _ in self._getTargetParsFromTag('scale_prop ', settings)):
                                         impact = self._processSuppTag(par_label, prog, ti)
                                         # necessary work-around to prevent supp-programs to change values when they do not have any influence
                                         if impact == 0.: continue
