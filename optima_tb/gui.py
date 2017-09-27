@@ -987,9 +987,6 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
             self.makeProgsetTable()
         else:
             self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
-#        self.label_check_options.setVisible(does_progset_exist)
-#        self.radio_check_normal.setVisible(does_progset_exist)
-#        self.radio_check_all.setVisible(does_progset_exist)
         self.checkbox_align_sigmas.setVisible(does_progset_exist)
         self.table_reconciliation.setVisible(does_progset_exist)
         
@@ -1034,24 +1031,13 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.label_year_start = qtw.QLabel('Year to reconcile calibration with fixed-budget programs... ')
         self.edit_year_start = qtw.QLineEdit()
         self.edit_year_start.returnPressed.connect(self.updateStartYear)
-        
-#        self.label_check_options = qtw.QLabel('Toggle checkbox selection and edit sigmas: ')
-#        self.radio_check_normal = qtw.QRadioButton('Normally')
-#        self.radio_check_normal.setChecked(True)
-#        self.radio_check_normal.toggled.connect(lambda:self.checkOptionState(self.radio_check_normal))
-#        self.radio_check_all = qtw.QRadioButton('Across all programs')
-#        self.radio_check_all.toggled.connect(lambda:self.checkOptionState(self.radio_check_all))
-        
+                
         self.checkbox_align_sigmas = qtw.QCheckBox('Duplicate sigma checkbox choices and values across programs')
         self.checkbox_align_sigmas.stateChanged.connect(self.checkOptionState)
 
         grid_check_option = qtw.QGridLayout()
         grid_check_option.setSpacing(10)
         grid_check_option.addWidget(self.checkbox_align_sigmas, 0, 0)
-        
-#        grid_check_option.addWidget(self.label_check_options, 0, 0)
-#        grid_check_option.addWidget(self.radio_check_normal, 0, 1)
-#        grid_check_option.addWidget(self.radio_check_all, 1, 1)
         
         self.label_reconcile = qtw.QLabel('Automatic reconciliation time in seconds... ')
         self.edit_reconcile = qtw.QLineEdit()
@@ -1095,17 +1081,6 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         grid_progset_save.addWidget(self.button_model_run, 2, 2)
         
         self.table_reconciliation = qtw.QTableWidget()
-#        self.table_reconciliation.cellChanged.connect(self.updateProgset)
-
-#        self.budget_layout = qtw.QGridLayout()
-#
-#        self.scroll_budgets = qtw.QWidget()
-#        self.scroll_budgets.setLayout(self.budget_layout)
-#
-#        self.scroll_area = qtw.QScrollArea()
-#        self.scroll_area.setWidgetResizable(True)
-#        self.scroll_area.setWidget(self.scroll_budgets)
-
 
         layout.addLayout(grid_progset_load)
         layout.addLayout(grid_check_option)
@@ -1113,14 +1088,6 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         layout.addLayout(grid_progset_save)
         
     def checkOptionState(self, state):
-#        if button.text() == 'Normally':
-#            if button.isChecked() == True:
-#                self.status = ('Status: Unit-cost, budget and attribute sigmas for programs will be ticked, unticked and edited individually')
-#                self.check_option = 'one'
-#        elif button.text() == 'Across all programs':
-#            if button.isChecked() == True:
-#                self.status = ('Status: Unit-cost, budget and attribute sigmas for programs will be ticked, unticked and edited by type across the entire progset')
-#                self.check_option = 'all'
         if not state == qtc.Qt.Checked:
             self.status = ('Status: Unit-cost, budget and attribute sigmas for programs will be ticked, unticked and edited individually')
             self.check_option = 'one'
@@ -1288,9 +1255,10 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                 col_id = attribute_id + 7
                 temp = qtw.QTableWidgetItem()
                 temp.setTextAlignment(qtc.Qt.AlignCenter)
-                if attribute_label in prog.attributes:
-                    temp.setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=[attribute_label])[attribute_label][-1]))
                 temp.setFlags(qtc.Qt.ItemIsEnabled)
+                if attribute_label in prog.attributes:
+                    temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)
+                    temp.setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=[attribute_label])[attribute_label][-1]))
                 self.table_reconciliation.setItem(row_id, col_id, temp)
             row_id += 1
         self.table_reconciliation.setVerticalHeaderLabels(custom_ids)
@@ -1353,6 +1321,9 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                     self.table_reconciliation.item(row, col).setText(str(prog.func_specs['pars']['unit_cost']))
                 elif col == 2:
                     self.table_reconciliation.item(row, col).setText(str(prog.getDefaultBudget(year=self.options['progs_start'])))
+                else:
+                    attribute_label = self.attribute_labels[col-7]
+                    self.table_reconciliation.item(row, col).setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=[attribute_label])[attribute_label][-1]))
                 self.guard_status = False
                 return
         
@@ -1364,6 +1335,12 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                 prog.insertValuePair(self.options['progs_start'], new_val, 'cost')
                 self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
                 self.status = ('Status: Current edited program set associates program "%s" with a budget of "%f" in "%f"' % (prog_label, new_val, self.options['progs_start']))
+            else:
+                attribute_label = self.attribute_labels[col-7]
+                print attribute_label
+                prog.insertValuePair(self.options['progs_start'], new_val, attribute_label)
+                self.status = ('Status: Current edited program set associates program "%s" with an attribute "%s" of "%f" in "%f"' % (prog_label, attribute_label, new_val, self.options['progs_start']))
+                
         self.refreshStatus()
 
     def runProgsetSim(self):
