@@ -738,7 +738,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.status = ('Status: Autocalibrating checked selection of parameter set "%s" for %s seconds' % (self.parset.name, str(calibration_time)))
         self.refreshStatus()
         try:
-            self.parset = self.project.runAutofitCalibration(parset=self.parset, target_characs=self.fitted_characs_dict.keys(), max_time=calibration_time, save_parset=False)
+            self.parset = self.project.runAutofitCalibration(parset=self.parset, new_parset_name=self.parset.name, target_characs=self.fitted_characs_dict.keys(), max_time=calibration_time, save_parset=False)
             self.status = ('Status: Autocalibration complete (but unsaved) for parameter set "%s"' % self.parset.name)
         except Exception as E:
             self.status = ('Status: Autocalibration was unsuccessful, perhaps because no parameters were selected to calibrate or no parameter-associated data was chosen to fit against')

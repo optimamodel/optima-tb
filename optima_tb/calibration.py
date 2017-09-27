@@ -209,6 +209,8 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
 #        sample_param.updateParameters(parvec_est, par_pop_labels, isYFactor=useYFactor)
 #        characs_est = parvec_and_characs[len_parvec:]
 #        sample_param.updateCharacteristics(characs_est, charac_pop_labels, isYFactor=useYFactor)
+#        print list(parvec_and_characs)
+#        print par_pop_labels+charac_pop_labels
         sample_param.update(parvec_and_characs, par_pop_labels+charac_pop_labels, isYFactor=useYFactor)
         try: results = project.runSim(parset = sample_param, store_results = False)
         except:
