@@ -942,7 +942,9 @@ class Model(object):
                             if len(overflow_list) > 0 and sum(overflow_list) > 1:
                                 impact_list = np.multiply(impact_list, 1 / sum(overflow_list))
 
-
+                            # TODO: This is most likely where modality interactions should be developed.
+                            # At the moment, impacts are summed together but can potentially combined in nested ways, e.g. by taking a maximum.
+                            # More complicated program interactions will of course take more design thought.
                             new_val += np.sum(impact_list)
 
                             # Handle impact constraints.

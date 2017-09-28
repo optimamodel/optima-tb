@@ -50,6 +50,8 @@ class ProgramSet:
 
 
             func_pars = dict()
+            # TODO: This is where new function types can be specified, such as sigmoid cost-curves.
+            # The func_type and func_pars dict will need to reflect this, e.g. with func_pars['unit_cost'] and func_pars['asymptote'].
             if special == 'cost_only':
                 func_type = 'cost_only'
             else:
@@ -232,6 +234,8 @@ class Program:
         budget = output['cost'][-1]
         return budget
 
+    # TODO: Extend this method to account for non-linear cost-coverage curves. Probably if-else by func_type after deciding their hardcoded labels.
+    # Note that inverse functions may be more challenging than the functions employed in Program.getCoverage().
     def getBudget(self, coverage):
         '''
         Returns a budget that corresponds to a program coverage. In simplest form, this is coverage times unit cost.
@@ -254,6 +258,7 @@ class Program:
                 bud = coverage * self.func_specs['pars']['unit_cost']
         return bud
 
+    # TODO: Extend this method to account for non-linear cost-coverage curves. Probably if-else by func_type after deciding their hardcoded labels.
     def getCoverage(self, budget):
         '''
         Returns prospective coverage for a program. In simplest form, this is budget divided by unit cost.
