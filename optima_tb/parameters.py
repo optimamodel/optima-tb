@@ -211,7 +211,7 @@ class ParameterSet(object):
             raise OptimaException("Unknown y_format '%s' encountered while returning min-max bounds"%y_format)
     
     
-    def extract(self,getMinMax=False,getYFactor=False):
+    def extract(self,settings=None,getMinMax=False,getYFactor=False):
         """
         Extract parameters values into a list
         
@@ -221,6 +221,8 @@ class ParameterSet(object):
         
         To avoid values from being extracted, users should use the assumption value to specify values, or 
         mark the 'Autocalibrate' column in the cascade spreadsheet with "-1" (== settings.DO_NOT_SCALE value)
+        
+        Note that parameters defined as functions will not be extracted.
         
         If getMinMax=True, this function additionally returns the min and max values for each of the parameters returned,
         depending on y_format. Each minmax value is a tuple of form (min,max). Note that min/max values can be either a float, int, or None.
@@ -235,7 +237,7 @@ class ParameterSet(object):
             minmax        minmax values. [] if getMinMax was False, else a list of tuples: [(min,max)]
             casc_labels    
         """    
-        import optima_tb.settings as settings 
+#        import optima_tb.settings as settings 
         
         paramvec = [] # Not efficient - would prefer: np.zeros(len(self.pop_labels)*len(self.pars['cascade']))
         minmax = []
@@ -246,7 +248,9 @@ class ParameterSet(object):
             for (casc_id,j) in sorted(self.par_ids['cascade'].items(), key=operator.itemgetter(1)):
 #                print casc_id
 #                print j
-                if self.pars['cascade'][j].autocalibrate[pop_id] == False:
+
+                # Do not extract parameters that are functions (if settings are available) or otherwise marked not to be calibrated.
+                if self.pars['cascade'][j].autocalibrate[pop_id] == False or (not settings is None and casc_id in settings.par_funcs):
                     continue
                 #paramvec[index] = [self.pars['cascade'][j].y[pop_id]]
                 if getYFactor:
@@ -293,7 +297,7 @@ class ParameterSet(object):
                     #if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
 #                    print charac_id
 #                    print j
-                    if self.pars['characs'][j].autocalibrate[pop_id] == True:
+                    if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].autocalibrate[pop_id] == True:
                         init_compartments.append(self.pars['characs'][j].y_factor[pop_id])
                         charac_labels.append((charac_id,pop_id))                        
         return init_compartments,charac_labels
@@ -312,9 +316,19 @@ class ParameterSet(object):
         for par_pop_label in par_pop_labels:
             par_label = par_pop_label[0]
             pop_label = par_pop_label[1]
-            par = self.getPar(par_label)    # Returns a parameter or characteristic as required.
-            
+            par = self.getPar(par_label)    # Returns a parameter or characteristic as required.        
+                
             if isYFactor:
+                
+#                if par.autocalibrate[pop_label]:
+#                    logger.info("ParameterSet %s is acknowledging that it can calibrate the y-factor for parameter %s, population %s." % (self.name, par_label, pop_label))
+#                else:
+#                    logger.info("ParameterSet %s has not modifed its y-factor value for parameter %s, population %s, due to y-factor constraints." % (self.name, par_label, pop_label))
+#                    continue
+                
+                if par.y_factor[pop_label] != par_vec[index]:
+                    logger.info("ParameterSet %s is updating its y-factor for parameter %s, population %s from %f to %f." % (self.name, par_label, pop_label, par.y_factor[pop_label], par_vec[index]))
+                
                 par.y_factor[pop_label] = par_vec[index]
             else:
                 par.y[pop_label] = par_vec[index]
@@ -360,7 +374,7 @@ class ParameterSet(object):
 #                        logger.debug("Updating entry points: characteristic label for entry point doesn't match updated value [%s,%s]"%(charac_labels[index],charac_id))
                         
         
-    
+    #TODO: Fix as the DO_NOT_SCALE setting no longer represents an absence of rescaling; attribute autocalibrate does.
     def _updateFromYFactor(self):
         """
         Goes through each of the cascade parameters and updates the y-values to be

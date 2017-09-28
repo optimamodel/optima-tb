@@ -382,7 +382,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             combo_name = combo_names[k]
             combo_box.clear()
             rid = 0
-            for result_name in self.project.results.keys():
+            for result_name in self.project.results:
                 self.combo_result_dict[result_name] = rid
                 combo_box.addItem(result_name)
                 rid += 1
@@ -393,13 +393,13 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.combo_charac_dict = {}
         self.combo_plotter_charac.clear()
         cid = 0
-        for charac_label in self.project.settings.charac_specs.keys():
+        for charac_label in self.project.settings.charac_specs:
             charac_name = self.project.settings.charac_specs[charac_label]['name']
             self.combo_charac_dict[charac_name] = cid
             self.combo_plotter_charac.addItem(charac_name)
             cid += 1
 
-        for flow_label in self.project.settings.linkpar_specs.keys():
+        for flow_label in self.project.settings.linkpar_specs:
             
             if 'tag' in self.project.settings.linkpar_specs[flow_label]:
                 flow_name = self.project.settings.linkpar_specs[flow_label]['name']
@@ -430,7 +430,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.combo_plotter_pop.addItem('Total populations')
         pid += 1
         # <-------------
-        for pop_name in self.project.data['pops']['name_labels'].keys():
+        for pop_name in self.project.data['pops']['name_labels']:
             self.combo_pop_dict[pop_name] = pid
             self.combo_plotter_pop.addItem(pop_name)
             pid += 1
@@ -557,7 +557,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.refreshVisibilityResultPlotter()
 
         is_project_loaded = self.project is not None
-        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
+        does_parset_exist = is_project_loaded and len(self.project.parsets) > 0
 
         if is_project_loaded:
             self.refreshParsetComboBox()
@@ -686,8 +686,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.combo_parset_dict = {}
         self.combo_parset.clear()
         pid = 0
-        print self.project.parsets.keys()
-        for parset_name in self.project.parsets.keys():
+#        print self.project.parsets.keys()
+        for parset_name in self.project.parsets:
             self.combo_parset_dict[parset_name] = pid
             self.combo_parset.addItem(parset_name)
             pid += 1
@@ -707,7 +707,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         if parset_name == '':
             self.status = ('Status: Attempt to save parameter set failed, no name provided')
         else:
-            if parset_name in self.project.parsets.keys():
+            if parset_name in self.project.parsets:
                 self.status = ('Status: Parameter set "%s" successfully overwritten' % parset_name)
             else:
                 self.status = ('Status: New parameter set "%s" added to project' % parset_name)
@@ -754,7 +754,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
         parset = self.parset
         num_pops = len(parset.pop_labels)
-        row_count = num_pops * (len(parset.pars['cascade']) - len(self.project.settings.par_funcs))
+        row_count = num_pops * (len(parset.pars['cascade']) + len(parset.pars['characs']) - len(self.project.settings.par_funcs))
         self.table_calibration.setRowCount(row_count)
         self.table_calibration.setColumnCount(len(self.tvec))
 
@@ -762,8 +762,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
         custom_ids = []
         for par_type in ['characs', 'cascade']:
             for par in parset.pars[par_type]:
-                if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or 
-                    (par_type == 'characs')): #and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
+                if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs) or 
+                    (par_type == 'characs')): #and 'entry_point' in self.project.settings.charac_specs[par.label])):
                     for pid in xrange(len(parset.pop_labels)):
                         pop_label = parset.pop_labels[pid]
                         try:
@@ -773,13 +773,13 @@ class GUICalibration(GUIResultPlotterIntermediate):
                         custom_id = par_name + '\n' + parset.pop_names[pid]
                         custom_ids.append(custom_id)
                         self.calibration_id_dict[custom_id] = {'par_label':par.label, 'pop_label':pop_label}
-                        if par.label not in self.par_rows_dict.keys():
+                        if par.label not in self.par_rows_dict:
                             self.par_rows_dict[par.label] = {}
                         self.par_rows_dict[par.label][k * num_pops + pid] = True
                         
                         # Create autocalibration checkbox column.
                         temp = qtw.QTableWidgetItem()
-                        if par_type == 'characs' and 'entry_point' not in self.project.settings.charac_specs[par.label].keys():
+                        if par_type == 'characs' and 'entry_point' not in self.project.settings.charac_specs[par.label]:
                             temp.setFlags(qtc.Qt.NoItemFlags)
                         else:
                             temp.setText(str(par.y_factor[pid]))
@@ -797,7 +797,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             temp.setText(str(1))    # Until calibration weighting is implemented, the default uneditable value will be 1.
                             temp.setTextAlignment(qtc.Qt.AlignCenter)
                             temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsUserCheckable)
-                            if (par.label,pop_label) in self.fitted_characs_dict.keys():
+                            if (par.label,pop_label) in self.fitted_characs_dict:
                                 temp.setCheckState(qtc.Qt.Checked)
                             else:
                                 temp.setCheckState(qtc.Qt.Unchecked)
@@ -839,7 +839,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
                                 self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
                     elif self.check_option == 'par':
-                        for other_row in self.par_rows_dict[par_label].keys():
+                        for other_row in self.par_rows_dict[par_label]:
                             self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
                     self.guard_status = False
                 par.autocalibrate[pop_label] = True
@@ -851,7 +851,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
                                 self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
                     elif self.check_option == 'par':
-                        for other_row in self.par_rows_dict[par_label].keys():
+                        for other_row in self.par_rows_dict[par_label]:
                             self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
                     self.guard_status = False
                 par.autocalibrate[pop_label] = False
@@ -881,7 +881,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
                                 self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
                     elif self.check_option == 'par':
-                        for other_row in self.par_rows_dict[par_label].keys():
+                        for other_row in self.par_rows_dict[par_label]:
                             self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
                     self.guard_status = False
                 self.fitted_characs_dict[(par_label,pop_label)] = True
@@ -893,7 +893,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
                                 self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
                     elif self.check_option == 'par':
-                        for other_row in self.par_rows_dict[par_label].keys():
+                        for other_row in self.par_rows_dict[par_label]:
                             self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
                     self.guard_status = False
                 try: del self.fitted_characs_dict[(par_label,pop_label)]
@@ -968,8 +968,8 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.refreshVisibilityResultPlotter()
 
         is_project_loaded = self.project is not None
-        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
-        does_progset_exist = is_project_loaded and len(self.project.progsets.keys()) > 0
+        does_parset_exist = is_project_loaded and len(self.project.parsets) > 0
+        does_progset_exist = is_project_loaded and len(self.project.progsets) > 0
 #        do_options_exist = self.options is not None
 
         if is_project_loaded:
@@ -1109,7 +1109,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.combo_parset_dict = {}
         self.combo_parset.clear()
         pid = 0
-        for parset_name in self.project.parsets.keys():
+        for parset_name in self.project.parsets:
             self.combo_parset_dict[parset_name] = pid
             self.combo_parset.addItem(parset_name)
             pid += 1
@@ -1120,7 +1120,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.combo_progset_dict = {}
         self.combo_progset.clear()
         pid = 0
-        for progset_name in self.project.progsets.keys():
+        for progset_name in self.project.progsets:
             self.combo_progset_dict[progset_name] = pid
             self.combo_progset.addItem(progset_name)
             pid += 1
@@ -1160,7 +1160,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         if progset_name == '':
             self.status = ('Status: Attempt to save program set failed, no name provided')
         else:
-            if progset_name in self.project.progsets.keys():
+            if progset_name in self.project.progsets:
                 self.status = ('Status: Program set "%s" successfully overwritten' % progset_name)
             else:
                 self.status = ('Status: New program set "%s" added to project' % progset_name)
@@ -1223,7 +1223,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         custom_ids = []
         for prog in progset.progs:
             custom_ids.append(prog.name)
-            if prog.name not in self.reconciliation_id_dict.keys():
+            if prog.name not in self.reconciliation_id_dict:
                 self.reconciliation_id_dict[prog.name] = {}
             self.reconciliation_id_dict[prog.name]['prog_label'] = prog.label
 #            self.reconciliation_id_dict[prog.name]['row'] = row_id
@@ -1416,7 +1416,7 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         self.refreshVisibilityResultPlotter()
 
         is_project_loaded = self.project is not None
-        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
+        does_parset_exist = is_project_loaded and len(self.project.parsets) > 0
 
         if is_project_loaded:
             self.refreshParsetComboBox()
@@ -1532,7 +1532,7 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         self.combo_parset_dict = {}
         self.combo_parset.clear()
         pid = 0
-        for parset_name in self.project.parsets.keys():
+        for parset_name in self.project.parsets:
             self.combo_parset_dict[parset_name] = pid
             self.combo_parset.addItem(parset_name)
             pid += 1
@@ -1609,10 +1609,10 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
         # generate scenario values dictionary
         scen_values = odict()  # complete scenario values
-        for scenario in values.keys():
+        for scenario in values:
             scvalues = odict()  # the core of the parameter values for each scenario
 
-            for paramclass in values[scenario].keys():
+            for paramclass in values[scenario]:
                 paramlist = locals()['%s_params' % paramclass]
 
                 for param in paramlist:
@@ -1712,8 +1712,8 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.refreshVisibilityResultPlotter()
 
         is_project_loaded = self.project is not None
-        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
-        does_progset_exist = is_project_loaded and len(self.project.progsets.keys()) > 0
+        does_parset_exist = is_project_loaded and len(self.project.parsets) > 0
+        does_progset_exist = is_project_loaded and len(self.project.progsets) > 0
         do_options_exist = self.options is not None
 
         if is_project_loaded:
@@ -1822,7 +1822,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.widget_budget_dict = {}
         for prog_label in self.options['init_alloc']:
             prog_name = self.project.data['meta']['progs']['label_names'][prog_label]
-            if prog_name not in self.widget_budget_dict.keys():
+            if prog_name not in self.widget_budget_dict:
                 try: last_id = max(self.widget_budget_dict.values())    # TODO: Make more efficient by storing max id rather than calculating all the time.
                 except: last_id = -1
                 label_budget = qtw.QLabel(prog_name)
@@ -1841,7 +1841,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.combo_parset_dict = {}
         self.combo_parset.clear()
         pid = 0
-        for parset_name in self.project.parsets.keys():
+        for parset_name in self.project.parsets:
             self.combo_parset_dict[parset_name] = pid
             self.combo_parset.addItem(parset_name)
             pid += 1
@@ -1852,7 +1852,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.combo_progset_dict = {}
         self.combo_progset.clear()
         pid = 0
-        for progset_name in self.project.progsets.keys():
+        for progset_name in self.project.progsets:
             self.combo_progset_dict[progset_name] = pid
             self.combo_progset.addItem(progset_name)
             pid += 1
@@ -1897,7 +1897,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
             try:
                 self.options['progs_start'] = float(str(self.edit_year_start.text()))
 
-                for prog_name in self.widget_budget_dict.keys():
+                for prog_name in self.widget_budget_dict:
                     current_id = self.widget_budget_dict[prog_name]
                     widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
                     prog_label = self.project.data['meta']['progs']['name_labels'][prog_name]
