@@ -1333,6 +1333,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                 self.status = ('Status: Current edited program set uses unit cost "%f" for program "%s"' % (new_val, prog_label))
             elif col == 2:
                 prog.insertValuePair(self.options['progs_start'], new_val, 'cost')
+#                self.options['init_alloc'][prog_label] = new_val    # Update the options dictionary immediately rather than checking the table later.
                 self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
                 self.status = ('Status: Current edited program set associates program "%s" with a budget of "%f" in "%f"' % (prog_label, new_val, self.options['progs_start']))
             elif col > 6:
@@ -1357,14 +1358,15 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
             self.status = ('Status: Model successfully processed for parameter set "%s" and program set "%s"' % (self.parset_name, self.progset_name))
         self.refreshVisibility()
 
-    # Scans through widgets and updates options dict appropriately.
+    # Regenerates options dictionary if possible, which should update initial allocation based on ProgramSet edits.
     # Return True if successful or False if there was an error.
     def updateOptions(self):
         if self.options is None:
             return False
         else:
             try:
-                self.options['progs_start'] = float(str(self.edit_year_start.text()))
+                progs_start = float(str(self.edit_year_start.text()))
+                self.options = defaultOptimOptions(settings=self.project.settings, progset=self.progset, progs_start=progs_start)
             except: return False
             return True
 
