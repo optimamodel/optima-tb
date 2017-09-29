@@ -314,7 +314,7 @@ def updateProgset(new_pars_dict, progset, year):
 #                    print year
 #                    print new_pars_dict[prog_label]['budget']
 #                    print attribute
-                    progset.progs[index].insertValuePair(t=year, y=new_pars_dict[prog_label][attribute], attribute=attribute)
+                    progset.progs[index].insertValuePair(t=year, y=new_pars_dict[prog_label][attribute], attribute=attribute, rescale_after_year=True)
                 else:
                     continue
             progset.progs[index].func_specs['pars']['unit_cost'] = new_pars_dict[prog_label]['unit_cost']
@@ -322,7 +322,7 @@ def updateProgset(new_pars_dict, progset, year):
 #            print year
 #            print new_pars_dict[prog_label]['budget']
 #            print 'cost'
-            progset.progs[index].insertValuePair(t=year, y=new_pars_dict[prog_label]['budget'], attribute='cost')
+            progset.progs[index].insertValuePair(t=year, y=new_pars_dict[prog_label]['budget'], attribute='cost', rescale_after_year=True)
     return progset
 
 def rescaleAllocation(proposed_dict, original_dict):

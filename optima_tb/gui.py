@@ -1332,13 +1332,13 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                 self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
                 self.status = ('Status: Current edited program set uses unit cost "%f" for program "%s"' % (new_val, prog_label))
             elif col == 2:
-                prog.insertValuePair(self.options['progs_start'], new_val, 'cost')
+                prog.insertValuePair(self.options['progs_start'], new_val, 'cost', rescale_after_year=True)
 #                self.options['init_alloc'][prog_label] = new_val    # Update the options dictionary immediately rather than checking the table later.
                 self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
                 self.status = ('Status: Current edited program set associates program "%s" with a budget of "%f" in "%f"' % (prog_label, new_val, self.options['progs_start']))
             elif col > 6:
                 attribute_label = self.attribute_labels[col-7]
-                prog.insertValuePair(self.options['progs_start'], new_val, attribute_label)
+                prog.insertValuePair(self.options['progs_start'], new_val, attribute_label, rescale_after_year=True)
                 self.status = ('Status: Current edited program set associates program "%s" with an attribute "%s" of "%f" in "%f"' % (prog_label, attribute_label, new_val, self.options['progs_start']))
                 
         self.refreshStatus()

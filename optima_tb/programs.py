@@ -133,20 +133,37 @@ class Program:
 
         self.func_specs = dict()
         
-    def insertValuePair(self, t, y, attribute):
-        ''' Check if the inserted t value already exists for the attribute type. If not, append y value. If so, overwrite y value. '''
+    def insertValuePair(self, t, y, attribute, rescale_after_year=False):
+        '''
+        Check if the inserted t value already exists for the attribute type.
+        If not, append y value. If so, overwrite y value.
+        If optional argument rescale_after_year is True, relevant attribute values for timepoints greater than t will be proportionally scaled by y divided by the value it is replacing.
+        If the scaling factor is infinite or nan, the later values will just be directly replaced by y.
+        '''
         
         val_dict = {'cost':self.cost, 'cov':self.cov}
         for val_type in self.attributes.keys():
             val_dict[val_type] = self.attributes[val_type]
+        
+        orig_y = self.interpolate(tvec=[t], attributes=[attribute])[attribute][-1]
+        try: scaling_factor = float(y)/orig_y
+        except: raise OptimaException('ERROR: Unable to insert value "%f" at year "%f" for attribute "%s" of program "%s"' % (y, t, attribute, self.label))
             
+        value_replacement = False
         k = 0
         for t_val in self.t:
             if t_val == t:
-                try: val_dict[attribute][k] = float(y)
-                except: raise OptimaException('ERROR: Unable to insert value "%f" at year "%f" for attribute "%s" of program "%s"' % (y, t, attribute, self.label))
-                return
+                value_replacement = True
+            if t_val == t or (rescale_after_year is True and t_val > t):
+                if np.isnan(scaling_factor) or np.isinf(scaling_factor):
+                    new_val = float(y)
+                else:
+                    new_val = scaling_factor*val_dict[attribute][k]
+                val_dict[attribute][k] = new_val
+                logging.info('Inserted/replaced value "%f" at year "%f" for attribute "%s" of program "%s"' % (new_val, t_val, attribute, self.label))
             k += 1
+        
+        if value_replacement: return    # No need to continue and append new values if the target year exists.
         
         try:
             self.t = np.append(self.t, float(t))
