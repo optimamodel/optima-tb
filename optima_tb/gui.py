@@ -1335,9 +1335,8 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                 prog.insertValuePair(self.options['progs_start'], new_val, 'cost')
                 self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
                 self.status = ('Status: Current edited program set associates program "%s" with a budget of "%f" in "%f"' % (prog_label, new_val, self.options['progs_start']))
-            else:
+            elif col > 6:
                 attribute_label = self.attribute_labels[col-7]
-                print attribute_label
                 prog.insertValuePair(self.options['progs_start'], new_val, attribute_label)
                 self.status = ('Status: Current edited program set associates program "%s" with an attribute "%s" of "%f" in "%f"' % (prog_label, attribute_label, new_val, self.options['progs_start']))
                 
