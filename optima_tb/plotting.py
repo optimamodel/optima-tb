@@ -571,7 +571,7 @@ def plotCompareResultsBar(proj, resultset, output_labels, pop_labels=None, year_
                            pop_labels=pop_labels,
                            colormappings=colormappings, colors=colors, linestyles=linestyles,
                            # plot_relative=plot_relative,
-                           title=title, save_fig=save_fig + "_%s" % (out_label), fig_name=fig_name, **kwargs)
+                           title=title, save_fig=save_fig , fig_name=fig_name + "_%s" % (out_label), **kwargs)
     return fig
 
 def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=None,
@@ -1582,6 +1582,8 @@ def isPlottableComp(comp_label, sim_settings, comp_specs):
     for population reporting when plotting cascade
     """
     # TODO move this method to sim_settings / comp_specs superobject
+    if comp_label not in comp_specs.keys():
+        raise OptimaException("Attempting to plot a label")
     if comp_label in sim_settings['tag_no_plot']:
         return False
     if comp_specs[comp_label].has_key('junction'):
