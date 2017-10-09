@@ -388,8 +388,7 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
     plotResult(proj, results, output_labels=output_labels, pop_labels=subsetPop, 
                 save_fig=save_results, fig_name=filename + '_TotalFor15-64', plot_total=True)
                 
-    TODO:
-        y_intercept
+    TODO: y_intercept
     
     """
     if output_labels is None:
@@ -488,8 +487,7 @@ def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None
     Params:
         output_label     list of items compartments against which to plot
         
-    TODO
-        plot_relative
+    # TODO : plot_relative
         
     Examples:
         # number of new infections vs reinfections every year from 2005 to 2015
@@ -775,7 +773,7 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
 
     # get observed data points
     if plot_observed_data:
-        dataobs = _extractDatapoint(result, data, observed_data_label, pop_labels, charac_specs, plot_total=plot_total)
+        dataobs = _extractDatapoint(result, proj, observed_data_label, pop_labels, charac_specs, plot_total=plot_total)
         dataobs, unit_tag = _convertPercentage(dataobs, value_label, charac_specs)
 
     fullname = getName(observed_data_label, proj)
@@ -1480,7 +1478,7 @@ def getPops(result):
     """
     return [pop.label for pop in result.m_pops]
 
-def _extractDatapoint(results, data, value_label, pop_labels, charac_specs, plot_total=False):
+def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot_total=False):
     """
     Extract the characteristic datapoints for populations
     
@@ -1497,11 +1495,16 @@ def _extractDatapoint(results, data, value_label, pop_labels, charac_specs, plot
     TODO: make proj parameters, so that charac_specs and data are encapsulated
     """
     dataobs = None
-    if value_label in data['characs'].keys():
+    data = proj.data
+    print value_label
+#     try:# value_label in proj.parsets[0]:
+    if True:
+        t = results.t_observed_data
 
-        ys = [data['characs'][value_label][poplabel]['y'] for poplabel in pop_labels]
-        ts = [data['characs'][value_label][poplabel]['t'] for poplabel in pop_labels]
-
+        ys = [proj.parsets[0].getPar(value_label).interpolate(tvec=t, pop_label=poplabel, extrapolate_nan=True) for poplabel in pop_labels]
+        ts = [t for poplabel in pop_labels]
+        print ys
+        print t
         if 'plot_percentage' in charac_specs[value_label].keys():
             ys *= 100
 
@@ -1509,30 +1512,49 @@ def _extractDatapoint(results, data, value_label, pop_labels, charac_specs, plot
             ys = np.array(ys)
             ys = [ys.sum(axis=0)]
 
-    else: # elif value_label in data['linkpars'].keys():
-        try:
-#         if True:
+#     except:
+        if value_label in data['characs'].keys():
 
-            tobs = results.t_observed_data
-#             print tobs
-            ys, ts = [], []
-            if not plot_total:
-                for poplabel in pop_labels:
-#                     print poplabel, tobs[0], tobs[-1], value_label
-                    ytmp, ttmp = results.getValuesAt(value_label, year_init=tobs[0], year_end=tobs[-1], pop_labels=[poplabel])
+            ys = [data['characs'][value_label][poplabel]['y'] for poplabel in pop_labels]
+            ts = [data['characs'][value_label][poplabel]['t'] for poplabel in pop_labels]
 
+            if 'plot_percentage' in charac_specs[value_label].keys():
+                ys *= 100
+            print value_label
+            print ys
+
+            if plot_total:
+                try:
+                    ys = np.array(ys)
+                    ys = [ys.sum(axis=0)]
+                except:
+                    # could raise a ValueError if ys elements are different lengths
+                    ys, ts = [], []
+
+        else: # elif value_label in data['linkpars'].keys():
+            try:
+    #         if True:
+
+                tobs = results.t_observed_data
+    #             print tobs
+                ys, ts = [], []
+                if not plot_total:
+                    for poplabel in pop_labels:
+    #                     print poplabel, tobs[0], tobs[-1], value_label
+                        ytmp, ttmp = results.getValuesAt(value_label, year_init=tobs[0], year_end=tobs[-1], pop_labels=[poplabel])
+
+                        idx = np.nonzero(np.in1d(ttmp, tobs))[0]
+    #                     print idx
+                        ys.append(ytmp[idx])
+                        ts.append(ttmp[idx])
+                else:
+                    ytmp, ttmp = results.getValuesAt(value_label, year_init=tobs[0], year_end=tobs[-1], pop_labels=pop_labels)
                     idx = np.nonzero(np.in1d(ttmp, tobs))[0]
-#                     print idx
-                    ys.append(ytmp[idx])
-                    ts.append(ttmp[idx])
-            else:
-                ytmp, ttmp = results.getValuesAt(value_label, year_init=tobs[0], year_end=tobs[-1], pop_labels=pop_labels)
-                idx = np.nonzero(np.in1d(ttmp, tobs))[0]
-                ys = ytmp[idx]
-                ts = ttmp[idx]
-        except:
-            ys = []
-            ts = []
+                    ys = ytmp[idx]
+                    ts = ttmp[idx]
+            except:
+                ys = []
+                ts = []
 
 #         ys = [data['linkpars'][value_label][poplabel]['y'] for poplabel in pop_labels]
 #         ts = [data['linkpars'][value_label][poplabel]['t'] for poplabel in pop_labels]
@@ -1583,7 +1605,8 @@ def isPlottableComp(comp_label, sim_settings, comp_specs):
     """
     # TODO move this method to sim_settings / comp_specs superobject
     if comp_label not in comp_specs.keys():
-        raise OptimaException("Attempting to plot a label")
+        logging.info("Attempting to plot a non-compartment: %s" % comp_label)
+        return True # TODO revisit this assumption
     if comp_label in sim_settings['tag_no_plot']:
         return False
     if comp_specs[comp_label].has_key('junction'):
