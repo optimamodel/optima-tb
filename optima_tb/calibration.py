@@ -3,7 +3,7 @@ logger = logging.getLogger(__name__)
 
 from optima_tb.utils import OptimaException, tic, toc, odict
 import optima_tb.settings as settings
-import optima_tb.asd_autocalibrate as asd
+import optima_tb.asd as asd
 from optima_tb.parameters import ParameterSet
 
 import numpy as np
@@ -46,8 +46,14 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
             s = _calculateFitscore(y_obs, y_fit, metric)
             #logger.debug("---- for values obs = "+' '.join("%.2f"%ii for ii in y_obs)+" and yfit = "+' '.join("%.2f"%ii for ii in y_fit))
             #logger.debug("-------- calc fit score = %s"%' '.join("%.2f"%ii for ii in s))
-            score.append(s)
-    
+            if 'pops_to_fit' in obs_data[char] and not pop in obs_data[char]['pops_to_fit']:
+                score.append(s*0.0)     # TODO: There must be an easier way to avoid fit calculations for deselected populations.
+            else:
+#                print y_obs
+#                print y_fit
+                score.append(s)
+#        print obs_data[char]['pops_to_fit']
+#    print score
     return np.concatenate(score).ravel()
     
 def _getFitscoreFunc(metric):
@@ -145,6 +151,7 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
         project
         paramset
         new_parset_name     name of resulting parameterset
+        target_characs      a list of characteristic and population label pairs
         calibration_settings
         useYFactor            boolean of flag whether we should use yvalues directly, or y_factor
    
@@ -155,54 +162,76 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     logger.info("Autofit: calibration settings = %s"%calibration_settings)
     metric = project.settings.fit_metric
     # setup for cascade parameters
-    paramvec,minmax,casc_labels = paramset.extract(getMinMax=True,getYFactor=useYFactor)  # array representation of initial values for p0, with bounds
+    paramvec,minmax,par_pop_labels = paramset.extract(getMinMax=True,getYFactor=useYFactor)  # array representation of initial values for p0, with bounds
     # setup for characteristics
-    compartment_init,charac_labels = paramset.extractEntryPoints(project.settings,useInitCompartments=useInitCompartments)
-    # min maxes for compartments are always (0,None):
-    charac_minmax = [(0,None) for i in charac_labels]
+    compartment_init,charac_pop_labels = paramset.extractEntryPoints(project.settings,useInitCompartments=useInitCompartments)
+    # min maxes for compartments are always (0,np.inf):
+    charac_minmax = [(0,np.inf) for i in charac_pop_labels]
     minmax += charac_minmax
+    
+#    print par_pop_labels
+#    print charac_pop_labels
     
     
     if len(paramvec)+len(compartment_init) == 0:
-        raise OptimaException("No available cascade parameters or initial populations to calibrate during autofitting. Please set at least one 'Calibrate?' value to be not equal to %g OR at least one entry point for a population."%settings.DO_NOT_SCALE)
+        raise OptimaException("No available cascade parameters or initial characteristic sizes to calibrate during autofitting. At least one 'Autocalibrate' cascade value must be listed something other than 'n' or '-1'.")
     
     mins, maxs = zip(*minmax)
     sample_param = dcp(paramset)   # ParameterSet created just to be overwritten
     sample_param.name = "calibrating"
     
+#    print mins
+#    print maxs
     
     if target_characs is None: 
         # if no targets characteristics are supplied, then we autofit to all characteristics 
-        target_data_characs = project.data['characs']
+        target_data_characs = dcp(project.data['characs'])
+        for label in target_data_characs.keys():
+            target_data_characs[label]['pops_to_fit'] = {pop_label:True for pop_label in paramset.pop_labels}
         logger.info("Autofit: fitting to all characteristics")
     else:
         target_data_characs = odict()
-        for k in target_characs:
-            target_data_characs[k] = project.data['characs'][k]
-        logger.info("Autofit: fitting to the following target characteristics =[%s]"%(",".join(target_characs)))
+        for pair in target_characs:
+            if not pair[0] in target_data_characs:
+                target_data_characs[pair[0]] = dcp(project.data['characs'][pair[0]])
+            if 'pops_to_fit' not in target_data_characs[pair[0]]:
+                target_data_characs[pair[0]]['pops_to_fit'] = {}
+            target_data_characs[pair[0]]['pops_to_fit'][pair[1]] = True
+        logger.info("Autofit: fitting to the following target characteristics = [%s]"%(",".join(target_data_characs.keys())))
+    print target_characs
     
-    
-    def objective_calc(p_est,compartment_est):
-        ''' Function used by ASD algorithm to run and evaluate fit of parameter set'''    
-        sample_param.update(p_est,isYFactor=useYFactor)
-        sample_param.updateEntryPoints(project.settings,compartment_est,charac_labels)
-        results = project.runSim(parset = sample_param)
+    def calculateObjective(parvec_and_characs):
+        '''
+        Function used by ASD algorithm to run and evaluate fit of parameter set.
+        This function is placed here as ASD does not disaggregate its input vector, whereas autocalibration needs to differentiate parameters from characteristics.
+        '''
+#        parvec_est = parvec_and_characs[:len_parvec]
+#        sample_param.updateParameters(parvec_est, par_pop_labels, isYFactor=useYFactor)
+#        characs_est = parvec_and_characs[len_parvec:]
+#        sample_param.updateCharacteristics(characs_est, charac_pop_labels, isYFactor=useYFactor)
+        sample_param.update(parvec_and_characs, par_pop_labels+charac_pop_labels, isYFactor=useYFactor)
+        try: results = project.runSim(parset = sample_param, store_results = False)
+        except:
+            logger.warning("Autocalibration tested a parameter set that was invalid. Skipping iteration.")
+            return np.inf
         datapoints, _, _ = results.getCharacteristicDatapoints()
-        score = calculateFitFunc(datapoints,results.t_observed_data,target_data_characs,metric)
+        score = calculateFitFunc(datapoints,results.t_step,target_data_characs,metric)
+        try: score = sum(score)
+        except: pass
         return score
     
+    calibration_settings['fulloutput'] = True
+    try: parvecnew, fval, details = asd.asd(calculateObjective, paramvec+compartment_init, args={}, xmin=mins, xmax=maxs, **calibration_settings)
+    except Exception as e: print repr(e)
     
-    parvecnew, fval, exitflag, output = asd.asd(objective_calc, paramvec, init_compartments=compartment_init, xmin=mins,xmax=maxs,xnames=casc_labels+charac_labels,**calibration_settings)
+#    # Compare old and new values 
+#    print paramvec
+#    print parvecnew[:len(paramvec)]
+#    print compartment_init
+#    print parvecnew[len(paramvec):]
     
-    
-    # Compare old and new values 
-#     print paramvec
-#     print parvecnew[:len(paramvec)]
-#     print compartment_init
-#     print parvecnew[len(paramvec):]
-    
-    sample_param.update(parvecnew,isYFactor=useYFactor)
-    sample_param._updateFromYFactor()
+    sample_param.update(parvecnew, par_pop_labels+charac_pop_labels, isYFactor=useYFactor)
+#    sample_param._updateFromYFactor()
     sample_param.name = new_parset_name
     
     return sample_param

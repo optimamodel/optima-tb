@@ -130,6 +130,36 @@ class Program:
         self.target_pars = target_pars
 
         self.func_specs = dict()
+        
+    def insertValuePair(self, t, y, attribute):
+        ''' Check if the inserted t value already exists for the attribute type. If not, append y value. If so, overwrite y value. '''
+        
+        val_dict = {'cost':self.cost, 'cov':self.cov}
+        for val_type in self.attributes.keys():
+            val_dict[val_type] = self.attributes[val_type]
+            
+        k = 0
+        for t_val in self.t:
+            if t_val == t:
+                try: val_dict[attribute][k] = float(y)
+                except: raise OptimaException('ERROR: Unable to insert value "%f" at year "%f" for attribute "%s" of program "%s"' % (y, t, attribute, self.label))
+                return
+            k += 1
+        
+        try:
+            self.t = np.append(self.t, float(t))
+            self.cost = np.append(self.cost, np.nan)
+            self.cov = np.append(self.cov, np.nan)
+            for val_type in self.attributes.keys():
+                self.attributes[val_type] = np.append(self.attributes[val_type], np.nan)
+            
+            if attribute == 'cost':
+                self.cost[-1] = float(y)
+            elif attribute == 'cov':
+                self.cov[-1] = float(y)
+            else:
+                self.attributes[attribute][-1] = float(y)
+        except: raise OptimaException('ERROR: Unable to insert value "%f" at year "%f" for attribute "%s" of program "%s"' % (y, t, attribute, self.label))
 
     def interpolate(self, tvec=None, attributes=None):
         ''' Takes attribute values and constructs a dictionary of interpolated array corresponding to the input time vector. Ignores np.nan. '''

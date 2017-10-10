@@ -52,7 +52,6 @@ class Settings(object):
             self.plot_settings = PlottingSettings().plotdict
 
 
-
         self.tvec_start = 2000.0  # Default start year for data input and simulations.
         self.tvec_end = 2030.0  # Default end year for data input and simulations.
         self.tvec_observed_end = 2015.0
@@ -138,8 +137,8 @@ class Settings(object):
         """
         calibration = odict()
         calibration['stepsize'] = 0.1
-        calibration['MaxIter'] = 2000
-        calibration['timelimit'] = 300.  # Time in seconds.
+        calibration['maxiters'] = 2000
+        calibration['maxtime'] = 300.  # Time in seconds.
 
         calibration['sinc'] = 1.5
         calibration['sdec'] = 2.
@@ -403,6 +402,9 @@ class PlottingSettings():
         pl.rcParams['lines.linewidth'] = 3
         pl.rcParams['lines.marker'] = 'None'
 
+        # The following requires matplotlib 2.X
+#         pl.rcParams['hatch.linewidth'] = 1.
+
         # Non-standard list of parameters used in plotting
         self.plotdict = {  # scatter plotting values
                          'marker' : 'o',
@@ -422,6 +424,11 @@ class PlottingSettings():
                          # box width of plot and offset
                          'box_width' : 0.8,
                          'box_offset' : 0.,
+                         # legend
+                         'legend_off' : False, # I am legend
+                         'legendsettings': {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1},
+                         # labels
+                         'use_full_labels' : False
                          }
 
     def devSettings(self):
@@ -435,6 +442,7 @@ class PlottingSettings():
         pl.rcParams['savefig.dpi'] = 300
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
         self.plotdict['legend_off'] = True
+        self.plotdict['use_full_labels'] = True
 
     def presentationSettings(self):
         pl.rcParams['font.size'] = 14
@@ -464,12 +472,21 @@ class PlottingSettings():
         self.plotdict['legend_off'] = True
         self.plotdict['title'] = ''  # No title when we have presentation quality
         self.plotdict['num_cols'] = 1
+        self.plotdict['use_full_labels'] = True
 
     def guiSettings(self):
-        self.defaultSettings()
+
+        pl.rcParams['lines.linewidth'] = 2
+        pl.rcParams['axes.linewidth'] = 1.5
+        pl.rcParams['axes.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['axes.titlesize'] = pl.rcParams['font.size']
+
+        pl.rcParams['legend.frameon'] = False
+
         self.plotdict['legendsettings'] = {'loc': 0 } # best ##{'loc': 4 } # lower right
-        self.plotdict['box_width'] = 0.95
-        self.plotdict['box_offset'] = 0.05
+        self.plotdict['box_width'] = 0.9
+        self.plotdict['box_offset'] = 0.1
+        self.plotdict['use_full_labels'] = True
 
 
 
