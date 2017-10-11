@@ -441,7 +441,11 @@ class PlottingSettings():
                          'default_year' : 2016., # TODO change so that it's last year,
                          'title' : None,
                          # relative plot settings
-                         'relative_yticks' : np.arange(0., 1.1, 0.2)
+                         'relative_yticks' : np.arange(0., 1.1, 0.2),
+                         'y_intercept_line': {'colors': '#AAAAAA',
+                                         'linewidth': 3.,
+                                         'alpha': 0.5,
+                                         'linestyle':':'}
                          }
 
     def devSettings(self):
@@ -489,17 +493,16 @@ class PlottingSettings():
 
     def guiSettings(self):
 
-        pl.rcParams['lines.linewidth'] = 2
+        pl.rcParams['lines.linewidth'] = 4
         pl.rcParams['axes.linewidth'] = 1.5
         pl.rcParams['axes.labelsize'] = pl.rcParams['font.size']
         pl.rcParams['axes.titlesize'] = pl.rcParams['font.size']
 
-        pl.rcParams['legend.frameon'] = False
 
-        self.plotdict['legendsettings'] = {'loc': 0 } # best ##{'loc': 4 } # lower right
-        self.plotdict['box_width'] = 0.9
-        self.plotdict['box_offset'] = 0.1
-        self.plotdict['use_full_labels'] = True
+#         self.plotdict['legendsettings'] = {'loc': 'center left' , 'ncol':1} # best ##{'loc': 4 } # lower right
+#         self.plotdict['box_width'] = 0.9
+#         self.plotdict['box_offset'] = 0.1
+#         self.plotdict['use_full_labels'] = True
 
 
 

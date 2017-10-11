@@ -394,6 +394,11 @@ def separateLegend(labels, colors, fig_name, reverse_order=False, linestyles=Non
     fig.legend(patches, labels, **legendsettings)
     plt.savefig("%s_legend" % fig_name)  # ,bbox_inches='tight')
 
+def getYearLabels(timeperiods):
+    """
+    Simple function for mapping years to string equivalent
+    """
+    return ['%g' % yr for yr in timeperiods]
 
 def _turnOffBorder():
     """
@@ -409,7 +414,7 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
                plot_total=False, plot_type=None, plot_relative=None,
                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None,
-               title="", save_fig=False, fig_name=None, **kwargs):
+               title=None, save_fig=False, fig_name=None, **kwargs):
     """
     Plots either characteristics, compartment size, or flow rate, as line. 
     
@@ -432,7 +437,7 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
                             ("year" : year value), calculated for each population or total population if plot_total=True
                             ("value": value), a numeric value
         plot_observed_data    add observed datapoints as scatter plot, if corresponding datapoints exist. See note.
-        observed_data_label_dict   dict of mappings of what datapoints should be used. See note.
+        observed_data_label   dict of mappings of what datapoints should be used. See note.
         colormappings   colormappings that should be used to generate colors for populations. Supercedes colors. 
                         Format: odict with color / colormap as key, value = list of populations for corresponding key 
         colors          list of colors that should be used for population. Superceded by colormappings.
@@ -440,34 +445,37 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
         title           title for plot
         save_fig        boolean flag, whether to save plot
         fig_name        if plot is saved, filename
+        kwargs          Other params acceptable to innerPlotTrend i.e. 
+                            y_intercept
+        
+    Returns:
+        fig             fig handle
         
     Replaces:
         plotCharacteristic
         plotPopulationFlows
     
     Example:
-    output_labels = ['lt_inf', # characteristic
-                     'lt_prev', # characteristic which is a percentage
-                     'spdd', # compartment
-                     'infac_per100K'] # flow rate
-    subsetPop = ['15-64', '15-64 HIV+']
-    # plot per population for all populations, using colormappings
-    plotResult(proj, results, output_labels=output_labels, save_fig=save_results, fig_name=filename + '_PerPopulation',
-               colormappings=pop_colors, linestyles=linestyles)
-    # plot stacked populations
-    plotResult(proj, results, output_labels=output_labels, save_fig=save_results, fig_name=filename + 'Stacked',
-               colormappings=pop_colors, plot_type='stacked')
-    # plot only a subset of populations
-    plotResult(proj, results, output_labels=output_labels, pop_labels=subsetPop, 
-                save_fig=save_results, fig_name=filename + '_15-64Only', colormappings=pop_colors, linestyles=linestyles)
-    # plot total across all populations
-    plotResult(proj, results, output_labels=output_labels, save_fig=save_results, fig_name=filename + '_Total', plot_total=True)
-    # plot total across subset of populations
-    plotResult(proj, results, output_labels=output_labels, pop_labels=subsetPop, 
-                save_fig=save_results, fig_name=filename + '_TotalFor15-64', plot_total=True)
-                
-    TODO: y_intercept
-    
+        output_labels = ['lt_inf', # characteristic
+                         'lt_prev', # characteristic which is a percentage
+                         'spdd', # compartment
+                         'infac_per100K'] # flow rate
+        subsetPop = ['15-64', '15-64 HIV+']
+        # plot per population for all populations, using colormappings
+        plotResult(proj, results, output_labels=output_labels, save_fig=save_results, fig_name=filename + '_PerPopulation',
+                   colormappings=pop_colors, linestyles=linestyles)
+        # plot stacked populations
+        plotResult(proj, results, output_labels=output_labels, save_fig=save_results, fig_name=filename + 'Stacked',
+                   colormappings=pop_colors, plot_type='stacked')
+        # plot only a subset of populations
+        plotResult(proj, results, output_labels=output_labels, pop_labels=subsetPop, 
+                    save_fig=save_results, fig_name=filename + '_15-64Only', colormappings=pop_colors, linestyles=linestyles)
+        # plot total across all populations
+        plotResult(proj, results, output_labels=output_labels, save_fig=save_results, fig_name=filename + '_Total', plot_total=True)
+        # plot total across subset of populations
+        plotResult(proj, results, output_labels=output_labels, pop_labels=subsetPop, 
+                    save_fig=save_results, fig_name=filename + '_TotalFor15-64', plot_total=True)
+           
     """
     if output_labels is None:
         logging.error("No output label specified for plotting")
@@ -483,8 +491,9 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
 
 def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
                        plot_total=False, plot_observed_data=True, observed_data_label=None,
-                       colormappings=None, colors=None, linestyles=None, y_intercept=None,
-                       title="", save_fig=False, fig_name=None):
+                       colormappings=None, colors=None, linestyles=None,
+                       plot_relative=None, y_intercept=None,
+                       title=None, save_fig=False, fig_name=None, **kwargs):
     """
     Plots either characteristics, compartment size, or flow rate, as across a result set. 
     
@@ -509,37 +518,39 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
         title           title for plot
         save_fig        boolean flag, whether to save plot
         fig_name        if plot is saved, filename
+        kwargs          Other parameters accepted by innerPlotTrend
+                        e.g. y_intercept
         
     Replaces:
         plotScenario
         plotScenarioFlows
     
     Example:
-    output_labels = ['lt_inf', # characteristic
-                     'lt_prev', # characteristic which is a percentage
-                     'spdd', # compartment
-                     'infac_per100K'] # flow rate
-    subsetPop = ['15-64', '15-64 HIV+']
-    resultset = proj.runScenarios()
-    # plot per population for all populations, using colormappings
-    plotCompareResults(proj, resultset, output_labels=output_labels, save_fig=save_results, fig_name=filename + '_PerPopulation',
-               colormappings=pop_colors, linestyles=linestyles)
-    # plot only a subset of populations
-    plotCompareResults(proj, resultset, output_labels=output_labels, pop_labels=subsetPop, 
-                save_fig=save_results, fig_name=filename + '_15-64Only', colormappings=pop_colors, linestyles=linestyles)
-    # plot total across all populations
-    plotCompareResults(proj, resultset, output_labels=output_labels, save_fig=save_results, fig_name=filename + '_Total', plot_total=True)
-    # plot total across subset of populations
-    plotCompareResults(proj, resultset, output_labels=output_labels, pop_labels=subsetPop, 
-                save_fig=save_results, fig_name=filename + '_TotalFor15-64', plot_total=True)
+        output_labels = ['lt_inf', # characteristic
+                         'lt_prev', # characteristic which is a percentage
+                         'spdd', # compartment
+                         'infac_per100K'] # flow rate
+        subsetPop = ['15-64', '15-64 HIV+']
+        resultset = proj.runScenarios()
+        # plot per population for all populations, using colormappings
+        plotCompareResults(proj, resultset, output_labels=output_labels, save_fig=save_results, fig_name=filename + '_PerPopulation',
+                   colormappings=pop_colors, linestyles=linestyles)
+        # plot only a subset of populations
+        plotCompareResults(proj, resultset, output_labels=output_labels, pop_labels=subsetPop, 
+                    save_fig=save_results, fig_name=filename + '_15-64Only', colormappings=pop_colors, linestyles=linestyles)
+        # plot total across all populations
+        plotCompareResults(proj, resultset, output_labels=output_labels, save_fig=save_results, fig_name=filename + '_Total', plot_total=True)
+        # plot total across subset of populations
+        plotCompareResults(proj, resultset, output_labels=output_labels, pop_labels=subsetPop, 
+                    save_fig=save_results, fig_name=filename + '_TotalFor15-64', plot_total=True)
 
     """
     for out_label in output_labels:
         if plot_total:
             fig = innerPlotTrend(proj, resultset, [out_label], compare_type=COMPARETYPE_RESULT, pop_labels=pop_labels, plot_total=True,
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
-                   colormappings=colormappings, colors=colors, linestyles=linestyles,
-                   title=title, save_fig=save_fig, fig_name=fig_name)
+                   colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=plot_relative, y_intercept=y_intercept,
+                   title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
         else:
             logger.info("Plotting result set per population group")
             if pop_labels is None:
@@ -548,8 +559,9 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
             for pop in pop_labels:
                 fig = innerPlotTrend(proj, resultset, [out_label], compare_type=COMPARETYPE_RESULT, pop_labels=[pop], plot_total=True,
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
+                   plot_relative=plot_relative, y_intercept=y_intercept,
                    colormappings=colormappings, colors=colors, linestyles=linestyles,
-                   title=title, save_fig=save_fig, fig_name=fig_name + '_%s' % pop)
+                   title=title, save_fig=save_fig, fig_name=fig_name + '_%s' % pop, **kwargs)
             logger.info("Created multiple plots for plotCompareResults for multiple populations. Returning last plot created")
     return fig # return last
 
@@ -564,17 +576,40 @@ def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None
     Params:
         proj
         result
-        output_label     list of items compartments against which to plot
+        output_labels     list of items compartments against which to plot
         pop_labels
         year_periods
         plot_total
         plot_type
         y_label
-        plot_observed_data
-        observed_data_label
+        colormappings
+        colors
+        linestyles
+        title
+        save_fig
+        
             
     Examples:
         # number of new infections vs reinfections every year from 2005 to 2015
+        new_inf = ["new_cases", "retreat_cases", "failed_cases", "tb_death_cases"]
+        colors = ['#121675', '#f72d00', '#20a322', '#777777']
+        tlinestyles = odict()
+        tlinestyles['-'] = ['new_cases']
+        tlinestyles['--'] = ['retreat_cases']
+        tlinestyles['.'] = ['failed_cases']
+        tlinestyles['*'] = ['tb_death_cases']
+        year_periods = range(2005, 2016)
+        # as absolute numbers for each year 
+        plotYearsBar(proj, results, year_periods=year_periods, output_labels=new_inf,
+                     pop_labels=None, plot_total=False, colors=colors, linestyles=tlinestyles,
+                     save_fig=save_results, fig_name=filename + "compareCompsNewInfRetreat")
+        # normalized for each year
+        plot_rel = ("normalized")
+        y_intercepts = [50, 25]
+        plotYearsBar(proj, results, year_periods=year_periods, output_labels=new_inf,
+                     y_intercept=y_intercepts, plot_relative=plot_rel,
+                     pop_labels=None, plot_total=False, colors=colors, linestyles=tlinestyles,
+                     save_fig=save_results, fig_name=filename + "compareCompsNewInfRetreatRelative")
 
     """
 
@@ -585,7 +620,7 @@ def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None
     return fig
 
 def plotCascade(proj, result, output_labels, pop_labels=None, year_periods=None,
-                plot_total=False, plot_relative=False,
+                plot_total=False, plot_relative=None,
                colormappings=None, colors=None, linestyles=None, y_intercept=None,
                title=None, save_fig=False, fig_name=None, **kwargs):
     """
@@ -593,12 +628,13 @@ def plotCascade(proj, result, output_labels, pop_labels=None, year_periods=None,
     """
     fig = innerPlotBar(proj, [result], year_periods=year_periods, output_labels=output_labels,
                        compare_type=COMPARETYPE_CASCADE, pop_labels=pop_labels, ylabel="Number of cases",
-                       colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=plot_relative,
+                       colormappings=colormappings, colors=colors, linestyles=linestyles,
+                       plot_relative=plot_relative, y_intercept=y_intercept,
                        title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
 
 
 def plotCompsBar(proj, result, output_labels, pop_labels=None, year_periods=None,
-                plot_total=False, plot_relative=False,
+                plot_total=False, plot_relative=None,
 #                 plot_type=None,
 #                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, y_intercept=None,
@@ -614,8 +650,6 @@ def plotCompsBar(proj, result, output_labels, pop_labels=None, year_periods=None
         year_period      a value or tuple
         
     Examples:
-        # care cascade
-    
         # in and out flows to a compartment
     
     """
@@ -657,7 +691,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
                plot_total=False, plot_type=None,
                plot_observed_data=True, observed_data_label="alive",
                colormappings=None, colors=None, linestyles=None, cat_labels=None,
-               title=None, save_fig=False, fig_name=None):
+               title=None, save_fig=False, fig_name=None, **kwargs):
     """
 
     """
@@ -675,7 +709,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
                    pop_labels=pop_labels, plot_total=plot_total, plot_type='stacked',
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                    colormappings=colormappings, colors=colors, cat_labels=cat_labels,
-                   save_fig=save_fig, fig_name=fig_name)
+                   save_fig=save_fig, fig_name=fig_name, **kwargs)
     else:
         if pop_labels is None:
             pop_labels = getPops(results)
@@ -686,7 +720,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
                    pop_labels=[pop], plot_total=plot_total, plot_type='stacked',
                    plot_observed_data=True, observed_data_label=observed_data_label,
                    colormappings=colormappings, colors=colors, cat_labels=cat_labels,
-                   save_fig=save_fig, fig_name="%s_%s" % (fig_name, pop))
+                   save_fig=save_fig, fig_name="%s_%s" % (fig_name, pop), **kwargs)
         logger.info("Created multiple plots for plotCompareResults for multiple populations. Returning last plot created")
 
     return True
@@ -698,8 +732,6 @@ def plotPopulationCrossSectionBar(proj, results, output_labels, pop_labels=None,
                        title=None, save_fig=False, fig_name=None, **kwargs):
     """
     
-    TODO:
-        plot_relative
     """
     if plot_type is None:
         plot_type = PLOTTYPE_BARSTACKED
@@ -713,12 +745,12 @@ def plotPopulationCrossSectionBar(proj, results, output_labels, pop_labels=None,
     return fig
 
 
-def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
-                   pop_labels=None, plot_total=False, plot_type=None,
-               plot_observed_data=True, observed_data_label=None,
-               plot_relative=None,
-               colormappings=None, colors=None, linestyles=None, cat_labels=None,
-               title=None, save_fig=False, fig_name=None, **kwargs):
+def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
+                   compare_type=None, plot_total=False, plot_type=None,
+                   plot_observed_data=True, observed_data_label=None,
+                   plot_relative=None,
+                   colormappings=None, colors=None, linestyles=None, cat_labels=None,
+                   title=None, save_fig=False, fig_name=None, **kwargs):
     """
     Common functionality, used by plotResult and plotCompareResults
     
@@ -774,6 +806,7 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
     if plot_type is None:
         plot_type = PLOTTYPE_LINE
 
+    print "compare_type = ", compare_type
     if compare_type == COMPARETYPE_RESULT:
         series_labels = resultset.keys()
     elif compare_type == COMPARETYPE_VALUE:
@@ -787,11 +820,7 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
         logger.info("Plotting: compare_type not specified, assuming comparing populations")
         raise OptimaException("Unknown compare_type for plotting: %s" % compare_type)
 #         series_labels = pop_labels
-
-    if cat_labels is not None:
-        legend_labels = cat_labels
-    else:
-        legend_labels = series_labels
+    print "series_labels = ", series_labels
 
     if observed_data_label is None:
         observed_data_label = output_labels[0]
@@ -804,6 +833,12 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
     # -------------------------------------------------------
     # generic setup for colors, line and hatches
     colors, linestyles, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, series_labels, plotdict)
+    if cat_labels is not None:
+        legend_labels = cat_labels
+        legend_cols = cat_colors
+    else:
+        legend_labels = series_labels
+        legend_cols = None # technically, it is colors, but if legend_cols => None, then the legend plots to
 
     # -------------------------------------------------------
     # loop over values to be plotted
@@ -859,11 +894,11 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
 
     # if plotting relative, get relative values for 100%
     if plot_relative is not None:
-        plot_relative_values = _calcRelativeDatapoint(ys, ts, plot_relative, plot_total, pop_labels)
+        plot_relative_values, relative_tag = _calcRelativeDatapoint(plot_relative, ys, ts)
         ys = np.array(ys)
         ys = ys / plot_relative_values[:, None]
         ys *= 100
-        fullname = fullname + ", relative to <AMOUNT> "
+        fullname = fullname + relative_tag
         unit_tag = ' (%)' # TODO get rid of magic variable
 
     # setup for plot:
@@ -878,7 +913,7 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
     tmp_plotdict.update(final_dict)
     # plot values
     fig = _plotTrends(ys, ts, legend_labels, plot_type=plot_type,
-            save_fig=save_fig, colors=colors, cat_colors=cat_colors,
+            save_fig=save_fig, colors=colors, cat_colors=legend_cols,
             linestyles=linestyles, hatches=hatches, **tmp_plotdict)
 
     # plot separate legend
@@ -890,16 +925,12 @@ def innerPlotTrend(proj, resultset, output_labels, compare_type=None,
 
     return fig
 
-def getYearLabels(timeperiods):
-
-    return ['%g' % yr for yr in timeperiods]
 
 
-def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods=None,
-                 pop_labels=None, plot_total=False, plot_type=None,
-                 # plot_observed_data=False,
-                 observed_data_label=None,
-                 ylabel=None, plot_relative=None,
+def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
+                 compare_type=None, plot_type=None, year_periods=None,
+                 plot_total=False, plot_relative=None,
+                 observed_data_label=None, ylabel=None,
                  colormappings=None, colors=None, linestyles=None, cat_labels=None,
                  title=None, save_fig=False, fig_name=None, **kwargs):
     """
@@ -932,27 +963,23 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
                                 If plot_total = False: plot with bargroups
         compare_type = 'value': each bar is the result for a group of values
                                  plot_total --> False        
-         compare_type = 'years': 
+        compare_type = 'years': 
                                 plot_total --> False
                                 
                                 
     Examples:
         # Comparison of input to compartment and output from compartment for all populations:
-        
+        TODO
 
         # Comparison of input to compartment and output from compartment for a subset of populations:
+        TODO
 
-        
         # Comparison of number of active TB cases for populations for total pop, for 2017 vs 2025
-        
-        
+        TODO
+                
         # Comparison of number of active TB cases for populations per population, for 2017 vs 2025
+        TODO
         
-
-    TODO:
-        y_intercept
-        relative_to
-
     """
 
  # -------------------------------------------------------
@@ -994,8 +1021,8 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
         year_periods = [year_periods]
     elif isinstance(year_periods, list):
         if len(year_periods) > 2 and (compare_type == COMPARETYPE_RESULT or compare_type == COMPARETYPE_VALUE or compare_type == COMPARETYPE_CASCADE):
-            logging.warn("Multiple years chosen; unable to determine which year set to be used from year=%s" % (str(year_periods)))
-            logging.warn("Note that will be comparing over period = (%g, %g)" % (year_periods[0], year_periods[-1]))
+#             logging.warn("Multiple years chosen; unable to determine which year set to be used from year=%s" % (str(year_periods)))
+            logging.info("Note that will be comparing over period = (%g, %g)" % (year_periods[0], year_periods[-1]))
     else:
         raise OptimaException("Unknown time format for year_periods:" + year_periods)
 
@@ -1166,11 +1193,11 @@ def innerPlotBar(proj, resultset, output_labels, compare_type=None, year_periods
         raise OptimaException("Unknown compare_type: %s" % compare_type)
 
     if plot_relative is not None:
-        plot_relative_values = _calcRelativeDatapoint(values, ts=None, plot_relative=plot_relative, plot_total=plot_total, pop_labels=pop_labels)
+        plot_relative_values, relative_tag = _calcRelativeDatapoint(plot_relative, values)
         values = np.array(values)
         values = values / plot_relative_values[:, None]
         values *= 100
-        ylabel = ylabel + ", relative to <AMOUNT> (%)" # TODO get rid of magic variable
+        ylabel = ylabel + relative_tag # ", relative to <AMOUNT> (%)" # TODO get rid of magic variable
 
 
     # update (and selective update) the plotting dict
@@ -1600,9 +1627,11 @@ def _calcRelativeDatapoint(plot_relative, ys, ts=None):
         plot_rel_normF = ('normalizedYear') # will return a list of len(ys) where each element is the sum of the first bar 
         
     """
+    relative_tag = ", normalized"
     if plot_relative[0] == 'year':
         idx = np.nonzero(np.in1d(ts[0], [plot_relative[1]]))[0]
         vals = [ float(yy[idx]) for yy in ys]
+        relative_tag = ", relative to %g" % plot_relative[1]
     elif plot_relative[0] == 'value':
         values = plot_relative[1]
         if type(values) == 'list':
@@ -1612,17 +1641,18 @@ def _calcRelativeDatapoint(plot_relative, ys, ts=None):
                 vals = values * len(ys)
         else: # else, a number # TODO check and confirm
             vals = [values] * len(ys)
-    elif plot_relative[0] == 'normalized':
+        relative_tag += " to y=%g" % plot_relative[1]
+    elif plot_relative == 'normalized' or plot_relative[0] == 'normalized':
         ys = np.array(ys)
         vals = ys.sum(axis=1)
-    elif plot_relative[0] == 'normalizedFirst' :
+    elif plot_relative == 'normalizedFirst' or plot_relative[0] == 'normalizedFirst' :
         ys = np.array(ys)
         vs = ys.sum(axis=1)
         vals = [vs[0]] * len(vs)
     else:
-        raise OptimaException("Unknown indicator for plot_relative")
+        raise OptimaException("Unknown indicator for plot_relative: %s" % plot_relative[0])
 
-    return np.array(vals)
+    return np.array(vals), relative_tag
 
 
 def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot_total=False):
@@ -1768,6 +1798,14 @@ def isPlottableComp(comp_label, sim_settings, comp_specs):
         return False
     return True
 
+def _plotYIntercept(ax, y_intercept, xlim, **kwargs):
+    yintercept_plotdict = {}
+    if kwargs.has_key('y_intercept_line'):
+        yintercept_plotdict = kwargs['y_intercept_line']
+    ax.hlines([y_intercept], xmin=xlim[0], xmax=xlim[1], zorder=1, **yintercept_plotdict)
+
+
+
 def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None, cat_colors=None,
              legendsettings=None, title=None, xlabel=None, ylabel=None, xlim=None, ylim=None, y_ticks=None, x_ticks=None,
              y_intercept=None, reverse_order=False, y_bounds=None, linestyles=None, hatches=None,
@@ -1827,9 +1865,8 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
     """
 
     if len(ys) == 0:
-        # TODO: error to raise OptimaException
-        logging.error("Empty ys values supplied; cannot plot")
-        return
+        logging.error("No values supplied; cannot plot")
+        raise OptimaException("No values supplied; cannot plot")
 
     if plot_type is None:
         plot_type = PLOTTYPE_LINE
@@ -1862,9 +1899,7 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
     bottom = 0  # setup if we are using stacked plots
 
     if y_intercept is not None:
-        # TODO remove hardcoded values
-        ax.hlines([y_intercept], np.min(ts[0]), np.max(ts[-1]), colors='#AAAAAA', linewidth=0.75 * linewidth, linestyle='--')
-
+        _plotYIntercept(ax, y_intercept, xlim, **kwargs)
 
     # plot ys, but reversed - and also reverse the labels (useful for scenarios, and optimizations):
     order_ys = range(len(ys))
@@ -1896,7 +1931,6 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
         elif plot_type == PLOTTYPE_STACKED:
             top = bottom + yval
             lw = 1.
-            print "hatches = ", hatches[k]
             if hatches[k] is None:
                 ec = colors[k]
             else:
@@ -1928,7 +1962,6 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
                 logger.debug("No data plottable for index k=%i, data=\n" % k)
                 logger.debug(y_hat)
 
-
     # set position
     box = ax.get_position()
     ax.set_position([box.x0 + box.width * box_offset, box.y0, box.width * box_width, box.height])
@@ -1943,9 +1976,8 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
 
     if not legend_off:
         if cat_colors is not None:
-            # TODO improve
             import matplotlib.patches as mpatches
-            patches = [  mpatches.Patch(color=color, label=label, ec='white') for label, color in zip(labels, cat_colors)]
+            patches = [  mpatches.Patch(color=color, label=label, ec='white', hatch=hatch) for label, color, hatch in zip(labels, cat_colors, hatches)]
             ax.legend(patches, labels, **legendsettings)
         else:
             ax.legend(labels, **legendsettings)
@@ -1953,7 +1985,6 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
     # automatic choices for setting ylim bounds
     ax.set_ylim(ymin=0)
     ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
-
 
     # overwrite with specified choice
     if ylim is not None:
@@ -2032,11 +2063,9 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         xinds = np.arange(num_cats) + bar_offset + barwidth / 2.
 
     if alphas is None:
-        # TODO check
         alphas = [1.] * num_bars * num_cats
 
     if hatches is None:
-        # TODO check
         hatches = [None] * num_bars * num_cats
 
     if xlabels is None:
@@ -2096,8 +2125,7 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     ax.set_xlim(xlim)
 
     if y_intercept is not None:
-        ax.hlines([y_intercept], xmin=xlim[0], xmax=xlim[1], colors='#AAAAAA', linewidth=0.75 * linewidth, linestyle='--', zorder=1)
-
+        _plotYIntercept(ax, y_intercept, xlim, **kwargs)
     # ---------------------
     # post-plotting: set position and formatting
     box = ax.get_position()
