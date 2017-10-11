@@ -3,6 +3,7 @@
 from optima_tb.utils import odict, OptimaException
 from optima_tb.interpolation import interpolateFunc
 from optima_tb.databook import getEmptyData
+from optima_tb.settings import DO_NOT_SCALE, DEFAULT_YFACTOR
 
 import logging
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ import operator
 class Parameter(object):
     ''' Class to hold one set of parameter values disaggregated by populations. '''
     
-    def __init__(self, label, t = None, y = None, y_format = None, y_factor = None):
+    def __init__(self, label, t = None, y = None, y_format = None, y_factor = None, autocalibrate = None):
         self.label = label
         
         # These ordered dictionaries have population labels as keys.
@@ -28,11 +29,13 @@ class Parameter(object):
         if y is None: y = odict()
         if y_format is None: y_format = odict()
         if y_factor is None: y_factor = odict()
-        self.t = t                      # Time data.
-        self.y = y                      # Value data.
-        self.y_format = y_format        # Value format data (e.g. Probability, Fraction or Number).
-        self.y_factor = y_factor        # Scale factor of data (i.e. 1., or None indicating that scaling should not occur during automated calibration
-        
+        if autocalibrate is None: autocalibrate = odict()
+        self.t = t                              # Time data.
+        self.y = y                              # Value data.
+        self.y_format = y_format                # Value format data (e.g. Probability, Fraction or Number).
+        self.y_factor = y_factor                # Scaling factor of data. Corresponds to different transformations whether format is fraction or number.
+        self.autocalibrate = autocalibrate      # A set of boolean flags corresponding to y_factor that denote whether this parameter can be autocalibrated.
+                                                                
     def insertValuePair(self, t, y, pop_label):
         ''' Check if the inserted t value already exists for the population parameter. If not, append y value. If so, overwrite y value. '''
         k = 0
@@ -50,6 +53,9 @@ class Parameter(object):
         If so, delete it and its y value, but only if others exist.
         Return a boolean flag for whether removal was a success.        
         '''
+        if not t in self.t[pop_label]:
+            return True     # Deleting a value for a timepoint that is not in the parameter is considered a successful deletion.
+        
         if len(self.t[pop_label]) > 1:
             k = 0
             for t_val in self.t[pop_label]:
@@ -146,7 +152,12 @@ class ParameterSet(object):
                 self.pars['cascade'][-1].t[pop_id] = data['linkpars'][label][pop_id]['t']
                 self.pars['cascade'][-1].y[pop_id] = data['linkpars'][label][pop_id]['y']
                 self.pars['cascade'][-1].y_format[pop_id] = data['linkpars'][label][pop_id]['y_format']
-                self.pars['cascade'][-1].y_factor[pop_id] = data['linkpars'][label][pop_id]['y_factor']
+                if data['linkpars'][label][pop_id]['y_factor'] == DO_NOT_SCALE:
+                    self.pars['cascade'][-1].y_factor[pop_id] = DEFAULT_YFACTOR
+                    self.pars['cascade'][-1].autocalibrate[pop_id] = False
+                else:
+                    self.pars['cascade'][-1].y_factor[pop_id] = data['linkpars'][label][pop_id]['y_factor']
+                    self.pars['cascade'][-1].autocalibrate[pop_id] = True
                 
         # Characteristic parameters (e.g. popsize/prevalence).
         # Despite being mostly data to calibrate against, is still stored in full so as to interpolate initial value.
@@ -157,7 +168,12 @@ class ParameterSet(object):
                 self.pars['characs'][l].t[pop_id] = data['characs'][label][pop_id]['t']
                 self.pars['characs'][l].y[pop_id] = data['characs'][label][pop_id]['y']
                 self.pars['characs'][l].y_format[pop_id] = data['characs'][label][pop_id]['y_format']
-                self.pars['characs'][l].y_factor[pop_id] = data['characs'][label][pop_id]['y_factor']
+                if data['characs'][label][pop_id]['y_factor'] == DO_NOT_SCALE:
+                    self.pars['characs'][-1].y_factor[pop_id] = DEFAULT_YFACTOR
+                    self.pars['characs'][-1].autocalibrate[pop_id] = False
+                else:
+                    self.pars['characs'][-1].y_factor[pop_id] = data['characs'][label][pop_id]['y_factor']
+                    self.pars['characs'][-1].autocalibrate[pop_id] = True
             
         # Migrations, including aging.
         for trans_type in data['transfers'].keys():
@@ -190,12 +206,12 @@ class ParameterSet(object):
         if y_format.lower() == 'fraction':
             return (0.,1.)
         elif y_format.lower() in ['number','proportion']:
-            return (0.,None)
+            return (0.,np.inf)
         else:
             raise OptimaException("Unknown y_format '%s' encountered while returning min-max bounds"%y_format)
     
     
-    def extract(self,getMinMax=False,getYFactor=False):
+    def extract(self,settings=None,getMinMax=False,getYFactor=False):
         """
         Extract parameters values into a list
         
@@ -204,7 +220,9 @@ class ParameterSet(object):
         getYFactor will return the scaling factor (y_factor) that can be used to manipulate
         
         To avoid values from being extracted, users should use the assumption value to specify values, or 
-        mark the 'Calibrate?' column in the cascade spreadsheet with "-1" (== settings.DO_NOT_SCALE value)
+        mark the 'Autocalibrate' column in the cascade spreadsheet with "-1" (== settings.DO_NOT_SCALE value)
+        
+        Note that parameters defined as functions will not be extracted.
         
         If getMinMax=True, this function additionally returns the min and max values for each of the parameters returned,
         depending on y_format. Each minmax value is a tuple of form (min,max). Note that min/max values can be either a float, int, or None.
@@ -219,7 +237,7 @@ class ParameterSet(object):
             minmax        minmax values. [] if getMinMax was False, else a list of tuples: [(min,max)]
             casc_labels    
         """    
-        import optima_tb.settings as settings 
+#        import optima_tb.settings as settings 
         
         paramvec = [] # Not efficient - would prefer: np.zeros(len(self.pop_labels)*len(self.pars['cascade']))
         minmax = []
@@ -228,7 +246,11 @@ class ParameterSet(object):
         for pop_id in self.pop_labels:
             #for (j,casc_id) in enumerate(self.par_ids['cascade']): 
             for (casc_id,j) in sorted(self.par_ids['cascade'].items(), key=operator.itemgetter(1)):
-                if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
+#                print casc_id
+#                print j
+
+                # Do not extract parameters that are functions (if settings are available) or otherwise marked not to be calibrated.
+                if self.pars['cascade'][j].autocalibrate[pop_id] == False or (not settings is None and casc_id in settings.par_funcs):
                     continue
                 #paramvec[index] = [self.pars['cascade'][j].y[pop_id]]
                 if getYFactor:
@@ -240,19 +262,20 @@ class ParameterSet(object):
                     minmax_bounds = self.__getMinMax(self.pars['cascade'][j].y_format[pop_id])
                     if getYFactor and minmax_bounds[1] is not None:
                         # use the bounds to calculate the corresponding minmax values for the bounds: 
-                        # possibilities are (0.,1.) for fraction, and (0,None) for number and proportion.
-                        # - yfactor-min has to remain 0, so leave
-                        yval_max= np.max(self.pars['cascade'][j].y[pop_id])
-                        if yval_max == 0:
-                            logger.info("ParameterSet: max value of 0 observed for fraction for casc_id=%s"%casc_id)
-                            yval_max = settings.TOLERANCE
-                        tmp_upper = minmax_bounds[1]
-                        tmp_upper /= yval_max
-                        minmax_bounds = (minmax_bounds[0], tmp_upper)
+#                        # possibilities are (0.,1.) for fraction, and (0,None) for number and proportion.
+#                        # - yfactor-min has to remain 0, so leave
+#                        yval_max= np.max(self.pars['cascade'][j].y[pop_id])
+#                        if yval_max == 0:
+#                            logger.info("ParameterSet: max value of 0 observed for fraction for casc_id=%s"%casc_id)
+#                            yval_max = settings.TOLERANCE
+#                        tmp_upper = minmax_bounds[1]
+#                        tmp_upper /= yval_max
+#                        minmax_bounds = (minmax_bounds[0], tmp_upper)
+                        minmax_bounds = (0., np.inf)      # There is probably no reason to enforce bounds on y_factor in this layer as fraction ranges are handled in model.py.
                     # if we're grabbing the minmax values for the y-values directly, then use the values
                     minmax.append(minmax_bounds)
                     # also grab the cascade labels for debugging and logging purposes
-                    casc_labels.append(casc_id)
+                    casc_labels.append((casc_id,pop_id))
                 index+=1
                 
         if getMinMax:
@@ -272,66 +295,86 @@ class ParameterSet(object):
             for pop_id in self.pop_labels:
                 for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
                     #if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
-                    if self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
+#                    print charac_id
+#                    print j
+                    if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].autocalibrate[pop_id] == True:
                         init_compartments.append(self.pars['characs'][j].y_factor[pop_id])
-                        charac_labels.append(charac_id)                        
+                        charac_labels.append((charac_id,pop_id))                        
         return init_compartments,charac_labels
          
     
-    def update(self,paramvec,isYFactor=False):
+    def update(self, par_vec, par_pop_labels, isYFactor=False):
         """
-        Update parameters from a list of values
-        
-        Params:
-            paramvec    new values
-            y_factor_vec
-        
-        TODO: improve this function to future proof it and make it more robust i.e. reference only by population and compartment id.
+        Update parameters from a list of values, given a corresponding list of parameter labels and population labels, arranged in pairs.
+
         TODO: extend function so that can also add years or format values
         TODO: remove index ...?
         """
         import optima_tb.settings as settings
         
         index = 0
-        for (i,pop_id) in enumerate(self.pop_labels):
-            #for (j,casc_id) in enumerate(self.par_ids['cascade']): 
-            for (casc_id,j) in sorted(self.par_ids['cascade'].items(), key=operator.itemgetter(1)):
-                # perform checks
-                if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
-                    continue
-                if not isYFactor and len(self.pars['cascade'][j].y[pop_id]) != len(paramvec[index]):
-                    raise OptimaException("Could not update parameter set '%s' for pop=%s,cascade=%s as updated parameter has different length."%(self.name,pop_id,casc_id))
-                # update y or y_factor, based on parameters
-                if isYFactor:
-                    self.pars['cascade'][j].y_factor[pop_id] = paramvec[index]
-                else:
-                    self.pars['cascade'][j].y[pop_id] = paramvec[index]
-                # finally, update index count
-                index += 1
+        for par_pop_label in par_pop_labels:
+            par_label = par_pop_label[0]
+            pop_label = par_pop_label[1]
+            par = self.getPar(par_label)    # Returns a parameter or characteristic as required.        
                 
-        logger.info("Updated ParameterSet %s with new values"%self.name)
+            if isYFactor:
+                
+#                if par.autocalibrate[pop_label]:
+#                    logger.info("ParameterSet %s is acknowledging that it can calibrate the y-factor for parameter %s, population %s." % (self.name, par_label, pop_label))
+#                else:
+#                    logger.info("ParameterSet %s has not modifed its y-factor value for parameter %s, population %s, due to y-factor constraints." % (self.name, par_label, pop_label))
+#                    continue
+                
+                if par.y_factor[pop_label] != par_vec[index]:
+                    logger.info("ParameterSet %s is updating its y-factor for parameter %s, population %s from %f to %f." % (self.name, par_label, pop_label, par.y_factor[pop_label], par_vec[index]))
+                
+                par.y_factor[pop_label] = par_vec[index]
+            else:
+                par.y[pop_label] = par_vec[index]
+            index += 1
+            
+        
+#        index = 0
+#        for (i,pop_id) in enumerate(self.pop_labels):
+#            #for (j,casc_id) in enumerate(self.par_ids['cascade']): 
+#            for (casc_id,j) in sorted(self.par_ids['cascade'].items(), key=operator.itemgetter(1)):
+#                # perform checks
+#                if self.pars['cascade'][j].y_factor[pop_id] == settings.DO_NOT_SCALE:
+#                    continue
+#                if not isYFactor and len(self.pars['cascade'][j].y[pop_id]) != len(paramvec[index]):
+#                    raise OptimaException("Could not update parameter set '%s' for pop=%s,cascade=%s as updated parameter has different length."%(self.name,pop_id,casc_id))
+#                # update y or y_factor, based on parameters
+#                if isYFactor:
+#                    self.pars['cascade'][j].y_factor[pop_id] = paramvec[index]
+#                else:
+#                    self.pars['cascade'][j].y[pop_id] = paramvec[index]
+#                # finally, update index count
+#                index += 1
+                
+        logger.info("Updated ParameterSet %s with new values." % self.name)
     
-    def updateEntryPoints(self,proj_settings,compartment_t0,charac_labels):
-        """
-        
-        
-        """
-        import optima_tb.settings as settings 
-        
-        index = 0 
-        for pop_id in self.pop_labels:
-            for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
-                if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
-                    if charac_labels[index] == charac_id:
-                        self.pars['characs'][j].y_factor[pop_id]= compartment_t0[index]
-                        #self.pars['characs'][j].y[pop_id][0] *= compartment_t0[index]
-                        #print "initial for %s is %g"%(charac_id,self.pars['characs'][j].y[pop_id][0] )
-                        index += 1
-                    else:
-                        logger.debug("Updating entry points: characteristic label for entry point doesn't match updated value [%s,%s]"%(charac_labels[index],charac_id))
+#    def updateEntryPoints(self,proj_settings,compartment_t0,charac_labels):
+#        """
+#        
+#        
+#        """
+#        import optima_tb.settings as settings 
+#        
+#        index = 0 
+#        for pop_id in self.pop_labels:
+#            for (charac_id,j) in sorted(self.par_ids['characs'].items(), key=operator.itemgetter(1)):
+#                if 'entry_point' in proj_settings.charac_specs[charac_id].keys() and self.pars['characs'][j].y_factor[pop_id] != settings.DO_NOT_SCALE:
+#                    if charac_labels[index] == charac_id:
+#                        self.pars['characs'][j].y_factor[pop_id]= compartment_t0[index]
+#                        #self.pars['characs'][j].y[pop_id][0] *= compartment_t0[index]
+#                        #print "initial for %s is %g"%(charac_id,self.pars['characs'][j].y[pop_id][0] )
+#                        index += 1
+#                    else:
+#                        logger.debug("Updating entry points: characteristic label for entry point doesn't match updated value [%s,%s]"%(charac_labels[index],charac_id))
                         
         
-    
+    #TODO: Fix as the DO_NOT_SCALE setting no longer represents an absence of rescaling; attribute autocalibrate does.
     def _updateFromYFactor(self):
         """
         Goes through each of the cascade parameters and updates the y-values to be

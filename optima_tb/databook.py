@@ -834,13 +834,21 @@ def loadSpreadsheetFunc(settings, databook_path):
                 # NOTE: Somewhat hard-coded. Improve.
                 list_t = []
                 list_y = []
+#                list_comment = []
 
                 for col_id in xrange(ws.ncols):
                     if col_id == 1:  # TODO: DK to remove hard-coded variables in code ...
                         data[data_label][current_def_label][current_pop_label]['y_format'] = str(ws.cell_value(row_id, col_id)).lower()
                     if col_id > 1 and isinstance(ws.cell_value(row_id, col_id), Number):
                         list_y.append(float(ws.cell_value(row_id, col_id)))
-#                         print data_label, current_def_label, current_pop_label
+#                        # Store comments attached to databook parameter value cells within project data.
+#                        # Requires an .xls file, which does not support the level of generic equation nesting the current design requires.
+#                        # TODO: Consider sparse storage rather than bogging data down with a lot of None.
+##                        if len(ws.cell_note_map) > 0: print ws.cell_note_map
+#                        if (row_id,col_id) in ws.cell_note_map:
+#                            list_comment.append(str(ws.cell_note_map[(row_id,col_id)].text))
+#                        else:
+#                            list_comment.append(None)
                         if not isinstance(ws.cell_value(row_id - 1 - pop_id, col_id), Number):
                             list_t.append(float(ws.cell_value(row_id - 1 - pop_id, col_id + 2)))
                             break
@@ -848,6 +856,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                             list_t.append(float(ws.cell_value(row_id - 1 - pop_id, col_id)))
                 data[data_label][current_def_label][current_pop_label]['t'] = np.array(list_t)
                 data[data_label][current_def_label][current_pop_label]['y'] = np.array(list_y)
+#                data[data_label][current_def_label][current_pop_label]['comment'] = np.array(list_comment)
                 # if there is a corresponding data value for y_factor already in cascacade structure in settings, use that; else default to settings value
                 try:
                     if data_label == 'linkpars':

@@ -194,10 +194,10 @@ class Project(object):
         ''' Transform project data into a set of programs that can be used in budget scenarios and optimisations. '''
 
         if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
-        self.progsets[name] = ProgramSet(name=name)
-        self.progsets[name].makeProgs(data=self.data, settings=self.settings)
-
-    def reconcile(self, parset_name=None, progset_name=None, reconcile_for_year=2017, unitcost_sigma=0.05, attribute_sigma=0.20, impact_pars=None, budget_allocation=None, overwrite=True):
+        self.progsets[name] = ProgramSet(name = name)
+        self.progsets[name].makeProgs(data = self.data, settings = self.settings)
+    
+    def reconcile(self, parset_name = None, progset = None, progset_name = None, reconcile_for_year = 2017, sigma_dict = None, unitcost_sigma = 0.05, attribute_sigma = 0.20, budget_sigma = 0.0, impact_pars = None, budget_allocation = None, constrain_budget = True, overwrite = True, max_time = None, save_progset = True):
         '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible
            Default behaviour is to overwrite existing progset
         '''
@@ -210,6 +210,23 @@ class Project(object):
                 logger.info('Parameter set was not identified for reconciliation, using parameter set: "%s"' % parset_name)
             except:
                 raise OptimaException('No valid parameter sets exist within the project')
+
+        # If a progset is provided, it is assumed temporary and a reference is implanted into the current project to be deleted after reconciliation.
+        # TODO: Make Project.reconcile() and similar methods much more aligned in handling parsets/progsets by label or by reference.
+        link_progset_temporarily = False
+        temp_progset_name = ''
+        if not progset is None:
+            link_progset_temporarily = True
+            k = -1
+            while link_progset_temporarily:
+                if k == -1: temp_progset_name = progset.name
+                elif k == 0: temp_progset_name = 'temp'
+                else: temp_progset_name = 'temp'+str(k)
+                if not temp_progset_name in self.progsets:
+                    self.progsets[temp_progset_name] = progset
+                    progset_name = temp_progset_name
+                    break
+                k += 1
 
         if progset_name is None:
             try:
@@ -227,11 +244,22 @@ class Project(object):
         logger.info('Reconciling progset "%s" as overwrite is set as "%s"' % (progset_name, overwrite))
 
         # Run reconcile functionality
-        self.progsets[progset_name] = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
-                                                    parset_name=parset_name, progset_name=progset_name,
-                                                    unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma,
-                                                    impact_pars=impact_pars, orig_tvec_end=orig_tvec_end,
-                                                    budget_allocation=budget_allocation)
+        reconciled_progset, reconciled_output = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
+                                                                parset_name=parset_name, progset_name=progset_name, sigma_dict = sigma_dict,
+                                                                unitcost_sigma=unitcost_sigma, budget_sigma = budget_sigma, attribute_sigma=attribute_sigma, 
+                                                                impact_pars=impact_pars,orig_tvec_end=orig_tvec_end,
+                                                                budget_allocation=budget_allocation, constrain_budget=constrain_budget, max_time=max_time)
+        
+        if save_progset:
+            self.progsets[progset_name] = reconciled_progset
+        
+        # Deletes temporary progset reference.
+        if link_progset_temporarily:
+            del self.progsets[temp_progset_name]
+            try: del self.progsets[progset_name]    # In case overwrite is False delete the 'reconcile' version of the temp progset. TODO: Rethink all the logic.
+            except: pass
+            
+        return reconciled_progset, reconciled_output
 
 
     def compareOutcomes(self, parset_name=None, progset_name=None, budget_allocation=None, year=2017):
@@ -286,10 +314,10 @@ class Project(object):
             metric = self.settings.fit_metric
 
         if results is None:
-            raise OptimaException('ERROR: no result is specified. Cannot calculate fit.')
+            raise OptimaException('ERROR: No result is specified. Cannot calculate fit.')
 
         if self.data is None or len(self.data) == 0:
-            raise OptimaException('ERROR: no data is specified. Cannot calculate fit.')
+            raise OptimaException('ERROR: No data is specified. Cannot calculate fit.')
 
         datapoints, _, _ = results.getCharacteristicDatapoints()
         score = calculateFitFunc(datapoints, results.t_observed_data, self.data['characs'], metric)
@@ -297,7 +325,7 @@ class Project(object):
         return score
 
 
-    def runAutofitCalibration(self, new_parset_name=None, old_parset_name="default", target_characs=None):
+    def runAutofitCalibration(self, parset=None, new_parset_name=None, old_parset_name="default", target_characs=None, max_time=None, save_parset=True):
         """
         Runs the autofitting calibration routine, as according to the parameter settings in the 
         settings.autofit_params configuration.
@@ -307,18 +335,30 @@ class Project(object):
             old_parset_name    name of the parset to use as a base. Default value="default"
         """
 
-        if not old_parset_name in self.parsets.keys():
-            self.makeParset(name=old_parset_name)
-        paramset = self.parsets[old_parset_name]
+        if parset is None:
+            if not old_parset_name in self.parsets.keys():
+                self.makeParset(name=old_parset_name)
+            parset = self.parsets[old_parset_name]
 
         if new_parset_name is None:
             # TODO: check that autofit doesn't already exist; if so, add suffix
             new_parset_name = "autofit"
 
         logger.info("About to run autofit on parameters using parameter set = %s" % old_parset_name)
-        new_parset = performAutofit(self, paramset, new_parset_name=new_parset_name, target_characs=target_characs, **self.settings.autofit_params)
+        
+        if max_time is not None:    # Update autocalibration settings with new time limit...
+            prev_max_time = self.settings.autofit_params['maxtime']
+            self.settings.autofit_params['maxtime'] = max_time
+        try: new_parset = performAutofit(self, parset, new_parset_name=new_parset_name, target_characs=target_characs, **self.settings.autofit_params)
+        except Exception as e:
+            raise OptimaException("ERROR: Autocalibration failed.")
+        if max_time is not None:    # ...and revert.
+            self.settings.autofit_params['maxtime'] = prev_max_time
+        
         logger.info("Created new parameter set '%s' using autofit" % new_parset_name)
-        self.parsets[new_parset_name] = new_parset
+        if save_parset: self.parsets[new_parset_name] = new_parset
+                    
+        return new_parset
 
 
     def createScenarios(self, scenario_dict):
@@ -410,7 +450,7 @@ class Project(object):
             elif vals['type'].lower() == 'coverage':
                 self.scenarios[scenario_name] = CoverageScenario(name=scenario_name, pop_labels=pop_labels, **vals)
             else:
-                raise NotImplementedError("ERROR: no corresponding Scenario type for scenario=%s" % scenario_name)
+                raise NotImplementedError("ERROR: No corresponding Scenario type for scenario=%s" % scenario_name)
 
         logger.info("Successfully created scenarios")
 

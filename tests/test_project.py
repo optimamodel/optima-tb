@@ -278,7 +278,7 @@ class TestProject(ModelTest):
 #        self.proj.makeParset()
 #        results1 = self.proj.runSim()
 #        score1 = self.proj.calculateFit(results1)
-#        self.proj.settings.autofit_params['timelimit'] = 10.0
+#        self.proj.settings.autofit_params['maxtime'] = 10.0
 #        #Autocalibrate all parameters        
 #        self.proj.runAutofitCalibration(new_parset_name='test_auto_calibration1')
 #        results2 = self.proj.runSim(parset_name='test_auto_calibration1')
