@@ -1,8 +1,8 @@
 #%% Imports
 
 from optima_tb.utils import OptimaException
-
 import logging
+import scipy.interpolate as sp
 logger = logging.getLogger(__name__)
 
 from copy import deepcopy as dcp
@@ -19,9 +19,9 @@ def interpolateFunc(x, y, xnew, method = 'pchip'):
     '''
     
     try:
-        x = np.array(dcp(x)).astype(float)
-        y = np.array(dcp(y)).astype(float)
-        xnew = np.array(dcp(xnew)).astype(float)
+        x = np.array(x).astype(float)
+        y = np.array(y).astype(float)
+        xnew = np.array(xnew).astype(float)
     except:
         raise OptimaException('ERROR: Interpolation received values that cannot be converted into numpy float arrays.')
     
@@ -30,16 +30,23 @@ def interpolateFunc(x, y, xnew, method = 'pchip'):
     if len(set(x)) != len(x): raise OptimaException('ERROR: Interpolation failure due to repeated x values.')
     
     # Sorts all input vectors.
-    sortzip = dcp(sorted(zip(x,y)))
-    xs = [a for a,b in sortzip]
-    ys = [b for a,b in sortzip]
-    x = np.array(dcp(xs)).astype(float)
-    y = np.array(dcp(ys)).astype(float)
-    xnew = np.array(dcp(sorted(xnew))).astype(float)   
+    permutation = sorted(range(len(x)), key=lambda a: x[a])
+    x = np.array([x[i] for i in permutation])
+    y = np.array([y[i] for i in permutation])
+    sorted(xnew)
+    # sortzip = dcp(sorted(zip(x,y)))
+    # xs = [a for a,b in sortzip]
+    # ys = [b for a,b in sortzip]
+    # x = np.array(dcp(xs)).astype(float)
+    # y = np.array(dcp(ys)).astype(float)
+    # xnew = np.array(dcp(sorted(xnew))).astype(float)
     
     if method == 'pchip':
-        m = pchipSlopes(x, y)                           # Compute slopes used by piecewise cubic Hermite interpolator.
-        ynew = pchipEval(x, y, m, xnew, deriv = False)  # Use these slopes (along with the Hermite basis function) to interpolate.
+        #m = pchipSlopes(x, y)                           # Compute slopes used by piecewise cubic Hermite interpolator.
+        #ynew = pchipEval(x, y, m, xnew, deriv = False)  # Use these slopes (along with the Hermite basis function) to interpolate.
+        func = sp.PchipInterpolator(x,y)
+        ynew = np.array(map(func, xnew))
+
     
 #    elif method=='smoothinterp':
 #        ...
