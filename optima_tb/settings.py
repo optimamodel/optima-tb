@@ -7,6 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 import pylab as pl
+import numpy as np
 from matplotlib.ticker import FuncFormatter
 
 
@@ -438,7 +439,9 @@ class PlottingSettings():
                          'default_pops' : "All populations",
                          'default_figname' : "Figname",
                          'default_year' : 2016., # TODO change so that it's last year,
-                         'title' : None
+                         'title' : None,
+                         # relative plot settings
+                         'relative_yticks' : np.arange(0., 1.1, 0.2)
                          }
 
     def devSettings(self):
