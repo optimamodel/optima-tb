@@ -981,7 +981,6 @@ class Model(object):
                 for pop in self.pops:
                     if rule == 'avg_contacts_in':
                         from_list = self.contacts['into'][pop.label].keys()
-                        print pop.label, from_list
 
                         # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
                         if not ((len(from_list) == 1 and from_list[0] == pop.label)):
