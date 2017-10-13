@@ -456,7 +456,7 @@ class Model(object):
                         self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
                         self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
                         self.getPop(pop_label).links[link_id].scale_factor = par.y_factor[pop_label]
-                        
+
                 # Apply min/max restrictions on all parameters that are not functions.
                 # Functional parameters will be calculated and constrained during a run, hence they can be np.nan at this stage.
                 if not par.label in settings.par_funcs.keys():
@@ -477,7 +477,7 @@ class Model(object):
                     self.getPop(pop_label).deps[dep_id].vals = par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
                     self.getPop(pop_label).deps[dep_id].val_format = par.y_format[pop_label]
                     self.getPop(pop_label).deps[dep_id].scale_factor = par.y_factor[pop_label]
-                
+
                 # Apply min/max restrictions on all parameters that are not functions.
                 # Functional parameters will be calculated and constrained during a run, hence they can be np.nan at this stage.
                 if not par.label in settings.par_funcs.keys():
@@ -594,7 +594,7 @@ class Model(object):
                         comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
 
                         converted_amt = 0
-                        
+
 #                        # TODO: Make this range check more efficient by pre-validating. Could use extra validation for user error.
 #                        if link.label in settings.linkpar_specs:
 #                            if 'min' in settings.linkpar_specs[link.label] and settings.linkpar_specs[link.label]['min'] > link.vals[ti]:
@@ -852,7 +852,7 @@ class Model(object):
                                     source_set_size = 0
                                     for from_pop in prog.target_pops:
                                         source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
-    
+
                                     # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
                                     # NOTE: This might be a place to improve performance.
                                     if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
@@ -862,12 +862,12 @@ class Model(object):
                                                 alt_pars = pop.getLinks(settings.linkpar_specs[alt_par_label]['tag'])
                                                 for from_pop in prog.target_pops:
                                                     source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]
-    
+
                                     # Impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
                                     # Makes sure that the right value is selected.
                                     try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
                                     except: net_impact = self.prog_vals[prog_label]['impact'][par_label]
-    
+
                                     # Make sure each program impact is in the format of the parameter it affects.
                                     # NOTE: Can be compressed. Currently left explicit.
                                     if pars[0].val_format == 'fraction':
@@ -887,7 +887,7 @@ class Model(object):
                                                 impact = 0.0
                                             else:
                                                 impact = net_impact * source_element_size / source_set_size
-    
+
                                     # Calculate how excessive program coverage is for the provided budgets.
                                     # If coverage is a fraction, excess is compared to unity.
                                     # If coverage is a number, excess is compared to the total number of people available for coverage.
@@ -902,13 +902,13 @@ class Model(object):
                                         else:
                                             overflow_factor = net_cov / float(source_set_size)
                                     overflow_list.append(overflow_factor)
-                                    
+
                                 # If a program target is any other parameter, the parameter value is directly overwritten by coverage.
                                 # TODO: Decide how to handle coverage distribution.
                                 else:
                                     try: impact = self.prog_vals[prog_label]['impact'][par_label][ti]
                                     except: impact = self.prog_vals[prog_label]['impact'][par_label]
-                                    
+
 
 #                                year_check = 2015   # Hard-coded check.
 #                                par_check = ['spdno_rate','sndno_rate']#['spdsuc_rate','spdno_rate']
@@ -980,7 +980,8 @@ class Model(object):
                 rule = settings.linkpar_specs[par_label]['rules']
                 for pop in self.pops:
                     if rule == 'avg_contacts_in':
-                        from_list = self.contacts['into'][pop.label]
+                        from_list = self.contacts['into'][pop.label].keys()
+                        print pop.label, from_list
 
                         # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
                         if not ((len(from_list) == 1 and from_list[0] == pop.label)):
@@ -1030,9 +1031,9 @@ class Model(object):
                                 pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
                             for par in pars:
                                 par.vals[ti] = new_val
-            
+
             # Do a final range check on a parameter, if applicable, and restrict its value.
-            # TODO: Explore efficiency gains.                
+            # TODO: Explore efficiency gains.
             if 'min' in settings.linkpar_specs[par_label]:
                 for pop in self.pops:
                     pars = []
