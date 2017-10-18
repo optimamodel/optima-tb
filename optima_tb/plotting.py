@@ -10,6 +10,7 @@ import numpy as np
 
 import pylab as pl
 from copy import deepcopy as dcp
+from copy import copy as ndcp
 import matplotlib.cm as cmx
 import matplotlib.colors as colors
 from random import shuffle
@@ -422,7 +423,10 @@ def innerPlotLine(proj, resultset, output_labels, compare_results=False, pop_lab
         ys = []
         ts = []
         dataobs = ([], [])
-        tmp_plotdict = dcp(plotdict)
+        try:
+            tmp_plotdict = dcp(plotdict)
+        except NotImplementedError:
+            tmp_plotdict = ndcp(plotdict)
         unit_tag = ""
         name = value_label
 
@@ -1334,7 +1338,10 @@ def plotCareCascade(results, settings, pop_labels, labels, years, title="", norm
     
     """
     xlabels = labels.keys()
-    plotdict = dcp(settings.plot_settings)
+    try:
+        plotdict = dcp(settings.plot_settings)
+    except NotImplementedError:
+        plotdict = ndcp(settings.plot_settings)
 
     yticks = None
     if plotdict is None:
@@ -1955,7 +1962,10 @@ def extractFlows(pop_labels, comp_label, results, settings, tvec, link_labels=No
                             else: legend_label = label_tag + link.label
                         if link.label in link_legend:
                             legend_label = link_legend[link.label]  # Overwrite legend for a label.
-                        num_flow = dcp(link.vals)
+                        try:
+                            num_flow = dcp(link.vals)
+                        except NotImplementedError:
+                            num_flow = ndcp(link.vals)
                         if in_out == 0:
                             comp_source = results.m_pops[link.index_from[0]].comps[link.index_from[1]]
                         else:
