@@ -710,17 +710,8 @@ class Model(object):
 
             review_count += 1
 
-
-    def updateValues(self, settings, progset=None, do_special=True):
-        '''
-        Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
-        These dependencies must be calculated in the same order as defined in settings, characteristics before parameters, otherwise references may break.
-        Also, parameters in the dependency list do not need to be calculated unless explicitly depending on another parameter.
-        Parameters that have special rules are usually dependent on other population values, so are included here.
-        '''
-
+    def _updateCharacteristics(self, settings):
         ti = self.t_index
-
         for pop in self.pops:
             # Characteristics that are dependencies first...
             for dep in pop.deps:
@@ -731,13 +722,13 @@ class Model(object):
                     for inc_label in settings.charac_specs[dep.label]['includes']:
                         if inc_label in pop.comp_ids.keys():
                             val = pop.getComp(inc_label).popsize[ti]
-                        elif inc_label in pop.dep_ids.keys():    # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
+                        elif inc_label in pop.dep_ids.keys():  # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
                             val = pop.getDep(inc_label).vals[ti]
                         else:
-#                            print inc_label
-#                            print settings.charac_specs[dep.label]['includes']
-#                            print pop.comp_ids.keys()
-#                            print pop.dep_ids.keys()
+                            #                            print inc_label
+                            #                            print settings.charac_specs[dep.label]['includes']
+                            #                            print pop.comp_ids.keys()
+                            #                            print pop.dep_ids.keys()
                             raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
 
                         dep.vals[ti] += val
@@ -750,15 +741,32 @@ class Model(object):
                         elif den_label in pop.comp_ids.keys():
                             val = pop.getComp(den_label).popsize[ti]
                         else:
-                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
+                            raise OptimaException(
+                                'ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
 
                         if val == 0:
                             if abs(dep.vals[ti]) < project_settings.TOLERANCE:
-                                dep.vals[ti] = 0        # Given a zero/zero case, make the answer zero.
+                                dep.vals[ti] = 0  # Given a zero/zero case, make the answer zero.
                             else:
-                                dep.vals[ti] = np.inf   # Given a non-zero/zero case, keep the answer infinite.
+                                dep.vals[ti] = np.inf  # Given a non-zero/zero case, keep the answer infinite.
                         else:
                             dep.vals[ti] /= val
+
+
+    def updateValues(self, settings, progset=None, do_special=True):
+        '''
+        Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
+        These dependencies must be calculated in the same order as defined in settings, characteristics before parameters, otherwise references may break.
+        Also, parameters in the dependency list do not need to be calculated unless explicitly depending on another parameter.
+        Parameters that have special rules are usually dependent on other population values, so are included here.
+        '''
+
+        ti = self.t_index
+
+        self._updateCharacteristics(settings)
+
+        if progset != None:
+            rel_glob_progs = set(progset.GPs).intersection(set(self.prog_vals.keys()))
 
         # Handle parameters now that require calculations between timestep-based updates.
         # 1st:  Any parameter that is a function of others (i.e. of previously calculated dependencies).
@@ -796,17 +804,17 @@ class Model(object):
                             overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
 
                             # get all program types which influence parameters across populations
-                            glob_prog_types = self._getProgNamesFromTag('scale_prop ', settings, progset)
+                           # glob_prog_types = self._getProgNamesFromTag('scale_prop ', settings, progset)
                             # get all the relevant programs for the current parameter in the current population
                             rel_prog_labels = filter(lambda x: x in self.prog_vals.keys() and pop.label in progset.getProg(x).target_pops, progset.impacts[par_label])
                             # add programs from programs which have a global impact but are not covered in this population
-                            rel_prog_labels = self._buildRelevantProgs(par_label, pop.label, rel_prog_labels, glob_prog_types, progset)
+                            rel_prog_labels = buildRelevantProgs(par_label, pop.label, rel_prog_labels, progset.GPs, progset)
 
                             for prog_label in rel_prog_labels:
                                 prog = progset.getProg(prog_label)
                                 prog_type = prog.prog_type
 
-                                special, scale_pars = progset.getProg(prog_label).flag
+                                (special, scale_pars) = progset.getProg(prog_label).flag
 
                                 # if no prog_val is encountered, the program is not covered but has been 'artificially'
                                 # added because of its global impact. since there is no impact associated with it, simply
@@ -814,7 +822,7 @@ class Model(object):
                                 if prog_label not in self.prog_vals:
                                     # double check if the program is correct
                                     if special == 'scale_prop' and par_label in scale_pars:
-                                        impact = processScalePropsTag(par_label, settings, self.pop, self.pop_ids, progset, self.prog_vals, ti)
+                                        impact = processScalePropsTag(par_label, settings, self.pops, self.pop_ids, progset, self.prog_vals, ti)
                                         if special != '' and special != 'replace':
                                             if pars[0].val_format == 'number' and isinstance(pars[0], Link):
                                                 impact += new_val
@@ -853,7 +861,7 @@ class Model(object):
                                     impact = net_impact
 
                                 if special == 'scale_prop' and par_label in scale_pars:
-                                    impact = processScalePropsTag(par_label, settings, self.pop, self.pop_ids, progset, self.prog_vals, ti)
+                                    impact = processScalePropsTag(par_label, settings, self.pops, self.pop_ids, progset, self.prog_vals, ti)
                                 # elif special == 'split':
                                 #     if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
                                 #         assert (0. <= source_element_size / source_set_size <= 1.)
@@ -862,7 +870,7 @@ class Model(object):
                                 elif special == 'supp':
                                     # only apply impact if the paramter is not influenced by GPs; skip otherwise:
                                     # if the intersection of impacting programs, GPs and available programs is empty or no global impact parameter is referenced, apply changes
-                                    if not set(progset.impacts[par_label]).intersection(set(glob_prog_types)).intersection(set(self.prog_vals.keys())) and not any(par_label == _ for _ in self._getTargetParsFromTag('scale_prop ', settings)):
+                                    if not set(progset.impacts[par_label]).intersection(rel_glob_progs) and not par_label in progset.GP_pars:
                                         impact = processSuppTag(par_label, prog, ti)
                                         # necessary work-around to prevent supp-programs to change values when they do not have any influence
                                         if impact == 0.: continue
@@ -1101,52 +1109,19 @@ def buildRelevantProgs(par_label, pop_label, imp_prog_label, glob_prog_label, pr
     return list(rel_prog_label)
 
 
-# obtain program labels which a the pass 'tag'
-def getProgNamesFromTag(tag, settings, progset):
-    specs = settings.progtype_specs # just an alias
-    # extract all program types which have the passed 'tag'
-    prog_types = filter(lambda x: specs[x]['special'].startswith(tag), specs)
-
-    prog_names = {}
-    # group all programs together by program type in a dict
-    for pt in prog_types:
-        # first, filter all programs which are of the required type. second, get the label of programs
-        prog_names[pt] = [item.label for item in filter(lambda x: x.prog_type == pt, progset.progs)]
-
-    return prog_names
-
-
-# expects a 'special tag' of a program. The passed string is split at whitespaces. The first word defines the
-# special behaviour of the program, the other words are put in a list because they are specific for the special
-# behaviour of the program. At the end a sanity check is performed if prog != None
-def parseSpecialTag(tag, prog = None):
-    # decompose special tag word by word (string separated by whitespaces)
-    words = tag.split()
-
-    if prog == None:
-        return words[0], words[1:]
-
-    # check if all the provided parameters are indeed impact parameters
-    if words[0] != '' and len(words[1:]) > 0:
-        for w in words[1:]:  # check if impact parameters and passed words coincide
-            if not w in prog.target_pars:
-                raise OptimaException(
-                    'ERROR: Parameters passed in the \'special tag\' field after \'%s\' must be impact parameters. \'%s\' is not in list [%s].'
-                    % (words[0], w, ' '.join(prog.target_pars.keys())))
-
-    return words[0], words[1:]
-
-
-# obtain target parameters of all programs with a given 'tag'
-def getTargetParsFromTag(tag, settings):
-    specs = settings.progtype_specs  # just an alias
-    # extract all program types which have the passed 'tag'
-    prog_types = filter(lambda x: specs[x]['special'].startswith(tag), specs)
-
-    target_pars = []
-    for pn in prog_types:
-        target_pars.extend(parseSpecialTag(settings.progtype_specs[pn]['special'])[1])
-    return target_pars
+# # obtain program labels which a the pass 'tag'
+# def getProgNamesFromTag(tag, settings, progset):
+#     specs = settings.progtype_specs # just an alias
+#     # extract all program types which have the passed 'tag'
+#     prog_types = filter(lambda x: specs[x]['special'].startswith(tag), specs)
+#
+#     prog_names = {}
+#     # group all programs together by program type in a dict
+#     for pt in prog_types:
+#         # first, filter all programs which are of the required type. second, get the label of programs
+#         prog_names[pt] = [item.label for item in filter(lambda x: x.prog_type == pt, progset.progs)]
+#
+#     return prog_names
 
 
 # if grouping is provided for the program, account for that
@@ -1257,20 +1232,20 @@ def processScalePropsTag(par_label, settings, pops, pop_ids, progset, prog_vals,
     # find all programs of the same type as current one and weigh its impact proportional
     # to the population size before summing up
     rel_progs = progset.impacts[par_label] # all programs impacting considered parameter
-    gp_progs = getProgNamesFromTag('scale_prop', settings, progset).values()[0] # all GPs
-    sop_progs = getProgNamesFromTag('supp', settings, progset).values()[0] # all SOPs
+    # gp_progs = getProgNamesFromTag('scale_prop', settings, progset).values()[0] # all GPs
+    # sop_progs = getProgNamesFromTag('supp', settings, progset).values()[0] # all SOPs
 
     # any(x == _ for _ in gp_progs) checks if the string x is contained in the list of strings gp_progs
-    rel_progs = filter(lambda x: any(x == _ for _ in gp_progs) or any(x == _ for _ in sop_progs), rel_progs) # remove programs which are not GP or SOP
+    rel_progs = filter(lambda x: x in progset.GPs + progset.SOPs, rel_progs) # remove programs which are not GP or SOP
     rel_progs = filter(lambda x: x in prog_vals, rel_progs) # remove all programs which have no coverage
 
     for p in rel_progs:
         imp = 0.0
         target_pop_size = np.sum([pops[pop_ids[pp]].getDep('h_alive').vals[ti] for pp in progset.getProg(p).target_pops])
-        if any(p == _ for _ in gp_progs): # currently works only for one dict-entry
+        if p in progset.GPs: # currently works only for one dict-entry
             try: imp = prog_vals[p]['impact'][par_label][ti]  # identical for each population
             except: imp = prog_vals[p]['impact'][par_label][0]
-        elif any(p == _ for _ in sop_progs): # currently works only for one dict-entry
+        elif p in progset.SOPs: # currently works only for one dict-entry
             imp = processSuppTag(par_label, progset.getProg(p), ti)
 
         impacts.append(imp * target_pop_size / total_pop)

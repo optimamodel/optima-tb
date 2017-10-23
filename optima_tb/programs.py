@@ -2,14 +2,15 @@ from optima_tb.utils import OptimaException, odict
 from optima_tb.interpolation import interpolateFunc
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 from copy import deepcopy as dcp
 import numpy as np
 from uuid import uuid4 as uuid
 
-class ProgramSet:
 
+class ProgramSet:
     def __init__(self, name='default'):
         self.name = name
         self.uid = uuid()
@@ -20,7 +21,6 @@ class ProgramSet:
         self.impacts = dict()
 
         logging.info("Created ProgramSet: %s" % self.name)
-
 
     def makeProgs(self, data, settings):
         for l, prog_label in enumerate(data['progs']):
@@ -50,7 +50,6 @@ class ProgramSet:
                                attributes=attributes,
                                target_pops=target_pops, target_pars=target_pars, flag=flag)
 
-
             func_pars = dict()
             if special == 'cost_only':
                 func_type = 'cost_only'
@@ -61,6 +60,9 @@ class ProgramSet:
 
             self.progs.append(new_prog)
             self.prog_ids[prog_label] = l
+
+        # set global and second-order programs
+        self._setSpecialPrograms(gp_flags=['scale_prop'], sop_flags=['supp'])
 
     def getProg(self, label):
         if label in self.prog_ids.keys():
@@ -102,13 +104,23 @@ class ProgramSet:
     def copy(self):
         pass
 
-    def identifySpecialPrograms(self):
-        pass
+    def _setSpecialPrograms(self, gp_flags, sop_flags):
+        self.GPs = []
+        self.GP_pars = []
+        self.SOPs = []
+        for p in self.progs:
+            if p.flag[0] in gp_flags:
+                self.GPs.append(p.flag[0])
+                self.GP_pars.extend(p.flag[1])
+            elif p.flag[0] in sop_flags:
+                self.SOPs.append(p.flag[0])
+            else:
+                pass
 
 
 class Program:
-
-    def __init__(self, name, label, prog_type, t=None, cost=None, cov=None, cost_format=None, cov_format=None, attributes={}, target_pops=None, target_pars=None, flag='replace'):
+    def __init__(self, name, label, prog_type, t=None, cost=None, cov=None, cost_format=None, cov_format=None,
+                 attributes={}, target_pops=None, target_pars=None, flag='replace'):
         """
         
         """
@@ -137,13 +149,12 @@ class Program:
         self.func_specs = dict()
 
         # currently sanity check is disabled
-        self.flag = (self._parseSpecialTag(flag, None))
-
+        self.flag = self.parseSpecialTag(flag, None)
 
     # expects a 'special tag' of a program. The passed string is split at whitespaces. The first word defines the
     # special behaviour of the program, the other words are put in a list because they are specific for the special
     # behaviour of the program. At the end a sanity check is performed if prog != None
-    def _parseSpecialTag(self, tag, prog=None):
+    def parseSpecialTag(self, tag, prog=None):
         # decompose special tag word by word (string separated by whitespaces)
         words = tag.split()
 
@@ -158,47 +169,57 @@ class Program:
                         'ERROR: Parameters passed in the \'special tag\' field after \'%s\' must be impact parameters. \'%s\' is not in list [%s].'
                         % (words[0], w, ' '.join(prog.target_pars.keys())))
 
-        return words[0], words[1:]
+        return (words[0], words[1:])
 
-        
     def insertValuePair(self, t, y, attribute):
         ''' Check if the inserted t value already exists for the attribute type. If not, append y value. If so, overwrite y value. '''
-        
-        val_dict = {'cost':self.cost, 'cov':self.cov}
+
+        val_dict = {'cost': self.cost, 'cov': self.cov}
         for val_type in self.attributes.keys():
             val_dict[val_type] = self.attributes[val_type]
-            
+
         k = 0
         for t_val in self.t:
             if t_val == t:
-                try: val_dict[attribute][k] = float(y)
-                except: raise OptimaException('ERROR: Unable to insert value "%f" at year "%f" for attribute "%s" of program "%s"' % (y, t, attribute, self.label))
+                try:
+                    val_dict[attribute][k] = float(y)
+                except:
+                    raise OptimaException(
+                        'ERROR: Unable to insert value "%f" at year "%f" for attribute "%s" of program "%s"' % (
+                        y, t, attribute, self.label))
                 return
             k += 1
-        
+
         try:
             self.t = np.append(self.t, float(t))
             self.cost = np.append(self.cost, np.nan)
             self.cov = np.append(self.cov, np.nan)
             for val_type in self.attributes.keys():
                 self.attributes[val_type] = np.append(self.attributes[val_type], np.nan)
-            
+
             if attribute == 'cost':
                 self.cost[-1] = float(y)
             elif attribute == 'cov':
                 self.cov[-1] = float(y)
             else:
                 self.attributes[attribute][-1] = float(y)
-        except: raise OptimaException('ERROR: Unable to insert value "%f" at year "%f" for attribute "%s" of program "%s"' % (y, t, attribute, self.label))
+        except:
+            raise OptimaException(
+                'ERROR: Unable to insert value "%f" at year "%f" for attribute "%s" of program "%s"' % (
+                y, t, attribute, self.label))
 
     def interpolate(self, tvec=None, attributes=None):
         ''' Takes attribute values and constructs a dictionary of interpolated array corresponding to the input time vector. Ignores np.nan. '''
 
         # Validate input.
-        if tvec is None: raise OptimaException('ERROR: Cannot interpolate attributes of program "%s" without providing a time vector.' % self.label)
-        if not len(self.t) > 0: raise OptimaException('ERROR: There are no timepoint values for program "%s".' % self.label)
-        if not len(self.t) == len(self.cost): raise OptimaException('ERROR: Program "%s" does not have corresponding time and cost values.' % self.label)
-        if not len(self.t) == len(self.cov): raise OptimaException('ERROR: Program "%s" does not have corresponding time and coverage values.' % self.label)
+        if tvec is None: raise OptimaException(
+            'ERROR: Cannot interpolate attributes of program "%s" without providing a time vector.' % self.label)
+        if not len(self.t) > 0: raise OptimaException(
+            'ERROR: There are no timepoint values for program "%s".' % self.label)
+        if not len(self.t) == len(self.cost): raise OptimaException(
+            'ERROR: Program "%s" does not have corresponding time and cost values.' % self.label)
+        if not len(self.t) == len(self.cov): raise OptimaException(
+            'ERROR: Program "%s" does not have corresponding time and coverage values.' % self.label)
 
         output = dict()
 
@@ -220,8 +241,10 @@ class Program:
             t_array = dcp(t_temp[~np.isnan(val_temp)])
             val_array = dcp(val_temp[~np.isnan(val_temp)])
 
-            if len(t_array) == 1:  # If there is only one timepoint, corresponding cost and cov values should be real valued after loading databook. But can double-validate later.
-                output[val_type] = np.ones(len(tvec)) * (val_array)[0]  # Don't bother running interpolation loops if constant. Good for performance.
+            if len(
+                    t_array) == 1:  # If there is only one timepoint, corresponding cost and cov values should be real valued after loading databook. But can double-validate later.
+                output[val_type] = np.ones(len(tvec)) * (val_array)[
+                    0]  # Don't bother running interpolation loops if constant. Good for performance.
             else:
                 # Pad the input vectors for interpolation with minimum and maximum timepoint values, to avoid extrapolated values blowing up.
                 ind_min, t_min = min(enumerate(t_array), key=lambda p: p[1])
@@ -245,11 +268,12 @@ class Program:
 
         self.func_specs['type'] = func_type
 
-#        # WARNING: HARD-CODED AND SIMPLISTIC UNIT-COST GENERATION METHOD. IMAGINE IF THERE IS ZERO SPENDING FOR A PROGRAM IN THE LAST YEAR. AMEND ASAP.
-#        output = self.interpolate(tvec=[max(self.t)])    # Use the latest year stored in the program to inform unit costs.
+        #        # WARNING: HARD-CODED AND SIMPLISTIC UNIT-COST GENERATION METHOD. IMAGINE IF THERE IS ZERO SPENDING FOR A PROGRAM IN THE LAST YEAR. AMEND ASAP.
+        #        output = self.interpolate(tvec=[max(self.t)])    # Use the latest year stored in the program to inform unit costs.
         self.func_specs['pars'] = dcp(func_pars)
-#        self.func_specs['pars']['unit_cost'] = output['cov'][-1]/output['cost'][-1]
-#        self.func_specs['pars']['unit_cost'] = func_pars['unit_cost']
+
+    #        self.func_specs['pars']['unit_cost'] = output['cov'][-1]/output['cost'][-1]
+    #        self.func_specs['pars']['unit_cost'] = func_pars['unit_cost']
 
     def getDefaultBudget(self, year=None):
         '''
@@ -269,17 +293,21 @@ class Program:
         '''
 
         # If coverage is a scalar, make it a float. If it is a list or array, make it an array of floats.
-        try: coverage = float(coverage)
-        except: coverage = dcp(np.array(coverage, 'float'))
+        try:
+            coverage = float(coverage)
+        except:
+            coverage = dcp(np.array(coverage, 'float'))
 
         if self.func_specs['type'] == 'cost_only':
-            bud = np.nan    # A fixed-cost program has no coverage, so a coverage-budget conversion should return a NaN.
-                            # This will not bother value-updating in the model, as fixed-cost programs should not have impact parameters anyway.
+            bud = np.nan  # A fixed-cost program has no coverage, so a coverage-budget conversion should return a NaN.
+            # This will not bother value-updating in the model, as fixed-cost programs should not have impact parameters anyway.
         elif self.cov_format is None:
-            raise OptimaException('ERROR: Attempted to convert coverage to budget for a program (%s) that does not have coverage.' % self.label)
+            raise OptimaException(
+                'ERROR: Attempted to convert coverage to budget for a program (%s) that does not have coverage.' % self.label)
         else:
             if self.cov_format.lower() == 'fraction':
-                bud = coverage * self.func_specs['pars']['unit_cost'] / 0.01     # Unit cost is per percentage when format is a fraction.
+                bud = coverage * self.func_specs['pars'][
+                    'unit_cost'] / 0.01  # Unit cost is per percentage when format is a fraction.
             else:
                 bud = coverage * self.func_specs['pars']['unit_cost']
         return bud
@@ -292,14 +320,17 @@ class Program:
         '''
 
         # If budget is a scalar, make it a float. If it is a list or array, make it an array of floats.
-        try: budget = float(budget)
-        except: budget = dcp(np.array(budget, 'float'))
+        try:
+            budget = float(budget)
+        except:
+            budget = dcp(np.array(budget, 'float'))
 
         if self.cov_format is None:
             cov = np.nan  # Fixed cost programs have no coverage.
         else:
             if self.cov_format.lower() == 'fraction':
-                cov = budget * 0.01 / self.func_specs['pars']['unit_cost']     # Unit cost is per percentage when format is a fraction.
+                cov = budget * 0.01 / self.func_specs['pars'][
+                    'unit_cost']  # Unit cost is per percentage when format is a fraction.
             else:
                 cov = budget / self.func_specs['pars']['unit_cost']
         return cov
@@ -309,7 +340,7 @@ class Program:
         if self.func_specs['type'] == 'cost_only':
             return 0.0
 
-        budget = dcp(budget)    # Just in case.
+        budget = dcp(budget)  # Just in case.
 
         # Baseline impact is just coverage.
         if budget_is_coverage:
@@ -321,7 +352,9 @@ class Program:
         if not impact_label is None:
             if 'f_stack' in self.target_pars[impact_label].keys():
                 if parser is None:
-                    raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" without a parser, due to the existence of an impact function.' % (self.label, impact_label))
+                    raise OptimaException(
+                        'ERROR: Cannot calculate "%s" impact for "%s" without a parser, due to the existence of an impact function.' % (
+                        self.label, impact_label))
                 f_stack = dcp(self.target_pars[impact_label]['f_stack'])
                 attribs = dcp(self.target_pars[impact_label]['attribs'])
                 for attrib_label in attribs.keys():
@@ -329,11 +362,13 @@ class Program:
                         if years is None: years = [max(self.t)]
                         output = self.interpolate(tvec=years, attributes=[attrib_label])
                     else:
-                        raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" due to a missing reference "%s".' % (self.label, impact_label, attrib_label))
-                    attribs[attrib_label] = output[attrib_label]# [-1]
-#                    if len(output[attrib_label]) > 1:
-#                        print attribs
+                        raise OptimaException(
+                            'ERROR: Cannot calculate "%s" impact for "%s" due to a missing reference "%s".' % (
+                            self.label, impact_label, attrib_label))
+                    attribs[attrib_label] = output[attrib_label]  # [-1]
+                #                    if len(output[attrib_label]) > 1:
+                #                        print attribs
                 new_val = parser.evaluateStack(stack=f_stack, deps=attribs)
-                imp *= new_val      # Scale coverage.
+                imp *= new_val  # Scale coverage.
 
         return imp
