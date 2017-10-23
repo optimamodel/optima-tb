@@ -21,6 +21,7 @@ class ProgramSet:
 
         logging.info("Created ProgramSet: %s" % self.name)
 
+
     def makeProgs(self, data, settings):
         for l, prog_label in enumerate(data['progs']):
             prog_name = data['progs'][prog_label]['name']
@@ -38,6 +39,7 @@ class ProgramSet:
             attributes = data['progs'][prog_label]['attributes']
             target_pops = data['progs'][prog_label]['target_pops']
             target_pars = settings.progtype_specs[prog_type]['impact_pars']
+            flag = settings.progtype_specs[prog_type]['special']
             for target_par in target_pars.keys():
                 if target_par not in self.impacts: self.impacts[target_par] = []
                 self.impacts[target_par].append(prog_label)
@@ -46,7 +48,7 @@ class ProgramSet:
                                t=t, cost=cost, cov=cov,
                                cost_format=cost_format, cov_format=cov_format,
                                attributes=attributes,
-                               target_pops=target_pops, target_pars=target_pars)
+                               target_pops=target_pops, target_pars=target_pars, flag=flag)
 
 
             func_pars = dict()
@@ -100,10 +102,13 @@ class ProgramSet:
     def copy(self):
         pass
 
+    def identifySpecialPrograms(self):
+        pass
+
 
 class Program:
 
-    def __init__(self, name, label, prog_type, t=None, cost=None, cov=None, cost_format=None, cov_format=None, attributes={}, target_pops=None, target_pars=None):
+    def __init__(self, name, label, prog_type, t=None, cost=None, cov=None, cost_format=None, cov_format=None, attributes={}, target_pops=None, target_pars=None, flag='replace'):
         """
         
         """
@@ -130,6 +135,31 @@ class Program:
         self.target_pars = target_pars
 
         self.func_specs = dict()
+
+        # currently sanity check is disabled
+        self.flag = (self._parseSpecialTag(flag, None))
+
+
+    # expects a 'special tag' of a program. The passed string is split at whitespaces. The first word defines the
+    # special behaviour of the program, the other words are put in a list because they are specific for the special
+    # behaviour of the program. At the end a sanity check is performed if prog != None
+    def _parseSpecialTag(self, tag, prog=None):
+        # decompose special tag word by word (string separated by whitespaces)
+        words = tag.split()
+
+        if prog == None:
+            return words[0], words[1:]
+
+        # check if all the provided parameters are indeed impact parameters
+        if words[0] != '' and len(words[1:]) > 0:
+            for w in words[1:]:  # check if impact parameters and passed words coincide
+                if not w in prog.target_pars:
+                    raise OptimaException(
+                        'ERROR: Parameters passed in the \'special tag\' field after \'%s\' must be impact parameters. \'%s\' is not in list [%s].'
+                        % (words[0], w, ' '.join(prog.target_pars.keys())))
+
+        return words[0], words[1:]
+
         
     def insertValuePair(self, t, y, attribute):
         ''' Check if the inserted t value already exists for the attribute type. If not, append y value. If so, overwrite y value. '''

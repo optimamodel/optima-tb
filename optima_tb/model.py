@@ -806,7 +806,7 @@ class Model(object):
                                 prog = progset.getProg(prog_label)
                                 prog_type = prog.prog_type
 
-                                special, scale_pars = parseSpecialTag(settings.progtype_specs[prog_type]['special'], progset.getProg(prog_label))
+                                special, scale_pars = progset.getProg(prog_label).flag
 
                                 # if no prog_val is encountered, the program is not covered but has been 'artificially'
                                 # added because of its global impact. since there is no impact associated with it, simply
