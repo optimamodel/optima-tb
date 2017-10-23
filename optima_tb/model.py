@@ -803,8 +803,6 @@ class Model(object):
                             impact_list = []    # Notes for each program what its impact would be before coverage limitations.
                             overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
 
-                            # get all program types which influence parameters across populations
-                           # glob_prog_types = self._getProgNamesFromTag('scale_prop ', settings, progset)
                             # get all the relevant programs for the current parameter in the current population
                             rel_prog_labels = filter(lambda x: x in self.prog_vals.keys() and pop.label in progset.getProg(x).target_pops, progset.impacts[par_label])
                             # add programs from programs which have a global impact but are not covered in this population
@@ -881,6 +879,8 @@ class Model(object):
                                         impact += new_val
                                     else:
                                         impact = new_val * impact
+                                else:
+                                    new_val = 0.
 
                                 impact_list.append(impact)
 
@@ -1091,9 +1091,9 @@ def buildRelevantProgs(par_label, pop_label, imp_prog_label, glob_prog_label, pr
     # each item in the list of programs invokes _processScalePropsTag() which by itself operates across populations.
     # so in the loop only one program of a type is left in rel_prog_label which ensures that _processScalePropsTag()
     # is only called once per across-population-program-type
-    for labels in glob_prog_label.values():
+    for label in glob_prog_label:
         # remove programs which do not affect this population
-        tmp = filter(lambda x: pop_label in progset.getProg(x).target_pops, labels)
+        tmp = filter(lambda x: pop_label in progset.getProg(x).target_pops, label)
         # remove programs which do not affect this parameter
         tmp = filter(lambda x: par_label in progset.getProg(x).target_pars, tmp)
 
@@ -1236,8 +1236,8 @@ def processScalePropsTag(par_label, settings, pops, pop_ids, progset, prog_vals,
     # sop_progs = getProgNamesFromTag('supp', settings, progset).values()[0] # all SOPs
 
     # any(x == _ for _ in gp_progs) checks if the string x is contained in the list of strings gp_progs
-    rel_progs = filter(lambda x: x in progset.GPs + progset.SOPs, rel_progs) # remove programs which are not GP or SOP
-    rel_progs = filter(lambda x: x in prog_vals, rel_progs) # remove all programs which have no coverage
+    rel_progs = filter(lambda x: x in progset.GPs + progset.SOPs + prog_vals.keys(), rel_progs) # remove programs which are not GP or SOP
+    # rel_progs = filter(lambda x: x in prog_vals, rel_progs) # remove all programs which have no coverage
 
     for p in rel_progs:
         imp = 0.0

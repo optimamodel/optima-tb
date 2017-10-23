@@ -4,6 +4,7 @@ from copy import deepcopy as dcp
 from optima_tb.asd import asd
 import numpy as np
 from optima_tb.parsing import FunctionParser
+from optima_tb.model import *
 
 import logging
 logger = logging.getLogger(__name__)
@@ -258,6 +259,70 @@ def createAttributeList(attribute_dict):
             else: index += 1
     return attribute_list, unitcost_index, budget_index
 
+
+# special behaviour of program with the tag 'supp'
+def processSuppTagReconcile(par_label, prog, progset, budget_alloc, parser, ti):
+    impacts = []
+    # extract all attributes which refer to another program
+    refs = filter(lambda x: x.startswith('$ref_'), prog.attributes)
+    # list of all attributes other than programs
+    var = list(set(prog.attributes.keys()).difference(set(refs)))
+
+    # loop over all referenced programs and increase their impact on impact parameters
+    for p in refs:
+        # label of referenced program
+        ref_prog = prog.attributes[p][0]
+        # suffix of the program, everything after the last '_' in program label (incl. '_')
+        suff = p[p.rfind('_'):]
+
+        if ref_prog in budget_alloc.keys():
+            # all parameters specified in the spreadsheet are multiplied
+            coeff = 1.
+            for f in filter(lambda x: x.endswith(suff), var):
+                try: coeff *= prog.attributes[f][ti]
+                except: coeff *= prog.attributes[f]
+
+            # obtain coverage of referenced program ..
+            cov = progset.getProg(ref_prog).getCoverage(budget_alloc[ref_prog], impact_label=par_label, parser=parser, years=[ti])
+            scov = progset.getProg(prog.label).getCoverage(budget_alloc[prog.label], impact_label=par_label, parser=parser, years=[ti])
+
+            # .. and determine the minimum coverage for the impact
+            net_cov = min(cov, scov)
+
+            # apply impact
+            impacts.append(progset.getProg(ref_prog).getImpact(budget_alloc[ref_prog], impact_label=par_label, parser=parser, years=[ti]) * net_cov * coeff)
+
+    return np.sum(impacts)
+
+
+# special behaviour for programs with the tag 'scale_props'
+def processScalePropsTagReconcile(par_label, pops, pop_ids, progset, budget_alloc, parser, ti):
+    # determine total population
+    total_pop = sum([p.getDep('h_alive').vals[ti] for p in pops])
+    impacts = []  # impacts are treated as fractions!
+    # TODO allow impact numbers, too
+
+    # TODO: extend for the case of multiple types of SOPs and GPs; the lines of code are only meaningful when there is only one or less types of GP and SOP, respectively.
+
+    # find all programs of the same type as current one and weigh its impact proportional
+    # to the population size before summing up
+    rel_progs = progset.impacts[par_label] # all programs impacting considered parameter
+
+    rel_progs = filter(lambda x: x in progset.GPs + progset.SOPs, rel_progs) # remove programs which are not GP or SOP
+
+    for p in rel_progs:
+        imp = 0.0
+        target_pop_size = np.sum([pops[pop_ids[pp]].getDep('h_alive').vals[ti] for pp in progset.getProg(p).target_pops])
+        if p in progset.GPs: # currently works only for one dict-entry
+            progset.getProg(p).getImpact(budget_alloc[p], impact_label=par_label, parser=parser, years=[ti])
+        elif p in progset.SOPs: # currently works only for one dict-entry
+            imp = processSuppTagReconcile(par_label, progset.getProg(p), progset, budget_alloc, ti)
+
+        impacts.append(imp * target_pop_size / total_pop)
+
+    return np.sum(impacts)
+
+
 def regenerateAttributesDict(attribute_list, orig_attribute_dict):
     '''Reverse process, where the attributes list is converted back into the attributes dictionary after optimization/reconciliation
        
@@ -371,83 +436,125 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 impact_list = []    # Notes for each program what its impact would be before coverage limitations.
                 overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
                 if par_label not in prog_attributes[popkey].keys(): prog_attributes[popkey][par_label] = odict()
-                for prog_label in progset.impacts[par_label]:
+
+                # get all the relevant programs for the current parameter in the current population
+                rel_prog_labels = filter(lambda x: popkey in progset.getProg(x).target_pops, progset.impacts[par_label])
+                # add programs from programs which have a global impact but are not covered in this population
+                rel_prog_labels = buildRelevantProgs(par_label, popkey, rel_prog_labels, progset.GPs, progset)
+
+                for prog_label in rel_prog_labels:
                     prog = progset.getProg(prog_label)
                     prog_type = prog.prog_type
-                    # Make sure the population in the loop is a target of this program.x
-                    if popkey not in prog.target_pops:
-                        continue
+                    # # Make sure the population in the loop is a target of this program.x
+                    # if popkey not in prog.target_pops:
+                    #     continue
                     if prog_budget_alloc is None or prog_label not in prog_budget_alloc.keys():
                         prog_budget = prog.getDefaultBudget()  
                     else:
                         prog_budget = prog_budget_alloc[prog_label]
-                    
+
+                    (special, scale_pars) = progset.getProg(prog_label).flag
+
                     pop = results.m_pops[results.pop_label_index[popkey]]
                     tag = proj.settings.linkpar_specs[par_label]['tag']
-                    par = pop.getLinks(tag)[0]
-                    source_element_size = pop.comps[par.index_from[1]].popsize[-1]
-                    source_set_size = 0
-                    for from_pop_label in prog.target_pops:
-                        from_pop = results.m_pops[results.pop_label_index[from_pop_label]]
-                        alt_par = from_pop.getLinks(tag)[0]
-                        source_set_size += from_pop.comps[alt_par.index_from[1]].popsize[-1]
-                    # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
-                    if 'group' in proj.settings.progtype_specs[prog_type]['impact_pars'][par_label]:
-                        group_label = proj.settings.progtype_specs[prog_type]['impact_pars'][par_label]['group']
-                        for alt_par_label in proj.settings.progtype_specs[prog_type]['impact_par_groups'][group_label]:
-                            if not alt_par_label == par_label:
-                                alt_pars = pop.getLinks(proj.settings.linkpar_specs[alt_par_label]['tag'])
-                                for from_pop_label in prog.target_pops:
-                                    from_pop = results.m_pops[results.pop_label_index[from_pop_label]]
-                                    source_set_size += from_pop.comps[alt_pars[0].index_from[1]].popsize[-1]   
-                    #print('Program Label: %s, Parameter: %s, Source set size: %f, source_element_size: %f' % (prog_label, par_label, source_set_size, source_element_size))
-                    net_impact = prog.getImpact(prog_budget, impact_label = par_label, parser = parser, years = [reconcile_for_year])
-                    if par.val_format == 'fraction':
-                        if prog.cov_format == 'fraction':
-                            impact = float(net_impact)
-                        elif prog.cov_format == 'number':
-                            if source_element_size <= settings.TOLERANCE:
-                                impact = 0.0
-                            else:
-                                impact = net_impact / source_set_size
-                    elif par.val_format == 'number':
-                        if prog.cov_format == 'fraction':
-                            impact = net_impact * source_element_size
-                        elif prog.cov_format == 'number':
-                            if source_element_size <= settings.TOLERANCE:
-                                impact = 0.0
-                            else:
-                                impact = net_impact * source_element_size / source_set_size
+                    if par_label in proj.settings.par_deps:
+                        par = pop.getDep(par_label)
+                    else:
+                        par = pop.getLinks(proj.settings.linkpar_specs[par_label]['tag'])[0]
+
+                    net_impact = prog.getImpact(prog_budget, impact_label=par_label, parser=parser, years=[reconcile_for_year])
+
+                    if isinstance(par, Link):
+                        source_element_size = pop.comps[par.index_from[1]].popsize[-1]
+                        source_set_size = 0
+                        for from_pop_label in prog.target_pops:
+                            from_pop = results.m_pops[results.pop_label_index[from_pop_label]]
+                            alt_par = from_pop.getLinks(tag)[0]
+                            source_set_size += from_pop.comps[alt_par.index_from[1]].popsize[-1]
+                        # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
+                        if 'group' in proj.settings.progtype_specs[prog_type]['impact_pars'][par_label]:
+                            group_label = proj.settings.progtype_specs[prog_type]['impact_pars'][par_label]['group']
+                            for alt_par_label in proj.settings.progtype_specs[prog_type]['impact_par_groups'][group_label]:
+                                if not alt_par_label == par_label:
+                                    alt_pars = pop.getLinks(proj.settings.linkpar_specs[alt_par_label]['tag'])
+                                    for from_pop_label in prog.target_pops:
+                                        from_pop = results.m_pops[results.pop_label_index[from_pop_label]]
+                                        source_set_size += from_pop.comps[alt_pars[0].index_from[1]].popsize[-1]
+
+
+                        if par.val_format == 'fraction':
+                            if prog.cov_format == 'fraction':
+                                impact = float(net_impact)
+                            elif prog.cov_format == 'number':
+                                if source_element_size <= settings.TOLERANCE:
+                                    impact = 0.0
+                                else:
+                                    impact = net_impact / source_set_size
+                        elif par.val_format == 'number':
+                            if prog.cov_format == 'fraction':
+                                impact = net_impact * source_element_size
+                            elif prog.cov_format == 'number':
+                                if source_element_size <= settings.TOLERANCE:
+                                    impact = 0.0
+                                else:
+                                    impact = net_impact * source_element_size / source_set_size
+
+                        if special != 'supp':
+                            # Calculate how excessive program coverage is for the provided budgets.
+                            # If coverage is a fraction, excess is compared to unity.
+                            # If coverage is a number, excess is compared to the total number of people available for coverage.
+                            overflow_factor = 0.
+                            net_cov = prog.getCoverage(prog_budget)
+                            if prog.cov_format == 'fraction':
+                                overflow_factor = net_cov
+                            elif prog.cov_format == 'number':
+                                if float(source_set_size) <= settings.TOLERANCE:
+                                    overflow_factor = np.inf
+                                else:
+                                    overflow_factor = net_cov / float(source_set_size)
+                            overflow_list.append(overflow_factor)
                     
-                    # Calculate how excessive program coverage is for the provided budgets.
-                    # If coverage is a fraction, excess is compared to unity.
-                    # If coverage is a number, excess is compared to the total number of people available for coverage.
-                    overflow_factor = 0.
-                    net_cov = prog.getCoverage(prog_budget)
-                    if prog.cov_format == 'fraction':
-                        overflow_factor = net_cov
-                    elif prog.cov_format == 'number':
-                        if float(source_set_size) <= settings.TOLERANCE:
-                            overflow_factor = np.inf
+                    else:
+                        impact = net_impact
+
+                    if special == 'scale_prop' and par_label in scale_pars:
+                        impact = processScalePropsTag(par_label, settings, results.m_pops, results.pop_ids, progset, prog_budget_alloc, reconcile_for_year)
+                    # elif special == 'split':
+                    #     if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
+                    #         assert (0. <= source_element_size / source_set_size <= 1.)
+                    #         impact *= source_element_size / source_set_size
+                    # TODO might be reasonable to move this elif part up because impact is computed only here
+                    elif special == 'supp':
+                        # only apply impact if the paramter is not influenced by GPs; skip otherwise:
+                        # if the intersection of impacting programs, GPs and available programs is empty or no global impact parameter is referenced, apply changes
+                        if not set(progset.impacts[par_label]).intersection(progset.GPs) and not par_label in progset.GP_pars:
+                            impact = processSuppTag(par_label, prog, reconcile_for_year)
+                            # necessary work-around to prevent supp-programs to change values when they do not have any influence
+                            if impact == 0.: continue
                         else:
-                            overflow_factor = net_cov / float(source_set_size)
-                    overflow_list.append(overflow_factor)
-                    
-                    if first_prog: 
+                            continue
+
+                    if special != '' and special != 'replace':
+                        if par.val_format == 'number' and isinstance(par, Link):
+                            impact += par.vals[reconcile_for_year]
+                        else:
+                            impact *= par.vals[reconcile_for_year]
+                    else:
                         new_val = 0.
-                        temp_val = 0.
-                        first_prog = False
-                    temp_val += impact
+
+                    new_val += impact
                     impact_list.append(impact)
-                    prog_attributes[popkey][par_label]['Original Impact Value'] = temp_val
+                    prog_attributes[popkey][par_label]['Original Impact Value'] = new_val
                     prog_attributes[popkey][par_label]['Coverage Cap Impact Value'] = np.nan
                 
                 # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
                 # Otherwise renormalises impacts.
                 if len(overflow_list) > 0 and sum(overflow_list) > 1:
                     impact_list = np.multiply(impact_list, 1/sum(overflow_list))
-                new_val += np.sum(impact_list)
-#                print('Pop key: %s, Par Label: %s, New Val: %s' % (popkey, par_label, new_val))
+
+                if len(impact_list) > 0:
+                    new_val += np.sum(impact_list)
+
                 if prog_attributes[popkey][par_label]:    
                     prog_attributes[popkey][par_label]['Coverage Cap Impact Value'] = new_val
                     prog_attributes[popkey][par_label]['overflow_list'] = [format(x, '.2f') for x in overflow_list]

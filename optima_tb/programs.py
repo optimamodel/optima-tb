@@ -151,6 +151,7 @@ class Program:
         # currently sanity check is disabled
         self.flag = self.parseSpecialTag(flag, None)
 
+
     # expects a 'special tag' of a program. The passed string is split at whitespaces. The first word defines the
     # special behaviour of the program, the other words are put in a list because they are specific for the special
     # behaviour of the program. At the end a sanity check is performed if prog != None
