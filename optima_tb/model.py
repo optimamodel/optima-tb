@@ -836,7 +836,7 @@ class Model(object):
                                 except: net_impact = self.prog_vals[prog_label]['impact'][par_label]
 
                                 if isinstance(pars[0], Link):
-                                    source_element_size, source_set_size = processGrouping(pars[0], par_label, prog, pop, settings, special, ti)
+                                    source_element_size, source_set_size = processGrouping(pars[0], par_label, prog, self.pops, self.pop_ids, pop, settings, ti)
 
                                     impact = processParameterType(net_impact, pars[0], prog, source_element_size, source_set_size)
 
@@ -869,7 +869,7 @@ class Model(object):
                                     # only apply impact if the paramter is not influenced by GPs; skip otherwise:
                                     # if the intersection of impacting programs, GPs and available programs is empty or no global impact parameter is referenced, apply changes
                                     if not set(progset.impacts[par_label]).intersection(rel_glob_progs) and not par_label in progset.GP_pars:
-                                        impact = processSuppTag(par_label, prog, ti)
+                                        impact = processSuppTag(par_label, prog, self.prog_vals, ti)
                                         # necessary work-around to prevent supp-programs to change values when they do not have any influence
                                         if impact == 0.: continue
                                     else: continue
@@ -1091,20 +1091,20 @@ def buildRelevantProgs(par_label, pop_label, imp_prog_label, glob_prog_label, pr
     # each item in the list of programs invokes _processScalePropsTag() which by itself operates across populations.
     # so in the loop only one program of a type is left in rel_prog_label which ensures that _processScalePropsTag()
     # is only called once per across-population-program-type
-    for label in glob_prog_label:
-        # remove programs which do not affect this population
-        tmp = filter(lambda x: pop_label in progset.getProg(x).target_pops, label)
-        # remove programs which do not affect this parameter
-        tmp = filter(lambda x: par_label in progset.getProg(x).target_pars, tmp)
+#for label in glob_prog_label:
+    # remove programs which do not affect this population
+    tmp = filter(lambda x: pop_label in progset.getProg(x).target_pops, glob_prog_label)
+    # remove programs which do not affect this parameter
+    tmp = filter(lambda x: par_label in progset.getProg(x).target_pars, tmp)
 
-        # if there are no programs applicable, move on
-        if not tmp:
-            continue
+    # if there are no programs applicable, move on
+    if not tmp:
+        return list(rel_prog_label)
 
-        # if already a program of the across population program type is called, move on:
-        # if not, add the first (it does not matter which one) item of labels to list
-        if not rel_prog_label.intersection(set(tmp)):
-            rel_prog_label.update([tmp[0]])
+    # if already a program of the across population program type is called, move on:
+    # if not, add the first (it does not matter which one) item of labels to list
+    if not rel_prog_label.intersection(set(tmp)):
+        rel_prog_label.update([tmp[0]])
 
     return list(rel_prog_label)
 
@@ -1236,8 +1236,8 @@ def processScalePropsTag(par_label, settings, pops, pop_ids, progset, prog_vals,
     # sop_progs = getProgNamesFromTag('supp', settings, progset).values()[0] # all SOPs
 
     # any(x == _ for _ in gp_progs) checks if the string x is contained in the list of strings gp_progs
-    rel_progs = filter(lambda x: x in progset.GPs + progset.SOPs + prog_vals.keys(), rel_progs) # remove programs which are not GP or SOP
-    # rel_progs = filter(lambda x: x in prog_vals, rel_progs) # remove all programs which have no coverage
+    rel_progs = filter(lambda x: x in progset.GPs + progset.SOPs, rel_progs) # remove programs which are not GP or SOP
+    rel_progs = filter(lambda x: x in prog_vals.keys(), rel_progs) # remove all programs which have no coverage
 
     for p in rel_progs:
         imp = 0.0
@@ -1246,7 +1246,7 @@ def processScalePropsTag(par_label, settings, pops, pop_ids, progset, prog_vals,
             try: imp = prog_vals[p]['impact'][par_label][ti]  # identical for each population
             except: imp = prog_vals[p]['impact'][par_label][0]
         elif p in progset.SOPs: # currently works only for one dict-entry
-            imp = processSuppTag(par_label, progset.getProg(p), ti)
+            imp = processSuppTag(par_label, progset.getProg(p), prog_vals, ti)
 
         impacts.append(imp * target_pop_size / total_pop)
 
