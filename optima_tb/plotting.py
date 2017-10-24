@@ -766,7 +766,7 @@ def plotScenarioBar (scen_results, scen_labels, settings, data, output_list=None
     final_dict.update(final_dict2)
 
 
-    _plotBars(values, labels=output, colors=colors, xlabels=scen_results.keys(), legendsettings=legendsettings,
+    _plotBars(values, labels=output, colors=colors, xlabels=scen_results.keys(), # legendsettings=legendsettings,
               save_fig=save_fig, **final_dict)
 
 
@@ -1261,7 +1261,8 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
 #     final_dict.update(plotdict)
     plotdict.update(final_dict)
     print plotdict
-    _plotBars(values, labels=output_labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings,
+    _plotBars(values, labels=output_labels, colors=colors, xlabels=xlabels,
+#               legendsettings=legendsettings,
               save_fig=save_fig, **plotdict)
 
 
@@ -1404,7 +1405,8 @@ def plotCareCascade(results, settings, pop_labels, labels, years, title="", norm
         print pop_labels.keys()
         _plotBars(new_val, pop_labels.keys(), xlabels=xlabels,
                   colors=colors, y_intercept=y_intercept, yticks=yticks,
-                  legendsettings=legendsettings, save_fig=save_fig, **plotdict)
+#                   legendsettings=legendsettings,
+                  save_fig=save_fig, **plotdict)
 
 
     if plotdict.has_key('legend_off') and plotdict['legend_off']:
@@ -1467,7 +1469,7 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
                   'save_figname': '%s_budget' % fig_name}
     plotdict.update(final_dict)
 
-    _plotBars(values, labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings,
+    _plotBars(values, labels, colors=colors, xlabels=xlabels, # legendsettings=legendsettings,
               save_fig=save_fig, **plotdict)
 
 
