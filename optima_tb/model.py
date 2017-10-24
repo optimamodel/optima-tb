@@ -5,13 +5,12 @@ from optima_tb.validation import checkNegativePopulation, checkTransitionFractio
 import optima_tb.settings as project_settings
 from optima_tb.results import ResultSet
 from optima_tb.parsing import FunctionParser
+import numpy as np
+from copy import deepcopy as dcp
 
 
 import logging
 logger = logging.getLogger(__name__)
-
-import numpy as np
-from copy import deepcopy as dcp
 
 
 
@@ -806,7 +805,7 @@ class Model(object):
                             # get all the relevant programs for the current parameter in the current population
                             rel_prog_labels = filter(lambda x: x in self.prog_vals.keys() and pop.label in progset.getProg(x).target_pops, progset.impacts[par_label])
                             # add programs from programs which have a global impact but are not covered in this population
-                            rel_prog_labels = buildRelevantProgs(par_label, pop.label, rel_prog_labels, progset.GPs, progset)
+                            rel_prog_labels = buildRelevantProgs(par_label, pop.label, rel_prog_labels, progset)
 
                             for prog_label in rel_prog_labels:
                                 prog = progset.getProg(prog_label)
@@ -1085,7 +1084,7 @@ class Model(object):
 # create a list of program labels of programs which are defined and have a coverage. In the case of global programs,
 # a global program is added to the list if none is present to ensure that this population is also affected by the
 # global program
-def buildRelevantProgs(par_label, pop_label, imp_prog_label, glob_prog_label, progset):
+def buildRelevantProgs(par_label, pop_label, imp_prog_label, progset):
     rel_prog_label = set(imp_prog_label)  # applicable programs with coverage
 
     # each item in the list of programs invokes _processScalePropsTag() which by itself operates across populations.
@@ -1093,20 +1092,21 @@ def buildRelevantProgs(par_label, pop_label, imp_prog_label, glob_prog_label, pr
     # is only called once per across-population-program-type
 #for label in glob_prog_label:
     # remove programs which do not affect this population
-    tmp = filter(lambda x: pop_label in progset.getProg(x).target_pops, glob_prog_label)
+    tmp = filter(lambda x: pop_label in progset.getProg(x).target_pops, progset.GPs)
     # remove programs which do not affect this parameter
     tmp = filter(lambda x: par_label in progset.getProg(x).target_pars, tmp)
 
-    # if there are no programs applicable, move on
-    if not tmp:
-        return list(rel_prog_label)
+    # if there are applicable global programs add one of them (one global program invokes a series of function calls so
+    # that) all global programs are invoked
+    if tmp:
+        # if already a program of the across population program type is called, move on:
+        # if not, add the first (it does not matter which one) item of labels to list
+        if not rel_prog_label.intersection(set(tmp)):
+            rel_prog_label.update([tmp[0]])
 
-    # if already a program of the across population program type is called, move on:
-    # if not, add the first (it does not matter which one) item of labels to list
-    if not rel_prog_label.intersection(set(tmp)):
-        rel_prog_label.update([tmp[0]])
-
-    return list(rel_prog_label)
+    # move SOPs to end of the list. this is only necessary for reconciliation; for forward simulation it does not matter
+    # this is done by sorting the list of labels. the line below makes use of 'False < True'
+    return sorted(list(rel_prog_label), key=lambda x: x in progset.SOPs)
 
 
 # # obtain program labels which a the pass 'tag'

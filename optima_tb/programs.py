@@ -110,12 +110,17 @@ class ProgramSet:
         self.SOPs = []
         for p in self.progs:
             if p.flag[0] in gp_flags:
-                self.GPs.append(p.flag[0])
+                self.GPs.append(p.label)
                 self.GP_pars.extend(p.flag[1])
             elif p.flag[0] in sop_flags:
-                self.SOPs.append(p.flag[0])
+                self.SOPs.append(p.label)
             else:
                 pass
+
+        # uniquify
+        self.GPs =list(set(self.GPs))
+        self.SOPs = list(set(self.SOPs))
+        self.GP_pars = list(set(self.GP_pars))
 
 
 class Program:

@@ -79,7 +79,9 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
         args = {'proj': proj, 'parset': parset, 'progset': progset, 'parset_name': parset_name,
                 'impact_pars': impact_pars, 'results': results, 'attribute_dict': attribute_dict, 
                 'reconcile_for_year': reconcile_for_year, 'compareoutcome': False, 'prog_budget_alloc': budget_allocation, 'constrain_budget': constrain_budget}
-        
+
+        proj.settings.autofit_params['maxiters'] = 1
+
         optim_args = {
                      'stepsize': proj.settings.autofit_params['stepsize'], 
                      'maxiters': proj.settings.autofit_params['maxiters'],
@@ -93,6 +95,7 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
         if not max_time is None:
             optim_args['maxtime'] = max_time
 
+        # TODO change optimisation method
         best_attribute_list = asd(reconciliationMetric, attribute_list, args, xmin = xmin, xmax = xmax, **optim_args)
         best_attribute_dict = regenerateAttributesDict(attribute_list = best_attribute_list, orig_attribute_dict = attribute_dict)
         print best_attribute_dict
@@ -106,15 +109,16 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, unitcost_
         reconcileprogset_value = 'Reconciled Impact'
         print('Comparing outcomes for year: %i' %reconcile_for_year)
         outcome = '\n\t\t\t%s\t\t%s\t\t%s\n' %(parset_value, origprogset_value, reconcileprogset_value)
+
         for par_label in impact['original'].keys():
             if par_label == 'net_difference': continue
             else:
                 outcome += '%s\n' %(par_label)
                 for popkey in impact['original'][par_label]:
-                    #print('Pop key: %s, Par_label: %s\nType(original parset value): %s\nType(original progset value): %s\nType(reconciled parset value): %s\nType(reconciled progset value): %s\n' %(popkey, par_label, impact['original'][par_label][popkey]['parset_impact_value'], impact['original'][par_label][popkey]['progset_impact_value'], impact['reconciled'][par_label][popkey]['parset_impact_value'], impact['reconciled'][par_label][popkey]['progset_impact_value']))
-#                    print impact['original'][par_label][popkey].keys()
-#                    print impact['reconciled'][par_label][popkey].keys()
-                    outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact['original'][par_label][popkey]['parset_impact_value'], impact['original'][par_label][popkey]['progset_impact_capped'], impact['reconciled'][par_label][popkey]['progset_impact_capped'])
+                    outcome += '\t%s' % popkey
+                    outcome += '\t%10.2f\t' % impact['original'][par_label][popkey]['parset_impact_value']
+                    outcome += '\t%10.2f\t' % impact['original'][par_label][popkey]['progset_impact_capped']
+                    outcome += '\t%10.2f\n' % impact['reconciled'][par_label][popkey]['progset_impact_capped']
                 outcome += '\n'
 #        print outcome
         #Reset back to original runSim durations
@@ -261,8 +265,9 @@ def createAttributeList(attribute_dict):
 
 
 # special behaviour of program with the tag 'supp'
-def processSuppTagReconcile(par_label, prog, progset, budget_alloc, parser, ti):
+def processSuppTagReconcile(par_label, prog, progset, budget_alloc, ti):
     impacts = []
+    parser = FunctionParser(debug=False)
     # extract all attributes which refer to another program
     refs = filter(lambda x: x.startswith('$ref_'), prog.attributes)
     # list of all attributes other than programs
@@ -275,7 +280,7 @@ def processSuppTagReconcile(par_label, prog, progset, budget_alloc, parser, ti):
         # suffix of the program, everything after the last '_' in program label (incl. '_')
         suff = p[p.rfind('_'):]
 
-        if ref_prog in budget_alloc.keys():
+        if ref_prog in progset.impacts[par_label] and ref_prog in budget_alloc.keys():
             # all parameters specified in the spreadsheet are multiplied
             coeff = 1.
             for f in filter(lambda x: x.endswith(suff), var):
@@ -283,8 +288,8 @@ def processSuppTagReconcile(par_label, prog, progset, budget_alloc, parser, ti):
                 except: coeff *= prog.attributes[f]
 
             # obtain coverage of referenced program ..
-            cov = progset.getProg(ref_prog).getCoverage(budget_alloc[ref_prog], impact_label=par_label, parser=parser, years=[ti])
-            scov = progset.getProg(prog.label).getCoverage(budget_alloc[prog.label], impact_label=par_label, parser=parser, years=[ti])
+            cov = progset.getProg(ref_prog).getCoverage(budget_alloc[ref_prog])
+            scov = progset.getProg(prog.label).getCoverage(budget_alloc[prog.label])
 
             # .. and determine the minimum coverage for the impact
             net_cov = min(cov, scov)
@@ -354,7 +359,7 @@ def updateProgset(new_pars_dict, progset, year):
     for prog_label in progset.prog_ids.keys():
         if prog_label not in new_pars_dict.keys(): continue
         else:
-            print prog_label
+            # print prog_label
             index = progset.prog_ids[prog_label]
             for attribute in new_pars_dict[prog_label].keys():
                 if attribute in progset.progs[index].attributes.keys():
@@ -427,8 +432,15 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
     par_attributes = odict()
     prog_attributes = odict()
     parser = FunctionParser(debug=False)
+    if prog_budget_alloc is None: prog_budget_alloc = {}
+
+    if proj.settings.tvec_start < reconcile_for_year < proj.settings.tvec_end:
+        raise OptimaException('Year for reconciliation (%.0f) is not in the simulation interval from %0.f to %0.f!' % (reconcile_for_year, proj.settings.tvec_start, proj.settings.tvec_end))
+
+    rel_t_idx = reconcile_for_year - proj.settings.tvec_start
+
     
-    for par_label in (impact_pars):
+    for par_label in impact_pars:
         for popkey in results.pop_label_index.keys():
             if popkey not in prog_attributes.keys(): prog_attributes[popkey] = odict()
             if par_label in progset.impacts.keys():
@@ -437,34 +449,34 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
                 if par_label not in prog_attributes[popkey].keys(): prog_attributes[popkey][par_label] = odict()
 
+                pop = results.m_pops[results.pop_label_index[popkey]]
+                if par_label in proj.settings.par_deps:
+                    par = pop.getDep(par_label)
+                else:
+                    par = pop.getLinks(proj.settings.linkpar_specs[par_label]['tag'])[0]
+                new_val = par.vals[rel_t_idx]
+
                 # get all the relevant programs for the current parameter in the current population
                 rel_prog_labels = filter(lambda x: popkey in progset.getProg(x).target_pops, progset.impacts[par_label])
                 # add programs from programs which have a global impact but are not covered in this population
-                rel_prog_labels = buildRelevantProgs(par_label, popkey, rel_prog_labels, progset.GPs, progset)
+                rel_prog_labels = buildRelevantProgs(par_label, popkey, rel_prog_labels, progset)
 
                 for prog_label in rel_prog_labels:
                     prog = progset.getProg(prog_label)
                     prog_type = prog.prog_type
-                    # # Make sure the population in the loop is a target of this program.x
-                    # if popkey not in prog.target_pops:
-                    #     continue
-                    if prog_budget_alloc is None or prog_label not in prog_budget_alloc.keys():
-                        prog_budget = prog.getDefaultBudget()  
+
+                    # if no budget allocation is given, fill in the allocation with default values
+                    if prog_label not in prog_budget_alloc.keys():
+                        prog_budget = prog.getDefaultBudget()
+                        prog_budget_alloc[prog_label] = prog_budget
                     else:
                         prog_budget = prog_budget_alloc[prog_label]
 
                     (special, scale_pars) = progset.getProg(prog_label).flag
-
-                    pop = results.m_pops[results.pop_label_index[popkey]]
-                    tag = proj.settings.linkpar_specs[par_label]['tag']
-                    if par_label in proj.settings.par_deps:
-                        par = pop.getDep(par_label)
-                    else:
-                        par = pop.getLinks(proj.settings.linkpar_specs[par_label]['tag'])[0]
-
                     net_impact = prog.getImpact(prog_budget, impact_label=par_label, parser=parser, years=[reconcile_for_year])
 
-                    if isinstance(par, Link):
+                    if 'tag' in proj.settings.linkpar_specs[par_label]:
+                        tag = proj.settings.linkpar_specs[par_label]['tag']
                         source_element_size = pop.comps[par.index_from[1]].popsize[-1]
                         source_set_size = 0
                         for from_pop_label in prog.target_pops:
@@ -518,7 +530,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                         impact = net_impact
 
                     if special == 'scale_prop' and par_label in scale_pars:
-                        impact = processScalePropsTag(par_label, settings, results.m_pops, results.pop_ids, progset, prog_budget_alloc, reconcile_for_year)
+                        impact = processScalePropsTagReconcile(par_label, results.m_pops, results.pop_label_index, progset, prog_budget_alloc, parser, rel_t_idx)
                     # elif special == 'split':
                     #     if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
                     #         assert (0. <= source_element_size / source_set_size <= 1.)
@@ -528,7 +540,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                         # only apply impact if the paramter is not influenced by GPs; skip otherwise:
                         # if the intersection of impacting programs, GPs and available programs is empty or no global impact parameter is referenced, apply changes
                         if not set(progset.impacts[par_label]).intersection(progset.GPs) and not par_label in progset.GP_pars:
-                            impact = processSuppTag(par_label, prog, reconcile_for_year)
+                            impact = processSuppTagReconcile(par_label, prog, progset, prog_budget_alloc, reconcile_for_year)
                             # necessary work-around to prevent supp-programs to change values when they do not have any influence
                             if impact == 0.: continue
                         else:
@@ -536,9 +548,9 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
 
                     if special != '' and special != 'replace':
                         if par.val_format == 'number' and isinstance(par, Link):
-                            impact += par.vals[reconcile_for_year]
+                            impact += par.vals[rel_t_idx]
                         else:
-                            impact *= par.vals[reconcile_for_year]
+                            impact *= par.vals[rel_t_idx]
                     else:
                         new_val = 0.
 
@@ -563,38 +575,42 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                     
     ###############################################################################
     ##Cleanup prog_attributes dictionary if empty odicts exist
+    # TODO this step may be skipped?
     for popkey in prog_attributes.keys():
         for par_label in prog_attributes[popkey]:
             if (type(prog_attributes[popkey][par_label]) == odict) and (bool(prog_attributes[popkey][par_label]) == False):
                 del prog_attributes[popkey][par_label]
     ###############################################################################
     ##Calculate Impact of parset
-    for par_label in (impact_pars):
-        for popkey in results.pop_label_index.keys():     
-            if popkey not in par_attributes.keys(): par_attributes[popkey] = odict()      
-            for index in range((len(parset))):
-                if (par_label == parset[index].label) and (par_label not in proj.settings.par_funcs.keys()):
-                    if par_label not in par_attributes[popkey].keys(): par_attributes[popkey][par_label] = odict()      
-                    par_attributes[popkey][par_label] = {'Impact Value': dcp(parset[index].interpolate(tvec=np.arange(proj.settings.tvec_start, proj.settings.tvec_end + proj.settings.tvec_dt/2, proj.settings.tvec_dt), pop_label=popkey))}
-                    par_attributes[popkey][par_label]['Impact Value'] = par_attributes[popkey][par_label]['Impact Value'][-1]                
-                elif (par_label == parset[index].label) and (par_label in proj.settings.linkpar_specs.keys()):
-                    if par_label not in par_attributes[popkey].keys(): par_attributes[popkey][par_label] = odict()                
-                    if 'f_stack' in proj.settings.linkpar_specs[par_label].keys():
-                        f_stack = dcp(proj.settings.linkpar_specs[par_label]['f_stack'])
-                        for dependency in proj.settings.linkpar_specs[par_label]['deps']:
-                            if dependency in proj.parsets[parset_name].par_ids['cascade'].keys():
-                                val = proj.parsets[parset_name].par_ids['cascade'][dependency]
-                                attribs = dcp(proj.parsets[parset_name].pars['cascade'][val])
-                        newattrib = odict()
-                        newattrib[attribs.label] = odict()
-                        for key in attribs.y:
-                            if key == popkey: newattrib[attribs.label][key] = attribs.y[key][-1]
-                        finalattrib = odict()
-                        for i, pop_label in enumerate(newattrib[attribs.label].keys()):
-                                finalattrib[attribs.label] = newattrib[attribs.label][pop_label]
-                        par_attributes[popkey][par_label] = {'Impact Value': parser.evaluateStack(stack = f_stack, deps = finalattrib)}
+
+    # create parameter key to index in parset dict for convenient access
+    key2idx = dict(zip(map(lambda x: x.label, parset), range(len(parset))))
+    for par_label in impact_pars:
+        for popkey in results.pop_label_index.keys():
+            pop = results.m_pops[results.pop_label_index[popkey]]
+            if not popkey in par_attributes: par_attributes[popkey] = odict()
+            par_attributes[popkey][par_label] = odict()
+            specs = proj.settings.linkpar_specs[par_label]
+
+            # Calculate the value of a parameter from its function if it exists, otherwise maintain the current value.
+            if 'f_stack' in specs.keys():
+                f_stack = dcp(specs['f_stack'])
+                deps = dcp(specs['deps'])
+                for dep_label in deps.keys():
+                    if dep_label in proj.settings.par_deps.keys() or dep_label in proj.settings.charac_deps.keys():
+                        val = pop.getDep(dep_label).vals[rel_t_idx]
+                    else:
+                        val = pop.getLinks(proj.settings.linkpar_specs[dep_label]['tag'])[0].vals[rel_t_idx]  # As links are duplicated for the same tag, can pull values from the zeroth one.
+                    deps[dep_label] = val
+                new_val = parser.evaluateStack(stack=f_stack, deps=deps)
+            else:
+                new_val = parset[key2idx[par_label]].interpolate(tvec=np.arange(proj.settings.tvec_start, proj.settings.tvec_end + proj.settings.tvec_dt/2, proj.settings.tvec_dt), pop_label=popkey)[-1]
+
+            par_attributes[popkey][par_label]['Impact Value'] = new_val
+
     ###############################################################################
     ##Cleanup par_attributes dictionary to match prog_attributes
+    # TODO this step may be skipped?
     for popkey in prog_attributes.keys():
         for par_label in prog_attributes[popkey]:
             if par_label in par_attributes[popkey].keys():
