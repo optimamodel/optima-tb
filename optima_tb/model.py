@@ -864,7 +864,7 @@ class Model(object):
                                 try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
                                 except: net_impact = self.prog_vals[prog_label]['impact'][par_label]
 
-                                if isinstance(pars[0], Link):
+                                if 'tag' in settings.linkpar_specs[par_label]:
                                     source_element_size, source_set_size = processGrouping(pars[0], par_label, prog, self.pops, self.pop_ids, pop, settings, ti)
 
                                     impact = processParameterType(net_impact, pars[0], prog, source_element_size, source_set_size)
@@ -914,10 +914,10 @@ class Model(object):
                                         link = pop.getLinks(prog.deps[par_label])[0]
                                         impact *= pop.comps[link.index_from[1]].popsize[ti]
                                     else:
-                                        if pars[0].val_format == 'number' and isinstance(pars[0], Link):
+                                        if pars[0].val_format == 'number' and 'tag' in settings.linkpar_specs[par_label]:
                                             impact += new_val
                                         else:
-                                            impact = new_val * impact
+                                            impact *= new_val
                                 else:
                                     # originally: new_val = 0 and append impact to impact_list; however, the impact_list may be scaled
                                     # depending on the overflow. This should not be the case for number of treatments (the only case
