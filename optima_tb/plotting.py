@@ -1541,7 +1541,7 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
                   'save_figname': '%s_budget' % fig_name}
     plotdict.update(final_dict)
 
-    _plotBars(values, labels, colors=colors, xlabels=xlabels, legendsettings=legendsettings,
+    _plotBars(values, labels, colors=colors, xlabels=xlabels, # legendsettings=legendsettings,
               save_fig=save_fig, **plotdict)
 
 
@@ -2120,8 +2120,8 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     if ylim is not None:
         ax.set_ylim(ylim)
 
-    if xlim is None:
-        xlim = (indices[0] - 0.25, indices[-1] + 0.25 + barwidth)
+#     if xlim is None:
+    xlim = (indices[0] - 0.25, indices[-1] + 0.25 + barwidth)
     ax.set_xlim(xlim)
 
     if y_intercept is not None:
