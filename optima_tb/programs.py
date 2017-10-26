@@ -65,6 +65,7 @@ class ProgramSet:
 
         # set global and second-order programs
         self._setSpecialPrograms(gp_flags=['scale_prop'], sop_flags=['supp'])
+        self._findDependentLinks(settings)
 
     def getProg(self, label):
         if label in self.prog_ids.keys():
@@ -106,6 +107,7 @@ class ProgramSet:
     def copy(self):
         pass
 
+    # extract list of global and second order programs
     def _setSpecialPrograms(self, gp_flags, sop_flags):
         self.GPs = []
         self.GP_pars = []
@@ -123,6 +125,23 @@ class ProgramSet:
         self.GPs =list(set(self.GPs))
         self.SOPs = list(set(self.SOPs))
         self.GP_pars = list(set(self.GP_pars))
+
+
+    def _findDependentLinks(self, settings):
+        for prog in filter(lambda x: x.flag[0] == 'scale' and x.flag[1], self.progs):
+            prog.deps = {}
+            for par in prog.flag[1]:
+                if not 'tag' in settings.linkpar_specs[par]: # meaning: par is not a link
+                    # find function/formula where par is used and trace that back to a link
+                    for p in filter(lambda x: 'deps' in settings.linkpar_specs[x] and par in settings.linkpar_specs[x]['deps'], settings.linkpar_specs):
+                        if 'tag' in settings.linkpar_specs[p]:
+                            # ambiguity check:
+                            if not par in prog.deps:
+                                prog.deps[par] = settings.linkpar_specs[p]['tag']
+                            else:
+                                raise OptimaException('Dependency on parameter \'%s\' is not unigue: \'%s\' and \'%s\' require \'%s\'' % (par, self.deps[par], p, par))
+                else:
+                    prog.deps[par] = settings.linkpar_specs[par]['tag']
 
 
 class Program:

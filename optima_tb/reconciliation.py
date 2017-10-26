@@ -322,20 +322,17 @@ def processScalePropsTagReconcile(par_label, pops, pop_ids, progset, budget_allo
     impacts = []  # impacts are treated as fractions!
     # TODO allow impact numbers, too
 
-    # TODO: extend for the case of multiple types of SOPs and GPs; the lines of code are only meaningful when there is only one or less types of GP and SOP, respectively.
-
     # find all programs of the same type as current one and weigh its impact proportional
     # to the population size before summing up
     rel_progs = progset.impacts[par_label] # all programs impacting considered parameter
-
     rel_progs = filter(lambda x: x in progset.GPs + progset.SOPs, rel_progs) # remove programs which are not GP or SOP
 
     for p in rel_progs:
         imp = 0.0
         target_pop_size = np.sum([pops[pop_ids[pp]].getDep('h_alive').vals[ti] for pp in progset.getProg(p).target_pops])
-        if p in progset.GPs: # currently works only for one dict-entry
+        if p in progset.GPs:
             progset.getProg(p).getImpact(budget_alloc[p], impact_label=par_label, parser=parser, years=[ti])
-        elif p in progset.SOPs: # currently works only for one dict-entry
+        elif p in progset.SOPs:
             imp = processSuppTagReconcile(par_label, progset.getProg(p), progset, budget_alloc, ti)
 
         impacts.append(imp * target_pop_size / total_pop)
@@ -542,6 +539,9 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                             overflow_list.append(overflow_factor)
                     
                     else:
+                        # if coverage format is a number, it is difficult to decide what to do. not doing anything seems alright
+                        if special != 'supp' and prog.cov_format == 'fraction':
+                            overflow_list.append(prog.getCoverage(prog_budget))
                         impact = net_impact
 
                     if special == 'scale_prop' and par_label in scale_pars:
@@ -562,12 +562,22 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                             continue
 
                     if special != '' and special != 'replace':
-                        if par.val_format == 'number' and isinstance(par, Link):
-                            impact += par.vals[rel_t_idx]
+                        if special == 'scale' and par_label in scale_pars:
+                            # !currently only fractions supported!
+                            link = pop.getLinks(prog.deps[par_label])[0]
+                            impact *= pop.comps[link.index_from[1]].popsize[rel_t_idx]
+
                         else:
-                            impact *= par.vals[rel_t_idx]
+                            if par.val_format == 'number' and isinstance(par, Link):
+                                impact += par.vals[rel_t_idx]
+                            else:
+                                impact *= par.vals[rel_t_idx]
                     else:
-                        new_val = 0.
+                        # originally: new_val = 0 and append impact to impact_list; however, the impact_list may be scaled
+                        # depending on the overflow. This should not be the case for number of treatments (the only case
+                        # applicable here). so instead of appending the value, overwrite new_val and do not append to impact_list
+                        new_val = impact
+                        continue
 
                     # new_val += impact
                     impact_list.append(impact)

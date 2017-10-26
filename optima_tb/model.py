@@ -885,6 +885,11 @@ class Model(object):
                                                 overflow_factor = net_cov / float(source_set_size)
                                         overflow_list.append(overflow_factor)
                                 else:
+                                    # if coverage format is a number, it is difficult to decide what to do. not doing anything seems alright
+                                    if special != 'supp' and prog.cov_format == 'fraction':
+                                        try: net_cov = self.prog_vals[prog_label]['cov'][ti]
+                                        except: net_cov = self.prog_vals[prog_label]['cov']
+                                        overflow_list.append(net_cov)
                                     impact = net_impact
 
                                 if special == 'scale_prop' and par_label in scale_pars:
@@ -904,12 +909,21 @@ class Model(object):
                                     else: continue
 
                                 if special != '' and special != 'replace':
-                                    if pars[0].val_format == 'number' and isinstance(pars[0], Link):
-                                        impact += new_val
+                                    if special == 'scale' and par_label in scale_pars:
+                                        # !currently only fractions supported!
+                                        link = pop.getLinks(prog.deps[par_label])[0]
+                                        impact *= pop.comps[link.index_from[1]].popsize[ti]
                                     else:
-                                        impact = new_val * impact
+                                        if pars[0].val_format == 'number' and isinstance(pars[0], Link):
+                                            impact += new_val
+                                        else:
+                                            impact = new_val * impact
                                 else:
-                                    new_val = 0.
+                                    # originally: new_val = 0 and append impact to impact_list; however, the impact_list may be scaled
+                                    # depending on the overflow. This should not be the case for number of treatments (the only case
+                                    # applicable here). so instead of appending the value, overwrite new_val and do not append to impact_list
+                                    new_val = impact
+                                    continue
 
                                 impact_list.append(impact)
 
