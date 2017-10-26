@@ -457,10 +457,40 @@ class Model(object):
                         self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
                         self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
                         self.getPop(pop_label).links[link_id].scale_factor = par.y_factor[pop_label]
+
+                # Apply min/max restrictions on all parameters that are not functions.
+                # Functional parameters will be calculated and constrained during a run, hence they can be np.nan at this stage.
+                if not par.label in settings.par_funcs.keys():
+                    if 'min' in settings.linkpar_specs[par.label]:
+                        for pop_label in parset.pop_labels:
+                            for link_id in self.getPop(pop_label).link_ids[tag]:
+                                vals = self.getPop(pop_label).links[link_id].vals
+                                self.getPop(pop_label).links[link_id].vals[vals < settings.linkpar_specs[par.label]['min']] = settings.linkpar_specs[par.label]['min']
+                    if 'max' in settings.linkpar_specs[par.label]:
+                        for pop_label in parset.pop_labels:
+                            for link_id in self.getPop(pop_label).link_ids[tag]:
+                                vals = self.getPop(pop_label).links[link_id].vals
+                                self.getPop(pop_label).links[link_id].vals[vals > settings.linkpar_specs[par.label]['max']] = settings.linkpar_specs[par.label]['max']
+
+                # Apply min/max restrictions on all parameters that are not functions.
+                # Functional parameters will be calculated and constrained during a run, hence they can be np.nan at this stage.
+                if not par.label in settings.par_funcs.keys():
+                    if 'min' in settings.linkpar_specs[par.label]:
+                        for pop_label in parset.pop_labels:
+                            dep_id = self.getPop(pop_label).dep_ids[par.label]
+                            vals = self.getPop(pop_label).deps[dep_id].vals
+                            self.getPop(pop_label).deps[dep_id].vals[vals < settings.linkpar_specs[par.label]['min']] = settings.linkpar_specs[par.label]['min']
+                    if 'max' in settings.linkpar_specs[par.label]:
+                        for pop_label in parset.pop_labels:
+                            dep_id = self.getPop(pop_label).dep_ids[par.label]
+                            vals = self.getPop(pop_label).deps[dep_id].vals
+                            self.getPop(pop_label).deps[dep_id].vals[vals > settings.linkpar_specs[par.label]['max']] = settings.linkpar_specs[par.label]['max']
             else:
                 for pop_label in parset.pop_labels:
-                    dep_id = self.getPop(pop_label).dep_ids[par.label]          # Map dependency label to dependency id in ModelPop.
-                    self.getPop(pop_label).deps[dep_id].vals = par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
+                    dep_id = self.getPop(pop_label).dep_ids[
+                        par.label]  # Map dependency label to dependency id in ModelPop.
+                    self.getPop(pop_label).deps[dep_id].vals = par.interpolate(
+                        tvec=self.sim_settings['tvec'], pop_label=pop_label)
                     self.getPop(pop_label).deps[dep_id].val_format = par.y_format[pop_label]
                     self.getPop(pop_label).deps[dep_id].scale_factor = par.y_factor[pop_label]
 

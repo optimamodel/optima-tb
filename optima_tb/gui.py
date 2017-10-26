@@ -81,14 +81,14 @@ class GUI(qtw.QWidget):
         self.button_calibration.clicked.connect(self.runGUICalibration)
         self.button_reconciliation = qtw.QPushButton('Edit programs', self)
         self.button_reconciliation.clicked.connect(self.runGUIReconciliation)
-        self.button_scenario_parameter = qtw.QPushButton('Parameter scenario', self)
-        self.button_scenario_parameter.clicked.connect(self.runGUIParameterScenario)
+#        self.button_scenario_parameter = qtw.QPushButton('Parameter scenario', self)
+#        self.button_scenario_parameter.clicked.connect(self.runGUIParameterScenario)
         self.button_scenario_budget = qtw.QPushButton('Budget scenario', self)
         self.button_scenario_budget.clicked.connect(self.runGUIBudgetScenario)
         layout = qtw.QVBoxLayout(self)
         layout.addWidget(self.button_calibration)
         layout.addWidget(self.button_reconciliation)
-        layout.addWidget(self.button_scenario_parameter)
+#        layout.addWidget(self.button_scenario_parameter)
         layout.addWidget(self.button_scenario_budget)
         self.setLayout(layout)
 
@@ -382,7 +382,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             combo_name = combo_names[k]
             combo_box.clear()
             rid = 0
-            for result_name in self.project.results.keys():
+            for result_name in self.project.results:
                 self.combo_result_dict[result_name] = rid
                 combo_box.addItem(result_name)
                 rid += 1
@@ -393,13 +393,13 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.combo_charac_dict = {}
         self.combo_plotter_charac.clear()
         cid = 0
-        for charac_label in self.project.settings.charac_specs.keys():
+        for charac_label in self.project.settings.charac_specs:
             charac_name = self.project.settings.charac_specs[charac_label]['name']
             self.combo_charac_dict[charac_name] = cid
             self.combo_plotter_charac.addItem(charac_name)
             cid += 1
 
-        for flow_label in self.project.settings.linkpar_specs.keys():
+        for flow_label in self.project.settings.linkpar_specs:
             
             if 'tag' in self.project.settings.linkpar_specs[flow_label]:
                 flow_name = self.project.settings.linkpar_specs[flow_label]['name']
@@ -430,7 +430,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.combo_plotter_pop.addItem('Total populations')
         pid += 1
         # <-------------
-        for pop_name in self.project.data['pops']['name_labels'].keys():
+        for pop_name in self.project.data['pops']['name_labels']:
             self.combo_pop_dict[pop_name] = pid
             self.combo_plotter_pop.addItem(pop_name)
             pid += 1
@@ -557,7 +557,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.refreshVisibilityResultPlotter()
 
         is_project_loaded = self.project is not None
-        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
+        does_parset_exist = is_project_loaded and len(self.project.parsets) > 0
 
         if is_project_loaded:
             self.refreshParsetComboBox()
@@ -610,9 +610,9 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.radio_check_normal = qtw.QRadioButton('Normally')
         self.radio_check_normal.setChecked(True)
         self.radio_check_normal.toggled.connect(lambda:self.checkOptionState(self.radio_check_normal))
-        self.radio_check_par = qtw.QRadioButton('Across Populations')
+        self.radio_check_par = qtw.QRadioButton('Across populations')
         self.radio_check_par.toggled.connect(lambda:self.checkOptionState(self.radio_check_par))
-        self.radio_check_all = qtw.QRadioButton('By All Possible Parameters')
+        self.radio_check_all = qtw.QRadioButton('By all possible parameters')
         self.radio_check_all.toggled.connect(lambda:self.checkOptionState(self.radio_check_all))
 
         self.table_calibration = qtw.QTableWidget()
@@ -672,11 +672,11 @@ class GUICalibration(GUIResultPlotterIntermediate):
             if button.isChecked() == True:
                 self.status = ('Status: Parameters in the table will be ticked and unticked individually')
                 self.check_option = 'one'
-        elif button.text() == 'Across Populations':
+        elif button.text() == 'Across populations':
             if button.isChecked() == True:
                 self.status = ('Status: Parameters in the table will be ticked and unticked as a group across populations')
                 self.check_option = 'par'
-        elif button.text() == 'By All Possible Parameters':
+        elif button.text() == 'By all possible parameters':
             if button.isChecked() == True:
                 self.status = ('Status: Parameters in the table will be ticked and unticked across the entire parset')
                 self.check_option = 'all'
@@ -686,8 +686,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.combo_parset_dict = {}
         self.combo_parset.clear()
         pid = 0
-        print self.project.parsets.keys()
-        for parset_name in self.project.parsets.keys():
+#        print self.project.parsets.keys()
+        for parset_name in self.project.parsets:
             self.combo_parset_dict[parset_name] = pid
             self.combo_parset.addItem(parset_name)
             pid += 1
@@ -707,7 +707,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         if parset_name == '':
             self.status = ('Status: Attempt to save parameter set failed, no name provided')
         else:
-            if parset_name in self.project.parsets.keys():
+            if parset_name in self.project.parsets:
                 self.status = ('Status: Parameter set "%s" successfully overwritten' % parset_name)
             else:
                 self.status = ('Status: New parameter set "%s" added to project' % parset_name)
@@ -738,7 +738,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
         self.status = ('Status: Autocalibrating checked selection of parameter set "%s" for %s seconds' % (self.parset.name, str(calibration_time)))
         self.refreshStatus()
         try:
-            self.parset = self.project.runAutofitCalibration(parset=self.parset, target_characs=self.fitted_characs_dict.keys(), max_time=calibration_time, save_parset=False)
+            self.parset = self.project.runAutofitCalibration(parset=self.parset, new_parset_name=self.parset.name, target_characs=self.fitted_characs_dict.keys(), max_time=calibration_time, save_parset=False)
             self.status = ('Status: Autocalibration complete (but unsaved) for parameter set "%s"' % self.parset.name)
         except Exception as E:
             self.status = ('Status: Autocalibration was unsuccessful, perhaps because no parameters were selected to calibrate or no parameter-associated data was chosen to fit against')
@@ -754,7 +754,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
 
         parset = self.parset
         num_pops = len(parset.pop_labels)
-        row_count = num_pops * (len(parset.pars['cascade']) - len(self.project.settings.par_funcs))
+        row_count = num_pops * (len(parset.pars['cascade']) + len(parset.pars['characs']) - len(self.project.settings.par_funcs))
         self.table_calibration.setRowCount(row_count)
         self.table_calibration.setColumnCount(len(self.tvec))
 
@@ -762,8 +762,8 @@ class GUICalibration(GUIResultPlotterIntermediate):
         custom_ids = []
         for par_type in ['characs', 'cascade']:
             for par in parset.pars[par_type]:
-                if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs.keys()) or 
-                    (par_type == 'characs')): #and 'entry_point' in self.project.settings.charac_specs[par.label].keys())):
+                if ((par_type == 'cascade' and par.label not in self.project.settings.par_funcs) or 
+                    (par_type == 'characs')): #and 'entry_point' in self.project.settings.charac_specs[par.label])):
                     for pid in xrange(len(parset.pop_labels)):
                         pop_label = parset.pop_labels[pid]
                         try:
@@ -773,13 +773,13 @@ class GUICalibration(GUIResultPlotterIntermediate):
                         custom_id = par_name + '\n' + parset.pop_names[pid]
                         custom_ids.append(custom_id)
                         self.calibration_id_dict[custom_id] = {'par_label':par.label, 'pop_label':pop_label}
-                        if par.label not in self.par_rows_dict.keys():
+                        if par.label not in self.par_rows_dict:
                             self.par_rows_dict[par.label] = {}
                         self.par_rows_dict[par.label][k * num_pops + pid] = True
                         
                         # Create autocalibration checkbox column.
                         temp = qtw.QTableWidgetItem()
-                        if par_type == 'characs' and 'entry_point' not in self.project.settings.charac_specs[par.label].keys():
+                        if par_type == 'characs' and 'entry_point' not in self.project.settings.charac_specs[par.label]:
                             temp.setFlags(qtc.Qt.NoItemFlags)
                         else:
                             temp.setText(str(par.y_factor[pid]))
@@ -797,7 +797,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             temp.setText(str(1))    # Until calibration weighting is implemented, the default uneditable value will be 1.
                             temp.setTextAlignment(qtc.Qt.AlignCenter)
                             temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsUserCheckable)
-                            if (par.label,pop_label) in self.fitted_characs_dict.keys():
+                            if (par.label,pop_label) in self.fitted_characs_dict:
                                 temp.setCheckState(qtc.Qt.Checked)
                             else:
                                 temp.setCheckState(qtc.Qt.Unchecked)
@@ -839,7 +839,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
                                 self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
                     elif self.check_option == 'par':
-                        for other_row in self.par_rows_dict[par_label].keys():
+                        for other_row in self.par_rows_dict[par_label]:
                             self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
                     self.guard_status = False
                 par.autocalibrate[pop_label] = True
@@ -851,7 +851,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
                                 self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
                     elif self.check_option == 'par':
-                        for other_row in self.par_rows_dict[par_label].keys():
+                        for other_row in self.par_rows_dict[par_label]:
                             self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
                     self.guard_status = False
                 par.autocalibrate[pop_label] = False
@@ -881,7 +881,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
                                 self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
                     elif self.check_option == 'par':
-                        for other_row in self.par_rows_dict[par_label].keys():
+                        for other_row in self.par_rows_dict[par_label]:
                             self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
                     self.guard_status = False
                 self.fitted_characs_dict[(par_label,pop_label)] = True
@@ -893,7 +893,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                             if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
                                 self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
                     elif self.check_option == 'par':
-                        for other_row in self.par_rows_dict[par_label].keys():
+                        for other_row in self.par_rows_dict[par_label]:
                             self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
                     self.guard_status = False
                 try: del self.fitted_characs_dict[(par_label,pop_label)]
@@ -954,17 +954,23 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
 
         self.options = None                 # The options dictionary for running a budget scenario, i.e. a standard simulation with program-based parameter overwrites.
         self.reconciliation_id_dict = {}    # Dictionary that maps custom reconciliation-widget label to program label.
-#        self.widget_budget_dict = {}        # Dictionary that maps Program names to indices marking their position in a scrolling list of budget widgets.
-
+        self.sigma_dict = {}                # Dictionary that maps program labels with 'unit_cost', 'budget' and 'attribute' sigmas for program reconciliation.
+        self.attribute_labels = []          # A list of attribute labels relevant to programs with a loaded ProgramSet.
+        self.attribute_names = []           # A corresponding list of attribute names, assuming that each label/name pair is unique.
+                                            # TODO: Reconsider this assumption.
+                          
+        self.check_option = 'one'   # String that denotes how progset checkboxes will be ticked.
+                                    # Can be 'one' or 'all', depending whether selection is standard, grouped-across-populations or all-or-nothing.
+                                   
 
     def refreshVisibility(self):
         self.refreshVisibilityProjectManager()
         self.refreshVisibilityResultPlotter()
 
         is_project_loaded = self.project is not None
-        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
-        does_progset_exist = is_project_loaded and len(self.project.progsets.keys()) > 0
-        do_options_exist = self.options is not None
+        does_parset_exist = is_project_loaded and len(self.project.parsets) > 0
+        does_progset_exist = is_project_loaded and len(self.project.progsets) > 0
+#        do_options_exist = self.options is not None
 
         if is_project_loaded:
             self.refreshParsetComboBox()
@@ -981,6 +987,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
             self.makeProgsetTable()
         else:
             self.process_layout_stretch.changeSize(0, 0, policy_min, policy_exp)
+        self.checkbox_align_sigmas.setVisible(does_progset_exist)
         self.table_reconciliation.setVisible(does_progset_exist)
         
         self.label_year_start.setVisible(does_progset_exist)
@@ -1024,6 +1031,13 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.label_year_start = qtw.QLabel('Year to reconcile calibration with fixed-budget programs... ')
         self.edit_year_start = qtw.QLineEdit()
         self.edit_year_start.returnPressed.connect(self.updateStartYear)
+                
+        self.checkbox_align_sigmas = qtw.QCheckBox('Duplicate sigma checkbox choices and values across programs')
+        self.checkbox_align_sigmas.stateChanged.connect(self.checkOptionState)
+
+        grid_check_option = qtw.QGridLayout()
+        grid_check_option.setSpacing(10)
+        grid_check_option.addWidget(self.checkbox_align_sigmas, 0, 0)
         
         self.label_reconcile = qtw.QLabel('Automatic reconciliation time in seconds... ')
         self.edit_reconcile = qtw.QLineEdit()
@@ -1067,22 +1081,20 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         grid_progset_save.addWidget(self.button_model_run, 2, 2)
         
         self.table_reconciliation = qtw.QTableWidget()
-#        self.table_reconciliation.cellChanged.connect(self.updateProgset)
-
-#        self.budget_layout = qtw.QGridLayout()
-#
-#        self.scroll_budgets = qtw.QWidget()
-#        self.scroll_budgets.setLayout(self.budget_layout)
-#
-#        self.scroll_area = qtw.QScrollArea()
-#        self.scroll_area.setWidgetResizable(True)
-#        self.scroll_area.setWidget(self.scroll_budgets)
-
 
         layout.addLayout(grid_progset_load)
-#        layout.addWidget(self.scroll_area)
+        layout.addLayout(grid_check_option)
         layout.addWidget(self.table_reconciliation)
         layout.addLayout(grid_progset_save)
+        
+    def checkOptionState(self, state):
+        if not state == qtc.Qt.Checked:
+            self.status = ('Status: Unit-cost, budget and attribute sigmas for programs will be ticked, unticked and edited individually')
+            self.check_option = 'one'
+        elif state == qtc.Qt.Checked:
+            self.status = ('Status: Unit-cost, budget and attribute sigmas, for the individual type being edited, will be duplicated across all programs in terms of selection and value')
+            self.check_option = 'all'
+        self.refreshStatus()
 
     def updateStartYear(self):
         try:    
@@ -1093,38 +1105,11 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
             self.edit_year_start.setText(str(self.options['progs_start']))
         self.refreshVisibility()
 
-#    # Updates all options-related widgets to display values from the options dictionary.
-#    # Generally should only be called when a default options dictionary is initialised.
-#    def refreshOptionWidgets(self):
-#
-##        # Clear out all widgets in the budget layout.
-##        # TODO: Make more efficient by only clearing when absolutely necessary.
-##        for i in reversed(range(self.budget_layout.count())):
-##            self.budget_layout.itemAt(i).widget().setParent(None)
-##
-##        self.widget_budget_dict = {}
-##        for prog_label in self.options['init_alloc']:
-##            prog_name = self.project.data['meta']['progs']['label_names'][prog_label]
-##            if prog_name not in self.widget_budget_dict.keys():
-##                try: last_id = max(self.widget_budget_dict.values())    # TODO: Make more efficient by storing max id rather than calculating all the time.
-##                except: last_id = -1
-##                label_budget = qtw.QLabel(prog_name)
-##                edit_budget = qtw.QLineEdit()
-##                self.budget_layout.addWidget(label_budget, last_id + 1, 0)
-##                self.budget_layout.addWidget(edit_budget, last_id + 1, 1)
-##                self.widget_budget_dict[prog_name] = last_id + 1
-##
-##            current_id = self.widget_budget_dict[prog_name]
-##            widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
-##            widget.setText(str("%.0f" % self.options['init_alloc'][prog_label]))
-#
-#        self.edit_year_start.setText(str(self.options['progs_start']))
-
     def refreshParsetComboBox(self):
         self.combo_parset_dict = {}
         self.combo_parset.clear()
         pid = 0
-        for parset_name in self.project.parsets.keys():
+        for parset_name in self.project.parsets:
             self.combo_parset_dict[parset_name] = pid
             self.combo_parset.addItem(parset_name)
             pid += 1
@@ -1135,7 +1120,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.combo_progset_dict = {}
         self.combo_progset.clear()
         pid = 0
-        for progset_name in self.project.progsets.keys():
+        for progset_name in self.project.progsets:
             self.combo_progset_dict[progset_name] = pid
             self.combo_progset.addItem(progset_name)
             pid += 1
@@ -1152,6 +1137,19 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.progset_name = str(progset_name)
         self.progset = dcp(self.project.progsets[self.progset_name])
         self.options = defaultOptimOptions(settings=self.project.settings, progset=self.progset)
+        
+        # Generate a zero-value sigma dictionary and progset attribute list for any progset reload.
+        self.sigma_dict = {}
+        attribute_label_dict = {}
+        for prog in self.progset.progs:
+            if not prog.func_specs['type'] == 'cost_only':
+                self.sigma_dict[prog.label] = {'unit_cost':0.0, 'budget':0.0, 'attribute':0.0}
+            for attribute_label in prog.attributes:
+                if not attribute_label in attribute_label_dict:
+                    attribute_label_dict[attribute_label] = self.project.settings.progtype_specs[prog.prog_type]['attribute_label_names'][attribute_label]
+        self.attribute_labels = attribute_label_dict.keys()
+        self.attribute_names = [attribute_label_dict[x] for x in self.attribute_labels]
+                    
         self.edit_year_start.setText(str(self.options['progs_start']))
         self.status = ('Status: Program set "%s" selected for program reconciliation' % self.progset_name)
         if not delay_refresh:
@@ -1162,7 +1160,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         if progset_name == '':
             self.status = ('Status: Attempt to save program set failed, no name provided')
         else:
-            if progset_name in self.project.progsets.keys():
+            if progset_name in self.project.progsets:
                 self.status = ('Status: Program set "%s" successfully overwritten' % progset_name)
             else:
                 self.status = ('Status: New program set "%s" added to project' % progset_name)
@@ -1182,7 +1180,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         self.status = ('Status: Reconciling checked selection of program set "%s" with parameter set "%s" for %s seconds' % (self.progset.name, self.parset_name, str(reconciliation_time)))
         self.refreshStatus()
         try:
-            self.progset, output = self.project.reconcile(parset_name=self.parset_name, progset=self.progset, reconcile_for_year = self.options['progs_start'], unitcost_sigma = 1.5, budget_sigma = 0.0, attribute_sigma = 0.0, overwrite=True, max_time=reconciliation_time, save_progset=False)
+            self.progset, output = self.project.reconcile(parset_name=self.parset_name, progset=self.progset, reconcile_for_year = self.options['progs_start'], sigma_dict=self.sigma_dict, overwrite=True, max_time=reconciliation_time, save_progset=False)
             self.status = ('Status: Reconciliation process complete (but unsaved) for program set "%s"' % self.progset.name)
             
             # Print reconciliation output to a new window.
@@ -1219,13 +1217,13 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         progset = self.progset
         row_count = len(progset.progs)
         self.table_reconciliation.setRowCount(row_count)
-        self.table_reconciliation.setColumnCount(7)        # Unit cost and sigma, total budget and sigma, effective coverage, historical coverage, impact sigma.
+        self.table_reconciliation.setColumnCount(7+len(self.attribute_labels))        # Unit cost and sigma, total budget and sigma, effective coverage, historical coverage, impact sigma.
 
         row_id = 0
         custom_ids = []
         for prog in progset.progs:
             custom_ids.append(prog.name)
-            if prog.name not in self.reconciliation_id_dict.keys():
+            if prog.name not in self.reconciliation_id_dict:
                 self.reconciliation_id_dict[prog.name] = {}
             self.reconciliation_id_dict[prog.name]['prog_label'] = prog.label
 #            self.reconciliation_id_dict[prog.name]['row'] = row_id
@@ -1237,8 +1235,8 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                     temp.setTextAlignment(qtc.Qt.AlignCenter)
                     if col_id in [1,3,6]:
                         temp.setText(str(0))
-                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable | qtc.Qt.ItemIsUserCheckable)
-                        temp.setCheckState(qtc.Qt.Unchecked)
+                        temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)# | qtc.Qt.ItemIsUserCheckable)
+#                        temp.setCheckState(qtc.Qt.Unchecked)
                     elif col_id == 0:
                         temp.setText(str(prog.func_specs['pars']['unit_cost']))
                         temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)
@@ -1252,9 +1250,19 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                         temp.setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=['cov'])['cov'][-1]))
                         temp.setFlags(qtc.Qt.ItemIsEnabled)
                 self.table_reconciliation.setItem(row_id, col_id, temp)
+            for attribute_id in xrange(len(self.attribute_labels)):
+                attribute_label = self.attribute_labels[attribute_id]
+                col_id = attribute_id + 7
+                temp = qtw.QTableWidgetItem()
+                temp.setTextAlignment(qtc.Qt.AlignCenter)
+                temp.setFlags(qtc.Qt.ItemIsEnabled)
+                if attribute_label in prog.attributes:
+                    temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)
+                    temp.setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=[attribute_label])[attribute_label][-1]))
+                self.table_reconciliation.setItem(row_id, col_id, temp)
             row_id += 1
         self.table_reconciliation.setVerticalHeaderLabels(custom_ids)
-        self.table_reconciliation.setHorizontalHeaderLabels(['Unit Cost','Unit Cost\nSigma','Program Budget\n(Year: %s)' % self.options['progs_start'],'Program Budget\nSigma','Effective Coverage\n(Year: %s)' % self.options['progs_start'],'Databook Coverage\n(Year: %s)' % self.options['progs_start'],'Impact Sigma'])
+        self.table_reconciliation.setHorizontalHeaderLabels(['Unit Cost','Unit Cost\nSigma','Program Budget\n(Year: %s)' % self.options['progs_start'],'Program Budget\nSigma','Effective Coverage\n(Year: %s)' % self.options['progs_start'],'Databook Coverage\n(Year: %s)' % self.options['progs_start'],'Attribute Sigma']+self.attribute_labels)
         self.table_reconciliation.resizeColumnsToContents()
         self.table_reconciliation.resizeRowsToContents()
 
@@ -1265,106 +1273,74 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
         custom_id = str(self.table_reconciliation.verticalHeaderItem(row).text())
         prog_label = self.reconciliation_id_dict[custom_id]['prog_label']
         prog = self.progset.getProg(prog_label)
+        
+        col_to_sigma = {1:'unit_cost', 3:'budget', 6:'attribute'}
 
         new_val_str = str(self.table_reconciliation.item(row, col).text())
-#        if col == 0:
-#            calib_prefix = ''
-#            if self.table_calibration.item(row, col).checkState() == qtc.Qt.Checked:
-#                if not self.guard_status:   # Used here, this is a guard against recursion.
-#                    self.guard_status = True
-#                    if self.check_option == 'all':
-#                        for other_row in xrange(self.table_calibration.rowCount()):
-#                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
-#                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
-#                    elif self.check_option == 'par':
-#                        for other_row in self.par_rows_dict[par_label].keys():
-#                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
-#                    self.guard_status = False
-#                par.autocalibrate[pop_label] = True
-#            else:
-#                if not self.guard_status:   # Used here, this is a guard against recursion.
-#                    self.guard_status = True
-#                    if self.check_option == 'all':
-#                        for other_row in xrange(self.table_calibration.rowCount()):
-#                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
-#                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
-#                    elif self.check_option == 'par':
-#                        for other_row in self.par_rows_dict[par_label].keys():
-#                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
-#                    self.guard_status = False
-#                par.autocalibrate[pop_label] = False
-#                calib_prefix = 'un'
-#
-#            try:
-#                new_val = float(new_val_str)
-#                if new_val < 0:
-#                    raise Exception('scaling factor is negative')
-#            except Exception as E:
-#                self.status = ('Status: Attempt to edit scaling factor failed because "%s"' % E.message)
-#                new_val = DEFAULT_YFACTOR
-#                self.refreshStatus()
-#                self.guard_status = True
-#                self.table_calibration.item(row, col).setText(str(new_val))
-#                self.guard_status = False
-#                return
-#            par.y_factor[pop_label] = new_val
-#            self.status = ('Status: Current edited parameter set has %smarked parameter "%s", population "%s", for autocalibration, with scaling factor "%f"' % (calib_prefix, par_label, pop_label, new_val))
-#        elif col == 1:
-#            calib_prefix = 'in'
-#            if self.table_calibration.item(row, col).checkState() == qtc.Qt.Checked:
-#                if not self.guard_status:   # Used here, this is a guard against recursion.
-#                    self.guard_status = True
-#                    if self.check_option == 'all':
-#                        for other_row in xrange(self.table_calibration.rowCount()):
-#                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
-#                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
-#                    elif self.check_option == 'par':
-#                        for other_row in self.par_rows_dict[par_label].keys():
-#                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Checked)
-#                    self.guard_status = False
-#                self.fitted_characs_dict[(par_label,pop_label)] = True
-#            else:
-#                if not self.guard_status:   # Used here, this is a guard against recursion.
-#                    self.guard_status = True
-#                    if self.check_option == 'all':
-#                        for other_row in xrange(self.table_calibration.rowCount()):
-#                            if not self.table_calibration.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
-#                                self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
-#                    elif self.check_option == 'par':
-#                        for other_row in self.par_rows_dict[par_label].keys():
-#                            self.table_calibration.item(other_row, col).setCheckState(qtc.Qt.Unchecked)
-#                    self.guard_status = False
-#                try: del self.fitted_characs_dict[(par_label,pop_label)]
-#                except: pass
-#                calib_prefix = 'ex'
-#
-#            self.status = ('Status: Current edited parameter set has %scluded parameter "%s", population "%s", in the autocalibration data-fitting metric' % (calib_prefix, par_label, pop_label))
-        try:
-            try: new_val = float(new_val_str)
-            except: raise Exception('as only number inputs are allowed')
-            if new_val < 0:
-                raise Exception('as values must be positive')
-            if (col == 0 and new_val == 0):
-                raise Exception('as unit cost cannot be zero')
-        except Exception as E:
-            self.status = ('Status: Attempt to edit program set failed, %s' % E.message)
-            self.refreshStatus()
-            self.guard_status = True
-            if col == 0:
-                self.table_reconciliation.item(row, col).setText(str(prog.func_specs['pars']['unit_cost']))
-            elif col == 2:
-                self.table_reconciliation.item(row, col).setText(str(prog.getDefaultBudget(year=self.options['progs_start'])))
-            self.guard_status = False
-            return
+        if col in [1,3,6]:      # Hardcoded column values corresponding to checkable sigmas.
+                  
+            # Extract value from the table first, whether entered in or whether the accompanying checkbox was triggered.
+            try:
+                new_val = float(new_val_str)
+                if new_val < 0:
+                    raise Exception('sigma is negative')
+            except Exception as E:
+                self.status = ('Status: Attempt to edit sigma failed because "%s"' % E.message)
+                new_val = 0.0
+                self.refreshStatus()
+                self.guard_status = True
+                self.table_reconciliation.item(row, col).setText(str(new_val))
+                self.guard_status = False
+                return
+            
+            # Duplicate the sigma value if the relevant option is chosen.
+            if not self.guard_status:   # Used here, this is a guard against recursion.
+                self.guard_status = True
+                if self.check_option == 'all':
+                    for other_row in xrange(self.table_reconciliation.rowCount()):
+                        if not self.table_reconciliation.item(other_row, col).flags() == qtc.Qt.NoItemFlags:
+                            self.table_reconciliation.item(other_row, col).setText(str(new_val))
+                self.guard_status = False
+                
+            self.sigma_dict[prog_label][col_to_sigma[col]] = new_val
+            self.status = ('Status: Program reconciliation will allow program "%s" to vary in "%s" value by up to %f%%' % (prog_label, col_to_sigma[col], new_val*100))
+
+        else:
+            try:
+                try: new_val = float(new_val_str)
+                except: raise Exception('as only number inputs are allowed')
+                if new_val < 0:
+                    raise Exception('as values must be positive')
+                if (col == 0 and new_val == 0):
+                    raise Exception('as unit cost cannot be zero')
+            except Exception as E:
+                self.status = ('Status: Attempt to edit program set failed, %s' % E.message)
+                self.refreshStatus()
+                self.guard_status = True
+                if col == 0:
+                    self.table_reconciliation.item(row, col).setText(str(prog.func_specs['pars']['unit_cost']))
+                elif col == 2:
+                    self.table_reconciliation.item(row, col).setText(str(prog.getDefaultBudget(year=self.options['progs_start'])))
+                else:
+                    attribute_label = self.attribute_labels[col-7]
+                    self.table_reconciliation.item(row, col).setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=[attribute_label])[attribute_label][-1]))
+                self.guard_status = False
+                return
         
-        if col == 0:
-            prog.func_specs['pars']['unit_cost'] = new_val
-            self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
-            self.status = ('Status: Current edited program set uses unit cost "%f" for program "%s"' % (new_val, prog_label))
-        elif col == 2:
-            prog.insertValuePair(self.options['progs_start'], new_val, 'cost')
-            self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
-            self.status = ('Status: Current edited program set associates program "%s" with a budget of "%f" in "%f"' % (prog_label, new_val, self.options['progs_start']))
+            if col == 0:
+                prog.func_specs['pars']['unit_cost'] = new_val
+                self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
+                self.status = ('Status: Current edited program set uses unit cost "%f" for program "%s"' % (new_val, prog_label))
+            elif col == 2:
+                prog.insertValuePair(self.options['progs_start'], new_val, 'cost', rescale_after_year=True)
+#                self.options['init_alloc'][prog_label] = new_val    # Update the options dictionary immediately rather than checking the table later.
+                self.table_reconciliation.item(row, 4).setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
+                self.status = ('Status: Current edited program set associates program "%s" with a budget of "%f" in "%f"' % (prog_label, new_val, self.options['progs_start']))
+            elif col > 6:
+                attribute_label = self.attribute_labels[col-7]
+                prog.insertValuePair(self.options['progs_start'], new_val, attribute_label, rescale_after_year=True)
+                self.status = ('Status: Current edited program set associates program "%s" with an attribute "%s" of "%f" in "%f"' % (prog_label, attribute_label, new_val, self.options['progs_start']))
+                
         self.refreshStatus()
 
     def runProgsetSim(self):
@@ -1382,21 +1358,15 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
             self.status = ('Status: Model successfully processed for parameter set "%s" and program set "%s"' % (self.parset_name, self.progset_name))
         self.refreshVisibility()
 
-    # Scans through widgets and updates options dict appropriately.
+    # Regenerates options dictionary if possible, which should update initial allocation based on ProgramSet edits.
     # Return True if successful or False if there was an error.
     def updateOptions(self):
         if self.options is None:
             return False
         else:
             try:
-                self.options['progs_start'] = float(str(self.edit_year_start.text()))
-
-#                for prog_name in self.widget_budget_dict.keys():
-#                    current_id = self.widget_budget_dict[prog_name]
-#                    widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
-#                    prog_label = self.project.data['meta']['progs']['name_labels'][prog_name]
-#                    self.options['init_alloc'][prog_label] = float(str(widget.text()))
-
+                progs_start = float(str(self.edit_year_start.text()))
+                self.options = defaultOptimOptions(settings=self.project.settings, progset=self.progset, progs_start=progs_start)
             except: return False
             return True
 
@@ -1447,7 +1417,7 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         self.refreshVisibilityResultPlotter()
 
         is_project_loaded = self.project is not None
-        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
+        does_parset_exist = is_project_loaded and len(self.project.parsets) > 0
 
         if is_project_loaded:
             self.refreshParsetComboBox()
@@ -1563,7 +1533,7 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
         self.combo_parset_dict = {}
         self.combo_parset.clear()
         pid = 0
-        for parset_name in self.project.parsets.keys():
+        for parset_name in self.project.parsets:
             self.combo_parset_dict[parset_name] = pid
             self.combo_parset.addItem(parset_name)
             pid += 1
@@ -1640,10 +1610,10 @@ class GUIParameterScenario(GUIResultPlotterIntermediate):
 
         # generate scenario values dictionary
         scen_values = odict()  # complete scenario values
-        for scenario in values.keys():
+        for scenario in values:
             scvalues = odict()  # the core of the parameter values for each scenario
 
-            for paramclass in values[scenario].keys():
+            for paramclass in values[scenario]:
                 paramlist = locals()['%s_params' % paramclass]
 
                 for param in paramlist:
@@ -1743,8 +1713,8 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.refreshVisibilityResultPlotter()
 
         is_project_loaded = self.project is not None
-        does_parset_exist = is_project_loaded and len(self.project.parsets.keys()) > 0
-        does_progset_exist = is_project_loaded and len(self.project.progsets.keys()) > 0
+        does_parset_exist = is_project_loaded and len(self.project.parsets) > 0
+        does_progset_exist = is_project_loaded and len(self.project.progsets) > 0
         do_options_exist = self.options is not None
 
         if is_project_loaded:
@@ -1853,7 +1823,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.widget_budget_dict = {}
         for prog_label in self.options['init_alloc']:
             prog_name = self.project.data['meta']['progs']['label_names'][prog_label]
-            if prog_name not in self.widget_budget_dict.keys():
+            if prog_name not in self.widget_budget_dict:
                 try: last_id = max(self.widget_budget_dict.values())    # TODO: Make more efficient by storing max id rather than calculating all the time.
                 except: last_id = -1
                 label_budget = qtw.QLabel(prog_name)
@@ -1872,7 +1842,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.combo_parset_dict = {}
         self.combo_parset.clear()
         pid = 0
-        for parset_name in self.project.parsets.keys():
+        for parset_name in self.project.parsets:
             self.combo_parset_dict[parset_name] = pid
             self.combo_parset.addItem(parset_name)
             pid += 1
@@ -1883,7 +1853,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
         self.combo_progset_dict = {}
         self.combo_progset.clear()
         pid = 0
-        for progset_name in self.project.progsets.keys():
+        for progset_name in self.project.progsets:
             self.combo_progset_dict[progset_name] = pid
             self.combo_progset.addItem(progset_name)
             pid += 1
@@ -1928,7 +1898,7 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
             try:
                 self.options['progs_start'] = float(str(self.edit_year_start.text()))
 
-                for prog_name in self.widget_budget_dict.keys():
+                for prog_name in self.widget_budget_dict:
                     current_id = self.widget_budget_dict[prog_name]
                     widget = self.budget_layout.itemAtPosition(current_id, 1).widget()
                     prog_label = self.project.data['meta']['progs']['name_labels'][prog_name]

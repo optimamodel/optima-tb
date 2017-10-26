@@ -11,18 +11,19 @@ from copy import deepcopy as dcp
 
 #%% Functions to generate default structures
 
-def defaultOptimOptions(settings, progset = None):
+def defaultOptimOptions(settings, progset = None, progs_start = None):
     
     options = dict()
     
-    options['progs_start'] = 2015.0
+    if progs_start is None: options['progs_start'] = 2015.0
+    else: options['progs_start'] = progs_start
     options['progs_end'] = np.inf
     options['init_alloc'] = odict()
     options['constraints'] = {'limits':odict(), 'max_yearly_change':odict(), 'impacts':odict()}
     
     if not progset is None:
         for prog in progset.progs:
-            options['init_alloc'][prog.label] = prog.getDefaultBudget()
+            options['init_alloc'][prog.label] = prog.getDefaultBudget(year=progs_start)
             options['constraints']['limits'][prog.label] = {'vals':[0.0,np.inf],'rel':True}
             if prog.func_specs['type'] == 'cost_only':
                 options['constraints']['limits'][prog.label]['vals'] = [1.0,1.0]
