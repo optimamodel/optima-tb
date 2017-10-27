@@ -442,6 +442,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                         raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Tag "Databook Order" column with a negative number so that conflicts with user-provided values do not arise.' % label)
                     settings.par_funcs[label] = True
                     expr_stack, var_dict = parser.produceStack(val)
+                    settings.linkpar_specs[label]['f_expr'] = val.replace('^', '**') # allow backward compatibility
                     settings.linkpar_specs[label]['f_stack'] = expr_stack
                     settings.linkpar_specs[label]['deps'] = var_dict
                     for var in var_dict.keys():

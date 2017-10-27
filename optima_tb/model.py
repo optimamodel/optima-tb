@@ -7,6 +7,7 @@ from optima_tb.results import ResultSet
 from optima_tb.parsing import FunctionParser
 import numpy as np
 from copy import deepcopy as dcp
+from numexpr import evaluate
 
 
 import logging
@@ -811,19 +812,18 @@ class Model(object):
                     pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
                 specs = settings.linkpar_specs[par_label]
 
-                # Calculate the value of a parameter from its function if it exists, otherwise maintain the current value.
-                if 'f_stack' in specs.keys():
-                    f_stack = dcp(specs['f_stack'])
-                    deps = dcp(specs['deps'])
-                    for dep_label in deps.keys():
-                        if dep_label in settings.par_deps.keys() or dep_label in settings.charac_deps.keys():
-                            val = pop.getDep(dep_label).vals[ti]
+                if 'f_expr' in specs:
+                    vars = specs['deps'].keys()
+                    vals = np.zeros(len(vars))
+                    for i, label in enumerate(vars):
+                        if label in settings.par_deps or label in settings.charac_deps:
+                            vals[i] = pop.getDep(label).vals[ti]
                         else:
-                            val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti]    # As links are duplicated for the same tag, can pull values from the zeroth one.
-                        deps[dep_label] = val
-                    new_val = self.parser.evaluateStack(stack=f_stack, deps=deps)
+                            vals[i] = pop.getLinks(settings.linkpar_specs[label]['tag'])[0].vals[ti]
+                    new_val = evaluate(specs['f_expr'], local_dict=dict(zip(vars, vals)))
                 else:
                     new_val = pars[0].vals[ti]      # As links are duplicated for the same tag, can pull values from the zeroth one.
+
 
                 # WARNING: CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
                 if 'progs_start' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start']:
@@ -839,7 +839,6 @@ class Model(object):
 
                             for prog_label in rel_prog_labels:
                                 prog = progset.getProg(prog_label)
-                                prog_type = prog.prog_type
 
                                 (special, scale_pars) = progset.getProg(prog_label).flag
 
@@ -862,7 +861,11 @@ class Model(object):
                                 # Impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
                                 # Makes sure that the right value is selected.
                                 try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
-                                except: net_impact = self.prog_vals[prog_label]['impact'][par_label]
+                                except:
+                                    if isinstance(self.prog_vals[prog_label]['impact'][par_label], np.ndarray):
+                                        net_impact = self.prog_vals[prog_label]['impact'][par_label][0]
+                                    else:
+                                        net_impact = self.prog_vals[prog_label]['impact'][par_label]
 
                                 if 'tag' in settings.linkpar_specs[par_label]:
                                     source_element_size, source_set_size = processGrouping(pars[0], par_label, prog, self.pops, self.pop_ids, pop, settings, ti)
