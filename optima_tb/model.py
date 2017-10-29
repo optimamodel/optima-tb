@@ -231,6 +231,12 @@ class Model(object):
         pop_index = self.pop_ids[pop_label]
         return self.pops[pop_index]
 
+    def _preCalcProgValsFromDatabook(self, settings, progset):
+        for prog in progset.progs:
+            self.prog_vals[prog.label] = prog.interpolate(
+                tvec=np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt),
+                attributes=prog.attributes.keys() + ['cov'])
+
 
     def preCalculateProgsetVals(self, settings, progset):
         ''' Work out program coverages and impacts ahead of the model run. '''
@@ -244,48 +250,53 @@ class Model(object):
         try: alloc_is_coverage = self.sim_settings['alloc_is_coverage']
         except: raise OptimaException('ERROR: Pre-calculation of program set values has been initiated without specifying whether starting allocation is in money or coverage.')
 
-        for prog in progset.progs:
+        # in this case use the data provided in the databook
+        if init_alloc == None:
+            self._preCalcProgValsFromDatabook(settings, progset)
+        else:
+            for prog in progset.progs:
 
-            # Store budgets/coverages for programs that are initially allocated.
-            if prog.label in init_alloc:
-                alloc = init_alloc[prog.label]
+                # Store budgets/coverages for programs that are initially allocated.
+                if prog.label in init_alloc:
+                    alloc = init_alloc[prog.label]
 
-                # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to timevec.
-                if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog.label in self.sim_settings['constraints']['max_yearly_change']:
-                    if alloc_is_coverage:
-                        default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
-                    else:
+                    # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to timevec.
+                    if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog.label in self.sim_settings['constraints']['max_yearly_change']:
+                        if alloc_is_coverage:
+                            default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
+                        else:
+                            default = prog.getDefaultBudget(year=start_year)
                         default = prog.getDefaultBudget(year=start_year)
-                    default = prog.getDefaultBudget(year=start_year)
-                    if np.abs(alloc - default) > project_settings.TOLERANCE:
-#                        print 'Start it up...'
-                        alloc_def = self.sim_settings['tvec'] * 0.0 + default
-                        alloc_new = self.sim_settings['tvec'] * 0.0 + alloc
-                        try: eps = self.sim_settings['constraints']['max_yearly_change'][prog.label]['val']
-                        except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog.label)
-                        if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog.label] and self.sim_settings['constraints']['max_yearly_change'][prog.label]['rel'] is True:
-                            eps *= default
-                        if np.isnan(eps): eps = np.inf  # Eps likely becomes a nan if it was infinity multiplied by zero.
-                        if np.abs(eps * settings.tvec_dt) < np.abs(alloc - default):
-                            if np.abs(eps) < project_settings.TOLERANCE:
-                                raise OptimaException('ERROR: The change in budget for ramp-constrained "%s" is effectively zero. Model will not continue running; change in program funding would be negligible.' % prog.label)
-                            alloc_ramp = default + (self.sim_settings['tvec'] - start_year) * eps * np.sign(alloc - default)
-                            if alloc >= default: alloc_ramp = np.minimum(alloc_ramp, alloc_new)
-                            else: alloc_ramp = np.maximum(alloc_ramp, alloc_new)
-                            alloc = alloc_def * (self.sim_settings['tvec'] < start_year) + alloc_ramp * (self.sim_settings['tvec'] >= start_year)
+                        if np.abs(alloc - default) > project_settings.TOLERANCE:
+                            # print 'Start it up...'
+                            alloc_def = self.sim_settings['tvec'] * 0.0 + default
+                            alloc_new = self.sim_settings['tvec'] * 0.0 + alloc
+                            try: eps = self.sim_settings['constraints']['max_yearly_change'][prog.label]['val']
+                            except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog.label)
+                            if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog.label] and self.sim_settings['constraints']['max_yearly_change'][prog.label]['rel'] is True:
+                                eps *= default
+                            if np.isnan(eps): eps = np.inf  # Eps likely becomes a nan if it was infinity multiplied by zero.
+                            if np.abs(eps * settings.tvec_dt) < np.abs(alloc - default):
+                                if np.abs(eps) < project_settings.TOLERANCE:
+                                    raise OptimaException('ERROR: The change in budget for ramp-constrained "%s" is effectively zero. Model will not continue running; change in program funding would be negligible.' % prog.label)
+                                alloc_ramp = default + (self.sim_settings['tvec'] - start_year) * eps * np.sign(alloc - default)
+                                if alloc >= default: alloc_ramp = np.minimum(alloc_ramp, alloc_new)
+                                else: alloc_ramp = np.maximum(alloc_ramp, alloc_new)
+                                alloc = alloc_def * (self.sim_settings['tvec'] < start_year) + alloc_ramp * (self.sim_settings['tvec'] >= start_year)
 
-                if alloc_is_coverage:
-                    self.prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc), 'cov':alloc, 'impact':{}}
+                    if alloc_is_coverage:
+                        self.prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc), 'cov':alloc, 'impact':{}}
+                    else:
+                        self.prog_vals[prog.label] = {'cost':alloc, 'cov':prog.getCoverage(budget=alloc), 'impact':{}}
+
+                # Store default budgets/coverages for all other programs if saturation is selected.
+                elif 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
+                    self.prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year)), 'impact':{}}
+
                 else:
-                    self.prog_vals[prog.label] = {'cost':alloc, 'cov':prog.getCoverage(budget=alloc), 'impact':{}}
+                    logger.warn("Program '%s' was not contained in init_alloc and not saturated, therefore was not created." % prog.label)
 
-            # Store default budgets/coverages for all other programs if saturation is selected.
-            elif 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
-                self.prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year)), 'impact':{}}
-
-            else:
-                logger.warn("Program '%s' was not contained in init_alloc and not saturated, therefore was not created." % prog.label)
-
+        for prog in progset.progs:
             # Convert coverage into impact for programs.
             if prog.label in self.prog_vals:
                 if 'cov' in self.prog_vals[prog.label]:
@@ -315,7 +326,17 @@ class Model(object):
                             years = self.sim_settings['tvec']
                         else:
                             years = [self.sim_settings['tvec'][-1]]
+                        if 'impact' not in self.prog_vals[prog.label]:
+                            self.prog_vals[prog.label]['impact'] = {}
                         self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=self.parser, years=years, budget_is_coverage=True)
+
+                    # remove all entries other than 'impact' and 'cov' from dict
+                    imp = self.prog_vals[prog.label]['impact']
+                    cov = self.prog_vals[prog.label]['cov']
+                    self.prog_vals[prog.label].clear()
+                    self.prog_vals[prog.label]['impact'] = imp
+                    self.prog_vals[prog.label]['cov'] = cov
+
 
 
     def build(self, settings, parset, progset=None, options=None):

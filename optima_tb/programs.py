@@ -99,9 +99,13 @@ class ProgramSet:
                         dict of prog.label, coverage pairs
         """
         coverage = {}
-        for prog_label in budgets.keys():
-            prog = self.progs[self.prog_ids[prog_label]]
-            coverage[prog.label] = prog.getCoverage(budgets[prog_label])
+        if budgets == None:
+            for prog in self.progs:
+                coverage[prog.label] = dcp(prog.cov)
+        else:
+            for prog_label in budgets.keys():
+                prog = self.progs[self.prog_ids[prog_label]]
+                coverage[prog.label] = prog.getCoverage(budgets[prog_label])
         return coverage
 
     def copy(self):
@@ -273,6 +277,7 @@ class Program:
             val_type = val_types[k]
             val_array = val_arrays[k]
             if attributes is not None and val_type not in attributes: continue
+            if val_type.startswith('$ref'): continue # in this case val_array contains strings which raise an exception on isnan()
 
             t_array = dcp(self.t)  # Need to refresh this during each attribute interpolation loop.
 
