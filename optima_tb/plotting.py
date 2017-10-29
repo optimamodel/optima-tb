@@ -2538,7 +2538,7 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         ax.set_yticks(yticks[0])
         ax.set_yticklabels(yticks[1])
 
-    ax.set_xlim(xlim)
+#     ax.set_xlim(xlim)
     if ylim is not None:
         ax.set_ylim(ylim)
 
