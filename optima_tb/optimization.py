@@ -178,10 +178,10 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
 #            for pop_label in results.outputs[objective_label].keys():
 #                objective += results.outputs[objective_label][pop_label][index_start] * weight
 #            index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
-            logging.debug("getValuesAt")
-            logging.debug(results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight)
-            logging.debug("getValueAt")
-            logging.debug(results.getValueAt(label=objective_label, year_init=options['objectives'][objective_label]['year']) * weight)
+#             logging.debug("getValuesAt")
+#             logging.debug(results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight)
+#             logging.debug("getValueAt")
+#             logging.debug(results.getValueAt(label=objective_label, year_init=options['objectives'][objective_label]['year']) * weight)
 
             objective += results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight
         # Handle the default objective that wants to know a cumulative value. Timestep scaling is done inside Results.getValueAt().
@@ -195,7 +195,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
     return objective
 
 
-def optimizeFunc(settings, parset, progset, options=None, max_iter=500, outputqueue=None, thread=None, randseed=None):
+def optimizeFunc(settings, parset, progset, options=None, max_iter=500, outputqueue=None, thread=None, randseed=None, maxtime=None):
 
     if options is None:
         logger.warn("An options dictionary was not supplied for optimisation. A default one will be constructed.")
@@ -292,7 +292,7 @@ def optimizeFunc(settings, parset, progset, options=None, max_iter=500, outputqu
     algorithm_refs['previous_alloc'] = dcp(alloc)
 
     alloc = dcp(constrainAllocation(alloc=alloc, settings=settings, options=options, algorithm_refs=algorithm_refs))
-    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter, reltol=None, randseed=randseed)# , xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
+    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter, reltol=None, randseed=randseed, maxtime=maxtime)# , xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
     alloc_new = dcp(constrainAllocation(alloc=alloc_new, settings=settings, options=options, algorithm_refs=algorithm_refs))
 
     # Makes sure allocation is returned in dictionary format.
@@ -312,7 +312,9 @@ def optimizeFunc(settings, parset, progset, options=None, max_iter=500, outputqu
     return results
 
 
-def parallelOptimizeFunc(settings, parset, progset, options=None, num_threads=4, block_iter=10, max_blocks=10, max_iter=None, doplot=False, fullfval=False, randseed=None):
+def parallelOptimizeFunc(settings, parset, progset, options=None, num_threads=4,
+                         block_iter=10, max_blocks=10, max_iter=None, doplot=False,
+                         fullfval=False, randseed=None, maxtime=None):
     '''
     Same as optimizeFunc, excepts runs in multiple threads in small blocks.
     
@@ -383,7 +385,7 @@ def parallelOptimizeFunc(settings, parset, progset, options=None, num_threads=4,
         for thread in range(num_threads):
             if randseed is None:
                 randseed = (block + 1) * int((time() - np.floor(time())) * 1e7) # Get a random number based on both the time and the thread
-            args = (settings, parset, progset, options, block_iter, outputqueue, thread, randseed)
+            args = (settings, parset, progset, options, block_iter, outputqueue, thread, randseed, maxtime)
             prc = Process(target=optimizeFunc, args=args)
             prc.start()
             processes.append(prc)
