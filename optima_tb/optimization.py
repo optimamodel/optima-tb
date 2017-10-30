@@ -188,7 +188,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
         else:
 #            for pop_label in results.outputs[objective_label].keys():
 #                objective += sum(results.outputs[objective_label][pop_label][index_start:]) * results.dt * weight
-            objective += results.getValuesAt(label=objective_label, year_init=options['progs_start'], year_end=settings.tvec_end) * weight
+            objective += results.getValuesAt(label=objective_label, year_init=options['progs_start'], year_end=settings.tvec_end, integrated=True)[0][0] * weight
 
 #    logging.debug( objective)
 
