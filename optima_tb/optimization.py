@@ -170,7 +170,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
         if 'weight' in options['objectives'][objective_label]: weight = options['objectives'][objective_label]['weight']
 
 
-#        objective = results.getValueAt(label = objective_label, year_init = options['progs_start'])
+#        objective = results.getValuesAt(label = objective_label, year_init = options['progs_start'])
 
         # Handle an objective that wants to know the value in a particular year, e.g. a snapshot of a characteristic.
         if 'year' in options['objectives'][objective_label]:
@@ -178,12 +178,17 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
 #            for pop_label in results.outputs[objective_label].keys():
 #                objective += results.outputs[objective_label][pop_label][index_start] * weight
 #            index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
-            objective += results.getValueAt(label=objective_label, year_init=options['objectives'][objective_label]['year']) * weight
+            logging.debug("getValuesAt")
+            logging.debug(results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight)
+            logging.debug("getValueAt")
+            logging.debug(results.getValueAt(label=objective_label, year_init=options['objectives'][objective_label]['year']) * weight)
+
+            objective += results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight
         # Handle the default objective that wants to know a cumulative value. Timestep scaling is done inside Results.getValueAt().
         else:
 #            for pop_label in results.outputs[objective_label].keys():
 #                objective += sum(results.outputs[objective_label][pop_label][index_start:]) * results.dt * weight
-            objective += results.getValueAt(label=objective_label, year_init=options['progs_start'], year_end=settings.tvec_end) * weight
+            objective += results.getValuesAt(label=objective_label, year_init=options['progs_start'], year_end=settings.tvec_end) * weight
 
 #    logging.debug( objective)
 
