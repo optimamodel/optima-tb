@@ -61,7 +61,7 @@ class Project(object):
         else:
             self.settings.tvec_end = yearRange[1]
 
-    def runSim(self, parset = None, parset_name = 'default', progset = None, progset_name = None, options = None, plot = False, debug = False, store_results = True, result_type = None, result_name = None):
+    def runSim(self, parset=None, parset_name='default', progset=None, progset_name=None, options=None, plot=False, debug=False, store_results=True, result_type=None, result_name=None):
         ''' Run model using a selected parset and store/return results. '''
 
         if parset is None:
@@ -88,9 +88,9 @@ class Project(object):
 
         if plot:
             tp = tic()
-            self.plotResults(results = results, debug = debug)
-            toc(tp, label = 'plotting %s' % self.name)
-            
+            self.plotResults(results=results, debug=debug)
+            toc(tp, label='plotting %s' % self.name)
+
         if store_results:
             if result_name is None:
                 result_name = 'parset_' + parset.name
@@ -110,7 +110,7 @@ class Project(object):
         return results
 
 
-    def optimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None, max_iter=500):
+    def optimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None, max_iter=500, maxtime=None):
         ''' Optimize model using a selected parset and store/return results. '''
 
         if parset is None:
@@ -127,12 +127,13 @@ class Project(object):
                 try: progset = self.progsets[progset_name]
                 except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot optimize model.' % (self.name, progset_name))
 
-        results = optimizeFunc(settings=self.settings, parset=parset, progset=progset, options=options, max_iter=max_iter)
+        results = optimizeFunc(settings=self.settings, parset=parset, progset=progset, options=options, max_iter=max_iter, maxtime=maxtime)
 
         return results
 
 
-    def parallelOptimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None, num_threads=4, block_iter=10, max_blocks=10, max_iter=None, doplot=False, fullfval=False, randseed=None):
+    def parallelOptimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None,
+                         num_threads=4, block_iter=10, max_blocks=10, max_iter=None, doplot=False, fullfval=False, randseed=None, maxtime=None):
         ''' Like optimize, but parallel '''
 
         if parset is None:
@@ -150,7 +151,9 @@ class Project(object):
                 except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot optimize model.' % (self.name, progset_name))
 
 
-        results = parallelOptimizeFunc(settings=self.settings, parset=parset, progset=progset, options=options, num_threads=num_threads, block_iter=block_iter, max_blocks=max_blocks, max_iter=max_iter, doplot=doplot, fullfval=fullfval, randseed=randseed)
+        results = parallelOptimizeFunc(settings=self.settings, parset=parset, progset=progset, options=options, num_threads=num_threads,
+                                       block_iter=block_iter, max_blocks=max_blocks, max_iter=max_iter, doplot=doplot, fullfval=fullfval,
+                                       randseed=randseed, maxtime=maxtime)
 
         return results
 
@@ -194,10 +197,10 @@ class Project(object):
         ''' Transform project data into a set of programs that can be used in budget scenarios and optimisations. '''
 
         if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
-        self.progsets[name] = ProgramSet(name = name)
-        self.progsets[name].makeProgs(data = self.data, settings = self.settings)
-    
-    def reconcile(self, parset_name = None, progset = None, progset_name = None, reconcile_for_year = 2017, sigma_dict = None, unitcost_sigma = 0.05, attribute_sigma = 0.20, budget_sigma = 0.0, impact_pars = None, budget_allocation = None, constrain_budget = True, overwrite = True, max_time = None, save_progset = True):
+        self.progsets[name] = ProgramSet(name=name)
+        self.progsets[name].makeProgs(data=self.data, settings=self.settings)
+
+    def reconcile(self, parset_name=None, progset=None, progset_name=None, reconcile_for_year=2017, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, budget_allocation=None, constrain_budget=True, overwrite=True, max_time=None, save_progset=True):
         '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible
            Default behaviour is to overwrite existing progset
         '''
@@ -221,7 +224,7 @@ class Project(object):
             while link_progset_temporarily:
                 if k == -1: temp_progset_name = progset.name
                 elif k == 0: temp_progset_name = 'temp'
-                else: temp_progset_name = 'temp'+str(k)
+                else: temp_progset_name = 'temp' + str(k)
                 if not temp_progset_name in self.progsets:
                     self.progsets[temp_progset_name] = progset
                     progset_name = temp_progset_name
@@ -245,20 +248,20 @@ class Project(object):
 
         # Run reconcile functionality
         reconciled_progset, reconciled_output = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
-                                                                parset_name=parset_name, progset_name=progset_name, sigma_dict = sigma_dict,
-                                                                unitcost_sigma=unitcost_sigma, budget_sigma = budget_sigma, attribute_sigma=attribute_sigma, 
-                                                                impact_pars=impact_pars,orig_tvec_end=orig_tvec_end,
+                                                                parset_name=parset_name, progset_name=progset_name, sigma_dict=sigma_dict,
+                                                                unitcost_sigma=unitcost_sigma, budget_sigma=budget_sigma, attribute_sigma=attribute_sigma,
+                                                                impact_pars=impact_pars, orig_tvec_end=orig_tvec_end,
                                                                 budget_allocation=budget_allocation, constrain_budget=constrain_budget, max_time=max_time)
-        
+
         if save_progset:
             self.progsets[progset_name] = reconciled_progset
-        
+
         # Deletes temporary progset reference.
         if link_progset_temporarily:
             del self.progsets[temp_progset_name]
             try: del self.progsets[progset_name]    # In case overwrite is False delete the 'reconcile' version of the temp progset. TODO: Rethink all the logic.
             except: pass
-            
+
         return reconciled_progset, reconciled_output
 
 
@@ -345,7 +348,7 @@ class Project(object):
             new_parset_name = "autofit"
 
         logger.info("About to run autofit on parameters using parameter set = %s" % old_parset_name)
-        
+
         if max_time is not None:    # Update autocalibration settings with new time limit...
             prev_max_time = self.settings.autofit_params['maxtime']
             self.settings.autofit_params['maxtime'] = max_time
@@ -354,10 +357,10 @@ class Project(object):
             raise OptimaException("ERROR: Autocalibration failed.")
         if max_time is not None:    # ...and revert.
             self.settings.autofit_params['maxtime'] = prev_max_time
-        
+
         logger.info("Created new parameter set '%s' using autofit" % new_parset_name)
         if save_parset: self.parsets[new_parset_name] = new_parset
-                    
+
         return new_parset
 
 
@@ -512,11 +515,11 @@ class Project(object):
                 if scenario_set_name is None:
                     results[scen_name].name = '%s' % (scen_name)
                 else:
-                    results[scen_name].name = '%s_%s'%(scenario_set_name,scen_name)
-                
+                    results[scen_name].name = '%s_%s' % (scenario_set_name, scen_name)
+
                 if store_results:
                     result_name = results[scen_name].name
-                    
+
                     k = 1
                     while k > 0:
                         result_name_attempt = result_name + '_' + str(k)
@@ -525,41 +528,41 @@ class Project(object):
                             result_name = result_name_attempt
                             k = 0
                     self.results[result_name] = dcp(results[scen_name])
-                        
+
                     if save_results:
                         results[scen_name].export()
                         export_paramset(self.scenarios[scen].getScenarioParset(orig_parset))
-        
+
         return results
-    
-    
-    
-    
+
+
+
+
 #    def exportProject(self, filename=None, format='json', compression='zlib'):
 #        """
-#        
+#
 #        This currently saves everything within a project, including results.
-#        
+#
 #        Params:
 #            filename      filename to save to. If none is supplied, value is set to "<project.name>.project"
 #            format        string for supported format types (json)
 #            compression   string for supported compression types (zlib)
-#        
+#
 #        Usage
 #            project = Project(name="sample", cascade="cascade.xlsx")
 #            project.exportProject()
 #            # saves to "sample.project.Z"
 #            project.exportProject(filename="special")
 #            # saves to "special.Z"
-#        
+#
 #        """
 #        if filename is None:
 #            filename = "%s.project"%self.name
-#        
+#
 #        logger.info("Attempting to save file in format=%s"%format)
 #        filename = exportObj(self,filename=filename,format=format,compression=compression)
 #        logger.info("Saved to file: %s"%filename)
 #        return filename
-        
-    
-        
+
+
+
