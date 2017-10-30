@@ -209,6 +209,7 @@ class ResultSet(object):
         Return:
             value        a scalar
         """
+        logging.warn("Method deprecated. Please use result.getValuesAt() instead")
         dt = self.dt
 
         if pop_labels is None:
