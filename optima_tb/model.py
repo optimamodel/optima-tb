@@ -813,6 +813,10 @@ class Model(object):
         '''
 
         ti = self.t_index
+        progs_active = False
+        if 'progs_start' in self.sim_settings and 'progs_end' in self.sim_settings:
+            if self.sim_settings['progs_start'] <= self.sim_settings['tvec'][ti] <= self.sim_settings['progs_end']:
+                progs_active = True
 
         self._updateCharacteristics(settings)
 
@@ -847,126 +851,125 @@ class Model(object):
 
 
                 # WARNING: CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
-                if 'progs_start' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start']:
-                    if not ('progs_end' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_end']):
-                        if par_label in progset.impacts.keys():
-                            impact_list = []    # Notes for each program what its impact would be before coverage limitations.
-                            overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
+                if progs_active:
+                    if par_label in progset.impacts.keys():
+                        impact_list = []    # Notes for each program what its impact would be before coverage limitations.
+                        overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
 
-                            # get all the relevant programs for the current parameter in the current population
-                            rel_prog_labels = filter(lambda x: x in self.prog_vals.keys() and pop.label in progset.getProg(x).target_pops, progset.impacts[par_label])
-                            # add programs from programs which have a global impact but are not covered in this population
-                            rel_prog_labels = buildRelevantProgs(par_label, pop.label, rel_prog_labels, progset)
+                        # get all the relevant programs for the current parameter in the current population
+                        rel_prog_labels = filter(lambda x: x in self.prog_vals.keys() and pop.label in progset.getProg(x).target_pops, progset.impacts[par_label])
+                        # add programs from programs which have a global impact but are not covered in this population
+                        rel_prog_labels = buildRelevantProgs(par_label, pop.label, rel_prog_labels, progset)
 
-                            for prog_label in rel_prog_labels:
-                                prog = progset.getProg(prog_label)
+                        for prog_label in rel_prog_labels:
+                            prog = progset.getProg(prog_label)
 
-                                (special, scale_pars) = progset.getProg(prog_label).flag
+                            (special, scale_pars) = progset.getProg(prog_label).flag
 
-                                # if no prog_val is encountered, the program is not covered but has been 'artificially'
-                                # added because of its global impact. since there is no impact associated with it, simply
-                                # add the impact of the other programs before moving on
-                                if prog_label not in self.prog_vals:
-                                    # double check if the program is correct
-                                    if special == 'scale_prop' and par_label in scale_pars:
-                                        impact = processScalePropsTag(par_label, settings, self.pops, self.pop_ids, progset, self.prog_vals, ti)
-                                        if special != '' and special != 'replace':
-                                            if pars[0].val_format == 'number' and isinstance(pars[0], Link):
-                                                impact += new_val
-                                            else:
-                                                impact = new_val * impact
-                                        impact_list.append(impact)
-
-                                    continue
-
-                                # Impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
-                                # Makes sure that the right value is selected.
-                                try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
-                                except:
-                                    if isinstance(self.prog_vals[prog_label]['impact'][par_label], np.ndarray):
-                                        net_impact = self.prog_vals[prog_label]['impact'][par_label][0]
-                                    else:
-                                        net_impact = self.prog_vals[prog_label]['impact'][par_label]
-
-                                if 'tag' in settings.linkpar_specs[par_label]:
-                                    source_element_size, source_set_size = processGrouping(pars[0], par_label, prog, self.pops, self.pop_ids, pop, settings, ti)
-
-                                    impact = processParameterType(net_impact, pars[0], prog, source_element_size, source_set_size)
-
-                                    if special != 'supp': # SOPs do not count against the coverage limit
-                                        # Calculate how excessive program coverage is for the provided budgets.
-                                        # If coverage is a fraction, excess is compared to unity.
-                                        # If coverage is a number, excess is compared to the total number of people available for coverage.
-                                        overflow_factor = 0
-                                        try: net_cov = self.prog_vals[prog_label]['cov'][ti]
-                                        except: net_cov = self.prog_vals[prog_label]['cov']
-                                        if prog.cov_format == 'fraction':
-                                            overflow_factor = net_cov
-                                        elif prog.cov_format == 'number':
-                                            if float(source_set_size) <= project_settings.TOLERANCE:
-                                                overflow_factor = np.inf
-                                            else:
-                                                overflow_factor = net_cov / float(source_set_size)
-                                        overflow_list.append(overflow_factor)
-                                else:
-                                    # if coverage format is a number, it is difficult to decide what to do. not doing anything seems alright
-                                    if special != 'supp' and prog.cov_format == 'fraction':
-                                        try: net_cov = self.prog_vals[prog_label]['cov'][ti]
-                                        except: net_cov = self.prog_vals[prog_label]['cov']
-                                        overflow_list.append(net_cov)
-                                    impact = net_impact
-
+                            # if no prog_val is encountered, the program is not covered but has been 'artificially'
+                            # added because of its global impact. since there is no impact associated with it, simply
+                            # add the impact of the other programs before moving on
+                            if prog_label not in self.prog_vals:
+                                # double check if the program is correct
                                 if special == 'scale_prop' and par_label in scale_pars:
                                     impact = processScalePropsTag(par_label, settings, self.pops, self.pop_ids, progset, self.prog_vals, ti)
-                                # elif special == 'split':
-                                #     if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
-                                #         assert (0. <= source_element_size / source_set_size <= 1.)
-                                #         impact *= source_element_size / source_set_size
-                                # TODO might be reasonable to move this elif part up because impact is computed only here
-                                elif special == 'supp':
-                                    # only apply impact if the paramter is not influenced by GPs; skip otherwise:
-                                    # if the intersection of impacting programs, GPs and available programs is empty or no global impact parameter is referenced, apply changes
-                                    if not set(progset.impacts[par_label]).intersection(rel_glob_progs) and not par_label in progset.GP_pars:
-                                        impact = processSuppTag(par_label, prog, self.prog_vals, ti)
-                                        # necessary work-around to prevent supp-programs to change values when they do not have any influence
-                                        if impact == 0.: continue
-                                    else: continue
-
-                                if special != '' and special != 'replace':
-                                    if special == 'scale' and par_label in scale_pars:
-                                        # !currently only fractions supported!
-                                        link = pop.getLinks(prog.deps[par_label])[0]
-                                        impact *= pop.comps[link.index_from[1]].popsize[ti]
-                                    else:
-                                        if pars[0].val_format == 'number' and 'tag' in settings.linkpar_specs[par_label]:
+                                    if special != '' and special != 'replace':
+                                        if pars[0].val_format == 'number' and isinstance(pars[0], Link):
                                             impact += new_val
                                         else:
-                                            impact *= new_val
+                                            impact = new_val * impact
+                                    impact_list.append(impact)
+
+                                continue
+
+                            # Impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
+                            # Makes sure that the right value is selected.
+                            try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
+                            except:
+                                if isinstance(self.prog_vals[prog_label]['impact'][par_label], np.ndarray):
+                                    net_impact = self.prog_vals[prog_label]['impact'][par_label][0]
                                 else:
-                                    # originally: new_val = 0 and append impact to impact_list; however, the impact_list may be scaled
-                                    # depending on the overflow. This should not be the case for number of treatments (the only case
-                                    # applicable here). so instead of appending the value, overwrite new_val and do not append to impact_list
-                                    new_val = impact
-                                    continue
+                                    net_impact = self.prog_vals[prog_label]['impact'][par_label]
 
-                                impact_list.append(impact)
+                            if 'tag' in settings.linkpar_specs[par_label]:
+                                source_element_size, source_set_size = processGrouping(pars[0], par_label, prog, self.pops, self.pop_ids, pop, settings, ti)
 
-                            # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
-                            # Otherwise renormalises impacts.
-                            if len(overflow_list) > 0 and sum(overflow_list) > 1:
-                                impact_list = np.multiply(impact_list, 1 / sum(overflow_list)).tolist()
+                                impact = processParameterType(net_impact, pars[0], prog, source_element_size, source_set_size)
 
-                            if impact_list:
-                                new_val += np.sum(impact_list)
+                                if special != 'supp': # SOPs do not count against the coverage limit
+                                    # Calculate how excessive program coverage is for the provided budgets.
+                                    # If coverage is a fraction, excess is compared to unity.
+                                    # If coverage is a number, excess is compared to the total number of people available for coverage.
+                                    overflow_factor = 0
+                                    try: net_cov = self.prog_vals[prog_label]['cov'][ti]
+                                    except: net_cov = self.prog_vals[prog_label]['cov']
+                                    if prog.cov_format == 'fraction':
+                                        overflow_factor = net_cov
+                                    elif prog.cov_format == 'number':
+                                        if float(source_set_size) <= project_settings.TOLERANCE:
+                                            overflow_factor = np.inf
+                                        else:
+                                            overflow_factor = net_cov / float(source_set_size)
+                                    overflow_list.append(overflow_factor)
+                            else:
+                                # if coverage format is a number, it is difficult to decide what to do. not doing anything seems alright
+                                if special != 'supp' and prog.cov_format == 'fraction':
+                                    try: net_cov = self.prog_vals[prog_label]['cov'][ti]
+                                    except: net_cov = self.prog_vals[prog_label]['cov']
+                                    overflow_list.append(net_cov)
+                                impact = net_impact
 
-                            # Handle impact constraints.
-                            # Note: This applies to any parameter that is impacted by the progset, not just for programs that are in the allocation.
-                            if 'constraints' in self.sim_settings and 'impacts' in self.sim_settings['constraints'] and par_label in self.sim_settings['constraints']['impacts']:
-                                try: vals = self.sim_settings['constraints']['impacts'][par_label]['vals']
-                                except: raise OptimaException('ERROR: An impact constraint was passed to the model for "%s" but had no values associated with it.' % par_label)
-                                if not len(vals) == 2: raise OptimaException('ERROR: Constraints for impact "%s" must be provided as a list or tuple of two values, i.e. a lower and an upper constraint.' % par_label)
-                                if new_val < vals[0]: new_val = vals[0]
-                                if new_val > vals[1]: new_val = vals[1]
+                            if special == 'scale_prop' and par_label in scale_pars:
+                                impact = processScalePropsTag(par_label, settings, self.pops, self.pop_ids, progset, self.prog_vals, ti)
+                            # elif special == 'split':
+                            #     if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
+                            #         assert (0. <= source_element_size / source_set_size <= 1.)
+                            #         impact *= source_element_size / source_set_size
+                            # TODO might be reasonable to move this elif part up because impact is computed only here
+                            elif special == 'supp':
+                                # only apply impact if the paramter is not influenced by GPs; skip otherwise:
+                                # if the intersection of impacting programs, GPs and available programs is empty or no global impact parameter is referenced, apply changes
+                                if not set(progset.impacts[par_label]).intersection(rel_glob_progs) and not par_label in progset.GP_pars:
+                                    impact = processSuppTag(par_label, prog, self.prog_vals, ti)
+                                    # necessary work-around to prevent supp-programs to change values when they do not have any influence
+                                    if impact == 0.: continue
+                                else: continue
+
+                            if special != '' and special != 'replace':
+                                if special == 'scale' and par_label in scale_pars:
+                                    # !currently only fractions supported!
+                                    link = pop.getLinks(prog.deps[par_label])[0]
+                                    impact *= pop.comps[link.index_from[1]].popsize[ti]
+                                else:
+                                    if pars[0].val_format == 'number' and 'tag' in settings.linkpar_specs[par_label]:
+                                        impact += new_val
+                                    else:
+                                        impact *= new_val
+                            else:
+                                # originally: new_val = 0 and append impact to impact_list; however, the impact_list may be scaled
+                                # depending on the overflow. This should not be the case for number of treatments (the only case
+                                # applicable here). so instead of appending the value, overwrite new_val and do not append to impact_list
+                                new_val = impact
+                                continue
+
+                            impact_list.append(impact)
+
+                        # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
+                        # Otherwise renormalises impacts.
+                        if len(overflow_list) > 0 and sum(overflow_list) > 1:
+                            impact_list = np.multiply(impact_list, 1 / sum(overflow_list)).tolist()
+
+                        if impact_list:
+                            new_val += np.sum(impact_list)
+
+                        # Handle impact constraints.
+                        # Note: This applies to any parameter that is impacted by the progset, not just for programs that are in the allocation.
+                        if 'constraints' in self.sim_settings and 'impacts' in self.sim_settings['constraints'] and par_label in self.sim_settings['constraints']['impacts']:
+                            try: vals = self.sim_settings['constraints']['impacts'][par_label]['vals']
+                            except: raise OptimaException('ERROR: An impact constraint was passed to the model for "%s" but had no values associated with it.' % par_label)
+                            if not len(vals) == 2: raise OptimaException('ERROR: Constraints for impact "%s" must be provided as a list or tuple of two values, i.e. a lower and an upper constraint.' % par_label)
+                            if new_val < vals[0]: new_val = vals[0]
+                            if new_val > vals[1]: new_val = vals[1]
 
                 for par in pars:
                     par.vals[ti] = new_val
