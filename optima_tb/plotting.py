@@ -612,7 +612,7 @@ def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None
                      save_fig=save_results, fig_name=filename + "compareCompsNewInfRetreatRelative")
 
     """
-
+    print "YYY----", kwargs
     fig = innerPlotBar(proj, [result], year_periods=year_periods, output_labels=output_labels,
                        compare_type=COMPARETYPE_YEAR, pop_labels=pop_labels, ylabel=ylabel,
                        colormappings=colormappings, colors=colors, linestyles=linestyles,
@@ -930,7 +930,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
 def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
                  compare_type=None, plot_type=None, year_periods=None,
                  plot_total=False, plot_relative=None,
-                 observed_data_label=None, ylabel=None,
+                 observed_data_label=None, ylabel=None, xlabels=None,
                  colormappings=None, colors=None, linestyles=None, cat_labels=None,
                  title=None, save_fig=False, fig_name=None, **kwargs):
     """
@@ -981,7 +981,7 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
         TODO
         
     """
-
+    print "XXXXX----", xlabels
  # -------------------------------------------------------
     # extract relevant objects
     data = proj.data
@@ -1096,6 +1096,9 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
         logger.info("Plotting: compare_type not specified, assuming comparing populations")
         series_labels = pop_labels
         color_labels = pop_labels
+
+    if xlabels is not None:
+        series_labels = xlabels
 
     # category labels
     if cat_labels is not None:
@@ -1882,9 +1885,13 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     if formatter is not None:
         ax.yaxis.set_major_formatter(formatter)
 
+    print x_ticks
+    print xlabels
+
     if x_ticks is not None:
         ax.set_xticks(x_ticks[0])
         ax.set_xticklabels(x_ticks[1])
+
     if yticks is not None:
         ax.set_yticks(yticks[0])
         ax.set_yticklabels(yticks[1])
@@ -3423,7 +3430,8 @@ def plotScenarioBar (scen_results, scen_labels, settings, data, output_list=None
         separateLegend(labels=output, colors=cat_colors, fig_name=fig_name, reverse_order=True, **legendsettings)
 
 
-def plotStackedBarOutputs(results, settings, year_list, output_list, output_labels=None, xlabels=None, ylim=None,
+def plotStackedBarOutputs(results, settings, year_list, output_list, output_labels=None,
+                          xlabels=None, ylim=None, pop_labels=None,
                           title="", colormappings=None, save_fig=False, fig_name=None, legendsettings=None):
     """
 
@@ -3455,7 +3463,7 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
         output_labels = output_list
 
     # unfortunately we have to do it this way to ensure that the programs are all extracted in the same order
-    values = [[results.getValueAt(output_label, year)  for output_label in output_list ]  for year in year_list]
+    values = [[results.getValueAt(output_label, year, pop_labels=pop_labels)  for output_label in output_list ]  for year in year_list]
 
 #     print plotdict
 #     final_dict = dcp(plotdict)
