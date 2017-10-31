@@ -202,7 +202,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
         details['allsteps'] = allsteps[:count + 1, :]
         return (x, fvals, details)
     else:
-        return x
+        return (x, None, None) # so that it has the same shape regardless of fulloutput
 
 
 

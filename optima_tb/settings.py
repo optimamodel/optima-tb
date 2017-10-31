@@ -162,7 +162,7 @@ class Settings(object):
         calibration['reltol'] = 1e-3
         calibration['sinc'] = 2.
         calibration['sdec'] = 2.
-        calibration['fulloutput'] = False
+        calibration['fulloutput'] = True
         calibration['num_threads'] = 4
         calibration['block_iter'] = 10
         calibration['max_blocks'] = 10

@@ -154,7 +154,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
 
         t = tic()
         results = runModel(settings=settings, parset=parset, progset=progset, options=options_iter)
-        logging.info(toc(t))
+        logging.debug("toc = %g" % toc(t))
 
     if 'previous_results' in algorithm_refs:
         algorithm_refs['previous_results'] = dcp(results)   # Store the new results for the next iteration.
