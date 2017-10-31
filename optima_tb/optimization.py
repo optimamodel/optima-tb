@@ -195,7 +195,9 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
     return objective
 
 
-def optimizeFunc(settings, parset, progset, options=None, max_iter=500, outputqueue=None, thread=None, randseed=None, maxtime=None):
+def optimizeFunc(settings, parset, progset, options=None, outputqueue=None, thread=None, randseed=None, **optimization_params):
+
+    # TODO optimization params
 
     if options is None:
         logger.warn("An options dictionary was not supplied for optimisation. A default one will be constructed.")
@@ -292,7 +294,13 @@ def optimizeFunc(settings, parset, progset, options=None, max_iter=500, outputqu
     algorithm_refs['previous_alloc'] = dcp(alloc)
 
     alloc = dcp(constrainAllocation(alloc=alloc, settings=settings, options=options, algorithm_refs=algorithm_refs))
-    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter, reltol=None, randseed=randseed, maxtime=maxtime)# , xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
+    print "\n"*5
+    print "Params --> ASD:"
+    print optimization_params
+    print "\n"*5
+
+    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, randseed=randseed, **optimization_params)
+    return
     alloc_new = dcp(constrainAllocation(alloc=alloc_new, settings=settings, options=options, algorithm_refs=algorithm_refs))
 
     # Makes sure allocation is returned in dictionary format.
@@ -313,8 +321,8 @@ def optimizeFunc(settings, parset, progset, options=None, max_iter=500, outputqu
 
 
 def parallelOptimizeFunc(settings, parset, progset, options=None, num_threads=4,
-                         block_iter=10, max_blocks=10, max_iter=None, doplot=False,
-                         fullfval=False, randseed=None, maxtime=None):
+                         block_iter=10, max_blocks=10, doplot=False,
+                         fullfval=False, randseed=None, **parallel_optimization_params):
     '''
     Same as optimizeFunc, excepts runs in multiple threads in small blocks.
     
@@ -360,8 +368,10 @@ def parallelOptimizeFunc(settings, parset, progset, options=None, num_threads=4,
     # Handle inputs
     if options is None:
         options = defaultOptimOptions(settings=settings, progset=progset)
-    if max_iter is not None:
-        block_iter = np.floor(max_iter / float(max_blocks)) # Calculate block_iter from max_iter, if supplied
+
+    if block_iter is None and max_iters is not None and max_blocks is not None:
+        logging.info("Parallel optimization: block_iter was not specified; calculating it from max_ters and max_blocks")
+        block_iter = np.floor(max_iters / float(max_blocks)) # Calculate block_iter from max_iter, if supplied
 
     # Crucial step that ensures an original allocation is always stored, regardless of initial allocation changes per block.
     if 'orig_alloc' not in options:
@@ -385,8 +395,8 @@ def parallelOptimizeFunc(settings, parset, progset, options=None, num_threads=4,
         for thread in range(num_threads):
             if randseed is None:
                 randseed = (block + 1) * int((time() - np.floor(time())) * 1e7) # Get a random number based on both the time and the thread
-            args = (settings, parset, progset, options, block_iter, outputqueue, thread, randseed, maxtime)
-            prc = Process(target=optimizeFunc, args=args)
+            args = (settings, parset, progset, options, block_iter, outputqueue, thread, randseed)
+            prc = Process(target=optimizeFunc, args=args, kwargs=parallel_optimization_params)
             prc.start()
             processes.append(prc)
 
