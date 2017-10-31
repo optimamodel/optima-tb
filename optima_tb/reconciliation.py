@@ -451,7 +451,12 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
 
     rel_t_idx = reconcile_for_year - proj.settings.tvec_start
 
-    
+    # determine budget allocation before any calculations are carried out
+    for prog in progset.progs:
+        # if no budget allocation is given, fill in the allocation with default values
+        if prog.label not in prog_budget_alloc.keys():
+            prog_budget_alloc[prog.label] = prog.getDefaultBudget()
+
     for par_label in impact_pars:
         for popkey in results.pop_label_index.keys():
             if popkey not in prog_attributes.keys(): prog_attributes[popkey] = odict()
@@ -476,13 +481,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 for prog_label in rel_prog_labels:
                     prog = progset.getProg(prog_label)
                     prog_type = prog.prog_type
-
-                    # if no budget allocation is given, fill in the allocation with default values
-                    if prog_label not in prog_budget_alloc.keys():
-                        prog_budget = prog.getDefaultBudget()
-                        prog_budget_alloc[prog_label] = prog_budget
-                    else:
-                        prog_budget = prog_budget_alloc[prog_label]
+                    prog_budget = prog_budget_alloc[prog_label]
 
                     (special, scale_pars) = progset.getProg(prog_label).flag
                     net_impact = prog.getImpact(prog_budget, impact_label=par_label, parser=parser, years=[reconcile_for_year])

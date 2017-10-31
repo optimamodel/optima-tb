@@ -149,36 +149,36 @@ class ModelPopulation(Node):
         '''
         for k, label in enumerate(settings.node_specs.keys()):
             self.comps.append(ModelCompartment(label=label, index=(self.index, k)))
-            if 'tag_birth' in settings.node_specs[label].keys():
+            if 'tag_birth' in settings.node_specs[label]:
                 self.comps[-1].tag_birth = True
-            if 'tag_dead' in settings.node_specs[label].keys():
+            if 'tag_dead' in settings.node_specs[label]:
                 self.comps[-1].tag_dead = True
-            if 'junction' in settings.node_specs[label].keys():
+            if 'junction' in settings.node_specs[label]:
                 self.comps[-1].junction = True
             self.comp_ids[label] = k
 
         k = 0
         # Create actual link objects for parameters with tags, a.k.a. transitions.
-        for label in settings.linkpar_specs.keys():
+        for label in settings.linkpar_specs:
             if 'tag' in settings.linkpar_specs[label]:
                 tag = settings.linkpar_specs[label]['tag']
                 for pair in settings.links[tag]:
                     self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]), link_index=(self.id, k), link_label=label))
-                    if not tag in self.link_ids.keys():
+                    if not tag in self.link_ids:
                         self.link_ids[tag] = []
                     self.link_ids[tag].append(k)
                     k += 1
 
         k = 0
         # Now create variable objects for dependencies, starting with characteristics.
-        for label in settings.charac_specs.keys():
+        for label in settings.charac_specs:
             if 'par_dependency' in settings.charac_specs[label]:
                 self.deps.append(Variable(label=label))
                 self.dep_ids[label] = k
                 k += 1
 
         # Finish dependencies with untagged parameters, i.e. ones that are not considered transition flow rates.
-        for label in settings.par_deps.keys():
+        for label in settings.par_deps:
             self.deps.append(Variable(label=label))
             self.dep_ids[label] = k
             k += 1
@@ -304,7 +304,7 @@ class Model(object):
 
                     # Check if program attributes have multiple distinct values across time.
                     do_full_tvec_check = {}
-                    for att_label in prog.attributes.keys():
+                    for att_label in prog.attributes:
                         att_vals = prog.attributes[att_label]
                         if len(set(att_vals)) == 1 and isinstance(att_vals[0], basestring):
                             do_full_tvec_check[att_label] = False
@@ -319,7 +319,7 @@ class Model(object):
                     for par_label in prog.target_pars:
                         do_full_tvec = False
                         if 'attribs' in prog.target_pars[par_label] and np.sum(cov) > project_settings.TOLERANCE:
-                            for att_label in prog.target_pars[par_label]['attribs'].keys():
+                            for att_label in prog.target_pars[par_label]['attribs']:
                                 if att_label in do_full_tvec_check and do_full_tvec_check[att_label] is True:
                                     do_full_tvec = True
                         if do_full_tvec is True:
@@ -363,8 +363,8 @@ class Model(object):
                 else: self.sim_settings['alloc_is_coverage'] = False
                 if 'saturate_with_default_budgets' in options:
                     self.sim_settings['saturate_with_default_budgets'] = options['saturate_with_default_budgets']
-                for impact_label in progset.impacts.keys():
-                    if impact_label not in settings.par_funcs.keys():
+                for impact_label in progset.impacts:
+                    if impact_label not in settings.par_funcs:
                         self.sim_settings['impact_pars_not_func'].append(impact_label)
 
                 self.preCalculateProgsetVals(settings=settings, progset=progset)   # For performance.
@@ -392,7 +392,7 @@ class Model(object):
         # All compartments are either characteristic entry-points or contain zero people.
         # First, generate a dictionary of prospective values to seed compartments with, all assumed to be zero.
         # Assume the values for all compartments have been calculated.
-        for node_label in settings.node_specs.keys():
+        for node_label in settings.node_specs:
             seed_dict[node_label] = odict()
             calc_done[node_label] = True    # Values are technically already settled for nodes if a node is not an entry-point.
                                             # Alternatively, the node can be an entry-point of a characteristic including only the entry-point.
@@ -404,8 +404,8 @@ class Model(object):
         # For inclusions of only the entry-point and nothing else, its seeding value is simply updated with the interpolated value of the characteristic.
         # For inclusions of more compartments (once flattened out), calculations are more difficult.
         # The characteristic seeding value is still updated, but the entry-point must be removed from the dictionary that tracks calculated compartments.
-        for charac_label in settings.charac_specs.keys():
-            if 'entry_point' in settings.charac_specs[charac_label].keys():
+        for charac_label in settings.charac_specs:
+            if 'entry_point' in settings.charac_specs[charac_label]:
                 ep_label = settings.charac_specs[charac_label]['entry_point']
                 flat_list, dep_list = flattenDict(input_dict=settings.charac_specs, base_key=charac_label, sub_keys=['includes'])
                 flat_list.remove(ep_label)
@@ -419,9 +419,9 @@ class Model(object):
 
         # Loop through and handle prevalences (i.e. characteristics with denominators).
         # The denominator value will be drawn from the parset, not the seed dictionary, so beware a prevalence as a denominator.
-        for charac_label in settings.charac_specs.keys():
-            if 'entry_point' in settings.charac_specs[charac_label].keys():
-                if 'denom' in settings.charac_specs[charac_label].keys():
+        for charac_label in settings.charac_specs:
+            if 'entry_point' in settings.charac_specs[charac_label]:
+                if 'denom' in settings.charac_specs[charac_label]:
                     ep_label = settings.charac_specs[charac_label]['entry_point']
                     denom_label = settings.charac_specs[charac_label]['denom']
                     par = parset.pars['characs'][parset.par_ids['characs'][denom_label]]
@@ -440,7 +440,7 @@ class Model(object):
                 for include in dcp(include_dict[entry_point]):
 
                     # Subtract the values of any included already-calculated nodes from the value of an entry-point.
-                    if include in calc_done.keys():
+                    if include in calc_done:
                         for pop_label in parset.pop_labels:
                             val = seed_dict[entry_point][pop_label] - seed_dict[include][pop_label]
                             if val < 0 and abs(val) > project_settings.TOLERANCE:
@@ -458,7 +458,7 @@ class Model(object):
                 raise OptimaException('ERROR: Calculation phase for initial compartment values has looped more times than the number of compartments. Something is likely wrong with characteristic definitions.')
 
         # Now initialise all model compartments with these calculated values.
-        for seed_label in seed_dict.keys():
+        for seed_label in seed_dict:
             for pop_label in parset.pop_labels:
                 val = seed_dict[seed_label][pop_label]
                 if abs(val) < project_settings.TOLERANCE:
@@ -482,7 +482,7 @@ class Model(object):
 
                 # Apply min/max restrictions on all parameters that are not functions.
                 # Functional parameters will be calculated and constrained during a run, hence they can be np.nan at this stage.
-                if not par.label in settings.par_funcs.keys():
+                if not par.label in settings.par_funcs:
                     if 'min' in settings.linkpar_specs[par.label]:
                         for pop_label in parset.pop_labels:
                             for link_id in self.getPop(pop_label).link_ids[tag]:
@@ -496,7 +496,7 @@ class Model(object):
 
                 # Apply min/max restrictions on all parameters that are not functions.
                 # Functional parameters will be calculated and constrained during a run, hence they can be np.nan at this stage.
-                if not par.label in settings.par_funcs.keys():
+                if not par.label in settings.par_funcs:
                     if 'min' in settings.linkpar_specs[par.label]:
                         for pop_label in parset.pop_labels:
                             dep_id = self.getPop(pop_label).dep_ids[par.label]
@@ -518,9 +518,9 @@ class Model(object):
 
 
         # Propagating transfer parameter parset values into Model object.
-        for trans_type in parset.transfers.keys():
+        for trans_type in parset.transfers:
             if parset.transfers[trans_type]:
-                for pop_source in parset.transfers[trans_type].keys():
+                for pop_source in parset.transfers[trans_type]:
                     par = parset.transfers[trans_type][pop_source]
 
                     for pop_target in par.y:
@@ -549,7 +549,7 @@ class Model(object):
         self.sim_settings['tag_birth'] = []
         self.sim_settings['tag_death'] = []
         self.sim_settings['tag_no_plot'] = []
-        for node_label in settings.node_specs.keys():
+        for node_label in settings.node_specs:
             for tag in ['tag_birth', 'tag_death', 'tag_no_plot']:
                 if tag in settings.node_specs[node_label]:
                     self.sim_settings[tag] = node_label
@@ -647,7 +647,7 @@ class Model(object):
                             logging.debug("Empty compartment: no change made for link from=%g,to=%g" % (did_from, did_to))
                             converted_amt = 0
 
-                        elif did_from in modified_compartment.keys():
+                        elif did_from in modified_compartment:
                             # during validation, we encountered an outflow from a compartment that was more than the population size
                             logging.debug("Modifying flow amount for link (from=%g,to=%g) by %g: prev amount = %g, new amount = %g" % (did_from, did_to, modified_compartment[did_from], converted_amt, modified_compartment[did_from] * converted_amt))
                             converted_amt *= modified_compartment[did_from]
@@ -766,14 +766,14 @@ class Model(object):
         for pop in self.pops:
             # Characteristics that are dependencies first...
             for dep in pop.deps:
-                if dep.label in settings.charac_deps.keys():
+                if dep.label in settings.charac_deps:
                     dep.vals[ti] = 0
 
                     # Sum up all relevant compartment popsizes (or previously calculated characteristics).
                     for inc_label in settings.charac_specs[dep.label]['includes']:
-                        if inc_label in pop.comp_ids.keys():
+                        if inc_label in pop.comp_ids:
                             val = pop.getComp(inc_label).popsize[ti]
-                        elif inc_label in pop.dep_ids.keys():  # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
+                        elif inc_label in pop.dep_ids:  # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
                             val = pop.getDep(inc_label).vals[ti]
                         else:
                             #                            print inc_label
@@ -787,9 +787,9 @@ class Model(object):
                     # Divide by relevant compartment popsize (or previously calculated characteristic).
                     if 'denom' in settings.charac_specs[dep.label]:
                         den_label = settings.charac_specs[dep.label]['denom']
-                        if den_label in pop.dep_ids.keys():  # NOTE: See above note for avoiding parameter-type dependencies.
+                        if den_label in pop.dep_ids:  # NOTE: See above note for avoiding parameter-type dependencies.
                             val = pop.getDep(den_label).vals[ti]
-                        elif den_label in pop.comp_ids.keys():
+                        elif den_label in pop.comp_ids:
                             val = pop.getComp(den_label).popsize[ti]
                         else:
                             raise OptimaException(
@@ -852,12 +852,12 @@ class Model(object):
 
                 # WARNING: CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
                 if progs_active:
-                    if par_label in progset.impacts.keys():
+                    if par_label in progset.impacts:
                         impact_list = []    # Notes for each program what its impact would be before coverage limitations.
                         overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
 
                         # get all the relevant programs for the current parameter in the current population
-                        rel_prog_labels = filter(lambda x: x in self.prog_vals.keys() and pop.label in progset.getProg(x).target_pops, progset.impacts[par_label])
+                        rel_prog_labels = filter(lambda x: x in self.prog_vals and pop.label in progset.getProg(x).target_pops, progset.impacts[par_label])
                         # add programs from programs which have a global impact but are not covered in this population
                         rel_prog_labels = buildRelevantProgs(par_label, pop.label, rel_prog_labels, progset)
 
@@ -975,16 +975,16 @@ class Model(object):
                     par.vals[ti] = new_val
 
                     # Backup the values of parameters that are tagged with special rules.
-                    if 'rules' in settings.linkpar_specs[par_label].keys():
+                    if 'rules' in settings.linkpar_specs[par_label]:
                         if par.vals_old is None: par.vals_old = dcp(par.vals)
                         par.vals_old[ti] = new_val
 
             # Handle parameters tagged with special rules. Overwrite vals if necessary.
-            if do_special and 'rules' in settings.linkpar_specs[par_label].keys():
+            if do_special and 'rules' in settings.linkpar_specs[par_label]:
                 rule = settings.linkpar_specs[par_label]['rules']
                 for pop in self.pops:
                     if rule == 'avg_contacts_in':
-                        from_list = self.contacts['into'][pop.label].keys()
+                        from_list = self.contacts['into'][pop.label]
 
                         # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
                         if not ((len(from_list) == 1 and from_list[0] == pop.label)):
@@ -1037,7 +1037,7 @@ class Model(object):
 
                     # Sum over all entries weighted by the value specified in 'Interaction Impact Weights'
                     elif rule == 'sum_reduce':
-                        from_list = self.contacts['into'][pop.label].keys()
+                        from_list = self.contacts['into'][pop.label]
 
                         # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
                         if not ((len(from_list) == 1 and from_list[0] == pop.label)):
@@ -1083,7 +1083,7 @@ class Model(object):
         outputs = odict()
 
         # For characteristics...
-        for cid in settings.charac_specs.keys():
+        for cid in settings.charac_specs:
             outputs[cid] = odict()
             for pop in self.pops:
                 outputs[cid][pop.label] = None
@@ -1091,7 +1091,7 @@ class Model(object):
                 # Sum up all relevant compartment popsizes (or previously calculated characteristics).
                 # TODO: Don't recalculate if characteristic was calculated as a dependency.
                 for inc_label in settings.charac_specs[cid]['includes']:
-                    if inc_label in self.getPop(pop.label).comp_ids.keys():
+                    if inc_label in self.getPop(pop.label).comp_ids:
                         vals = self.getPop(pop.label).getComp(inc_label).popsize
                     elif inc_label in outputs.keys()[:-1]:
                         vals = outputs[inc_label][pop.label]
@@ -1108,7 +1108,7 @@ class Model(object):
                     den_label = settings.charac_specs[cid]['denom']
                     if den_label in outputs.keys()[:-1]:
                         vals = outputs[den_label][pop.label]
-                    elif den_label in self.getPop(pop.label).comp_ids.keys():
+                    elif den_label in self.getPop(pop.label).comp_ids:
                         vals = self.getPop(pop.label).getComp(den_label).popsize
                     else:
                         raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
@@ -1122,7 +1122,7 @@ class Model(object):
                 if 'tag' in settings.linkpar_specs[cid]:    # If a parameter is a transition, grab values from its (first, if duplicated,) link object.
                     tag = settings.linkpar_specs[cid]['tag']
                     outputs[cid][pop.label] = pop.getLinks(tag)[0].vals
-                elif cid in pop.dep_ids.keys():             # If a parameter is a dependency, grab values from the dependency object.
+                elif cid in pop.dep_ids:             # If a parameter is a dependency, grab values from the dependency object.
                     outputs[cid][pop.label] = pop.getDep(cid).vals
                 else:
                     raise OptimaException('ERROR: Output parameter "%s" was not calculated as a "dependency" during the model run.' % cid)
@@ -1139,7 +1139,7 @@ class Model(object):
         """
         Returns True if comp_label is label for a compartment tagged as births. 
         """
-        if 'tag_birth' in settings.node_specs[comp_id].keys():
+        if 'tag_birth' in settings.node_specs[comp_id]:
             return True
         return False
 
@@ -1148,7 +1148,7 @@ class Model(object):
         Returns True if comp_label is label for a compartment tagged as dead. 
     
         """
-        if 'tag_dead' in settings.node_specs[comp_id].keys():
+        if 'tag_dead' in settings.node_specs[comp_id]:
             return True
         return False
 
@@ -1255,28 +1255,33 @@ def processParameterType(net_impact, link, prog, spec_size, tot_size):
 # special behaviour of program with the tag 'supp'
 def processSuppTag(par_label, prog, prog_vals, ti):
     impacts = []
-    # extract all attributes which refer to another program
-    refs = filter(lambda x: x.startswith('$ref_'), prog.attributes)
-    # list of all attributes other than programs
-    var = list(set(prog.attributes.keys()).difference(set(refs)))
+    # # extract all attributes which refer to another program
+    # refs = filter(lambda x: x.startswith('$ref_'), prog.attributes)
+    # # list of all attributes other than programs
+    # var = list(set(prog.attributes.keys()).difference(set(refs)))
 
     # loop over all referenced programs and increase their impact on impact parameters
-    for p in refs:
-        # label of referenced program
-        ref_prog = prog.attributes[p][0]
-        # suffix of the program, everything after the last '_' in program label (incl. '_')
-        suff = p[p.rfind('_'):]
+    # for p in refs:
+    for p in prog.ref:
+        # # label of referenced program
+        # ref_prog = prog.attributes[p][0]
+        # # suffix of the program, everything after the last '_' in program label (incl. '_')
+        # suff = p[p.rfind('_'):]
 
-        if ref_prog in prog_vals.keys() and par_label in prog_vals[ref_prog]['impact']:
+        # if ref_prog in prog_vals and par_label in prog_vals[ref_prog]['impact']:
+        if p in prog_vals and par_label in prog_vals[p]['impact']:
             # all parameters specified in the spreadsheet are multiplied
             coeff = 1.
-            for f in filter(lambda x: x.endswith(suff), var):
+            # for f in filter(lambda x: x.endswith(suff), var):
+            for f in prog.ref[p]:
                 try: coeff *= prog.attributes[f][ti]
                 except: coeff *= prog.attributes[f]
 
             # obtain coverage of referenced program ..
-            try: cov = prog_vals[ref_prog]['cov'][ti]
-            except: cov = prog_vals[ref_prog]['cov']
+            # try: cov = prog_vals[ref_prog]['cov'][ti]
+            # except: cov = prog_vals[ref_prog]['cov']
+            try: cov = prog_vals[p]['cov'][ti]
+            except: cov = prog_vals[p]['cov']
 
             try: scov = prog_vals[prog.label]['cov'][ti]
             except: scov = prog_vals[prog.label]['cov']
@@ -1285,7 +1290,9 @@ def processSuppTag(par_label, prog, prog_vals, ti):
             net_cov = min(cov, scov)
 
             # apply impact
-            try: impacts.append(prog_vals[ref_prog]['impact'][par_label][ti] * net_cov * coeff)
+            # try: impacts.append(prog_vals[ref_prog]['impact'][par_label][ti] * net_cov * coeff)
+            # except: impacts.append(prog_vals[ref_prog]['impact'][par_label] * net_cov * coeff)
+            try: impacts.append(prog_vals[p]['impact'][par_label][ti] * net_cov * coeff)
             except: impacts.append(prog_vals[ref_prog]['impact'][par_label] * net_cov * coeff)
 
     return np.sum(impacts)
@@ -1308,7 +1315,7 @@ def processScalePropsTag(par_label, settings, pops, pop_ids, progset, prog_vals,
 
     # any(x == _ for _ in gp_progs) checks if the string x is contained in the list of strings gp_progs
     rel_progs = filter(lambda x: x in progset.GPs + progset.SOPs, rel_progs) # remove programs which are not GP or SOP
-    rel_progs = filter(lambda x: x in prog_vals.keys(), rel_progs) # remove all programs which have no coverage
+    rel_progs = filter(lambda x: x in prog_vals, rel_progs) # remove all programs which have no coverage
 
     for p in rel_progs:
         imp = 0.0
