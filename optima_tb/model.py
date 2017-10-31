@@ -1255,31 +1255,18 @@ def processParameterType(net_impact, link, prog, spec_size, tot_size):
 # special behaviour of program with the tag 'supp'
 def processSuppTag(par_label, prog, prog_vals, ti):
     impacts = []
-    # # extract all attributes which refer to another program
-    # refs = filter(lambda x: x.startswith('$ref_'), prog.attributes)
-    # # list of all attributes other than programs
-    # var = list(set(prog.attributes.keys()).difference(set(refs)))
 
     # loop over all referenced programs and increase their impact on impact parameters
-    # for p in refs:
     for p in prog.ref:
-        # # label of referenced program
-        # ref_prog = prog.attributes[p][0]
-        # # suffix of the program, everything after the last '_' in program label (incl. '_')
-        # suff = p[p.rfind('_'):]
-
         # if ref_prog in prog_vals and par_label in prog_vals[ref_prog]['impact']:
         if p in prog_vals and par_label in prog_vals[p]['impact']:
             # all parameters specified in the spreadsheet are multiplied
             coeff = 1.
-            # for f in filter(lambda x: x.endswith(suff), var):
             for f in prog.ref[p]:
                 try: coeff *= prog.attributes[f][ti]
                 except: coeff *= prog.attributes[f]
 
             # obtain coverage of referenced program ..
-            # try: cov = prog_vals[ref_prog]['cov'][ti]
-            # except: cov = prog_vals[ref_prog]['cov']
             try: cov = prog_vals[p]['cov'][ti]
             except: cov = prog_vals[p]['cov']
 
@@ -1290,10 +1277,8 @@ def processSuppTag(par_label, prog, prog_vals, ti):
             net_cov = min(cov, scov)
 
             # apply impact
-            # try: impacts.append(prog_vals[ref_prog]['impact'][par_label][ti] * net_cov * coeff)
-            # except: impacts.append(prog_vals[ref_prog]['impact'][par_label] * net_cov * coeff)
             try: impacts.append(prog_vals[p]['impact'][par_label][ti] * net_cov * coeff)
-            except: impacts.append(prog_vals[ref_prog]['impact'][par_label] * net_cov * coeff)
+            except: impacts.append(prog_vals[p]['impact'][par_label] * net_cov * coeff)
 
     return np.sum(impacts)
 
