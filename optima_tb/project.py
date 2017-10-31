@@ -157,9 +157,9 @@ class Project(object):
         if fullfval is not None:
             parallel_optimization_params['fullfval'] = fullfval
 
-
-        logging.warning("WARNING: Setting reltol to None during parallel optimization")
-        parallel_optimization_params['reltol'] = None
+        if parallel_optimization_params['num_threads'] > 1:
+            logging.warning("WARNING: Setting reltol to None during parallel optimization")
+            parallel_optimization_params['reltol'] = None
 
         if parset is None:
             if len(self.parsets) < 1:
