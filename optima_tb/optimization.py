@@ -404,11 +404,19 @@ def parallelOptimizeFunc(settings, parset, progset, options=None, num_threads=4,
         bestfvalind = None
 
         for i in range(num_threads):
-            fvalarray[i, block * block_iter:(block + 1) * block_iter] = outputlist[i][1][-block_iter:] # in case the first timestep is included
             thisbestval = outputlist[i][1][-1]
             if thisbestval < bestfvalval:
                 bestfvalval = thisbestval
                 bestfvalind = i
+            tmp_fval = outputlist[i][1][-block_iter:]
+            if len(tmp_fval) < block_iter:
+                # we could use other values, i.e. nan, but if a thread ends because it has stopped decreasing
+                # then we should use the last known value
+                logging.warn("Padding feval output with last value")
+                tmp_fval = np.concatenate((tmp_fval , np.array([thisbestval] * (block_iter - len(tmp_fval)))))
+            fvalarray[i, block * block_iter:(block + 1) * block_iter] = tmp_fval # in case the first timestep is included
+
+
 
         options['init_alloc'] = outputlist[bestfvalind][0] # Update the budget and use it as the input for the next block -- this is key!
 

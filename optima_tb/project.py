@@ -158,7 +158,7 @@ class Project(object):
             parallel_optimization_params['fullfval'] = fullfval
 
 
-        logging.error("ERROR: Setting reltol to None during parallel optimization")
+        logging.warning("WARNING: Setting reltol to None during parallel optimization")
         parallel_optimization_params['reltol'] = None
 
         if parset is None:
