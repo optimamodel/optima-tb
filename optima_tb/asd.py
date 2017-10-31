@@ -51,7 +51,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     
     Version: 2017may17 by Cliff Kerr (cliff@thekerrlab.com)
     """
-    logging.info("asd.py: Unused kwargs", kwargs)
+#     logging.info("asd.py: Unused kwargs", kwargs)
 
     from numpy import array, shape, reshape, ones, zeros, mean, cumsum, mod, concatenate, floor, flatnonzero, isnan, inf
     from numpy.random import random, seed
@@ -107,9 +107,6 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     fval = function(x, **args) # Calculate initial value of the objective function
     fvalorig = fval # Store the original value of the objective function, since fval is overwritten on each step
     xorig = deepcopy(x) # Keep the original x, just in case
-
-    return
-
 
     # Initialize history
     abserrorhistory = zeros(stalliters) # Store previous error changes

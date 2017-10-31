@@ -182,7 +182,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
 #             logging.debug(results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight)
 #             logging.debug("getValueAt")
 #             logging.debug(results.getValueAt(label=objective_label, year_init=options['objectives'][objective_label]['year']) * weight)
-
+#             logging.info("Obj label = %s, eval = %.2f" % (objective_label, results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight))
             objective += results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight
         # Handle the default objective that wants to know a cumulative value. Timestep scaling is done inside Results.getValueAt().
         else:
@@ -190,14 +190,12 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
 #                objective += sum(results.outputs[objective_label][pop_label][index_start:]) * results.dt * weight
             objective += results.getValuesAt(label=objective_label, year_init=options['progs_start'], year_end=settings.tvec_end, integrated=True)[0][0] * weight
 
-#    logging.debug( objective)
+#     logging.info(objective)
 
     return objective
 
 
 def optimizeFunc(settings, parset, progset, options=None, outputqueue=None, thread=None, randseed=None, **optimization_params):
-
-    # TODO optimization params
 
     if options is None:
         logger.warn("An options dictionary was not supplied for optimisation. A default one will be constructed.")
@@ -294,13 +292,7 @@ def optimizeFunc(settings, parset, progset, options=None, outputqueue=None, thre
     algorithm_refs['previous_alloc'] = dcp(alloc)
 
     alloc = dcp(constrainAllocation(alloc=alloc, settings=settings, options=options, algorithm_refs=algorithm_refs))
-    print "\n"*5
-    print "Params --> ASD:"
-    print optimization_params
-    print "\n"*5
-
     alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, randseed=randseed, **optimization_params)
-    return
     alloc_new = dcp(constrainAllocation(alloc=alloc_new, settings=settings, options=options, algorithm_refs=algorithm_refs))
 
     # Makes sure allocation is returned in dictionary format.
@@ -395,7 +387,7 @@ def parallelOptimizeFunc(settings, parset, progset, options=None, num_threads=4,
         for thread in range(num_threads):
             if randseed is None:
                 randseed = (block + 1) * int((time() - np.floor(time())) * 1e7) # Get a random number based on both the time and the thread
-            args = (settings, parset, progset, options, block_iter, outputqueue, thread, randseed)
+            args = (settings, parset, progset, options, outputqueue, thread, randseed)
             prc = Process(target=optimizeFunc, args=args, kwargs=parallel_optimization_params)
             prc.start()
             processes.append(prc)
