@@ -158,10 +158,8 @@ class Project(object):
             parallel_optimization_params['fullfval'] = fullfval
 
 
-        if parallel_optimization_params['num_threads'] > 1 and parallel_optimization_params['reltol'] > 0 and parallel_optimization_params['reltol'] is not None:
-            # Note that we only worry about this when we have multiple threads; for num_threads =1, this should be fine. Should be.
-            logging.error("ERROR: relative tolerance reltol is != 0 or None for parallel optimization job. Setting to 0")
-            parallel_optimization_params['reltol'] = None
+        logging.error("ERROR: Setting reltol to None during parallel optimization")
+        parallel_optimization_params['reltol'] = None
 
         if parset is None:
             if len(self.parsets) < 1:
