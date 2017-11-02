@@ -585,15 +585,13 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 if len(impact_list) > 0:
                     prog_attributes[popkey][par_label]['Original Impact Value'] = new_val + np.sum(impact_list)
 
-                # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
-                # Otherwise renormalises impacts.
-                if len(overflow_list) > 0 and sum(overflow_list) > 1:
-                    impact_list = np.multiply(impact_list, 1/sum(overflow_list))
+                    # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
+                    # Otherwise renormalises impacts.
+                    if len(overflow_list) > 0 and sum(overflow_list) > 1:
+                        impact_list = np.multiply(impact_list, 1/sum(overflow_list))
 
-                if len(impact_list) > 0:
                     new_val += np.sum(impact_list)
 
-                if prog_attributes[popkey][par_label]:    
                     prog_attributes[popkey][par_label]['Coverage Cap Impact Value'] = new_val
                     prog_attributes[popkey][par_label]['overflow_list'] = [format(x, '.2f') for x in overflow_list]
                     
