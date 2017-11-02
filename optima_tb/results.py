@@ -144,6 +144,8 @@ class ResultSet(object):
 
         if pop_labels is None:
             pop_labels = self.pop_labels
+        if not isinstance(pop_labels, list):
+            pop_labels = [pop_labels]
 
         # Get time array ids for values between initial (inclusive) and end year (exclusive).
         tvals = np.array(self.sim_settings['tvec'])
@@ -181,6 +183,12 @@ class ResultSet(object):
                 popvalues = values[pop]
                 output += values[pop][label].popsize[idx]
 
+        # check if label refers to a parameter. check is performed for the first population under the assumption that
+        # all populations have the same set of parameters
+        elif label in self.m_pops[0].dep_ids.keys():
+            for pop in pop_labels:
+                output += self.m_pops[self.pop_label_index[pop]].getDep(label).vals[idx]
+
         else:
             logger.warn('Unable to find values for label="%s", with no corresponding characteristic, transition or compartment found.' % label)
 
@@ -192,84 +200,7 @@ class ResultSet(object):
 
 
     def getValueAt(self, label, year_init, year_end=None, pop_labels=None):
-        """
-        Returns scalar at or over a specific period for the value of a label corresponding to either a:
-            * characteristic
-            * flow
-            * compartment
-        If over a time period, the values are summed to form the cumulative. The scalar of this value is 
-        then returned.
-        
-        Params:
-            label        string value of label
-            year_init    time period at which to return the value, or if year_end is specified, the beginning of the time period
-            year_end     (optional) 
-            pop_labels   (optional) list of populations to evaluate over. Default: None, which evaluates over all
-        
-        Return:
-            value        a scalar
-        """
-        dt = self.dt
-
-        if pop_labels is None:
-            pop_labels = self.pop_labels
-
-        values = []
-
-        tvals = np.array(self.sim_settings['tvec'])
-        if year_end is not None: # including the dt/2 window to guard against float comparison
-            idx = (tvals >= year_init - dt / 2) * (tvals <= year_end + dt / 2)
-        else:
-            idx = (tvals >= year_init - dt / 2) * (tvals <= year_init + dt / 2)
-
-        val = 0
-
-
-        if label in self.char_labels:
-#             print "is Char"
-
-            values, _, _ = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)
-            values = values[label]
-
-            for pop in values.keys():
-                popvalues = values[pop]
-                val += popvalues[idx].sum()
-
-
-        elif label in self.link_labels:
-#             print "is Link"
-
-            values, _, _ = self.getFlow(link_label=label, pop_labels=pop_labels)
-            values = values[label]
-
-            for pop in values.keys():
-                popvalues = values[pop]
-                val += popvalues[idx].sum()
-
-            if year_end is not None:
-                # getFlow returns an annualised rate, which is correct if we're looking at a  value
-                # for a point in time. If we're looking at the value over a range, then we should multiply by
-                # dt in order to give the correct value over that period.
-                val *= dt
-
-
-        elif label in self.comp_label_names.keys():
-#             print "is Comp"
-
-            values, _, _ = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)
-            for pop in values.keys():
-                popvalues = values[pop]
-                pp = popvalues[label]
-                val += values[pop][label].popsize[idx].sum()
-
-        else:
-            logger.warn("Unable to find value for label='%s': no corresponding characteristic, link, or compartment found." % label)
-
-        return val
-
-
-
-
+        return self.getValuesAt(label, year_init, year_end, pop_labels, True)
 
 
     def getCompartmentSizes(self, pop_labels=None, comp_label=None, use_observed_times=False):
