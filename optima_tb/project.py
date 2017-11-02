@@ -11,7 +11,7 @@ from optima_tb.model import runModel
 from optima_tb.settings import Settings
 from optima_tb.parameters import ParameterSet, export_paramset, load_paramset
 from optima_tb.programs import ProgramSet
-from optima_tb.plotting import plotProjectResults
+# from optima_tb.plotting import plotProjectResults
 from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from optima_tb.optimization import optimizeFunc, parallelOptimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
@@ -61,7 +61,7 @@ class Project(object):
         else:
             self.settings.tvec_end = yearRange[1]
 
-    def runSim(self, parset = None, parset_name = 'default', progset = None, progset_name = None, options = None, plot = False, debug = False, store_results = True, result_type = None, result_name = None):
+    def runSim(self, parset=None, parset_name='default', progset=None, progset_name=None, options=None, plot=False, debug=False, store_results=True, result_type=None, result_name=None):
         ''' Run model using a selected parset and store/return results. '''
 
         if parset is None:
@@ -88,9 +88,9 @@ class Project(object):
 
         if plot:
             tp = tic()
-            self.plotResults(results = results, debug = debug)
-            toc(tp, label = 'plotting %s' % self.name)
-            
+            self.plotResults(results=results, debug=debug)
+            toc(tp, label='plotting %s' % self.name)
+
         if store_results:
             if result_name is None:
                 result_name = 'parset_' + parset.name
@@ -346,7 +346,7 @@ class Project(object):
             new_parset_name = "autofit"
 
         logger.info("About to run autofit on parameters using parameter set = %s" % old_parset_name)
-        
+
         if max_time is not None:    # Update autocalibration settings with new time limit...
             prev_max_time = self.settings.autofit_params['maxtime']
             self.settings.autofit_params['maxtime'] = max_time
@@ -355,10 +355,10 @@ class Project(object):
             raise OptimaException("ERROR: Autocalibration failed.")
         if max_time is not None:    # ...and revert.
             self.settings.autofit_params['maxtime'] = prev_max_time
-        
+
         logger.info("Created new parameter set '%s' using autofit" % new_parset_name)
         if save_parset: self.parsets[new_parset_name] = new_parset
-                    
+
         return new_parset
 
 
@@ -513,11 +513,11 @@ class Project(object):
                 if scenario_set_name is None:
                     results[scen_name].name = '%s' % (scen_name)
                 else:
-                    results[scen_name].name = '%s_%s'%(scenario_set_name,scen_name)
-                
+                    results[scen_name].name = '%s_%s' % (scenario_set_name, scen_name)
+
                 if store_results:
                     result_name = results[scen_name].name
-                    
+
                     k = 1
                     while k > 0:
                         result_name_attempt = result_name + '_' + str(k)
@@ -526,41 +526,41 @@ class Project(object):
                             result_name = result_name_attempt
                             k = 0
                     self.results[result_name] = dcp(results[scen_name])
-                        
+
                     if save_results:
                         results[scen_name].export()
                         export_paramset(self.scenarios[scen].getScenarioParset(orig_parset))
-        
+
         return results
-    
-    
-    
-    
+
+
+
+
 #    def exportProject(self, filename=None, format='json', compression='zlib'):
 #        """
-#        
+#
 #        This currently saves everything within a project, including results.
-#        
+#
 #        Params:
 #            filename      filename to save to. If none is supplied, value is set to "<project.name>.project"
 #            format        string for supported format types (json)
 #            compression   string for supported compression types (zlib)
-#        
+#
 #        Usage
 #            project = Project(name="sample", cascade="cascade.xlsx")
 #            project.exportProject()
 #            # saves to "sample.project.Z"
 #            project.exportProject(filename="special")
 #            # saves to "special.Z"
-#        
+#
 #        """
 #        if filename is None:
 #            filename = "%s.project"%self.name
-#        
+#
 #        logger.info("Attempting to save file in format=%s"%format)
 #        filename = exportObj(self,filename=filename,format=format,compression=compression)
 #        logger.info("Saved to file: %s"%filename)
 #        return filename
-        
-    
-        
+
+
+

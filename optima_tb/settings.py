@@ -7,6 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 import pylab as pl
+import numpy as np
 from matplotlib.ticker import FuncFormatter
 
 
@@ -409,12 +410,14 @@ class PlottingSettings():
         self.plotdict = {  # scatter plotting values
                          'marker' : 'o',
                          'facecolors' : 'none',
+                         'marker_color': 'k',
+                         'hatch_bg' : 'white',
                          's' : 40,
                          # axes format
                          'year_inc':5,
                          # colormapping for category lists
                          'colormapping_order':'alternate3',  # as we have triplets in undiagnosed --> diagnosed --> on treatment
-                         'formatter': FuncFormatter(self.PopSuffixFormatter), # KMSuffixFormatter) ,
+                         'formatter': None, # FuncFormatter(self.PopSuffixFormatter), # KMSuffixFormatter) ,
                          'barwidth': 0.8,
                          'bar_offset': 0.2,
                          # alpha for fill-between
@@ -426,9 +429,23 @@ class PlottingSettings():
                          'box_offset' : 0.,
                          # legend
                          'legend_off' : False, # I am legend
-                         'legendsettings': {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1},
+                         'legendsettings': {'loc':'center left',
+                                            'bbox_to_anchor':(1.05, 0.5),
+                                            'ncol':1},
                          # labels
-                         'use_full_labels' : False
+                         'use_full_labels' : False,
+                         'effective_rate': "Effective number",
+                         'default_ylabel' : "Number of cases",
+                         'default_pops' : "All populations",
+                         'default_figname' : "Figname",
+                         'default_year' : 2016., # TODO change so that it's last year,
+                         'title' : None,
+                         # relative plot settings
+                         'relative_yticks' : np.arange(0., 1.1, 0.2),
+                         'y_intercept_line': {'colors': '#AAAAAA',
+                                         'linewidth': 3.,
+                                         'alpha': 0.5,
+                                         'linestyle':':'}
                          }
 
     def devSettings(self):
@@ -439,9 +456,9 @@ class PlottingSettings():
     def printSettings(self):
 
         pl.rcParams['figure.figsize'] = (15, 10)
-        pl.rcParams['savefig.dpi'] = 300
+        pl.rcParams['savefig.dpi'] = 200
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
-        self.plotdict['legend_off'] = True
+        self.plotdict['legend_off'] = False
         self.plotdict['use_full_labels'] = True
 
     def presentationSettings(self):
@@ -476,17 +493,16 @@ class PlottingSettings():
 
     def guiSettings(self):
 
-        pl.rcParams['lines.linewidth'] = 2
+        pl.rcParams['lines.linewidth'] = 4
         pl.rcParams['axes.linewidth'] = 1.5
         pl.rcParams['axes.labelsize'] = pl.rcParams['font.size']
         pl.rcParams['axes.titlesize'] = pl.rcParams['font.size']
 
-        pl.rcParams['legend.frameon'] = False
 
-        self.plotdict['legendsettings'] = {'loc': 0 } # best ##{'loc': 4 } # lower right
-        self.plotdict['box_width'] = 0.9
-        self.plotdict['box_offset'] = 0.1
-        self.plotdict['use_full_labels'] = True
+#         self.plotdict['legendsettings'] = {'loc': 'center left' , 'ncol':1} # best ##{'loc': 4 } # lower right
+#         self.plotdict['box_width'] = 0.9
+#         self.plotdict['box_offset'] = 0.1
+#         self.plotdict['use_full_labels'] = True
 
 
 
