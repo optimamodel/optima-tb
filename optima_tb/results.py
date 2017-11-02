@@ -200,7 +200,7 @@ class ResultSet(object):
 
 
     def getValueAt(self, label, year_init, year_end=None, pop_labels=None):
-        return self.getValuesAt(label, year_init, year_end, pop_labels, True)
+        return self.getValuesAt(label, year_init, year_end, pop_labels, True)[0]
 
 
     def getCompartmentSizes(self, pop_labels=None, comp_label=None, use_observed_times=False):

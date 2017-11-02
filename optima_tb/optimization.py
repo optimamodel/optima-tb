@@ -33,8 +33,12 @@ def constrainAllocation(alloc, settings, options, algorithm_refs, attempt = 0):
 #        print options['constraints']['limits'][prog_key]['vals']
 #        print options['orig_alloc'][prog_key]
         if options['constraints']['limits'][prog_key]['rel']:
-            check = options['constraints']['limits'][prog_key]['vals'][1] * options['orig_alloc'][prog_key]
-            if check is np.nan: check = options['constraints']['limits'][prog_key]['vals'][1]   # Avoids infinity times zero case.
+            if np.isinf(options['constraints']['limits'][prog_key]['vals'][1]):
+                check = np.inf
+            else:
+                check = options['constraints']['limits'][prog_key]['vals'][1] * options['orig_alloc'][prog_key]
+            # moved the check before the actual computation to avoid a compiler warning
+            # if check is np.nan: check = options['constraints']['limits'][prog_key]['vals'][1]   # Avoids infinity times zero case.
             # If new budget is less than the relative lower limit times original budget...
             if alloc[k] <= options['constraints']['limits'][prog_key]['vals'][0] * options['orig_alloc'][prog_key]:
                 alloc[k] = options['constraints']['limits'][prog_key]['vals'][0] * options['orig_alloc'][prog_key]
@@ -146,9 +150,6 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
             for k in xrange(len(alloc)):
                 options_iter['init_alloc'][algorithm_refs['alloc_ids']['id_progs'][k]] = alloc[k]
         else:
-#            logger.warn("No allocation-id program-label conversion dictionary can be found during optimization. \nMaking a potentially dangerous assumption that optimization alloc is in the same order as init alloc in the options dictionary.")
-#            for k in xrange(len(alloc)):
-#                options_iter['init_alloc'][k] = alloc[k]
             raise OptimaException('ERROR: No allocation-id program-label conversion dictionary can be found during optimization. Cannot push alloc back into an options dictionary.')
                 
         t = tic()
@@ -157,34 +158,23 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
 
     if 'previous_results' in algorithm_refs:
         algorithm_refs['previous_results'] = dcp(results)   # Store the new results for the next iteration.
-    
-#    index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
-#    logging.debug( index_start)
-#    logging.debug( results.sim_settings['tvec'][index_start:])
+
     objective = 0.0
     
     for objective_label in options['objectives']:
 #        charac_label = options['objective_weight'].keys()[0]
-        weight = 1.0
-        if 'weight' in options['objectives'][objective_label]: weight = options['objectives'][objective_label]['weight']
-        
-        
-#        objective = results.getValueAt(label = objective_label, year_init = options['progs_start'])        
+
+        if 'weight' in options['objectives'][objective_label]:
+            weight = options['objectives'][objective_label]['weight']
+        else:
+            weight = 1.0
         
         # Handle an objective that wants to know the value in a particular year, e.g. a snapshot of a characteristic.
         if 'year' in options['objectives'][objective_label]:
-#            index_start = np.where(results.sim_settings['tvec'] >= options['objectives'][objective_label]['year'])[0][0]
-#            for pop_label in results.outputs[objective_label].keys():
-#                objective += results.outputs[objective_label][pop_label][index_start] * weight
-#            index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
             objective += results.getValueAt(label = objective_label, year_init = options['objectives'][objective_label]['year']) * weight
         # Handle the default objective that wants to know a cumulative value. Timestep scaling is done inside Results.getValueAt().
         else:
-#            for pop_label in results.outputs[objective_label].keys():
-#                objective += sum(results.outputs[objective_label][pop_label][index_start:]) * results.dt * weight
             objective += results.getValueAt(label = objective_label, year_init = options['progs_start'], year_end = settings.tvec_end) * weight
-            
-#    logging.debug( objective)
     
     return objective
 
@@ -228,9 +218,7 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
                     raise OptimaException('ERROR: Limit constraints specified for program "%s", but with no vals defined.' % prog.label)
                 elif len(options['constraints']['limits'][prog.label]['vals']) != 2:
                     raise OptimaException('ERROR: Limit constraints for program "%s" must contain a two-element list keyed by "vals", specifying min and max limits.' % prog.label)
-    
-#    # Convert alloc into an ordered dictionary so that keys and values are ordered during optimisation.
-#    options['init_alloc'] = odict(options['init_alloc'])
+
     
     # If user has not supplied constraints, then make the optimisation a redistribution of default budgets.
     if 'total' not in options['constraints']:
@@ -238,28 +226,11 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
         
     if 'objectives' not in options:
         options['objectives'] = {settings.charac_pop_count : {'weight':-1,'year':2030.0}}
-        
-#     logging.debug( options)
-            
-#    logging.debug( options)
-#    logging.debug( total_budget)
-
-#    results = runModel(settings = settings, parset = parset, progset = progset, options = options)
-#    
-#    index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
-#    logging.debug( index_start)
-#    logging.debug( results.sim_settings['tvec'][index_start:])
-#    charac_label = options['objective_weight'].keys()[0]
-#    objective = 0
-#    for pop_label in results.outputs[charac_label].keys():
-#        objective += sum(results.outputs[charac_label][pop_label][index_start:])*results.dt*options['outcome_weight'][charac_label]
-#    logging.debug( objective)
     
     algorithm_refs = {'previous_alloc':None, 'previous_results':None, 'alloc_ids':{'id_progs':{},'prog_ids':{}}}        
     
     # Flattens out the initial allocation into a list, but makes sure to note which program labels link to which allocation indices.
     alloc = []
-#    algorithm_refs['alloc_ids'] = {}
     k = 0
     for prog_key in options['init_alloc'].keys():
         alloc.append(options['init_alloc'][prog_key])
@@ -273,9 +244,6 @@ def optimizeFunc(settings, parset, progset, options = None, max_iter = 500, outp
     # For block-optimisations, where options dicts are passed back in with an updated 'init_alloc', 'orig_alloc' should remain fixed and reference the allocation at the very start of the process.
     if 'orig_alloc' not in options:
         options['orig_alloc'] = dcp(options['init_alloc'])
-    
-#     logging.debug( alloc )
-#     logging.debug( algorithm_refs )
     
     args = {'settings':settings,
             'parset':parset, 
