@@ -1520,12 +1520,15 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
         labels = list(set.union(*map(set, progkeys)))
         labels.sort()
 
-    colors = []
+
     if colormappings is not None:
+        colors = []
         colors_dict, cat_colors = getCategoryColors(colormappings, 'sequential')
         # reorder so that colors are same as expected for plotting the population
         for (j, prog_label) in enumerate(labels):
             colors.append(colors_dict[prog_label])
+    else:
+        colors = None
 
     if legendsettings is None:
         legendsettings = {}
