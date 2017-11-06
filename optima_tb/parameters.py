@@ -35,6 +35,26 @@ class Parameter(object):
         self.y_format = y_format                # Value format data (e.g. Probability, Fraction or Number).
         self.y_factor = y_factor                # Scaling factor of data. Corresponds to different transformations whether format is fraction or number.
         self.autocalibrate = autocalibrate      # A set of boolean flags corresponding to y_factor that denote whether this parameter can be autocalibrated.
+
+
+    def getValuesAt(self, start, stop=None, pop_label=None):
+        # if no population is specified use them all
+        if pop_label == None:
+            pop_label = self.y.keys()
+        elif not isinstance(pop_label, list):
+            pop_label = [pop_label]
+
+        if stop == None:
+            stop = np.inf
+
+        vals = {}
+        for pop in pop_label:
+            # get list of all valid time steps (filter) and map them to the corresponding values (map)
+            vals[pop] = np.array(map(lambda z: self.y[pop][self.t[pop].tolist().index(z)],
+                                     filter(lambda x: start <= x < stop, self.t[pop])))
+
+        return vals
+
                                                                 
     def insertValuePair(self, t, y, pop_label):
         ''' Check if the inserted t value already exists for the population parameter. If not, append y value. If so, overwrite y value. '''

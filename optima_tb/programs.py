@@ -368,8 +368,7 @@ class Program:
                 'ERROR: Attempted to convert coverage to budget for a program (%s) that does not have coverage.' % self.label)
         else:
             if self.cov_format.lower() == 'fraction':
-                bud = coverage * self.func_specs['pars'][
-                    'unit_cost'] / 0.01  # Unit cost is per percentage when format is a fraction.
+                bud = coverage * self.func_specs['pars']['unit_cost'] / 0.01  # Unit cost is per percentage when format is a fraction.
             else:
                 bud = coverage * self.func_specs['pars']['unit_cost']
         return bud
