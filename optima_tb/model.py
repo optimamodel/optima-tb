@@ -894,18 +894,18 @@ class Model(object):
                                     overflow_factor = 0
                                     try: net_cov = self.prog_vals[prog_label]['cov'][ti]
                                     except: net_cov = self.prog_vals[prog_label]['cov']
-                                    print "\n"
+#                                    print "\n"
                                     if prog.cov_format == 'fraction':
-                                        print "AO"
+#                                        print "AO"
                                         overflow_factor = net_cov
                                     elif prog.cov_format == 'number':
                                         if float(source_set_size) <= project_settings.TOLERANCE:
-                                            print "B0"
+#                                            print "B0"
                                             overflow_factor = np.inf
                                         else:
-                                            print "CO"
-                                            print "net cov, source_set_size", net_cov, source_set_size, type(source_set_size)
-                                            print "for par_label %s and prog_label %s" % (par_label, prog_label)
+#                                            print "CO"
+#                                            print "net cov, source_set_size", net_cov, source_set_size, type(source_set_size)
+#                                            print "for par_label %s and prog_label %s" % (par_label, prog_label)
                                             if np.isnan(source_set_size):
                                                 raise OptimaException("Source_set_size has been incorrectly set as np.nan")
                                             overflow_factor = net_cov / float(source_set_size)
@@ -914,7 +914,7 @@ class Model(object):
                                     # The overflow factor must thus include a multiple that converts from annual to quarterly coverage.
                                     # Coincidentally, this means smaller timesteps for models allow for larger effective flow rates and, accordingly, unsaturated program coverages.
 
-                                    print "    net_impact, net_cov = ", net_impact, net_cov
+#                                    print "    net_impact, net_cov = ", net_impact, net_cov
 
                                     try:
                                         impact_factor = float(net_impact) / float(net_cov)
@@ -927,29 +927,28 @@ class Model(object):
                                             impact_factor = 0.
                                             raise OptimaException('Attempted to divide by zero (net coverage)')
 
-                                    print "        impact_factor = ", impact_factor
+#                                    print "        impact_factor = ", impact_factor
 
                                     if pars[0].val_format == 'number' or impact_factor <= project_settings.TOLERANCE:
-                                        print "C", overflow_factor
+#                                        print "C", overflow_factor
                                         # If rates convert linearly, so does coverage.
                                         # The limit of impact factor going to zero for the fraction-format parameter multiple (see below) also leads to this linear relation.
                                         overflow_factor *= settings.tvec_dt
                                     elif pars[0].val_format == 'fraction':
                                         if overflow_factor <= 1.0 / impact_factor:
-                                            print "A", overflow_factor
+#                                            print "A", overflow_factor
                                             # If rates convert according to probability formulae, coverage and overflow convert with dependence on the impact factor.
                                             overflow_factor = (1.0 - (1.0 - overflow_factor * impact_factor) ** settings.tvec_dt) / impact_factor
                                         else:
-                                            print "B", overflow_factor
+#                                            print "B", overflow_factor
                                             # There is no way to convert an annual coverage corresponding to an annual transition probability above 1 to a real-valued quarterly coverage.
-                                            # In desperation, make annual coverage excess equal to quarterly coverage excess when probability of transition goes above 1.
-                                            # WARNING: This non-smooth transition is monotonic but should strongly be reviewed.
-                                            overflow_factor = overflow_factor
-                                            # TODO: check with DJK whether this is missing a *= settings.tvec_dt
+                                            # In desperation, fix the overflow at the maximum value possible before breaking probability rules.
+                                            # WARNING: This non-smooth transition is non-decreasing but should be reviewed.
+                                            overflow_factor = 1.0 / impact_factor
                                     if np.isnan(overflow_factor):
                                         print "impact_factor = ", impact_factor
                                         raise OptimaException("NAN ALERT")
-                                    print "OFACTOR", overflow_factor
+#                                    print "OFACTOR", overflow_factor
                                     overflow_list.append(overflow_factor)
 
                                 # If a program target is any other parameter, the parameter value is directly overwritten by coverage.
