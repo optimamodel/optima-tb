@@ -497,7 +497,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
 #                print('Pop key: %s, Par Label: %s, New Val: %s' % (popkey, par_label, new_val))
                 if prog_attributes[popkey][par_label]:    
                     prog_attributes[popkey][par_label]['Coverage Cap Impact Value'] = new_val
-                    prog_attributes[popkey][par_label]['overflow_list'] = [format(x, '.2f') for x in overflow_list]
+                    prog_attributes[popkey][par_label]['overflow_list'] = [format(float(x), '.2f') for x in overflow_list]
                     
                 
                     
