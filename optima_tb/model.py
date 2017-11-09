@@ -960,7 +960,12 @@ class Model(object):
                             impact_list = np.multiply(impact_list, 1 / sum(overflow_list)).tolist()
 
                         if impact_list:
-                            new_val += np.sum(impact_list)
+                            if special == 'scale_rate' and par_label in scale_pars:
+                                # scale annual rate down to daily rate
+                                # TODO: try less hard coding
+                                new_val += 1. - (1. - np.sum(impact_list)) ** (1./365.)
+                            else:
+                                new_val += np.sum(impact_list)
 
                         # Handle impact constraints.
                         # Note: This applies to any parameter that is impacted by the progset, not just for programs that are in the allocation.

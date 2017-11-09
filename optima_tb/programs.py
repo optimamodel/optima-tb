@@ -195,7 +195,10 @@ class Program:
         for p in refs:
             # suffix of the program, everything after the last '_' in program label (incl. '_')
             suff = p[p.rfind('_'):]
-            self.ref[self.attributes[p][0]] = filter(lambda x: x.endswith(suff), var)
+            # find all corresponding label of self.attributes
+            tmp = filter(lambda x: x.endswith(suff), var)
+            # refine labels: keep only those that reference values which are not all zero
+            self.ref[self.attributes[p][0]] = filter(lambda x: not np.any(self.attributes[x]), tmp)
 
 
     # expects a 'special tag' of a program. The passed string is split at whitespaces. The first word defines the
