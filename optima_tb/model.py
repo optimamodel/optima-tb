@@ -238,6 +238,10 @@ class Model(object):
                 attributes=prog.attributes.keys() + ['cov'])
 
 
+    def getTargetPopSize(self, prog):
+        return np.sum(map(lambda x: self.getPop(x).getDep('h_alive').vals[0], prog.target_pops))
+
+
     def preCalculateProgsetVals(self, settings, progset):
         ''' Work out program coverages and impacts ahead of the model run. '''
 
@@ -263,7 +267,8 @@ class Model(object):
                     # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to timevec.
                     if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog.label in self.sim_settings['constraints']['max_yearly_change']:
                         if alloc_is_coverage:
-                            default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
+                            pop_size = self._getTargetPopSize(prog)
+                            default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year), pop_size=pop_size)
                         else:
                             default = prog.getDefaultBudget(year=start_year)
                         default = prog.getDefaultBudget(year=start_year)
@@ -284,14 +289,16 @@ class Model(object):
                                 else: alloc_ramp = np.maximum(alloc_ramp, alloc_new)
                                 alloc = alloc_def * (self.sim_settings['tvec'] < start_year) + alloc_ramp * (self.sim_settings['tvec'] >= start_year)
 
+                    pop_size = self._getTargetPopSize(prog)
                     if alloc_is_coverage:
-                        self.prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc), 'cov':alloc, 'impact':{}}
+                        self.prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc, pop_size=pop_size), 'cov':alloc, 'impact':{}}
                     else:
-                        self.prog_vals[prog.label] = {'cost':alloc, 'cov':prog.getCoverage(budget=alloc), 'impact':{}}
+                        self.prog_vals[prog.label] = {'cost':alloc, 'cov':prog.getCoverage(budget=alloc, pop_size=pop_size), 'impact':{}}
 
                 # Store default budgets/coverages for all other programs if saturation is selected.
                 elif 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
-                    self.prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year)), 'impact':{}}
+                    pop_size = self._getTargetPopSize(prog)
+                    self.prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year), pop_size=pop_size), 'impact':{}}
 
                 else:
                     logger.warn("Program '%s' was not contained in init_alloc and not saturated, therefore was not created." % prog.label)
@@ -328,7 +335,8 @@ class Model(object):
                             years = [self.sim_settings['tvec'][-1]]
                         if 'impact' not in self.prog_vals[prog.label]:
                             self.prog_vals[prog.label]['impact'] = {}
-                        self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=self.parser, years=years, budget_is_coverage=True)
+                            pop_size = self._getTargetPopSize(prog)
+                        self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, pop_size=pop_size, impact_label=par_label, parser=self.parser, years=years, budget_is_coverage=True)
 
                     # remove all entries other than 'impact' and 'cov' from dict
                     imp = self.prog_vals[prog.label]['impact']
@@ -367,7 +375,8 @@ class Model(object):
                     if impact_label not in settings.par_funcs:
                         self.sim_settings['impact_pars_not_func'].append(impact_label)
 
-                self.preCalculateProgsetVals(settings=settings, progset=progset)   # For performance.
+                # NOTE: moved this to the end of the function because the population sizes are required
+                # self.preCalculateProgsetVals(settings=settings, progset=progset)   # For performance.
             else:
                 raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
 
@@ -544,6 +553,9 @@ class Model(object):
                                                                                                 # NOTE: If junction outflows were to be tagged by special rules, initial calculations may be off. Return to this later and consider logic rigorously.
         self.processJunctions(settings=settings)
         self.updateValues(settings=settings, progset=progset)
+
+        if 'progs_start' in options and progset is not None:
+            self.preCalculateProgsetVals(settings=settings, progset=progset)  # For performance.
 
         # set up sim_settings for later use wrt population tags
         self.sim_settings['tag_birth'] = []
