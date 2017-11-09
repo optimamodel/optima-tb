@@ -95,10 +95,10 @@ class ResultSet(object):
             # we have results for progsets and budget_options
             if budget_options.has_key('alloc_is_coverage') and budget_options['alloc_is_coverage']: # TODO update post-Belarus
                 self.coverages = budget_options['init_alloc']
-                self.budgets = progset.getBudgets(self.coverages)
+                self.budgets = progset.getBudgets(self.coverages, model)
             else:
                 self.budgets = budget_options['init_alloc']
-                self.coverages = progset.getCoverages(self.budgets)
+                self.coverages = progset.getCoverages(self.budgets, model)
 
         # /work-in-progress
 
