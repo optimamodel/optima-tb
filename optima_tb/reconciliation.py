@@ -452,11 +452,11 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                     if par.val_format == 'number' or impact_factor <= project_settings.TOLERANCE:
                         # If rates convert linearly, so does coverage.
                         # The limit of impact factor going to zero for the fraction-format conversion below (when written in terms of coverage and impact factor) also leads to this linear relation.
-                        dt_impact = impact * settings.tvec_dt
-                        dt_cov = cov * settings.tvec_dt
+                        dt_impact = impact * proj.settings.tvec_dt
+                        dt_cov = cov * proj.settings.tvec_dt
                     elif par.val_format == 'fraction':
                         # If rates convert according to probability formulae, coverage and overflow convert with dependence on the impact factor.
-                        dt_impact = 1.0 - (1.0 - impact) ** settings.tvec_dt
+                        dt_impact = 1.0 - (1.0 - impact) ** proj.settings.tvec_dt
                         dt_cov = dt_impact / impact_factor
                     else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
                     
@@ -489,9 +489,9 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                     impact_list = np.array([np.sum(impact_list)])
                     # Converting to annual impacts following normalisation and summation.
                     if par.val_format == 'number':
-                        impact_list = impact_list * (1.0/settings.tvec_dt)
+                        impact_list = impact_list * (1.0/proj.settings.tvec_dt)
                     elif par.val_format == 'fraction':
-                        impact_list = 1.0 - (1.0 - impact_list) ** (1.0/settings.tvec_dt)
+                        impact_list = 1.0 - (1.0 - impact_list) ** (1.0/proj.settings.tvec_dt)
                     else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
                 new_val += np.sum(impact_list)
 #                print('Pop key: %s, Par Label: %s, New Val: %s' % (popkey, par_label, new_val))
