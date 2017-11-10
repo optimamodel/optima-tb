@@ -342,18 +342,29 @@ class Program:
             self.__bud_func = lambda x, y: np.nan
             self.__cov_func = lambda x, y: np.nan
 
+        # Always return the same type (fraction/number) for coverage as the given input
+
         elif sat is not None and not cost_only:
             # sigmoidal case
             # raises exception if sat is not iterable; but that is what it is meant to be (a single float), so don't do anything in exception handling
             try: sat = sat[0]
             except: pass
 
+            # sat is assumed to be a fraction
             if self.cov_format.lower() == 'fraction':
-                self.__bud_func = lambda cov, pop: -sat * unit_cost / 2. * np.log(2. * sat / (cov + sat) - 1.)
-                self.__cov_func = lambda bud, pop: 2. * sat / (1. + np.exp(-2. * bud / (sat * unit_cost))) - sat
+                self.__bud_func = lambda cov, pop: - pop * sat * unit_cost / 2. * np.log((sat - cov)/(cov + sat))
+                self.__cov_func = lambda bud, pop: (2. * sat / (1. + np.exp(-2. * bud / (pop * sat * unit_cost))) - sat)
             else:
-                self.__bud_func = lambda cov, pop: - pop * sat * unit_cost / 2. * np.log(2. * sat / (cov/pop + sat) - 1.)
+                self.__bud_func = lambda cov, pop: - pop * sat * unit_cost / 2. * np.log((sat * pop - cov)/(cov + sat * pop))
                 self.__cov_func = lambda bud, pop: (2. * sat / (1. + np.exp(-2. * bud / (pop * sat * unit_cost))) - sat) * pop
+
+            # Use truncated linear functions as fallback plan
+            # if self.cov_format.lower() == 'fraction':
+            #     self.__bud_func = lambda cov, pop: np.minimum(cov, sat) * unit_cost / 0.01
+            #     self.__cov_func = lambda bud, pop: np.minimum(bud * 0.01 / unit_cost, sat)
+            # else:
+            #     self.__bud_func = lambda cov, pop: np.minimum(cov * unit_cost, sat * pop)
+            #     self.__cov_func = lambda bud, pop: np.minimum(bud / unit_cost, sat * pop)
 
         else:
             # linear case
@@ -364,15 +375,6 @@ class Program:
                 self.__bud_func = lambda cov, pop: cov * unit_cost
                 self.__cov_func = lambda bud, pop: bud / unit_cost
 
-
-    #     self.func_specs['type'] = func_type
-    #
-    #     #        # WARNING: HARD-CODED AND SIMPLISTIC UNIT-COST GENERATION METHOD. IMAGINE IF THERE IS ZERO SPENDING FOR A PROGRAM IN THE LAST YEAR. AMEND ASAP.
-    #     #        output = self.interpolate(tvec=[max(self.t)])    # Use the latest year stored in the program to inform unit costs.
-    #     self.func_specs['pars'] = dcp(func_pars)
-    #
-    # #        self.func_specs['pars']['unit_cost'] = output['cov'][-1]/output['cost'][-1]
-    # #        self.func_specs['pars']['unit_cost'] = func_pars['unit_cost']
 
     def getDefaultBudget(self, year=None):
         '''
@@ -387,54 +389,21 @@ class Program:
 
     # TODO: Extend this method to account for non-linear cost-coverage curves. Probably if-else by func_type after deciding their hardcoded labels.
     # Note that inverse functions may be more challenging than the functions employed in Program.getCoverage().
-    def getBudget(self, coverage, pop=None):
+    def getBudget(self, coverage, pop_size=None):
         '''
         Returns a budget that corresponds to a program coverage. In simplest form, this is coverage times unit cost.
         Note that this method is not typically used during model processing.
         '''
-        #
-        # # If coverage is a scalar, make it a float. If it is a list or array, make it an array of floats.
-        # try:
-        #     coverage = float(coverage)
-        # except:
-        #     coverage = dcp(np.array(coverage, 'float'))
-        #
-        # if self.func_specs['type'] == 'cost_only':
-        #     bud = np.nan  # A fixed-cost program has no coverage, so a coverage-budget conversion should return a NaN.
-        #     # This will not bother value-updating in the model, as fixed-cost programs should not have impact parameters anyway.
-        # elif self.cov_format is None:
-        #     raise OptimaException(
-        #         'ERROR: Attempted to convert coverage to budget for a program (%s) that does not have coverage.' % self.label)
-        # else:
-        #     if self.cov_format.lower() == 'fraction':
-        #         bud = coverage * self.func_specs['pars']['unit_cost'] / 0.01  # Unit cost is per percentage when format is a fraction.
-        #     else:
-        #         bud = coverage * self.func_specs['pars']['unit_cost']
-        # return bud
-        return self.__bud_func(coverage, pop)
+        return self.__bud_func(coverage, pop_size)
 
     # TODO: Extend this method to account for non-linear cost-coverage curves. Probably if-else by func_type after deciding their hardcoded labels.
-    def getCoverage(self, budget, pop=None):
+    def getCoverage(self, budget, pop_size=None):
         '''
         Returns prospective coverage for a program. In simplest form, this is budget divided by unit cost.
         Note that this coverage will be dynamically divided amongst populations/compartments in the model prior to scaling into an impact.
         Excess coverage will also be ignored in the model.
         '''
-        # # If budget is a scalar, make it a float. If it is a list or array, make it an array of floats.
-        # try:
-        #     budget = float(budget)
-        # except:
-        #     budget = dcp(np.array(budget, 'float'))
-        #
-        # if self.cov_format is None:
-        #     cov = np.nan  # Fixed cost programs have no coverage.
-        # else:
-        #     if self.cov_format.lower() == 'fraction':
-        #         cov = budget * 0.01 / self.func_specs['pars']['unit_cost']  # Unit cost is per percentage when format is a fraction.
-        #     else:
-        #         cov = budget / self.func_specs['pars']['unit_cost']
-        # return cov
-        return self.__cov_func(budget, pop)
+        return self.__cov_func(budget, pop_size)
 
 
     def getImpact(self, budget, pop_size=None, impact_label=None, parser=None, years=None, budget_is_coverage=False):

@@ -289,7 +289,7 @@ class Model(object):
                                 else: alloc_ramp = np.maximum(alloc_ramp, alloc_new)
                                 alloc = alloc_def * (self.sim_settings['tvec'] < start_year) + alloc_ramp * (self.sim_settings['tvec'] >= start_year)
 
-                    pop_size = self._getTargetPopSize(prog)
+                    pop_size = self.getTargetPopSize(prog)
                     if alloc_is_coverage:
                         self.prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc, pop_size=pop_size), 'cov':alloc, 'impact':{}}
                     else:
@@ -297,7 +297,7 @@ class Model(object):
 
                 # Store default budgets/coverages for all other programs if saturation is selected.
                 elif 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
-                    pop_size = self._getTargetPopSize(prog)
+                    pop_size = self.getTargetPopSize(prog)
                     self.prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year), pop_size=pop_size), 'impact':{}}
 
                 else:
@@ -335,7 +335,7 @@ class Model(object):
                             years = [self.sim_settings['tvec'][-1]]
                         if 'impact' not in self.prog_vals[prog.label]:
                             self.prog_vals[prog.label]['impact'] = {}
-                            pop_size = self._getTargetPopSize(prog)
+                            pop_size = self.getTargetPopSize(prog)
                         self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, pop_size=pop_size, impact_label=par_label, parser=self.parser, years=years, budget_is_coverage=True)
 
                     # remove all entries other than 'impact' and 'cov' from dict
@@ -355,30 +355,6 @@ class Model(object):
         self.sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt / 2, settings.tvec_dt)
         self.sim_settings['impact_pars_not_func'] = []      # Program impact parameters that are not functions of other parameters and thus already marked for dynamic updating.
                                                             # This is only non-empty if a progset is being used in the model.
-        if 'progs_start' in options:
-            if progset is not None:
-                self.sim_settings['progs_start'] = options['progs_start']
-
-                if 'progs_end' in options:
-                    self.sim_settings['progs_end'] = options['progs_end']
-                if 'init_alloc' in options:
-                    self.sim_settings['init_alloc'] = options['init_alloc']
-                else: self.sim_settings['init_alloc'] = {}
-                if 'constraints' in options:
-                    self.sim_settings['constraints'] = options['constraints']
-                if 'alloc_is_coverage' in options:
-                    self.sim_settings['alloc_is_coverage'] = options['alloc_is_coverage']
-                else: self.sim_settings['alloc_is_coverage'] = False
-                if 'saturate_with_default_budgets' in options:
-                    self.sim_settings['saturate_with_default_budgets'] = options['saturate_with_default_budgets']
-                for impact_label in progset.impacts:
-                    if impact_label not in settings.par_funcs:
-                        self.sim_settings['impact_pars_not_func'].append(impact_label)
-
-                # NOTE: moved this to the end of the function because the population sizes are required
-                # self.preCalculateProgsetVals(settings=settings, progset=progset)   # For performance.
-            else:
-                raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
 
         self.parser.debug = settings.parser_debug
 
@@ -551,11 +527,33 @@ class Model(object):
         self.updateValues(settings=settings, progset=progset, do_special=False)     # Done first just in case junctions are dependent on characteristics.
                                                                                                 # No special rules are applied at this stage, otherwise calculations would be iterated twice before the first step forward.
                                                                                                 # NOTE: If junction outflows were to be tagged by special rules, initial calculations may be off. Return to this later and consider logic rigorously.
+
+        if 'progs_start' in options:
+            if progset is not None:
+                self.sim_settings['progs_start'] = options['progs_start']
+
+                if 'progs_end' in options:
+                    self.sim_settings['progs_end'] = options['progs_end']
+                if 'init_alloc' in options:
+                    self.sim_settings['init_alloc'] = options['init_alloc']
+                else: self.sim_settings['init_alloc'] = {}
+                if 'constraints' in options:
+                    self.sim_settings['constraints'] = options['constraints']
+                if 'alloc_is_coverage' in options:
+                    self.sim_settings['alloc_is_coverage'] = options['alloc_is_coverage']
+                else: self.sim_settings['alloc_is_coverage'] = False
+                if 'saturate_with_default_budgets' in options:
+                    self.sim_settings['saturate_with_default_budgets'] = options['saturate_with_default_budgets']
+                for impact_label in progset.impacts:
+                    if impact_label not in settings.par_funcs:
+                        self.sim_settings['impact_pars_not_func'].append(impact_label)
+
+                self.preCalculateProgsetVals(settings=settings, progset=progset)   # For performance.
+            else:
+                raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
+
         self.processJunctions(settings=settings)
         self.updateValues(settings=settings, progset=progset)
-
-        if 'progs_start' in options and progset is not None:
-            self.preCalculateProgsetVals(settings=settings, progset=progset)  # For performance.
 
         # set up sim_settings for later use wrt population tags
         self.sim_settings['tag_birth'] = []
@@ -952,7 +950,7 @@ class Model(object):
                                     # !currently only fractions supported!
                                     link = pop.getLinks(prog.deps[par_label])[0]
                                     impact *= pop.comps[link.index_from[1]].popsize[ti]
-                                else:
+                                elif not (special == 'scale_rate' and par_label in scale_pars):
                                     if pars[0].val_format == 'number' and 'tag' in settings.linkpar_specs[par_label]:
                                         impact += new_val
                                     else:
