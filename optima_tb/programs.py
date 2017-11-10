@@ -132,7 +132,7 @@ class Program:
         self.target_pars = target_pars
 
         self.func_specs = dict()
-        
+
     def insertValuePair(self, t, y, attribute, rescale_after_year=False):
         '''
         Check if the inserted t value already exists for the attribute type.
@@ -140,15 +140,15 @@ class Program:
         If optional argument rescale_after_year is True, relevant attribute values for timepoints greater than t will be proportionally scaled by y divided by the value it is replacing.
         If the scaling factor is infinite or nan, the later values will just be directly replaced by y.
         '''
-        
+
         val_dict = {'cost':self.cost, 'cov':self.cov}
         for val_type in self.attributes.keys():
             val_dict[val_type] = self.attributes[val_type]
-        
+
         orig_y = self.interpolate(tvec=[t], attributes=[attribute])[attribute][-1]
-        try: scaling_factor = float(y)/orig_y
+        try: scaling_factor = float(y) / orig_y
         except: raise OptimaException('ERROR: Unable to insert value "%f" at year "%f" for attribute "%s" of program "%s"' % (y, t, attribute, self.label))
-            
+
         value_replacement = False
         k = 0
         for t_val in self.t:
@@ -158,20 +158,20 @@ class Program:
                 if np.isnan(scaling_factor) or np.isinf(scaling_factor):
                     new_val = float(y)
                 else:
-                    new_val = scaling_factor*val_dict[attribute][k]
+                    new_val = scaling_factor * val_dict[attribute][k]
                 val_dict[attribute][k] = new_val
-                logging.info('Inserted/replaced value "%f" at year "%f" for attribute "%s" of program "%s"' % (new_val, t_val, attribute, self.label))
+                logging.debug('Inserted/replaced value "%f" at year "%f" for attribute "%s" of program "%s"' % (new_val, t_val, attribute, self.label))
             k += 1
-        
+
         if value_replacement: return    # No need to continue and append new values if the target year exists.
-        
+
         try:
             self.t = np.append(self.t, float(t))
             self.cost = np.append(self.cost, np.nan)
             self.cov = np.append(self.cov, np.nan)
             for val_type in self.attributes.keys():
                 self.attributes[val_type] = np.append(self.attributes[val_type], np.nan)
-            
+
             if attribute == 'cost':
                 self.cost[-1] = float(y)
             elif attribute == 'cov':

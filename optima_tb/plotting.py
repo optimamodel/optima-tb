@@ -2338,8 +2338,8 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
         # identify ymin and ymax from line
         if np.min(yval) < ymin_val:
             ymin_val = np.min(yval)
-        if np.max(yval[indices]) > ymax_val:
-            ymax_val = np.max(yval[indices])
+#         if np.max(yval[indices]) > ymax_val:
+#             ymax_val = np.max(yval[indices])
 
         # scatter data points
         if len(y_hat) > 0:
