@@ -117,6 +117,8 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, sigma_dic
         best_attribute_list = asd(reconciliationMetric, attribute_list, args, xmin=xmin, xmax=xmax, **optim_args)
         logging.info("Regenerating attributes dictionary")
         best_attribute_dict = regenerateAttributesDict(attribute_list=best_attribute_list, orig_attribute_dict=attribute_dict)
+        if constrain_budget:
+            best_attribute_dict, _, _, _ = rescaleAllocation(best_attribute_dict, attribute_dict)
         logging.info("Updating progset")
 #         print best_attribute_dict
         progset = updateProgset(new_pars_dict=best_attribute_dict, progset=progset, year=reconcile_for_year)
@@ -415,7 +417,10 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 first_prog = True   # True if program in prog_label loop is the first one in the impact dict list.
                 impact_list = []    # Notes for each program what its impact would be before coverage limitations.
                 overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
+                                    # Each individual overflow is capped at 1.
+                                                                                                          
                 if par_label not in prog_attributes[popkey].keys(): prog_attributes[popkey][par_label] = odict()
+                extra_metric = 0.0
                 for prog_label in progset.impacts[par_label]:
                     prog = progset.getProg(prog_label)
                     prog_type = prog.prog_type
@@ -465,14 +470,18 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                             frac_cov = net_cov / source_set_size
                             frac_impact = net_impact / source_set_size
                     else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
-
+                    
                     # Limit any program to a coverage that corresponds with a fractional annual impact of 1.
                     # This avoids problem for fractional transition conversions.
                     impact = frac_impact
                     cov = frac_cov
-                    if cov > 1.0:
-                        cov = 1.0
-                        impact = cov * impact_factor
+                    # The transition formula is only a problem if the impact parameter is in fraction format.
+                    if par.val_format == 'fraction':
+                        if impact > 1.0:
+                            extra_metric += net_cov  # Note that a program is overfunded and there should an incentive to decrease this.
+                        if cov > 1.0:
+                            cov = 1.0
+                            impact = cov * impact_factor
 
                     # Convert fractional coverage from yearly to dt-ly.
                     # The operating rules are that target parameter formats override source program formats when choosing whether to convert linearly or nonlinearly.
@@ -526,7 +535,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                     prog_attributes[popkey][par_label]['Coverage Cap Impact Value'] = new_val
                     prog_attributes[popkey][par_label]['overflow_list'] = [format(float(x), '.2f') for x in overflow_list]
 
-
+                    prog_attributes[popkey][par_label]['Extra Metric'] = extra_metric
 
     ###############################################################################
     # #Cleanup prog_attributes dictionary if empty odicts exist
@@ -579,7 +588,8 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
             if popkey not in impact[par_label].keys(): impact[par_label][popkey] = odict()
             temp_parset_impact = par_attributes[popkey][par_label]['Impact Value']
             temp_progset_impact = prog_attributes[popkey][par_label]['Coverage Cap Impact Value']
-            difference = (temp_parset_impact - temp_progset_impact) ** 2
+            extra_metric = prog_attributes[popkey][par_label]['Extra Metric']
+            difference = extra_metric + (temp_parset_impact - temp_progset_impact) ** 2
             impact[par_label][popkey] = {'Impact Difference': difference}
             impact['net_difference'] += difference
     if compareoutcome == False:

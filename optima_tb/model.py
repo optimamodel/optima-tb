@@ -892,9 +892,11 @@ class Model(object):
                                     # This avoids problem for fractional transition conversions.
                                     impact = frac_impact
                                     cov = frac_cov
-                                    if cov > 1.0:
-                                        cov = 1.0
-                                        impact = cov * impact_factor
+                                    # The transition formula is only a problem if the impact parameter is in fraction format.
+                                    if pars[0].val_format == 'fraction':
+                                        if cov > 1.0:
+                                            cov = 1.0
+                                            impact = cov * impact_factor
                                     
                                     # Convert fractional coverage from yearly to dt-ly.
                                     # The operating rules are that target parameter formats override source program formats when choosing whether to convert linearly or nonlinearly.
@@ -996,10 +998,10 @@ class Model(object):
 
                 for par in pars:
 
-                    year_check = 2016.5   # Hard-coded check.
-                    par_check = ['spddiag_rate']#['spdsuc_rate','spdno_rate']
+                    year_check = 2015   # Hard-coded check.
+                    par_check = ['spdyes_rate']#['spdsuc_rate','spdno_rate']
                     if par_label in par_check:
-                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 1.5*settings.tvec_dt:
+                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
                             print('Year: %s' % self.sim_settings['tvec'][ti])
                             print('Target Population: %s' % pop.label)
                             print('Target Parameter: %s' % par_label)
