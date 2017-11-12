@@ -56,11 +56,15 @@ class ProgramSet:
             # The func_type and func_pars dict will need to reflect this, e.g. with func_pars['unit_cost'] and func_pars['asymptote'].
             if special == 'cost_only':
                 cost_only = True
+                # required for defaults.py which requires func_specs['type'] to be set
+                new_prog.func_specs['type'] = 'cost_only'
             else:
                 cost_only = False
                 unit_cost = data['progs'][prog_label]['unit_cost']
                 if None in sat: # if there is one None in the sat-list, then all of the entries are None
                     sat = None
+                # required for defaults.py which requires func_specs['type'] to be set
+                new_prog.func_specs['type'] = 'other'
             new_prog.genFunctionSpecs(unit_cost, sat, cost_only)
 
             self.progs.append(new_prog)
