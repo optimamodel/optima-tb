@@ -1,10 +1,12 @@
 #%% Imports
-import logging
-logger = logging.getLogger(__name__)
-
+import logging, functools, traceback
 from collections import OrderedDict
 from numpy import array
 from numbers import Number
+import numpy as np
+import multiprocessing as mp
+
+logger = logging.getLogger(__name__)
 
 
 #%% Timing functions
@@ -420,3 +422,46 @@ class OptimaException(Exception):
     def __init(self, *args, **kwargs):
         Exception.__init__(self, *args, **kwargs)
 
+
+# Wrapper for parallel tasks
+def runParallel(func, params, num_threads=2):
+    if num_threads == None:
+        pool = mp.Pool()
+    else:
+        pool = mp.Pool(num_threads)
+    pool.map_async(func, params)
+    pool.close()
+    pool.join()
+
+# Allows stacktrace in threads. HOW TO USE: Decorate any function you wish to call with runParallel (the function func
+# references) with '@trace_exception'. Whenever an exception is thrown by the decorated function when executed parallel,
+# a stacktrace is printed; the thread terminates but the execution of other threads is not affected.
+def trace_exception(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except:
+            traceback.print_exc()
+    return wrapper
+
+
+
+# Convenience data structure to store a simulation interval from 'start' to 'stop'. 'step' is interpreted as time steps
+# per year, e.g. step=365 represents a daily time step whereas step=12 represents a monthly time step
+class SimInt:
+    def __init__(self, start, stop, step=365):
+        self.start = int(start)
+        self.stop = int(stop)
+        self.step = int(step)
+
+    # returns the number of time steps between start and stop
+    def length(self):
+        return self.stop - self.start
+
+    # returns the number of years contained (rounded up) by this data structure or from any given starting point in time
+    def numCycles(self, start=None):
+        if start == None:
+            return int(np.ceil(self.length() / self.step))
+        else:
+            return int(np.ceil((self.stop - start) / self.step))
