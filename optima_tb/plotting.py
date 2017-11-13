@@ -790,7 +790,9 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
     settings = proj.settings
     plotdict = proj.settings.plot_settings
     charac_specs = proj.settings.charac_specs
-    plot_over = (proj.settings.tvec_start, proj.settings.tvec_observed_end)
+    plot_over = (proj.settings.tvec_start, proj.settings.tvec_end)
+    if 'xlim' in kwargs.keys() and kwargs['xlim'] is not None:
+        plot_over = kwargs['xlim']
     tmp_plotdict = dcp(plotdict)
     tmp_kwargs = dcp(kwargs)
     tmp_plotdict.update(kwargs)
@@ -1610,7 +1612,7 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
          
         
     """
-
+    print "Xlim = ", xlim
     if len(ys) == 0:
         logging.error("No values supplied; cannot plot")
         raise OptimaException("No values supplied; cannot plot")
@@ -1733,6 +1735,7 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
     ax.set_ylim(ymin=0)
     ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
 
+    print "now xlim = ", xlim
     # overwrite with specified choice
     if ylim is not None:
         ax.set_ylim(ylim)
