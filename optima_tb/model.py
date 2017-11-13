@@ -102,6 +102,7 @@ class ModelPopulation(Node):
     A class to wrap up data for one population within model.
     Each model population must contain a set of compartments with equivalent labels.
     '''
+    __alive_tag = 'h_alive'
 
     def __init__(self, settings, label='default', index=0):
         Node.__init__(self, label=label, index=index)
@@ -116,8 +117,14 @@ class ModelPopulation(Node):
 
         self.genCascade(settings=settings)    # Convert compartmental cascade into lists of compartment and link objects.
 
+
     def __repr__(self, *args, **kwargs):
         return "".join("%s" % self.comps)
+
+
+    def getAlive(self):
+        return self.getDep(self.__alive_tag).vals[0]
+
 
     def getModelState(self, ti):
         states = [c.getValue(ti) for c in self.comps]
@@ -238,10 +245,6 @@ class Model(object):
                 attributes=prog.attributes.keys() + ['cov'])
 
 
-    def getTargetPopSize(self, prog):
-        return np.sum(map(lambda x: self.getPop(x).getDep('h_alive').vals[0], prog.target_pops))
-
-
     def preCalculateProgsetVals(self, settings, progset):
         ''' Work out program coverages and impacts ahead of the model run. '''
 
@@ -267,8 +270,7 @@ class Model(object):
                     # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to timevec.
                     if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog.label in self.sim_settings['constraints']['max_yearly_change']:
                         if alloc_is_coverage:
-                            pop_size = self._getTargetPopSize(prog)
-                            default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year), pop_size=pop_size)
+                            default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
                         else:
                             default = prog.getDefaultBudget(year=start_year)
                         default = prog.getDefaultBudget(year=start_year)
@@ -289,16 +291,14 @@ class Model(object):
                                 else: alloc_ramp = np.maximum(alloc_ramp, alloc_new)
                                 alloc = alloc_def * (self.sim_settings['tvec'] < start_year) + alloc_ramp * (self.sim_settings['tvec'] >= start_year)
 
-                    pop_size = self.getTargetPopSize(prog)
                     if alloc_is_coverage:
-                        self.prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc, pop_size=pop_size), 'cov':alloc, 'impact':{}}
+                        self.prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc), 'cov':alloc, 'impact':{}}
                     else:
-                        self.prog_vals[prog.label] = {'cost':alloc, 'cov':prog.getCoverage(budget=alloc, pop_size=pop_size), 'impact':{}}
+                        self.prog_vals[prog.label] = {'cost':alloc, 'cov':prog.getCoverage(budget=alloc), 'impact':{}}
 
                 # Store default budgets/coverages for all other programs if saturation is selected.
                 elif 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
-                    pop_size = self.getTargetPopSize(prog)
-                    self.prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year), pop_size=pop_size), 'impact':{}}
+                    self.prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year)), 'impact':{}}
 
                 else:
                     logger.warn("Program '%s' was not contained in init_alloc and not saturated, therefore was not created." % prog.label)
@@ -335,8 +335,7 @@ class Model(object):
                             years = [self.sim_settings['tvec'][-1]]
                         if 'impact' not in self.prog_vals[prog.label]:
                             self.prog_vals[prog.label]['impact'] = {}
-                            pop_size = self.getTargetPopSize(prog)
-                        self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, pop_size=pop_size, impact_label=par_label, parser=self.parser, years=years, budget_is_coverage=True)
+                        self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=self.parser, years=years, budget_is_coverage=True)
 
                     # remove all entries other than 'impact' and 'cov' from dict
                     imp = self.prog_vals[prog.label]['impact']

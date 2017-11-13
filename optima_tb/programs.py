@@ -45,11 +45,14 @@ class ProgramSet:
                 if target_par not in self.impacts: self.impacts[target_par] = []
                 self.impacts[target_par].append(prog_label)
 
-            new_prog = Program(name=prog_name, label=prog_label, prog_type=prog_type,
-                               t=t, cost=cost, cov=cov,
-                               cost_format=cost_format, cov_format=cov_format,
-                               attributes=attributes,
-                               target_pops=target_pops, target_pars=target_pars, flag=flag)
+            # TODO remove hard-coded tag and use ModelPopulation.getAlive() instead
+            # sum over all population sizes associated with the program
+            target_pop_size = np.sum([data['characs']['h_alive'][pop]['y'][0] for pop in target_pops])
+
+            new_prog = Program(name=prog_name, label=prog_label, prog_type=prog_type, t=t, cost=cost, cov=cov,
+                               cost_format=cost_format, cov_format=cov_format, attributes=attributes,
+                               target_pops=target_pops, target_pop_size=target_pop_size, target_pars=target_pars,
+                               flag=flag)
 
             # func_pars = dict()
             # TODO: This is where new function types can be specified, such as sigmoid cost-curves.
@@ -74,10 +77,12 @@ class ProgramSet:
         self._setSpecialPrograms(gp_flags=['scale_prop'], sop_flags=['supp'])
         self._findDependentLinks(settings)
 
+
     def getProg(self, label):
         if label in self.prog_ids.keys():
             return self.progs[self.prog_ids[label]]
         raise OptimaException('ERROR: Label "%s" cannot be found in program set "%s".' % (label, self.name))
+
 
     def getBudgets(self, coverages, model):
         """
@@ -92,9 +97,9 @@ class ProgramSet:
         budgets = {}
         for prog_label in coverages.keys():
             prog = self.progs[self.prog_ids[prog_label]]
-            pop_size = model.getTargetPopSize(prog)
-            budgets[prog.label] = prog.getBudget(coverages[prog_label], pop_size)
+            budgets[prog.label] = prog.getBudget(coverages[prog_label])
         return budgets
+
 
     def getCoverages(self, budgets, model):
         """
@@ -113,12 +118,13 @@ class ProgramSet:
         else:
             for prog_label in budgets.keys():
                 prog = self.progs[self.prog_ids[prog_label]]
-                pop_size = model.getTargetPopSize(prog)
-                coverage[prog.label] = prog.getCoverage(budgets[prog_label], pop_size)
+                coverage[prog.label] = prog.getCoverage(budgets[prog_label])
         return coverage
+
 
     def copy(self):
         pass
+
 
     # extract list of global and second order programs
     def _setSpecialPrograms(self, gp_flags, sop_flags):
@@ -159,7 +165,7 @@ class ProgramSet:
 
 class Program:
     def __init__(self, name, label, prog_type, t=None, cost=None, cov=None, cost_format=None, cov_format=None,
-                 attributes={}, target_pops=None, target_pars=None, flag='replace'):
+                 attributes={}, target_pops=None, target_pop_size=None, target_pars=None, flag='replace'):
         """
         
         """
@@ -178,6 +184,8 @@ class Program:
         self.cost_format = cost_format
         self.cov_format = cov_format
         self.attributes = attributes
+
+        self.pop_size = target_pop_size
 
         if target_pops is None: target_pops = []
         self.target_pops = target_pops
@@ -281,6 +289,7 @@ class Program:
                 'ERROR: Unable to insert value "%f" at year "%f" for attribute "%s" of program "%s"' % (
                 y, t, attribute, self.label))
 
+
     def interpolate(self, tvec=None, attributes=None):
         ''' Takes attribute values and constructs a dictionary of interpolated array corresponding to the input time vector. Ignores np.nan. '''
 
@@ -305,26 +314,34 @@ class Program:
             val_type = val_types[k]
             val_array = val_arrays[k]
             if attributes is not None and val_type not in attributes: continue
-            if val_type.startswith('$ref'): continue # in this case val_array contains strings which raise an exception on isnan()
+            # in this case val_array contains strings which raise an exception on isnan()
+            if val_type.startswith('$ref'): continue
 
-            t_array = dcp(self.t)  # Need to refresh this during each attribute interpolation loop.
+            # Need to refresh this during each attribute interpolation loop.
+            t_array = dcp(self.t)
 
-            # Eliminate np.nan from value array before interpolation. Makes sure timepoints are appropriately constrained.
+            # Eliminate np.nan from value array before interpolation. Makes sure timepoints are appropriately
+            # constrained.
             t_temp = dcp(t_array)
             val_temp = dcp(val_array)
             t_array = dcp(t_temp[~np.isnan(val_temp)])
             val_array = dcp(val_temp[~np.isnan(val_temp)])
 
-            if len(t_array) == 1:  # If there is only one timepoint, corresponding cost and cov values should be real valued after loading databook. But can double-validate later.
-                output[val_type] = np.ones(len(tvec)) * (val_array)[0]  # Don't bother running interpolation loops if constant. Good for performance.
+            # If there is only one timepoint, corresponding cost and cov values should be real valued after loading
+            # databook. But can double-validate later.
+            if len(t_array) == 1:
+                # Don't bother running interpolation loops if constant. Good for performance.
+                output[val_type] = np.ones(len(tvec)) * (val_array)[0]
             else:
-                # Pad the input vectors for interpolation with minimum and maximum timepoint values, to avoid extrapolated values blowing up.
+                # Pad the input vectors for interpolation with minimum and maximum timepoint values, to avoid
+                # extrapolated values blowing up.
                 ind_min, t_min = min(enumerate(t_array), key=lambda p: p[1])
                 ind_max, t_max = max(enumerate(t_array), key=lambda p: p[1])
                 val_at_t_min = val_array[ind_min]
                 val_at_t_max = val_array[ind_max]
 
-                # This padding effectively keeps edge values constant for desired time ranges larger than data-provided time ranges.
+                # This padding effectively keeps edge values constant for desired time ranges larger than data-provided
+                # time ranges.
                 if tvec[0] < t_min:
                     t_array = np.append(tvec[0], t_array)
                     val_array = np.append(val_at_t_min, val_array)
@@ -338,19 +355,20 @@ class Program:
 
 
     def genFunctionSpecs(self, unit_cost, sat=None, cost_only=False):
-        # getCoverage/getBudget requires 2 parameters, but not all cost curve types need 2 parameters. So lambda function
-        # takes to arguments so that getCoverage/getBudget can be uniformly called and simply discards unnecessary
-        # parameters
+        # getCoverage/getBudget requires 2 parameters, but not all cost curve types need 2 parameters. So lambda
+        # function takes to arguments so that getCoverage/getBudget can be uniformly called and simply discards
+        # unnecessary parameters
         if sat is None and cost_only:
             # cost only case
             self.__bud_func = lambda x, y: np.nan
             self.__cov_func = lambda x, y: np.nan
 
-        # Always return the same type (fraction/number) for coverage as the given input
+        # Always return the same type (fraction/number) for coverage as the given input!
 
         elif sat is not None and not cost_only:
             # sigmoidal case
-            # raises exception if sat is not iterable; but that is what it is meant to be (a single float), so don't do anything in exception handling
+            # raises exception if sat is not iterable; but that is what it is meant to be (a single float), so don't do
+            # anything in exception handling
             try: sat = sat[0]
             except: pass
 
@@ -373,8 +391,9 @@ class Program:
         else:
             # linear case
             if self.cov_format.lower() == 'fraction':
-                self.__bud_func = lambda cov, pop: cov * unit_cost / 0.01  # Unit cost is per percentage when format is a fraction.
-                self.__cov_func = lambda bud, pop: bud * 0.01 / unit_cost  # Unit cost is per percentage when format is a fraction.
+                # Unit cost is per percentage when format is a fraction.
+                self.__bud_func = lambda cov, pop: cov * unit_cost / 0.01
+                self.__cov_func = lambda bud, pop: bud * 0.01 / unit_cost
             else:
                 self.__bud_func = lambda cov, pop: cov * unit_cost
                 self.__cov_func = lambda bud, pop: bud / unit_cost
@@ -383,31 +402,49 @@ class Program:
     def getDefaultBudget(self, year=None):
         '''
         Returns program cost, interpolated either for a given year or the last year that data exists for, as a budget.
-        Note that users may enter a unit cost into assumptions, which will provide a flawed budget value in the absence of other data.
+        Note that users may enter a unit cost into assumptions, which will provide a flawed budget value in the absence
+        of other data.
         '''
 
         if year is None: year = max(self.t)
-        output = self.interpolate(tvec=[year], attributes=['cost'])
-        budget = output['cost'][-1]
+
+        # if all values are NaN, the no costs have been provided and must be computed from the coverate
+        if all(np.isnan(v) for v in self.cost):
+            output = self.interpolate(tvec=[year], attributes=['cov'])
+            budget = self.getBudget(output['cov'][-1])
+        else:
+            output = self.interpolate(tvec=[year], attributes=['cost'])
+            budget = output['cost'][-1]
+
         return budget
 
-    # TODO: Extend this method to account for non-linear cost-coverage curves. Probably if-else by func_type after deciding their hardcoded labels.
+
     # Note that inverse functions may be more challenging than the functions employed in Program.getCoverage().
     def getBudget(self, coverage, pop_size=None):
         '''
         Returns a budget that corresponds to a program coverage. In simplest form, this is coverage times unit cost.
         Note that this method is not typically used during model processing.
         '''
-        return self.__bud_func(coverage, pop_size)
 
-    # TODO: Extend this method to account for non-linear cost-coverage curves. Probably if-else by func_type after deciding their hardcoded labels.
+        # if pop_size is provided, update current pop_size
+        if pop_size is not None:
+            self.pop_size = pop_size
+
+        return self.__bud_func(coverage, self.pop_size)
+
+
     def getCoverage(self, budget, pop_size=None):
         '''
         Returns prospective coverage for a program. In simplest form, this is budget divided by unit cost.
-        Note that this coverage will be dynamically divided amongst populations/compartments in the model prior to scaling into an impact.
-        Excess coverage will also be ignored in the model.
+        Note that this coverage will be dynamically divided amongst populations/compartments in the model prior to
+        scaling into an impact. Excess coverage will also be ignored in the model.
         '''
-        return self.__cov_func(budget, pop_size)
+
+        # if pop_size is provided, update current pop_size
+        if pop_size is not None:
+            self.pop_size = pop_size
+
+        return self.__cov_func(budget, self.pop_size)
 
 
     def getImpact(self, budget, pop_size=None, impact_label=None, parser=None, years=None, budget_is_coverage=False):
@@ -416,21 +453,24 @@ class Program:
         if np.isnan(np.sum(self.getCoverage(budget, pop_size))):
             return 0.0
 
+        # if pop_size is provided, update current pop_size
+        if pop_size is not None:
+            self.pop_size = pop_size
+
         budget = dcp(budget)  # Just in case.
 
         # Baseline impact is just coverage.
         if budget_is_coverage:
             imp = budget
         else:
-            imp = self.getCoverage(budget, pop_size)
+            imp = self.getCoverage(budget, self.pop_size)
 
         # If impact parameter has an impact function, this is what coverage is scaled by.
         if not impact_label is None:
             if 'f_stack' in self.target_pars[impact_label].keys():
                 if parser is None:
-                    raise OptimaException(
-                        'ERROR: Cannot calculate "%s" impact for "%s" without a parser, due to the existence of an impact function.' % (
-                        self.label, impact_label))
+                    raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" without a parser, due to the '
+                                          'existence of an impact function.' % (self.label, impact_label))
                 f_stack = dcp(self.target_pars[impact_label]['f_stack'])
                 attribs = dcp(self.target_pars[impact_label]['attribs'])
                 for attrib_label in attribs.keys():
@@ -439,8 +479,8 @@ class Program:
                         output = self.interpolate(tvec=years, attributes=[attrib_label])
                     else:
                         raise OptimaException(
-                            'ERROR: Cannot calculate "%s" impact for "%s" due to a missing reference "%s".' % (
-                            self.label, impact_label, attrib_label))
+                            'ERROR: Cannot calculate "%s" impact for "%s" due to a missing reference "%s".'
+                            % (self.label, impact_label, attrib_label))
                     attribs[attrib_label] = output[attrib_label]  # [-1]
                 #                    if len(output[attrib_label]) > 1:
                 #                        print attribs
