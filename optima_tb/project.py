@@ -28,7 +28,7 @@ from copy import deepcopy as dcp
 class Project(object):
     ''' The main Optima project class. Almost all Optima functionality is provided by this class. '''
 
-    def __init__(self, name='default', cascade_path='../data/cascade.xlsx', **args):
+    def __init__(self, name='default', cascade_path='../data/cascade.xlsx', I=None, special_labels=None, pname='default', **args):
         ''' Initialize project. '''
 
         self.name = name
@@ -43,7 +43,54 @@ class Project(object):
 
         self.scenarios = odict()
 
+        # if at least I is provided, a malaria project is initialised
+        if I is not None:
+            self._configProject(I, special_labels, pname)
+
         logger.info("Created project: %s" % self.name)
+
+
+    def addParset(self, databook_path, name, special_labels=None):
+        self.loadSpreadsheet(databook_path)
+        self.makeParset(name)
+        if special_labels is not None:
+            self.interpretValueAsNumber(name, special_labels)
+
+
+    # I: SimInt-type specifying the simulation interval
+    # special_labels: list of labels of parameters which are to be interpreted as number rather than fraction
+    # name: name of the parameter/program set which is generated
+    def _configProject(self, I, special_labels=None, pname='default'):
+        self.settings.tvec_dt = 365. / I.step
+        self.settings.tvec_start = I.start
+        self.settings.tvec_observed_end = I.stop
+        self.settings.tvec_end = I.stop
+
+        self.makeParset(name=pname)
+        self.makeProgset(name=pname)
+
+        if special_labels is not None:
+            self._interpretValueAsNumber(pname, special_labels)
+
+
+    # forces the result of a function evaluation to be interpreted as number not as fraction:
+    # parset_lebel: label of the parset to which the modifications are applied
+    # special_labels: list of labels of parameters which need to be interpreted as number rather than fraction
+    def _interpretValueAsNumber(self, parset_label, special_labels):
+        if parset_label not in self.parsets:
+            raise OptimaException('%s not found in available parameter sets. %s are available'
+                                  % (parset_label, self.parsets.keys()))
+        else:
+            parset = self.parsets[parset_label]
+
+        if not isinstance(special_labels, list):
+            special_labels = [special_labels]
+
+        # force the transitions from the birth compartments to be interpreted as 'number', not as 'fraction'
+        for pop in parset.pop_labels:
+            for label in special_labels:
+                parset.getPar(label).y_format[pop] = 'number'
+
 
     def resetParsets(self):
         ''' Convenience function called externally to delete all parsets. '''
@@ -61,7 +108,7 @@ class Project(object):
         else:
             self.settings.tvec_end = yearRange[1]
 
-    def runSim(self, parset=None, parset_name='default', progset=None, progset_name=None, options=None, plot=False, debug=False, store_results=True, result_type=None, result_name=None):
+    def runSim(self, parset=None, parset_name='default', progset=None, progset_name=None, options=None, plot=False, debug=False, store_results=False, result_type=None, result_name=None):
         ''' Run model using a selected parset and store/return results. '''
 
         if parset is None:
@@ -563,4 +610,25 @@ class Project(object):
 #        return filename
 
 
-
+# setup Project for a malaria project providing minimal configuration:
+# cascade_path: path to the cascade spreadsheet
+# databook_path: path to the databook spreadsheet
+# I: SimInt-type specifying the simulation interval
+# special_labels: list of labels of parameters which are to be interpreted as number rather than fraction
+# name: name of the parameter/program set which is generated
+# def setup_malaria_project(cascade_path, databook_path, I, special_labels=None, name='default'):
+#     proj = Project(name='malaria', cascade_path=cascade_path, validation_level='warn')
+#     proj.loadSpreadsheet(databook_path=databook_path)
+#
+#     proj.settings.tvec_dt = 365./I.step
+#     proj.settings.tvec_start = I.start
+#     proj.settings.tvec_observed_end = I.stop
+#     proj.settings.tvec_end = I.stop
+#
+#     proj.makeParset(name=name)
+#     proj.makeProgset(name=name)
+#
+#     if special_labels is not None:
+#         proj.interpretValueAsNumber(name, special_labels)
+#
+#     return proj
