@@ -459,55 +459,98 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                         if not float(net_impact) == 0.:
                             raise OptimaException('Attempted to divide impact of {0} by coverage of {1} for program "{2}" with impact parameter "{3}".'.format(net_impact, net_cov, prog_label, par_label))
 
-                    # Convert program coverage and impact to a fraction of entities available to transition (if not already in fraction format).
+#                    # Convert program coverage and impact to a fraction of entities available to transition (if not already in fraction format).
+#                    if prog.cov_format == 'fraction':
+#                        pass
+#                    elif prog.cov_format == 'number':
+#                        if source_set_size <= project_settings.TOLERANCE:
+#                            frac_cov = 0.0
+#                            frac_impact = 0.0
+#                        else:
+#                            frac_cov = net_cov / source_set_size
+#                            frac_impact = net_impact / source_set_size
+#                    else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
+#                    
+#                    # Limit any program to a coverage that corresponds with a fractional annual impact of 1.
+#                    # This avoids problem for fractional transition conversions.
+#                    impact = frac_impact
+#                    cov = frac_cov
+#                    # The transition formula is only a problem if the impact parameter is in fraction format.
+#                    if par.val_format == 'fraction':
+#                        if impact > 1.0:
+#                            extra_metric += net_cov  # Note that a program is overfunded and there should an incentive to decrease this.
+#                        if cov > 1.0:
+#                            cov = 1.0
+#                            impact = cov * impact_factor
+#
+#                    # Convert fractional coverage from yearly to dt-ly.
+#                    # The operating rules are that target parameter formats override source program formats when choosing whether to convert linearly or nonlinearly.
+#                    if par.val_format == 'number' or impact_factor <= project_settings.TOLERANCE:
+#                        # If rates convert linearly, so does coverage.
+#                        # The limit of impact factor going to zero for the fraction-format conversion below (when written in terms of coverage and impact factor) also leads to this linear relation.
+#                        dt_impact = impact * proj.settings.tvec_dt
+#                        dt_cov = cov * proj.settings.tvec_dt
+#                    elif par.val_format == 'fraction':
+#                        # If rates convert according to probability formulae, coverage and overflow convert with dependence on the impact factor.
+#                        dt_impact = 1.0 - (1.0 - impact) ** proj.settings.tvec_dt
+#                        dt_cov = dt_impact / impact_factor
+#                    else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
+#
+#                    # A fractional dt-ly coverage happens to be considered overflow.
+#                    # For instance, dt-ly impacts of [0.7,1] with corresponding dt-ly coverage of [1.2,1.3] will scale down so net dt-ly coverage is 1.
+#                    overflow_list.append(dt_cov)
+#
+#                    # Convert fraction-based program coverage/impact to parameter format, multiplying by the transition-source compartment size if needed.
+#                    if par.val_format == 'fraction':
+#                        pass
+#                    elif par.val_format == 'number':
+#                        cov *= source_element_size
+#                        impact *= source_element_size
+#                        dt_cov *= source_element_size
+#                        dt_impact *= source_element_size
+
+                    # Assume all program coverage/impact that targets transition parameters is 'effective', not 'probabilistic'.
+                    # For number format coverages/impacts, this will be uniformly distributed across timesteps.
+                    # For fraction format coverages/impacts, a dt-ly rate is the same as the intended annual rate.
+                    # This means the two formats result in differing t-dependent distributions, but the total should be the same, assuming no coverage capping. 
                     if prog.cov_format == 'fraction':
-                        pass
+                        dt_cov = net_cov
+                        dt_impact = net_impact
                     elif prog.cov_format == 'number':
-                        if source_set_size <= project_settings.TOLERANCE:
-                            frac_cov = 0.0
-                            frac_impact = 0.0
-                        else:
-                            frac_cov = net_cov / source_set_size
-                            frac_impact = net_impact / source_set_size
+                        dt_cov = net_cov * settings.tvec_dt
+                        dt_impact = net_impact * settings.tvec_dt
                     else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
                     
-                    # Limit any program to a coverage that corresponds with a fractional annual impact of 1.
-                    # This avoids problem for fractional transition conversions.
-                    impact = frac_impact
-                    cov = frac_cov
-                    # The transition formula is only a problem if the impact parameter is in fraction format.
-                    if par.val_format == 'fraction':
-                        if impact > 1.0:
-                            extra_metric += net_cov  # Note that a program is overfunded and there should an incentive to decrease this.
-                        if cov > 1.0:
-                            cov = 1.0
-                            impact = cov * impact_factor
-
-                    # Convert fractional coverage from yearly to dt-ly.
-                    # The operating rules are that target parameter formats override source program formats when choosing whether to convert linearly or nonlinearly.
-                    if par.val_format == 'number' or impact_factor <= project_settings.TOLERANCE:
-                        # If rates convert linearly, so does coverage.
-                        # The limit of impact factor going to zero for the fraction-format conversion below (when written in terms of coverage and impact factor) also leads to this linear relation.
-                        dt_impact = impact * proj.settings.tvec_dt
-                        dt_cov = cov * proj.settings.tvec_dt
-                    elif par.val_format == 'fraction':
-                        # If rates convert according to probability formulae, coverage and overflow convert with dependence on the impact factor.
-                        dt_impact = 1.0 - (1.0 - impact) ** proj.settings.tvec_dt
-                        dt_cov = dt_impact / impact_factor
+                    # Convert dt-ly coverage/impact into a dt-ly fractonal coverage/impact, i.e. normalise for number available to transition.
+                    if prog.cov_format == 'fraction':
+                        frac_dt_cov = dt_cov
+                        frac_dt_impact = dt_impact
+                    elif prog.cov_format == 'number':
+                        if source_set_size <= project_settings.TOLERANCE:
+                            frac_dt_cov = 0.0
+                            frac_dt_impact = 0.0
+                        else:
+                            frac_dt_cov = dt_cov / source_set_size
+                            frac_dt_impact = dt_impact / source_set_size
                     else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
-
+                    
+#                    # Cap dt-ly coverage for each program.
+#                    if par.val_format == 'fraction':
+#                        if frac_dt_cov > 1.0:
+#                            frac_dt_cov = 1.0
+#                            frac_dt_impact = frac_dt_cov * impact_factor
+                    
                     # A fractional dt-ly coverage happens to be considered overflow.
                     # For instance, dt-ly impacts of [0.7,1] with corresponding dt-ly coverage of [1.2,1.3] will scale down so net dt-ly coverage is 1.
-                    overflow_list.append(dt_cov)
-
+                    overflow_list.append(frac_dt_cov)
+                    
                     # Convert fraction-based program coverage/impact to parameter format, multiplying by the transition-source compartment size if needed.
-                    if par.val_format == 'fraction':
-                        pass
-                    elif par.val_format == 'number':
-                        cov *= source_element_size
-                        impact *= source_element_size
-                        dt_cov *= source_element_size
-                        dt_impact *= source_element_size
+                    if pars[0].val_format == 'fraction':
+                        dt_cov = frac_dt_cov
+                        dt_impact = frac_dt_impact
+                    elif pars[0].val_format == 'number':
+                        dt_cov = frac_dt_cov * source_element_size
+                        dt_impact = frac_dt_impact * source_element_size
 
                     if first_prog:
                         new_val = 0.
