@@ -27,8 +27,10 @@ from copy import deepcopy as dcp
 
 class Project(object):
     ''' The main Optima project class. Almost all Optima functionality is provided by this class. '''
-
-    def __init__(self, name='default', cascade_path='../data/cascade.xlsx', I=None, special_labels=None, pname='default', **args):
+    # I is a simulation interval for which the project simulates
+    # pars_interp_num is a list of parameter labels which are required to be interpreted as numbers and not as fractions
+    # as defaulted by the initialisation
+    def __init__(self, name='default', cascade_path='../data/cascade.xlsx', I=None, pars_interp_num=None, **args):
         ''' Initialize project. '''
 
         self.name = name
@@ -45,50 +47,58 @@ class Project(object):
 
         # if at least I is provided, a malaria project is initialised
         if I is not None:
-            self._configProject(I, special_labels, pname)
+            self._configProject(I, pars_interp_num)
 
         logger.info("Created project: %s" % self.name)
 
 
-    def addParset(self, databook_path, name, special_labels=None):
+    def addParset(self, databook_path, name):
         self.loadSpreadsheet(databook_path)
         self.makeParset(name)
-        if special_labels is not None:
-            self.interpretValueAsNumber(name, special_labels)
+        if self.pars_interp_num is not None:
+            self._interpretValueAsNumber(name)
 
+
+    def addParsets(self, databook_paths, names):
+        if not isinstance(databook_paths, list):
+            databook_paths = [databook_paths]
+        if not isinstance(names, list):
+            names = [names]
+
+        if len(names) != len(databook_paths):
+            raise OptimaException('Number of provided databooks and corresponding labels does not coincide!')
+
+        for args in zip(databook_paths, names):
+            self.addParset(*args)
+
+
+    def addRegion(self, data_book_path, name):
+        self.addParset(data_book_path, name)
+        self.makeProgset(name)
 
     # I: SimInt-type specifying the simulation interval
     # special_labels: list of labels of parameters which are to be interpreted as number rather than fraction
     # name: name of the parameter/program set which is generated
-    def _configProject(self, I, special_labels=None, pname='default'):
+    def _configProject(self, I, special_labels=None):
         self.settings.tvec_dt = 365. / I.step
         self.settings.tvec_start = I.start
         self.settings.tvec_observed_end = I.stop
         self.settings.tvec_end = I.stop
-
-        self.makeParset(name=pname)
-        self.makeProgset(name=pname)
-
-        if special_labels is not None:
-            self._interpretValueAsNumber(pname, special_labels)
-
+        self.pars_interp_num = special_labels
 
     # forces the result of a function evaluation to be interpreted as number not as fraction:
     # parset_lebel: label of the parset to which the modifications are applied
     # special_labels: list of labels of parameters which need to be interpreted as number rather than fraction
-    def _interpretValueAsNumber(self, parset_label, special_labels):
+    def _interpretValueAsNumber(self, parset_label):
         if parset_label not in self.parsets:
             raise OptimaException('%s not found in available parameter sets. %s are available'
                                   % (parset_label, self.parsets.keys()))
         else:
             parset = self.parsets[parset_label]
 
-        if not isinstance(special_labels, list):
-            special_labels = [special_labels]
-
         # force the transitions from the birth compartments to be interpreted as 'number', not as 'fraction'
         for pop in parset.pop_labels:
-            for label in special_labels:
+            for label in self.pars_interp_num:
                 parset.getPar(label).y_format[pop] = 'number'
 
 
