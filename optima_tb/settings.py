@@ -22,7 +22,7 @@ VALIDATION_AVERT = 3
 DEFAULT_YFACTOR = 1.
 DO_NOT_SCALE = -1.
 
-TOLERANCE = 1e-6
+TOLERANCE = 1e-2
 
 class Settings(object):
     '''
