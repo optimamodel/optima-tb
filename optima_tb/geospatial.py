@@ -155,6 +155,30 @@ class GeospatialOptimization:
             costEffVecs.append(costEffThisRegion)
         return costEffVecs, spendingVec, outcomeVec
 
+    def getGAResults(self):
+        """
+        Retrieve the geospatial optimisation result.
+
+        :return: dict with the optimal spendings per region and the corresponding outcome per region
+        """
+        if 'opt_alloc' not in self._opt:
+            raise OptimaException(('No results computed. Call runFromScratch() or runWithBO()'
+                                   'before calling getGAResults!'))
+
+        alloc = {}
+        outcome = {}
+        for region in self._opt:
+            alloc[region] = self._opt[region]['opt_alloc']
+            outcome[region] = self._outcome[region]
+
+        return alloc, outcome
+
+    def getParSet(self):
+        return self._proj.parsets['default']
+
+    def getProject(self):
+        return self._proj
+
     def _getSpendingsPerRegion(self, budget):
         """
         :param budget: Total budget available across all regions
@@ -166,26 +190,26 @@ class GeospatialOptimization:
         spendings = [budget] * num_regions
         return spendings
 
-    def getGAResults(self):
-        """
-        Retrieve the geospatial optimisation result.
-
-        :return: dict with the optimal spendings per region and the corresponding outcome per region
-        """
-        if 'opt_alloc' not in self._opt:
-            raise OptimaException(('No results computed. Call runFromScratch() or runWithBO()'
-                                   'before calling getGAResults!'))
-
-        results = {}
-        for region in self._opt:
-            results[region] = {'alloc': self._opt[region]['opt_alloc'], 'outcome': self._outcome[region]}
-
-        return results
-
     def _loadBudgetOutcomes(self, filename):
         with open(filename, 'rb') as f:
             self._BO = pickle.loads(pickle.load(f))
             self._budgetScalings = pickle.loads(pickle.load(f))
+
+    def _optimize(self, total_national_budget):
+        """
+        Determine the optimal spending per region and then optimise the spendings per region
+
+        :param total_national_budget: total budget which is to be distributed among the regions
+        """
+        logger.info('Computing budget-outcome-curves..')
+        self._calculateBudgetOutcomeCurves()
+
+        logger.info('Finding the optimal budget for each region..')
+        spendings = self._getSpendingsPerRegion(total_national_budget)
+        opt_regional_budgets = self._runGridSearch(spendings)
+
+        logger.info('Computing optimal outcomes based on the optimal budget')
+        self._optimizeInterventions(opt_regional_budgets)
 
     def _optimizeInterventions(self, opt_budgets):
         """
@@ -228,22 +252,6 @@ class GeospatialOptimization:
         logger.info('Loading budget outcomes..')
         self._loadBudgetOutcomes(BO_file)
         self._optimize(total_national_budget)
-
-    def _optimize(self, total_national_budget):
-        """
-        Determine the optimal spending per region and then optimise the spendings per region
-
-        :param total_national_budget: total budget which is to be distributed among the regions
-        """
-        logger.info('Computing budget-outcome-curves..')
-        self._calculateBudgetOutcomeCurves()
-
-        logger.info('Finding the optimal budget for each region..')
-        spendings = self._getSpendingsPerRegion(total_national_budget)
-        opt_regional_budgets = self._runGridSearch(spendings)
-
-        logger.info('Computing optimal outcomes based on the optimal budget')
-        self._optimizeInterventions(opt_regional_budgets)
 
     def _runGridSearch(self, currentRegionalSpending, extraFunds=None):
         """ If specified, extraFunds is a scalar value which represents funds to be distributed on top of fixed current
