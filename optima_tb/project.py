@@ -110,7 +110,7 @@ class Project(object):
         return results
 
 
-    def optimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None, max_iter=500):
+    def optimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None, max_iter=500, maxtime=None):
         ''' Optimize model using a selected parset and store/return results. '''
 
         if parset is None:
@@ -127,12 +127,13 @@ class Project(object):
                 try: progset = self.progsets[progset_name]
                 except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot optimize model.' % (self.name, progset_name))
 
-        results = optimizeFunc(settings=self.settings, parset=parset, progset=progset, options=options, max_iter=max_iter)
+        results = optimizeFunc(settings=self.settings, parset=parset, progset=progset, options=options, max_iter=max_iter, maxtime=maxtime)
 
         return results
 
 
-    def parallelOptimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None, num_threads=4, block_iter=10, max_blocks=10, max_iter=None, doplot=False, fullfval=False, randseed=None):
+    def parallelOptimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None,
+                         num_threads=4, block_iter=10, max_blocks=10, max_iter=None, doplot=False, fullfval=False, randseed=None, maxtime=None):
         ''' Like optimize, but parallel '''
 
         if parset is None:
@@ -150,7 +151,9 @@ class Project(object):
                 except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot optimize model.' % (self.name, progset_name))
 
 
-        results = parallelOptimizeFunc(settings=self.settings, parset=parset, progset=progset, options=options, num_threads=num_threads, block_iter=block_iter, max_blocks=max_blocks, max_iter=max_iter, doplot=doplot, fullfval=fullfval, randseed=randseed)
+        results = parallelOptimizeFunc(settings=self.settings, parset=parset, progset=progset, options=options, num_threads=num_threads,
+                                       block_iter=block_iter, max_blocks=max_blocks, max_iter=max_iter, doplot=doplot, fullfval=fullfval,
+                                       randseed=randseed, maxtime=maxtime)
 
         return results
 
@@ -197,7 +200,7 @@ class Project(object):
         self.progsets[name] = ProgramSet(name=name)
         self.progsets[name].makeProgs(data=self.data, settings=self.settings)
 
-    def reconcile(self, parset_name=None, progset_name=None, reconcile_for_year=2017, unitcost_sigma=0.05, attribute_sigma=0.20, impact_pars=None, budget_allocation=None, overwrite=True):
+    def reconcile(self, parset_name=None, progset=None, progset_name=None, reconcile_for_year=2017, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, budget_allocation=None, constrain_budget=True, overwrite=True, max_time=None, save_progset=True):
         '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible
            Default behaviour is to overwrite existing progset
         '''
@@ -210,6 +213,23 @@ class Project(object):
                 logger.info('Parameter set was not identified for reconciliation, using parameter set: "%s"' % parset_name)
             except:
                 raise OptimaException('No valid parameter sets exist within the project')
+
+        # If a progset is provided, it is assumed temporary and a reference is implanted into the current project to be deleted after reconciliation.
+        # TODO: Make Project.reconcile() and similar methods much more aligned in handling parsets/progsets by label or by reference.
+        link_progset_temporarily = False
+        temp_progset_name = ''
+        if not progset is None:
+            link_progset_temporarily = True
+            k = -1
+            while link_progset_temporarily:
+                if k == -1: temp_progset_name = progset.name
+                elif k == 0: temp_progset_name = 'temp'
+                else: temp_progset_name = 'temp' + str(k)
+                if not temp_progset_name in self.progsets:
+                    self.progsets[temp_progset_name] = progset
+                    progset_name = temp_progset_name
+                    break
+                k += 1
 
         if progset_name is None:
             try:
@@ -227,11 +247,22 @@ class Project(object):
         logger.info('Reconciling progset "%s" as overwrite is set as "%s"' % (progset_name, overwrite))
 
         # Run reconcile functionality
-        self.progsets[progset_name] = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
-                                                    parset_name=parset_name, progset_name=progset_name,
-                                                    unitcost_sigma=unitcost_sigma, attribute_sigma=attribute_sigma,
-                                                    impact_pars=impact_pars, orig_tvec_end=orig_tvec_end,
-                                                    budget_allocation=budget_allocation)
+        reconciled_progset, reconciled_output = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
+                                                                parset_name=parset_name, progset_name=progset_name, sigma_dict=sigma_dict,
+                                                                unitcost_sigma=unitcost_sigma, budget_sigma=budget_sigma, attribute_sigma=attribute_sigma,
+                                                                impact_pars=impact_pars, orig_tvec_end=orig_tvec_end,
+                                                                budget_allocation=budget_allocation, constrain_budget=constrain_budget, max_time=max_time)
+
+        if save_progset:
+            self.progsets[progset_name] = reconciled_progset
+
+        # Deletes temporary progset reference.
+        if link_progset_temporarily:
+            del self.progsets[temp_progset_name]
+            try: del self.progsets[progset_name]    # In case overwrite is False delete the 'reconcile' version of the temp progset. TODO: Rethink all the logic.
+            except: pass
+
+        return reconciled_progset, reconciled_output
 
 
     def compareOutcomes(self, parset_name=None, progset_name=None, budget_allocation=None, year=2017):
@@ -469,7 +500,8 @@ class Project(object):
         logger.info("Running scenarios: ")
 
         if include_bau:
-            results[bau_label] = self.runSim(parset_name=original_parset_name, progset=orig_progset, options=original_budget_options, plot=plot)
+#             results[bau_label] = self.runSim(parset_name=original_parset_name, progset=orig_progset, options=original_budget_options, plot=plot)
+            results[bau_label] = self.runSim(parset_name=original_parset_name, plot=plot)
             logger.info("Completed scenario case: %s" % bau_label)
 
 

@@ -46,8 +46,14 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
             s = _calculateFitscore(y_obs, y_fit, metric)
             #logger.debug("---- for values obs = "+' '.join("%.2f"%ii for ii in y_obs)+" and yfit = "+' '.join("%.2f"%ii for ii in y_fit))
             #logger.debug("-------- calc fit score = %s"%' '.join("%.2f"%ii for ii in s))
-            score.append(s)
-    
+            if 'pops_to_fit' in obs_data[char] and not pop in obs_data[char]['pops_to_fit']:
+                score.append(s*0.0)     # TODO: There must be an easier way to avoid fit calculations for deselected populations.
+            else:
+#                print y_obs
+#                print y_fit
+                score.append(s)
+#        print obs_data[char]['pops_to_fit']
+#    print score
     return np.concatenate(score).ravel()
     
 def _getFitscoreFunc(metric):
@@ -156,15 +162,15 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     logger.info("Autofit: calibration settings = %s"%calibration_settings)
     metric = project.settings.fit_metric
     # setup for cascade parameters
-    paramvec,minmax,par_pop_labels = paramset.extract(getMinMax=True,getYFactor=useYFactor)  # array representation of initial values for p0, with bounds
+    paramvec,minmax,par_pop_labels = paramset.extract(settings=project.settings,getMinMax=True,getYFactor=useYFactor)  # array representation of initial values for p0, with bounds
     # setup for characteristics
     compartment_init,charac_pop_labels = paramset.extractEntryPoints(project.settings,useInitCompartments=useInitCompartments)
     # min maxes for compartments are always (0,np.inf):
     charac_minmax = [(0,np.inf) for i in charac_pop_labels]
     minmax += charac_minmax
     
-    print par_pop_labels
-    print charac_pop_labels
+#    print par_pop_labels
+#    print charac_pop_labels
     
     
     if len(paramvec)+len(compartment_init) == 0:
@@ -174,19 +180,25 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
     sample_param = dcp(paramset)   # ParameterSet created just to be overwritten
     sample_param.name = "calibrating"
     
-    print mins
-    print maxs
+#    print mins
+#    print maxs
     
     if target_characs is None: 
         # if no targets characteristics are supplied, then we autofit to all characteristics 
-        target_data_characs = project.data['characs']
+        target_data_characs = dcp(project.data['characs'])
+        for label in target_data_characs.keys():
+            target_data_characs[label]['pops_to_fit'] = {pop_label:True for pop_label in paramset.pop_labels}
         logger.info("Autofit: fitting to all characteristics")
     else:
         target_data_characs = odict()
         for pair in target_characs:
-            target_data_characs[pair[0]] = project.data['characs'][pair[0]]
+            if not pair[0] in target_data_characs:
+                target_data_characs[pair[0]] = dcp(project.data['characs'][pair[0]])
+            if 'pops_to_fit' not in target_data_characs[pair[0]]:
+                target_data_characs[pair[0]]['pops_to_fit'] = {}
+            target_data_characs[pair[0]]['pops_to_fit'][pair[1]] = True
         logger.info("Autofit: fitting to the following target characteristics = [%s]"%(",".join(target_data_characs.keys())))
-    print target_data_characs.keys()
+    print target_characs
     
     def calculateObjective(parvec_and_characs):
         '''
@@ -197,13 +209,15 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
 #        sample_param.updateParameters(parvec_est, par_pop_labels, isYFactor=useYFactor)
 #        characs_est = parvec_and_characs[len_parvec:]
 #        sample_param.updateCharacteristics(characs_est, charac_pop_labels, isYFactor=useYFactor)
+#        print list(parvec_and_characs)
+#        print par_pop_labels+charac_pop_labels
         sample_param.update(parvec_and_characs, par_pop_labels+charac_pop_labels, isYFactor=useYFactor)
         try: results = project.runSim(parset = sample_param, store_results = False)
         except:
             logger.warning("Autocalibration tested a parameter set that was invalid. Skipping iteration.")
             return np.inf
         datapoints, _, _ = results.getCharacteristicDatapoints()
-        score = calculateFitFunc(datapoints,results.t_observed_data,target_data_characs,metric)
+        score = calculateFitFunc(datapoints,results.t_step,target_data_characs,metric)
         try: score = sum(score)
         except: pass
         return score
