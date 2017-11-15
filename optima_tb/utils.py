@@ -461,7 +461,8 @@ class SimInt:
 
     # returns the number of years contained (rounded up) by this data structure or from any given starting point in time
     def numCycles(self, start=None):
+        # NOTE: typecasting for this matter is superfluous in python 3.x
         if start == None:
-            return int(np.ceil(self.length() / self.step))
+            return int(np.ceil(float(self.length()) / float(self.step)))
         else:
-            return int(np.ceil((self.stop - start) / self.step))
+            return int(np.ceil((float(self.stop - start)) / float(self.step)))
