@@ -66,8 +66,8 @@ class Settings(object):
         # Separate autofit and optimization parameters so that can use the asd algorithm
         # with different settings.
         self.autofit_params = self.resetCalibrationParameters()
-        self.optimization_params = self.resetCalibrationParameters()
-
+        self.optimization_params = self.resetOptimizationParameters()
+        self.parallel_optimization_params = self.resetOptimizationParameters()
         # Settings for databooks / spreadsheets / workbooks / cascades:
         self.loadCascadeSettings(cascade_path)
         self.initCustomDatabookFramework()  # Creates self.countrybook.
@@ -133,7 +133,7 @@ class Settings(object):
     def resetCalibrationParameters(self):
         """
         Sets calibration parameters for use in ASD algorithm, 
-        which is used for autofitting the calibration and running optimizations
+        which is used for autofitting the calibration.
         For full list of calibration parameters, see asd.py > asd() function signature.
         """
         calibration = odict()
@@ -146,7 +146,29 @@ class Settings(object):
         calibration['fulloutput'] = False
 
         calibration['useYFactor'] = True
-        calibration['useInitCompartments'] = True
+#         calibration['useInitCompartments'] = True
+
+        return calibration
+
+    def resetOptimizationParameters(self):
+        """
+        Sets calibration parameters for use in ASD algorithm, 
+        which is used for running optimizations
+        For full list of calibration parameters, see asd.py > asd() function signature.
+        """
+        calibration = odict()
+        calibration['stepsize'] = 0.1
+        calibration['maxiters'] = 2000
+        calibration['maxtime'] = 3600.  # Time in seconds.
+        calibration['reltol'] = 1e-3
+        calibration['sinc'] = 2.
+        calibration['sdec'] = 2.
+        calibration['fulloutput'] = True
+        calibration['num_threads'] = 4
+        calibration['block_iter'] = 10
+        calibration['max_blocks'] = 10
+#         calibration['useYFactor'] = True
+#         calibration['useInitCompartments'] = True
 
         return calibration
 

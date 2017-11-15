@@ -154,7 +154,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
 
         t = tic()
         results = runModel(settings=settings, parset=parset, progset=progset, options=options_iter)
-        logging.info(toc(t))
+        logging.debug("toc = %g" % toc(t))
 
     if 'previous_results' in algorithm_refs:
         algorithm_refs['previous_results'] = dcp(results)   # Store the new results for the next iteration.
@@ -182,7 +182,7 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
 #             logging.debug(results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight)
 #             logging.debug("getValueAt")
 #             logging.debug(results.getValueAt(label=objective_label, year_init=options['objectives'][objective_label]['year']) * weight)
-
+#             logging.info("Obj label = %s, eval = %.2f" % (objective_label, results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight))
             objective += results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight
         # Handle the default objective that wants to know a cumulative value. Timestep scaling is done inside Results.getValueAt().
         else:
@@ -190,12 +190,12 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
 #                objective += sum(results.outputs[objective_label][pop_label][index_start:]) * results.dt * weight
             objective += results.getValuesAt(label=objective_label, year_init=options['progs_start'], year_end=settings.tvec_end, integrated=True)[0][0] * weight
 
-#    logging.debug( objective)
+#     logging.info(objective)
 
     return objective
 
 
-def optimizeFunc(settings, parset, progset, options=None, max_iter=500, outputqueue=None, thread=None, randseed=None, maxtime=None):
+def optimizeFunc(settings, parset, progset, options=None, outputqueue=None, thread=None, randseed=None, **optimization_params):
 
     if options is None:
         logger.warn("An options dictionary was not supplied for optimisation. A default one will be constructed.")
@@ -292,7 +292,7 @@ def optimizeFunc(settings, parset, progset, options=None, max_iter=500, outputqu
     algorithm_refs['previous_alloc'] = dcp(alloc)
 
     alloc = dcp(constrainAllocation(alloc=alloc, settings=settings, options=options, algorithm_refs=algorithm_refs))
-    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, maxiters=max_iter, reltol=None, randseed=randseed, maxtime=maxtime)# , xmin=xmin, maxtime=maxtime, maxiters=maxiters, verbose=verbose, randseed=randseed, label=thislabel, **kwargs)
+    alloc_new, obj_vals, exit_reason = asd(calculateObjective, alloc, args=args, randseed=randseed, **optimization_params)
     alloc_new = dcp(constrainAllocation(alloc=alloc_new, settings=settings, options=options, algorithm_refs=algorithm_refs))
 
     # Makes sure allocation is returned in dictionary format.
@@ -313,8 +313,8 @@ def optimizeFunc(settings, parset, progset, options=None, max_iter=500, outputqu
 
 
 def parallelOptimizeFunc(settings, parset, progset, options=None, num_threads=4,
-                         block_iter=10, max_blocks=10, max_iter=None, doplot=False,
-                         fullfval=False, randseed=None, maxtime=None):
+                         block_iter=10, max_blocks=10, doplot=False,
+                         fullfval=False, randseed=None, **parallel_optimization_params):
     '''
     Same as optimizeFunc, excepts runs in multiple threads in small blocks.
     
@@ -360,8 +360,10 @@ def parallelOptimizeFunc(settings, parset, progset, options=None, num_threads=4,
     # Handle inputs
     if options is None:
         options = defaultOptimOptions(settings=settings, progset=progset)
-    if max_iter is not None:
-        block_iter = np.floor(max_iter / float(max_blocks)) # Calculate block_iter from max_iter, if supplied
+
+    if block_iter is None and max_iters is not None and max_blocks is not None:
+        logging.info("Parallel optimization: block_iter was not specified; calculating it from max_ters and max_blocks")
+        block_iter = np.floor(max_iters / float(max_blocks)) # Calculate block_iter from max_iter, if supplied
 
     # Crucial step that ensures an original allocation is always stored, regardless of initial allocation changes per block.
     if 'orig_alloc' not in options:
@@ -385,8 +387,8 @@ def parallelOptimizeFunc(settings, parset, progset, options=None, num_threads=4,
         for thread in range(num_threads):
             if randseed is None:
                 randseed = (block + 1) * int((time() - np.floor(time())) * 1e7) # Get a random number based on both the time and the thread
-            args = (settings, parset, progset, options, block_iter, outputqueue, thread, randseed, maxtime)
-            prc = Process(target=optimizeFunc, args=args)
+            args = (settings, parset, progset, options, outputqueue, thread, randseed)
+            prc = Process(target=optimizeFunc, args=args, kwargs=parallel_optimization_params)
             prc.start()
             processes.append(prc)
 
@@ -402,11 +404,19 @@ def parallelOptimizeFunc(settings, parset, progset, options=None, num_threads=4,
         bestfvalind = None
 
         for i in range(num_threads):
-            fvalarray[i, block * block_iter:(block + 1) * block_iter] = outputlist[i][1][-block_iter:] # in case the first timestep is included
             thisbestval = outputlist[i][1][-1]
             if thisbestval < bestfvalval:
                 bestfvalval = thisbestval
                 bestfvalind = i
+            tmp_fval = outputlist[i][1][-block_iter:]
+            if len(tmp_fval) < block_iter:
+                # we could use other values, i.e. nan, but if a thread ends because it has stopped decreasing
+                # then we should use the last known value
+                logging.warn("Padding feval output with last value")
+                tmp_fval = np.concatenate((tmp_fval , np.array([thisbestval] * (block_iter - len(tmp_fval)))))
+            fvalarray[i, block * block_iter:(block + 1) * block_iter] = tmp_fval # in case the first timestep is included
+
+
 
         options['init_alloc'] = outputlist[bestfvalind][0] # Update the budget and use it as the input for the next block -- this is key!
 
