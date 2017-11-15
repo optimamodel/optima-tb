@@ -4,6 +4,28 @@ from optima_tb.utils import *
 from scipy.interpolate import PchipInterpolator
 import os, pickle
 from copy import deepcopy as dcp
+import numpy as np
+
+
+class BudgetOutcomeCurve:
+    def __init__(self, pchip):
+        self._pfun = pchip
+        self._pder = pchip.derivatie(1)
+        self._xshift = 0.
+        self._yshift = 0.
+
+    def __call__(self, x):
+        return self.eval(x)
+
+    def eval(self, x):
+        return self._pfun(x - self._xshift) + self._yshift
+
+    def deriv(self, x):
+        return self._pder(x - self._xshift) + self._yshift
+
+    def shift(self, left, down):
+        self._xshift += left
+        self._yshift -= down
 
 
 class GeospatialOptimization:
@@ -101,7 +123,7 @@ class GeospatialOptimization:
         Calculate the budget-outcome-curves from the budget-outcome samples
         """
         for region in sorted(self._BO.keys()):
-            self.BOC[region] = PchipInterpolator(self._budgetScalings, self._BO[region])
+            self._BOC[region] = BudgetOutcomeCurve(PchipInterpolator(self._budgetScalings, self._BO[region]))
 
     def _getBOCderivatives(self, currentRegionalSpending, extraFunds):
         from numpy import linspace
@@ -113,6 +135,7 @@ class GeospatialOptimization:
         # regions are stored w.r.t. the region label, not the index. create a mapping which associates an index to the
         # corresponding label
         idx2region = dict(zip(range(len(self._BO.keys())), sorted(self._BO.keys())))
+
         # calculate cost effectiveness vectors for each region
         for regionIdx in range(numRegions):
             if extraFunds:  # only consider additional funds
@@ -146,6 +169,7 @@ class GeospatialOptimization:
     def getGAResults(self):
         """
         Retrieve the geospatial optimisation result.
+
         :return: dict with the optimal spendings per region and the corresponding outcome per region
         """
         if 'opt_alloc' not in self._opt:
@@ -166,6 +190,7 @@ class GeospatialOptimization:
     def _optimizeInterventions(self, opt_budgets):
         """
         Optimise the spendings on interventions for a given budget.
+
         :param opt_budgets: Budget for which the spendings are optimised
         """
         # perform optimisation for each region
@@ -184,6 +209,7 @@ class GeospatialOptimization:
     def runFromScratch(self, total_national_budget, budget_scalings, BO_file=None):
         """
         Run the geospatial analyses without precomputed budget-outcome samples.
+
         :param total_national_budget: total budget which is to be distributed among the regions
         :param budget_scalings: list of budget scaling factors which is used to computed budget-outcome samples
         :param BO_file: If not None, the budget-outcome samples along with the budget_scalings are written to that file
@@ -195,6 +221,7 @@ class GeospatialOptimization:
     def runWithBOC(self, total_national_budget, BO_file):
         """
         Run the geospatial analyses using previously computed budget-outcome samples.
+
         :param total_national_budget: total budget which is to be distributed among the regions
         :param BO_file: Filename from which the budget-outcome samples are loaded
         """
@@ -205,6 +232,7 @@ class GeospatialOptimization:
     def _optimize(self, total_national_budget):
         """
         Determine the optimal spending per region and then optimise the spendings per region
+
         :param total_national_budget: total budget which is to be distributed among the regions
         """
         logger.info('Computing budget-outcome-curves..')
@@ -279,6 +307,7 @@ class GeospatialOptimization:
     def _scaleBudget(self, scaling, options):
         """
         Scale all values in the options-dict by scaling which relate to the budget.
+
         :param scaling: float to scale the budget
         :param options: dict which contains budget allocation information
         :return: options-dict with scaled budget
