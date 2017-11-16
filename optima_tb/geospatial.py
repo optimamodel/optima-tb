@@ -35,41 +35,30 @@ class GeospatialOptimization:
     needs to be called for the actual optimisation.
     """
 
-    def __init__(self, cascade_path, region_spreadsheets, region_names, obj_labels, I, pars_interp_num=None):
+    def __init__(self, proj, obj_labels):
         """
-
-        :param cascade_path: filename of the cascade spreadsheet. All regions use the same cascade structure
-        :param region_spreadsheets: list of filenames which contain the data about each region
-        :param region_names: list of names/labels for the regions.
+        :param proj: Project for the geospatial optimisation
         :param obj_labels: list of parameter labels which is used to measure the outcome
         :param I: Simulation interval (SimInt object) of the geospatial optimisation
         :param pars_interp_num: List of labels (or None) of parameters which have to be reinterpreted as numbers
         """
-        # sanity checks:
-        # region_spreadsheets, region_names and obj_labels must be lists
-        if not isinstance(region_spreadsheets, list):
-            region_spreadsheets = [region_spreadsheets]
-        if not isinstance(region_names, list):
-            region_names = [region_names]
+        # sanity checks: obj_labels must be lists
         if not isinstance(obj_labels, list):
             obj_labels = [obj_labels]
 
-        # number of spreadsheets must coincide with the number of names provided
-        assert(len(region_spreadsheets) == len(region_names))
-
         # setup project and corresponding programs
-        self._proj = Project('geo_analysis', cascade_path, I, pars_interp_num)
+        self._proj = dcp(proj)
 
         # initialise options for each region and set objective values
         self._opt = {}
-        for rname, rpath in zip(region_names, region_spreadsheets):
-            self._proj.addRegion(rpath, rname) # create parameters for the model and setup programs
-            self._opt[rname] = defaultOptimOptions(self._proj.settings, self._proj.progsets[rname], I.start)
+        for rname in self._proj.progsets:
+            self._opt[rname] = \
+                defaultOptimOptions(self._proj.settings, self._proj.progsets[rname], self._proj.settings.tvec_start)
             for obj in obj_labels:
                 self._opt[rname]['objectives'].clear()
                 # currently only minimisation implemented; for maximisation, a way to pass a weight for the dict below
                 # has to be implemented
-                self._opt[rname]['objectives'][obj] = {'weight': 1., 'year': I.stop}
+                self._opt[rname]['objectives'][obj] = {'weight': 1., 'year': self._proj.settings.tvec_end}
 
         # define class members:
         # - defines how the default budget is scaled for the budget outcome samples.
@@ -172,12 +161,6 @@ class GeospatialOptimization:
             outcome[region] = self._outcome[region]
 
         return alloc, outcome
-
-    def getParSet(self):
-        return self._proj.parsets['default']
-
-    def getProject(self):
-        return self._proj
 
     def _getSpendingsPerRegion(self, budget):
         """

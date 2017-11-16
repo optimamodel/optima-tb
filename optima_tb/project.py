@@ -52,11 +52,11 @@ class Project(object):
         logger.info("Created project: %s" % self.name)
 
 
-    def addParset(self, databook_path, name):
+    def addParset(self, databook_path, label):
         self.loadSpreadsheet(databook_path)
-        self.makeParset(name)
+        self.makeParset(label)
         if self.pars_interp_num is not None:
-            self._interpretValueAsNumber(name)
+            self._interpretValueAsNumber(label)
 
 
     def addParsets(self, databook_paths, names):
