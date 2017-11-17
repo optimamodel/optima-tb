@@ -55,7 +55,7 @@ class Project(object):
     def addParset(self, databook_path, label):
         self.loadSpreadsheet(databook_path)
         self.makeParset(label)
-        if self.pars_interp_num is not None:
+        if self._pars_interp_num is not None:
             self._interpretValueAsNumber(label)
 
 
@@ -72,8 +72,8 @@ class Project(object):
             self.addParset(*args)
 
 
-    def addRegion(self, data_book_path, name):
-        self.addParset(data_book_path, name)
+    def addRegion(self, databook_path, name):
+        self.addParset(databook_path, name)
         self.makeProgset(name)
 
     # I: SimInt-type specifying the simulation interval
@@ -84,7 +84,7 @@ class Project(object):
         self.settings.tvec_start = I.start
         self.settings.tvec_observed_end = I.stop
         self.settings.tvec_end = I.stop
-        self.pars_interp_num = special_labels
+        self._pars_interp_num = special_labels
 
     # forces the result of a function evaluation to be interpreted as number not as fraction:
     # parset_lebel: label of the parset to which the modifications are applied
@@ -98,7 +98,7 @@ class Project(object):
 
         # force the transitions from the birth compartments to be interpreted as 'number', not as 'fraction'
         for pop in parset.pop_labels:
-            for label in self.pars_interp_num:
+            for label in self._pars_interp_num:
                 parset.getPar(label).y_format[pop] = 'number'
 
 
@@ -246,6 +246,7 @@ class Project(object):
         if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
         self.parsets[name] = ParameterSet(name=name)
         self.parsets[name].makePars(self.data)
+        self._interpretValueAsNumber(name)
 
     def makeProgset(self, name='default'):
         ''' Transform project data into a set of programs that can be used in budget scenarios and optimisations. '''

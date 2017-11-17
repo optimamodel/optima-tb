@@ -2,28 +2,62 @@ from optima_tb.defaults import defaultOptimOptions
 from optima_tb.project import Project
 from optima_tb.utils import *
 from scipy.interpolate import PchipInterpolator
-import os, pickle
+import pickle
 from copy import deepcopy as dcp
-import numpy as np
 
 
 class BudgetOutcomeCurve:
+    """
+    Represents a piecewise cubic hermite interpolating polynomial (pchip) which is used in the grid search algorithm. It
+    contains the function itself but also its first derivative and functionality to shift the function
+    up/down/left/right.
+    """
+
     def __init__(self, pchip):
-        self._pfun = pchip
-        self._pder = pchip.derivatie(1)
+        """
+        :param: PchipInterpolator(scipy.interpolate.pchip)
+        """
+        # store the interpolated polynomial
+        self._pfun = dcp(pchip)
+        # store the first derivative of the interpolated polynomial
+        self._pder = self._pfun.derivative(1)
+        # initial shifts: none
         self._xshift = 0.
         self._yshift = 0.
 
     def __call__(self, x):
+        """
+        Shorthand for function evaluation at point x including previous shifts.
+        :param x: float
+        :return: Function value of the interpolated polynomial
+        """
         return self.eval(x)
 
     def eval(self, x):
+        """
+        Evaluates the interpolated polynomial at point x including previous shifts.
+
+        :param x: float
+        :return: Function value of the interpolated polynomial
+        """
         return self._pfun(x - self._xshift) + self._yshift
 
     def deriv(self, x):
+        """
+        Evaluates the first derivative of the interpolated polynomial at point x including previous shifts.
+
+        :param x: float
+        :return: Function value of the first derivative of the interpolated polynomial
+        """
         return self._pder(x - self._xshift) + self._yshift
 
     def shift(self, left, down):
+        """
+        Shifts the interpolated polynomial and its derivative left and down. All shifts are cumulative!
+
+        :param left: float which shifts the curve to the left (i.e. negative value shifts it to the right)
+        :param down: float which shifts the curve down (i.e. negative value shifts it up)
+        """
         self._xshift += left
         self._yshift -= down
 
@@ -150,7 +184,7 @@ class GeospatialOptimization:
 
         :return: dict with the optimal spendings per region and the corresponding outcome per region
         """
-        if 'opt_alloc' not in self._opt:
+        if not self._outcome:
             raise OptimaException(('No results computed. Call runFromScratch() or runWithBO()'
                                    'before calling getGAResults!'))
 
