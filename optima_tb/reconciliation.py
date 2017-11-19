@@ -634,9 +634,9 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
             else: del par_attributes[popkey[par_label]]
     ###############################################################################
     
-    proposed_dict = regenerateAttributesDict(new_attributes, attribute_dict)
-    try: print proposed_dict['MDR-TB']
-    except: pass
+#    proposed_dict = regenerateAttributesDict(new_attributes, attribute_dict)
+#    try: print proposed_dict['MDR-TB']
+#    except: pass
     
     # #Create a single comparison dictionary
     impact = odict()
@@ -651,14 +651,14 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
             temp_progset_impact = prog_attributes[popkey][par_label]['Coverage Cap Impact Value']
             extra_metric = prog_attributes[popkey][par_label]['Extra Metric']
             difference = extra_metric + (temp_parset_impact - temp_progset_impact) ** 2
-            if par_label in ['spmyes_rate','spmno_rate','spmsuc_rate']:
-                if not popkey.startswith('Pris'):
-                    print popkey
-                    print par_label
-                    print temp_parset_impact
-                    print temp_progset_impact
-                    print difference
-                    print
+#            if par_label in ['spmyes_rate','spmno_rate','spmsuc_rate']:
+#                if not popkey.startswith('Pris'):
+#                    print popkey
+#                    print par_label
+#                    print temp_parset_impact
+#                    print temp_progset_impact
+#                    print difference
+#                    print
             if np.isnan(difference): difference = np.inf
             impact[par_label][popkey] = {'Impact Difference': difference}
             impact['net_difference'] += difference
