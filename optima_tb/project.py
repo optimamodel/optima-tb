@@ -531,7 +531,7 @@ class Project(object):
 
 #         logger.info(run_scenario_names)
         for scen in self.scenarios.keys():
-            scen_name = 'scenario_%s' % self.scenarios[scen].name
+            scen_name = '%s' % self.scenarios[scen].name
             if (run_scenario_names is not None and self.scenarios[scen].name in run_scenario_names) or (run_scenario_names is None and self.scenarios[scen].run_scenario):
                 progset, budget_options = self.scenarios[scen].getScenarioProgset(orig_progset, original_budget_options)
                 logger.info("Starting scenario case: %s" % scen_name)
