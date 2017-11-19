@@ -994,7 +994,7 @@ class Model(object):
                 for par in pars:
 
                     year_check = 2015   # Hard-coded check.
-                    par_check = ['spdyes_rate']#['spdsuc_rate','spdno_rate']
+                    par_check = ['spmyes_rate']#['spdsuc_rate','spdno_rate']
                     if par_label in par_check:
                         if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
                             print('Year: %s' % self.sim_settings['tvec'][ti])

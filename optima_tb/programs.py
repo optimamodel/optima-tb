@@ -160,7 +160,7 @@ class Program:
                 else:
                     new_val = scaling_factor*val_dict[attribute][k]
                 val_dict[attribute][k] = new_val
-                logging.info('Inserted/replaced value "%f" at year "%f" for attribute "%s" of program "%s"' % (new_val, t_val, attribute, self.label))
+#                logging.info('Inserted/replaced value "%f" at year "%f" for attribute "%s" of program "%s"' % (new_val, t_val, attribute, self.label))
             k += 1
         
         if value_replacement: return    # No need to continue and append new values if the target year exists.
