@@ -810,7 +810,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
     if plot_type is None:
         plot_type = PLOTTYPE_LINE
 
-    print "compare_type = ", compare_type
+    logging.debug("compare_type = " + compare_type)
     if compare_type == COMPARETYPE_RESULT:
         series_labels = resultset.keys()
     elif compare_type == COMPARETYPE_VALUE:
@@ -824,7 +824,6 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         logger.info("Plotting: compare_type not specified, assuming comparing populations")
         raise OptimaException("Unknown compare_type for plotting: %s" % compare_type)
 #         series_labels = pop_labels
-    print "series_labels = ", series_labels
 
     if observed_data_label is None:
         observed_data_label = output_labels[0]
@@ -1443,7 +1442,6 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
     """
     dataobs = None
     data = proj.data
-    print value_label
 
     data_locations = ['characs', 'linkpars']
     for data_loc in data_locations:
@@ -1584,7 +1582,7 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
          
         
     """
-    print "Xlim = ", xlim
+    logging.debug("Xlim = ", xlim)
     if len(ys) == 0:
         logging.error("No values supplied; cannot plot")
         raise OptimaException("No values supplied; cannot plot")
@@ -1711,7 +1709,7 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
     ax.set_ylim(ymin=0)
     ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
 
-    print "now xlim = ", xlim
+
     # overwrite with specified choice
     if ylim is not None:
         ax.set_ylim(ylim)
