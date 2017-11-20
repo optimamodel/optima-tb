@@ -477,11 +477,31 @@ class PlottingSettings():
 
     def printSettings(self):
 
-        pl.rcParams['figure.figsize'] = (15, 10)
+        pl.rcParams['figure.figsize'] = (9, 7)
         pl.rcParams['savefig.dpi'] = 200
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
+        pl.rcParams['font.size'] = 14
+        pl.rcParams['lines.linewidth'] = 4
+
         self.plotdict['legend_off'] = False
         self.plotdict['use_full_labels'] = True
+        self.plotdict['title'] = ''  # No title when we have presentation quality
+
+
+        pl.rcParams['axes.linewidth'] = 3
+        pl.rcParams['axes.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['axes.titlesize'] = pl.rcParams['font.size']
+
+        pl.rcParams['xtick.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['xtick.major.size'] = 3
+        pl.rcParams['xtick.minor.size'] = 0
+        pl.rcParams['xtick.major.width'] = 2
+        pl.rcParams['xtick.minor.width'] = 0
+        pl.rcParams['ytick.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['ytick.major.size'] = 3
+        pl.rcParams['ytick.minor.size'] = 0
+        pl.rcParams['ytick.major.width'] = 2
+        pl.rcParams['ytick.minor.width'] = 0
 
     def presentationSettings(self):
         pl.rcParams['font.size'] = 14
@@ -508,7 +528,7 @@ class PlottingSettings():
 
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
 
-        self.plotdict['legend_off'] = True
+        self.plotdict['legend_off'] = True # plots separate legend
         self.plotdict['title'] = ''  # No title when we have presentation quality
         self.plotdict['num_cols'] = 1
         self.plotdict['use_full_labels'] = True
