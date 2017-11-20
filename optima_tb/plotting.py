@@ -413,6 +413,7 @@ def _turnOffBorder():
 def plotResult(proj, result, output_labels=None, pop_labels=None,
                plot_total=False, plot_type=None, plot_relative=None,
                plot_observed_data=True, observed_data_label=None,
+               plot_ybounds=None,
                colormappings=None, colors=None, linestyles=None,
                title=None, save_fig=False, fig_name=None, **kwargs):
     """
@@ -485,6 +486,7 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
         fig = innerPlotTrend(proj, [result], [out_label], compare_type=COMPARETYPE_POP, pop_labels=pop_labels,
                              plot_total=plot_total, plot_type=plot_type, plot_relative=plot_relative,
                              plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
+                             plot_ybounds=plot_ybounds,
                              colormappings=colormappings, colors=colors, linestyles=linestyles,
                              title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
     return fig # return last fig handle
@@ -748,7 +750,7 @@ def plotPopulationCrossSectionBar(proj, results, output_labels, pop_labels=None,
 def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
                    compare_type=None, plot_total=False, plot_type=None,
                    plot_observed_data=True, observed_data_label=None,
-                   plot_relative=None,
+                   plot_relative=None, plot_ybounds=None,
                    colormappings=None, colors=None, linestyles=None, cat_labels=None,
                    title=None, save_fig=False, fig_name=None, **kwargs):
     """
@@ -902,6 +904,25 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         ys *= 100
         fullname = fullname + relative_tag
         unit_tag = ' (%)' # TODO get rid of magic variable
+
+    if plot_ybounds is not None:
+        # it should be a tuple with either (label_low, label_high) or (data_years, data_low, data_high)
+        if len(plot_ybounds) == 3:
+            tmp_plotdict['y_bounds'] = plot_ybounds
+        elif len(plot_ybounds) == 2:
+            dataobs_yrs, dataobs_low = _extractDatapoint(result, proj, plot_ybounds[0], pop_labels, charac_specs, plot_total=plot_total)
+            _, dataobs_high = _extractDatapoint(result, proj, plot_ybounds[1], pop_labels, charac_specs, plot_total=plot_total)
+            # Cleaning data structures ...
+            dataobs_low = dataobs_low[0]
+            dataobs_high = dataobs_high[0]
+            # and removing nan values
+            dataobs_yrs = dataobs_yrs[~np.isnan(dataobs_low)]
+            dataobs_low = dataobs_low[~np.isnan(dataobs_low)]
+            dataobs_high = dataobs_high[~np.isnan(dataobs_high)]
+            tmp_plotdict['y_bounds'] = (dataobs_yrs, dataobs_low, dataobs_high)
+        else:
+            raise OptimaException("Unknown format for ybounds:" , plot_ybounds)
+
 
     # setup for plot:
     final_dict = {
@@ -1438,6 +1459,7 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
         if plot_total:
             ys = np.array(ys)
             ys = [ys.sum(axis=0)]
+            ts = ts[0]
 #         print "A-return"
     except:
         if value_label in data['characs'].keys():
@@ -1663,7 +1685,11 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
 
         # if there are confidence bounds provided, plot using fill_between
         if y_bounds is not None:
-            t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2]
+            try:
+                t_bound, y_min_bound, y_max_bound = y_bounds[0], y_bounds[1], y_bounds[2]
+            except:
+                t_bound, y_min_bound, y_max_bound = zip(*y_bounds[k])[0] , zip(*y_bounds[k])[1] , zip(*y_bounds[k])[2]
+#                 t_bound, y_min_bound, y_max_bound = zip(y_bounds[k])[0] , zip(y_bounds[k])[1] , zip(y_bounds[k])[2]
             ax.fill_between(t_bound, y_min_bound, y_max_bound, facecolor=colors[k], alpha=alpha, linewidth=0.1, edgecolor=colors[k])
 
         # smooth the value
