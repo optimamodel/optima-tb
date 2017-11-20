@@ -1913,6 +1913,8 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
 
     if formatter is not None:
         ax.yaxis.set_major_formatter(formatter)
+    else:
+        ax.get_yaxis().get_major_formatter().set_scientific(False)
 
     print x_ticks
     print xlabels
