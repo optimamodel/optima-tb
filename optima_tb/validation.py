@@ -78,11 +78,14 @@ def checkNegativePopulation(model,msettings,dpopsizes,dpop_out,ti,dt,validationS
                 #logging.debug("%g %g %g"%(did, pops[pid].comps[cid].popsize[ti+1] , dpopsizes[did]))
                 
                 # if not, then either thrown an OptimaException or warn, as required
-                if pops[pid].comps[cid].popsize[ti+1] + dpopsizes[did] < 0.:
-                    
-                    warning = "Negative value encountered for: population=%g, cid=%g, t=%g : value = %g, dpop = %g"%(pid,cid,ti,pops[pid].comps[cid].popsize[ti+1],dpopsizes[did])
-                    
-                    if validation_level == settings.VALIDATION_ERROR:
+                diff = pops[pid].comps[cid].popsize[ti + 1] + dpopsizes[did]
+                if diff < 0.:
+                    warning = "Negative value encountered for: population=%s, compartment=%s, t=%g : value = %g, dpop = %g" % (pops[pid].label, pops[pid].comps[cid].label, ti, pops[pid].comps[cid].popsize[ti + 1], dpopsizes[did])
+
+                    if abs(diff) < settings.TOLERANCE:
+                        logging.warn(warning+
+                                     '. But difference is below truncated given tolerance of %f' % settings.TOLERANCE)
+                    elif validation_level == settings.VALIDATION_ERROR:
                         raise OptimaException("ERROR: "+warning)
                     else:
                         logging.warn(warning)

@@ -855,6 +855,9 @@ class Model(object):
                         else:
                             vals[i] = pop.getLinks(settings.linkpar_specs[label]['tag'])[0].vals[ti]
                     new_val = evaluate(specs['f_expr'], local_dict=dict(zip(vars, vals)))
+                    # only apply tolerance threshold to transitions, i.e. the final result of the computation
+                    if 'tag' in settings.linkpar_specs[par_label] and abs(new_val) < project_settings.TOLERANCE:
+                        new_val = 0.
                 else:
                     new_val = pars[0].vals[ti]      # As links are duplicated for the same tag, can pull values from the zeroth one.
 
@@ -1194,21 +1197,6 @@ def buildRelevantProgs(par_label, pop_label, imp_prog_label, progset):
     return sorted(list(rel_prog_label), key=lambda x: x in progset.SOPs)
 
 
-# # obtain program labels which a the pass 'tag'
-# def getProgNamesFromTag(tag, settings, progset):
-#     specs = settings.progtype_specs # just an alias
-#     # extract all program types which have the passed 'tag'
-#     prog_types = filter(lambda x: specs[x]['special'].startswith(tag), specs)
-#
-#     prog_names = {}
-#     # group all programs together by program type in a dict
-#     for pt in prog_types:
-#         # first, filter all programs which are of the required type. second, get the label of programs
-#         prog_names[pt] = [item.label for item in filter(lambda x: x.prog_type == pt, progset.progs)]
-#
-#     return prog_names
-
-
 # if grouping is provided for the program, account for that
 def processGrouping(link, par_label, prog, pops, pop_ids, pop, settings, ti):
     # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
@@ -1304,15 +1292,10 @@ def processScalePropsTag(par_label, settings, pops, pop_ids, progset, prog_vals,
     impacts = []  # impacts are treated as fractions!
     # TODO allow impact numbers, too
 
-    # TODO: extend for the case of multiple types of SOPs and GPs; the lines of code are only meaningful when there is only one or less types of GP and SOP, respectively.
-
     # find all programs of the same type as current one and weigh its impact proportional
     # to the population size before summing up
     rel_progs = progset.impacts[par_label] # all programs impacting considered parameter
-    # gp_progs = getProgNamesFromTag('scale_prop', settings, progset).values()[0] # all GPs
-    # sop_progs = getProgNamesFromTag('supp', settings, progset).values()[0] # all SOPs
 
-    # any(x == _ for _ in gp_progs) checks if the string x is contained in the list of strings gp_progs
     rel_progs = filter(lambda x: x in progset.GPs + progset.SOPs, rel_progs) # remove programs which are not GP or SOP
     rel_progs = filter(lambda x: x in prog_vals, rel_progs) # remove all programs which have no coverage
 

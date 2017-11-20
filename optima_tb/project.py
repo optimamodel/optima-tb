@@ -30,7 +30,7 @@ class Project(object):
     # I is a simulation interval for which the project simulates
     # pars_interp_num is a list of parameter labels which are required to be interpreted as numbers and not as fractions
     # as defaulted by the initialisation
-    def __init__(self, name='default', cascade_path='../data/cascade.xlsx', I=None, pars_interp_num=None, **args):
+    def __init__(self, name='default', cascade_path='../data/cascade.xlsx', si=None, pars_interp_num=None, **args):
         ''' Initialize project. '''
 
         self.name = name
@@ -46,8 +46,8 @@ class Project(object):
         self.scenarios = odict()
 
         # if at least I is provided, a malaria project is initialised
-        if I is not None:
-            self._configProject(I, pars_interp_num)
+        if si is not None:
+            self._configProject(si, pars_interp_num)
 
         logger.info("Created project: %s" % self.name)
 
@@ -79,12 +79,12 @@ class Project(object):
     # I: SimInt-type specifying the simulation interval
     # special_labels: list of labels of parameters which are to be interpreted as number rather than fraction
     # name: name of the parameter/program set which is generated
-    def _configProject(self, I, special_labels=None):
-        self.settings.tvec_dt = 365. / I.step
-        self.settings.tvec_start = I.start
-        self.settings.tvec_observed_end = I.stop
-        self.settings.tvec_end = I.stop
-        self._pars_interp_num = special_labels
+    def _configProject(self, si, special_labels=None):
+        self.settings.tvec_dt = 365. / si.step
+        self.settings.tvec_start = si.start
+        self.settings.tvec_observed_end = si.stop
+        self.settings.tvec_end = si.stop
+        self._pars_interp_num = list(set(special_labels)) # remove doubles
 
     # forces the result of a function evaluation to be interpreted as number not as fraction:
     # parset_lebel: label of the parset to which the modifications are applied

@@ -1,5 +1,4 @@
 from optima_tb.defaults import defaultOptimOptions
-from optima_tb.project import Project
 from optima_tb.utils import *
 from scipy.interpolate import PchipInterpolator
 import pickle
@@ -73,8 +72,6 @@ class GeospatialOptimization:
         """
         :param proj: Project for the geospatial optimisation
         :param obj_labels: list of parameter labels which is used to measure the outcome
-        :param I: Simulation interval (SimInt object) of the geospatial optimisation
-        :param pars_interp_num: List of labels (or None) of parameters which have to be reinterpreted as numbers
         """
         # sanity checks: obj_labels must be lists
         if not isinstance(obj_labels, list):
@@ -105,7 +102,7 @@ class GeospatialOptimization:
         # - optimal outcomes per region
         self._outcome = {}
 
-    def _calculateBudgetOutcomes(self, budget_scaling, filename=None):
+    def _calculateBudgetOutcomes(self, budget_scaling, filename=None, num_iter=5):
         """
         For the given budget scaling factors, determine the spending for the optimal outcome. If filename is not None,
         the results are pickled in to a file for later reference.
@@ -113,6 +110,7 @@ class GeospatialOptimization:
         :param budget_scaling: List of floats. Each number determines how the budget is scaled before the optimal
         resource allocation is computed
         :param filename: Name of the pickle-file in which the results are stored
+        :param num_iter: int which specifies how many runs with asd per region are to be computed
         """
 
         # sanity checks:
@@ -134,11 +132,16 @@ class GeospatialOptimization:
             for scaling in budget_scaling:
                 logger.info('Optimising region \'%s\' with budget scaled by %f' % (region, scaling))
                 opt = self._scaleBudget(scaling, self._opt[region])
-                _, obj_vals, _ = self._proj.optimize(parset_name=region, progset_name=region, options=opt)
-                self._BO[region].append(obj_vals[-1])
+                best = np.inf
+                for it in range(num_iter):
+                    _, obj_vals, _ = self._proj.optimize(parset_name=region, progset_name=region, options=opt)
+                    if best > obj_vals[-1]:
+                        best = obj_vals[-1]
+
+                self._BO[region].append(best)
 
         if filename is not None:
-            logger.info('Saving computed budget outcomes in %s' % (filename))
+            logger.info('Saving computed budget outcomes in %s' % filename)
             self._writeBudgetOutcomesToFile(filename)
 
     def _calculateBudgetOutcomeCurves(self):
@@ -146,7 +149,8 @@ class GeospatialOptimization:
         Calculate the budget-outcome-curves from the budget-outcome samples
         """
         for region in sorted(self._BO.keys()):
-            self._BOC[region] = BudgetOutcomeCurve(PchipInterpolator(self._budgetScalings, self._BO[region]))
+            self._BOC[region] = BudgetOutcomeCurve(PchipInterpolator(
+                [x * self._opt[region]['constraints']['total'] for x in self._budgetScalings], self._BO[region]))
 
     def _getBOCderivatives(self, currentRegionalSpending, extraFunds):
         from numpy import linspace
@@ -212,11 +216,13 @@ class GeospatialOptimization:
             self._BO = pickle.loads(pickle.load(f))
             self._budgetScalings = pickle.loads(pickle.load(f))
 
-    def _optimize(self, total_national_budget):
+    def _optimize(self, total_national_budget, num_iter):
         """
         Determine the optimal spending per region and then optimise the spendings per region
 
         :param total_national_budget: total budget which is to be distributed among the regions
+        :param num_iter: int which specifies how many runs with asd per region are to be computed
+
         """
         logger.info('Computing budget-outcome-curves..')
         self._calculateBudgetOutcomeCurves()
@@ -226,13 +232,14 @@ class GeospatialOptimization:
         opt_regional_budgets = self._runGridSearch(spendings)
 
         logger.info('Computing optimal outcomes based on the optimal budget')
-        self._optimizeInterventions(opt_regional_budgets)
+        self._optimizeInterventions(opt_regional_budgets, num_iter)
 
-    def _optimizeInterventions(self, opt_budgets):
+    def _optimizeInterventions(self, opt_budgets, num_iter):
         """
         Optimise the spendings on interventions for a given budget.
 
         :param opt_budgets: Budget for which the spendings are optimised
+        :param num_iter: int which specifies how many runs with asd per region are to be computed
         """
         # perform optimisation for each region
         for i, region in enumerate(sorted(self._opt.keys())):
@@ -243,32 +250,42 @@ class GeospatialOptimization:
             scaling = new_budget / org_budget
             opt = self._scaleBudget(scaling, self._opt[region])
             # optimize interventions of current region
-            self._opt[region]['opt_alloc'], obj_vals, _ = \
-                self._proj.optimize(parset_name=region, progset_name=region, options=opt)
-            self._outcome[region] = obj_vals[-1]
+            best_val = np.inf
+            best_alloc = {}
+            for it in range(num_iter):
+                alloc, obj_vals, _ = \
+                    self._proj.optimize(parset_name=region, progset_name=region, options=opt)
+                if best_val > obj_vals[-1]:
+                    best_val = obj_vals[-1]
+                    best_alloc = alloc
 
-    def runFromScratch(self, total_national_budget, budget_scalings, BO_file=None):
+            self._opt[region]['opt_alloc'] = best_alloc
+            self._outcome[region] = best_val
+
+    def runFromScratch(self, total_national_budget, budget_scalings, BO_file=None, num_iter=5):
         """
         Run the geospatial analyses without precomputed budget-outcome samples.
 
         :param total_national_budget: total budget which is to be distributed among the regions
         :param budget_scalings: list of budget scaling factors which is used to computed budget-outcome samples
         :param BO_file: If not None, the budget-outcome samples along with the budget_scalings are written to that file
+        :param num_iter: int which specifies how many runs with asd per region are to be computed
         """
         logger.info('Computing budget outcomes:')
-        self._calculateBudgetOutcomes(budget_scalings, BO_file)
-        self._optimize(total_national_budget)
+        self._calculateBudgetOutcomes(budget_scalings, BO_file, num_iter)
+        self._optimize(total_national_budget, num_iter)
 
-    def runWithBOC(self, total_national_budget, BO_file):
+    def runWithBOC(self, total_national_budget, BO_file, num_iter=5):
         """
         Run the geospatial analyses using previously computed budget-outcome samples.
 
         :param total_national_budget: total budget which is to be distributed among the regions
         :param BO_file: Filename from which the budget-outcome samples are loaded
+        :param num_iter: int which specifies how many runs with asd per region are to be computed
         """
         logger.info('Loading budget outcomes..')
         self._loadBudgetOutcomes(BO_file)
-        self._optimize(total_national_budget)
+        self._optimize(total_national_budget, num_iter)
 
     def _runGridSearch(self, currentRegionalSpending, extraFunds=None):
         """ If specified, extraFunds is a scalar value which represents funds to be distributed on top of fixed current
