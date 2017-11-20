@@ -913,8 +913,8 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
             dataobs_yrs, dataobs_low = _extractDatapoint(result, proj, plot_ybounds[0], pop_labels, charac_specs, plot_total=plot_total)
             _, dataobs_high = _extractDatapoint(result, proj, plot_ybounds[1], pop_labels, charac_specs, plot_total=plot_total)
             # Cleaning data structures ...
-            dataobs_low = dataobs_low[0]
-            dataobs_high = dataobs_high[0]
+            dataobs_low = dataobs_low
+            dataobs_high = dataobs_high
             # and removing nan values
             dataobs_yrs = dataobs_yrs[~np.isnan(dataobs_low)]
             dataobs_low = dataobs_low[~np.isnan(dataobs_low)]
@@ -1444,87 +1444,37 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
     dataobs = None
     data = proj.data
     print value_label
-    try:# value_label in proj.parsets[0]:
-#     if True:
-#         print "A"
-        t = results.t_observed_data
 
-        ys = [list(proj.parsets[0].getPar(value_label).interpolate(tvec=t, pop_label=poplabel, extrapolate_nan=True)) for poplabel in pop_labels]
-        ts = [t for poplabel in pop_labels]
-#         print ys
-#         print t
-#         if 'plot_percentage' in charac_specs[value_label].keys():
-#             ys *= 100
+    data_locations = ['characs', 'linkpars']
+    for data_loc in data_locations:
+        if value_label in data[data_loc].keys():
+            break # we've likely identifed where it is
 
-        if plot_total:
-            ys = np.array(ys)
-            ys = [ys.sum(axis=0)]
-            ts = ts[0]
-#         print "A-return"
+    try:
+        ys = [data[data_loc][value_label][poplabel]['y'] for poplabel in pop_labels]
+        ts = [data[data_loc][value_label][poplabel]['t'] for poplabel in pop_labels]
     except:
-        if value_label in data['characs'].keys():
-#             print "B"
-            ys = [data['characs'][value_label][poplabel]['y'] for poplabel in pop_labels]
-            ts = [data['characs'][value_label][poplabel]['t'] for poplabel in pop_labels]
+        logging.info("Could not find datapoints with label '%s'" % value_label)
+        ys = []
+        ts = []
 
-            if 'plot_percentage' in charac_specs[value_label].keys():
-                ys *= 100
-#             print value_label
-#             print ys
+    try:
+        if 'plot_percentage' in charac_specs[value_label].keys():
+            ys *= 100
+    except:
+        pass
 
-            if plot_total:
-                try:
-                    ys = np.array(ys)
-                    ys = [ys.sum(axis=0)]
-                except:
-                    # could raise a ValueError if ys elements are different lengths
-                    ys, ts = [], []
-#             print "Breturn"
-        else: # elif value_label in data['linkpars'].keys():
-            try:
-    #         if True:
-
-                tobs = results.t_observed_data
-    #             print tobs
-                ys, ts = [], []
-                if not plot_total:
-                    for poplabel in pop_labels:
-    #                     print poplabel, tobs[0], tobs[-1], value_label
-                        ytmp, ttmp = results.getValuesAt(value_label, year_init=tobs[0], year_end=tobs[-1], pop_labels=[poplabel])
-
-                        idx = np.nonzero(np.in1d(ttmp, tobs))[0]
-    #                     print idx
-                        ys.append(ytmp[idx])
-                        ts.append(ttmp[idx])
-                else:
-                    ytmp, ttmp = results.getValuesAt(value_label, year_init=tobs[0], year_end=tobs[-1], pop_labels=pop_labels)
-                    idx = np.nonzero(np.in1d(ttmp, tobs))[0]
-                    ys = ytmp[idx]
-                    ts = ttmp[idx]
-#                 print 'Creturn'
-            except:
-                ys = []
-                ts = []
-#                 print "D return"
-
-#         ys = [data['linkpars'][value_label][poplabel]['y'] for poplabel in pop_labels]
-#         ts = [data['linkpars'][value_label][poplabel]['t'] for poplabel in pop_labels]
-#
-#         # TODO implement
-# #         if 'plot_percentage' in charac_specs[value_label].keys():
-# #             ys *= 100
-#
-#         if plot_total:
-#             ys = np.array(ys)
-#             ys = [ys.sum(axis=0)]
-#
-#     else:  # For the case when plottable characteristics were not in the databook and thus not converted to data.
-#         logging.info("Could not find datapoints with label '%s'" % value_label)
-#         ys = []
-#         ts = []
+    if plot_total:
+        # we have to be a bit more careful, as there could be missing elements for the different timesteps
+        try:
+            ys = np.array(ys)
+            ys = ys.sum(axis=0)
+            ts = ts[0]
+        except ValueError:
+            # could raise a ValueError if ys elements are different lengths
+            ys, ts = [], []
 
     dataobs = (ts, ys)
-#     print dataobs, value_label
     return dataobs
 
 def _convertPercentage(datapoints, output_label, charac_specs):
