@@ -10,6 +10,7 @@ import numpy as np
 
 import pylab as pl
 from copy import deepcopy as dcp
+from copy import copy as ndcp
 import matplotlib.cm as cmx
 import matplotlib.colors as colors
 from random import shuffle
@@ -380,11 +381,12 @@ def separateLegend(labels, colors, fig_name, reverse_order=False, linestyles=Non
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
 
+    hatches = getHatchmapping(linestyles, labels)
+
     if reverse_order:
         labels = labels[::-1]
         colors = colors[::-1]
 
-    hatches = getHatchmapping(linestyles, labels)
 
     fig = plt.figure() # figsize=(5, 5))  # silly big
     patches = [  mpatches.Patch(color=color, label=label, ec='white', hatch=hatches[label]) for label, color in zip(labels, colors)]
@@ -614,7 +616,6 @@ def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None
                      save_fig=save_results, fig_name=filename + "compareCompsNewInfRetreatRelative")
 
     """
-    print "YYY----", kwargs
     fig = innerPlotBar(proj, [result], year_periods=year_periods, output_labels=output_labels,
                        compare_type=COMPARETYPE_YEAR, pop_labels=pop_labels, ylabel=ylabel,
                        colormappings=colormappings, colors=colors, linestyles=linestyles,
@@ -631,7 +632,7 @@ def plotCascade(proj, result, output_labels, pop_labels=None, year_periods=None,
     fig = innerPlotBar(proj, [result], year_periods=year_periods, output_labels=output_labels,
                        compare_type=COMPARETYPE_CASCADE, pop_labels=pop_labels, ylabel="Number of cases",
                        colormappings=colormappings, colors=colors, linestyles=linestyles,
-                       plot_relative=plot_relative, y_intercept=y_intercept,
+                       plot_relative=plot_relative, y_intercept=y_intercept, xlim=(0, len(output_labels)),
                        title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
 
 
@@ -687,6 +688,39 @@ def plotCompareResultsBar(proj, resultset, output_labels, pop_labels=None, year_
                            pop_labels=pop_labels,
                            colormappings=colormappings, colors=colors, linestyles=linestyles,
                            title=title, save_fig=save_fig , fig_name=fig_name + "_%s" % (out_label), **kwargs)
+    return fig
+
+
+def plotCompareCascade(proj, resultset, output_labels, pop_labels=None, year_periods=None,
+                       plot_total=False, plot_observed_data=True, observed_data_label=None,
+                       colormappings=None, colors=None, linestyles=None, y_intercept=None,
+                       plot_relative=None, bar_width=0.5, bar_offset=0.25,
+                       title=None, save_fig=False, fig_name=None, **kwargs):
+    """
+    plot groups of compartments i.e. multiple compartments, such as cascade. 
+    """
+    if colormappings is not None:
+        logging.info("colormappings is ignored for plotCompareCascade")
+    if colors is None or len(colors) < len(resultset):
+        logging.info("colors updated")
+        colors = gridColorMap(len(resultset))
+
+    # calculate required barwidth
+    barwidth_r = bar_width / (len(resultset))
+    bar_offset_r = bar_offset
+    xinds = np.arange(len(output_labels)) + bar_offset_r + (barwidth_r * (len(resultset)) / 2.)
+    xlim = (0, len(output_labels))
+    # for each result, plot cascade passing fig back along
+    fig, _ = pl.subplots()
+    for i, rname in enumerate(resultset.keys()):
+        colorgroup = 10 * [colors[i]]
+
+        fig = innerPlotBar(proj, [resultset[rname]], year_periods=year_periods, output_labels=output_labels,
+                       compare_type=COMPARETYPE_CASCADE, pop_labels=pop_labels, ylabel="Number of cases",
+                       colors=colorgroup, linestyles=linestyles,
+                       plot_relative=plot_relative, y_intercept=y_intercept, xlim=xlim,
+                       fig=fig, barwidth=barwidth_r, bar_offset=bar_offset_r + i * barwidth_r, xinds=xinds,
+                       title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
     return fig
 
 def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=None,
@@ -795,8 +829,13 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
     plot_over = (proj.settings.tvec_start, proj.settings.tvec_end)
     if 'xlim' in kwargs.keys() and kwargs['xlim'] is not None:
         plot_over = kwargs['xlim']
-    tmp_plotdict = dcp(plotdict)
-    tmp_kwargs = dcp(kwargs)
+    try:
+        tmp_plotdict = dcp(plotdict)
+        tmp_kwargs = dcp(kwargs)
+    except NotImplementedError:
+        tmp_plotdict = ndcp(plotdict)
+        tmp_kwargs = ndcp(kwargs)
+
     tmp_plotdict.update(kwargs)
 
     # -------------------------------------------------------
@@ -827,6 +866,9 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
 
     if observed_data_label is None:
         observed_data_label = output_labels[0]
+
+    if title is None:
+        title = ""
 
     if len(output_labels) == 1:
         name = output_labels[0]
@@ -905,7 +947,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         unit_tag = ' (%)' # TODO get rid of magic variable
 
     if plot_ybounds is not None:
-        # it should be a tuple with either (label_low, label_high) or (data_years, data_low, data_high)
+        # it should be a tuple with either (label_low, label_high) or [(data_years, data_low, data_high), (]
         if len(plot_ybounds) == 3:
             tmp_plotdict['y_bounds'] = plot_ybounds
         elif len(plot_ybounds) == 2:
@@ -1003,7 +1045,6 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
         TODO
         
     """
-    print "XXXXX----", xlabels
  # -------------------------------------------------------
     # extract relevant objects
     data = proj.data
@@ -1011,8 +1052,12 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
     plotdict = proj.settings.plot_settings
     charac_specs = proj.settings.charac_specs
     plot_over = (proj.settings.tvec_start, proj.settings.tvec_observed_end)
-    tmp_plotdict = dcp(plotdict)
-    tmp_kwargs = dcp(kwargs)
+    try:
+        tmp_plotdict = dcp(plotdict)
+        tmp_kwargs = dcp(kwargs)
+    except NotImplementedError:
+        tmp_plotdict = ndcp(plotdict)
+        tmp_kwargs = ndcp(kwargs)
     tmp_plotdict.update(kwargs)
     # -------------------------------------------------------
     # generic setup for data
@@ -1229,6 +1274,9 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
     final_dict = {'ylabel': ylabel,
                   'plot_stacked': plot_stacked,
                   'save_figname': fig_name}
+    print "\n"*5
+    print tmp_plotdict
+    print "\n"*5
 
     tmp_plotdict.update(final_dict)
     # separately update the title, to allow if the plot settings would allow for plots
@@ -1264,9 +1312,9 @@ def getValueHandler(proj, result, value_label, year_period, pop_labels):
     return y
 
 
-def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency="USD",
+def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, xlabel="Budget", currency="USD",
                 colormappings=None, cat_labels=None, use_full_labels=False, full_labels=None,
-                save_fig=False, fig_name=None, legendsettings=None):
+                save_fig=False, fig_name=None, legendsettings=None, linestyles=None):
     """
     
     Params:
@@ -1290,11 +1338,17 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
         labels.sort()
 
     colors = []
-    if colormappings is not None:
-        colors_dict, cat_colors = getCategoryColors(colormappings, 'sequential')
-        # reorder so that colors are same as expected for plotting the population
-        for (j, prog_label) in enumerate(labels):
-            colors.append(colors_dict[prog_label])
+    print linestyles
+    colors, linestyles, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, labels, plotdict)
+
+#     if colormappings is not None:
+#         colors_dict, cat_colors = getCategoryColors(colormappings, 'sequential')
+#         # reorder so that colors are same as expected for plotting the population
+#         for (j, prog_label) in enumerate(labels):
+#             colors.append(colors_dict[prog_label])
+#
+#     if linestyles is None:
+#         linestyles = getLinemapping(linestyle_dict)
 
     if legendsettings is None:
         legendsettings = {}
@@ -1306,13 +1360,18 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
 
     final_dict = {'xlim': (0, xlim),
                   'title': "", # 'Budgets for %s' % (title),
-                  'ylabel': "Budget (%s)" % currency,
+                  'ylabel': "%s (%s)" % (xlabel, currency),
                   'save_figname': '%s_budget' % fig_name}
     plotdict.update(final_dict)
 
-    _plotBars(values, labels, colors=colors, xlabels=xlabels, # legendsettings=legendsettings,
-              save_fig=save_fig, **plotdict)
+    if use_full_labels:
+        clabels = full_labels
+    else:
+        clabels = labels
 
+    _plotBars(values, clabels, colors=colors, linestyles=linestyles, hatches=hatches,
+              xlabels=xlabels, # legendsettings=legendsettings,
+              save_fig=save_fig, **plotdict)
 
     if plotdict.has_key('legend_off') and plotdict['legend_off']:
         # Do this separately to main iteration so that previous figure are not corrupted
@@ -1321,9 +1380,11 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, currency
         # reverse legend order so that it matches top<->bottom of stacked bars
         if use_full_labels:
             # legendsettings = {'ncol':2}
-            separateLegend(labels=full_labels, colors=colors, fig_name=fig_name, reverse_order=True, **legendsettings)
+            separateLegend(labels=full_labels, colors=colors, linestyles=linestyles,
+                           fig_name=fig_name, reverse_order=True, **legendsettings)
         else:
-            separateLegend(labels=cat_labels, colors=cat_colors, fig_name=fig_name, reverse_order=True,)
+            separateLegend(labels=cat_labels, colors=cat_colors, linestyles=linestyles,
+                           fig_name=fig_name, reverse_order=True,)
 
 def getName(output_id, proj):
     """
@@ -1452,9 +1513,13 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
         ys = [data[data_loc][value_label][poplabel]['y'] for poplabel in pop_labels]
         ts = [data[data_loc][value_label][poplabel]['t'] for poplabel in pop_labels]
     except:
+        """
+        ys = [list(proj.parsets[0].getPar(value_label).interpolate(tvec=t, pop_label=poplabel, extrapolate_nan=True)) for poplabel in pop_labels]
+        ts = [t for poplabel in pop_labels]
+        """
         logging.info("Could not find datapoints with label '%s'" % value_label)
-        ys = []
-        ts = []
+        ys = [[]]
+        ts = [[]]
 
     try:
         if 'plot_percentage' in charac_specs[value_label].keys():
@@ -1473,6 +1538,7 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
             ys, ts = [], []
 
     dataobs = (ts, ys)
+    print dataobs
     return dataobs
 
 def _convertPercentage(datapoints, output_label, charac_specs):
@@ -1696,6 +1762,8 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
 
     if formatter is not None:
         ax.yaxis.set_major_formatter(formatter)
+    else:
+        ax.get_yaxis().get_major_formatter().set_scientific(False)
 
     if not legend_off:
         if cat_colors is not None:
@@ -1731,8 +1799,8 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
 
 def _plotBars(values, labels=None, colors=None, title="", orientation='v', legendsettings=None, y_intercept=None,
               xlabel="", ylabel="", xlabels=None, yticks=None, barwidth=0.5, bar_offset=0.25, xlim=None, ylim=None,
-              linewidth=3, inds=None, alphas=None, hatches=None, plot_stacked=True,
-              save_fig=False, save_figname=None,
+              linewidth=3, inds=None, xinds=None, alphas=None, hatches=None, plot_stacked=True,
+              save_fig=False, save_figname=None, fig=None,
               box_width=0.9, box_offset=0.0, legend_off=False, formatter=None, reverse_order=True, **kwargs):
     """
     Plots bar graphs. Intended for budgets, characteristics, and other model output
@@ -1755,6 +1823,7 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         ylim
         linewidth
         inds
+        xinds        indices of xlabels
         alphas
         hatches
         plot_stacked
@@ -1774,6 +1843,11 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         implement orientation = 'h'
         implement non-stacked plots
     """
+    print kwargs.keys()
+    print kwargs
+    print barwidth
+    print bar_offset
+    print xlim, "<----------- xlim"
     # ---------------------
     # setup
     num_bars = len(values)
@@ -1781,7 +1855,9 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     if inds is None:
         inds = np.arange(num_bars) + bar_offset
 
-    if plot_stacked:
+    if xinds is not None:
+        pass
+    elif plot_stacked:
         xinds = np.arange(num_bars) + bar_offset + barwidth / 2.
     else: # TODO modify if not stacked
         xinds = np.arange(num_cats) + bar_offset + barwidth / 2.
@@ -1814,7 +1890,10 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
 
     # ---------------------
     # and plot:
-    fig, ax = pl.subplots()
+    if fig is None:
+        fig, ax = pl.subplots()
+    else:
+        ax = fig.gca()
 
     for k in range(num_cats):
 
@@ -1844,8 +1923,8 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     if ylim is not None:
         ax.set_ylim(ylim)
 
-#     if xlim is None:
-    xlim = (indices[0] - 0.25, indices[-1] + 0.25 + barwidth)
+    if True: # xlim is None:
+        xlim = (indices[0] - barwidth / 2, indices[-1] + 0.25 + barwidth)
     ax.set_xlim(xlim)
 
     if y_intercept is not None:
@@ -2421,7 +2500,7 @@ def plotSingleCompartmentFlow(results, settings, comp_labels=None, comp_titles=N
 def plotPopulationFlows(results, settings, comp_labels=None, comp_titles=None, pop_labels=None,
               link_labels=None, include_link_not_exclude=True, link_legend=None, sum_total=False, sum_population=False,
               plot_inflows=True, plot_outflows=True, exclude_transfers=False, observed_data=None,
-              save_fig=False, fig_name=None, colors=None, colormappings=None, linestyles=None):
+              save_fig=False, fig_name=None, colors=None, colormappings=None, linestyles=None, **kwargs):
     """
     Plot flows rates in and out of a compartment, across populations. Intended usage is
     for plots such as total new infections, deaths, etc. where the net flow is required.
@@ -2710,7 +2789,8 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
             yb = y_bounds[i]
 
         _plotLine(y_values[output_id][:], np.tile(tvec, (len(labels), 1)), labels, y_bounds=yb,
-                legendsettings=None, save_fig=save_fig, colors=colors, # ylim=(0, 1900000),
+#                 legendsettings=None,
+                save_fig=save_fig, colors=colors, # ylim=(0, 1900000),
                   linestyles=linestyles, **final_dict)
 
     if final_dict.has_key('legend_off') and final_dict['legend_off']:
@@ -3071,7 +3151,7 @@ def plotScenarios(scen_results, scen_labels, settings, data, plot_charac=None, p
 def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
              legendsettings=None, title=None, xlabel=None, ylabel=None, xlim=None, ylim=None, y_ticks=None, x_ticks=None,
              y_intercept=None, reverse_order=False, y_bounds=None, linestyles=None,
-             smooth=False, symmetric=False, repeats=5,
+             smooth=False, symmetric=False, repeats=5, formatter=None,
              alpha=0.3, marker='o', s=40, facecolors='none', linewidth=3, zorder=10,
              save_fig=False, save_figname=None, legend_off=False,
              box_width=0.9, box_offset=0.0, **kwargs):
@@ -3169,6 +3249,12 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
                 logger.debug("No data plottable for index k=%i, data=\n" % k)
                 logger.debug(y_hat)
 
+    if formatter is not None:
+        ax.yaxis.set_major_formatter(formatter)
+    else:
+        ax.get_yaxis().get_major_formatter().set_scientific(False)
+
+
 
     # set position
     box = ax.get_position()
@@ -3216,7 +3302,7 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
 
 
 def _plotStackedCompartments(tvec, comps, labels=None, datapoints=None, title='', ylabel=None, xlabel=None, xlim=None, ymin=None, ylim=None, save_figname=None, legend_off=False,
-                            save_fig=False, colors=None, catlabels=None, catcolors=None, year_inc=5,
+                            save_fig=False, colors=None, catlabels=None, catcolors=None, year_inc=5, formatter=None,
                             marker='o', edgecolors='k', facecolors='none', s=40, zorder=10, linewidth=3, x_ticks=None, legendsettings={}, **kwargs):
     """
     Plot compartments in time.
@@ -3267,6 +3353,12 @@ def _plotStackedCompartments(tvec, comps, labels=None, datapoints=None, title=''
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+
+    if formatter is not None:
+        ax.yaxis.set_major_formatter(formatter)
+    else:
+        ax.get_yaxis().get_major_formatter().set_scientific(False)
+
 
     ax.set_ylim(ymax=max_val * 1.05)
 
