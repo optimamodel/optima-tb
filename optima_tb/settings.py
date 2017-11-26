@@ -54,7 +54,7 @@ class Settings(object):
 
 
         self.tvec_start = 2000.0  # Default start year for data input and simulations.
-        self.tvec_end = 2030.0  # Default end year for data input and simulations.
+        self.tvec_end = 2035.0  # Default end year for data input and simulations.
         self.tvec_observed_end = 2015.0
         self.tvec_dt = 1.0 / 4  # Default timestep for simulations.
 
@@ -378,10 +378,10 @@ class PlottingSettings():
             'The two args are the value and tick position'
             if x >= 1e6:
                 return '%1.1fM' % (x * 1e-6)
-            elif x >= 1e3:
-                return '%1.1fK' % (x * 1e-3)
+#             elif x >= 1e3:
+#                 return '%1.1fK' % (x * 1e-3)
             else:
-                return x
+                return '%g' % x
 
     def PopSuffixFormatter(self, x, pos):
             'The two args are the value and tick position'
@@ -439,7 +439,7 @@ class PlottingSettings():
                          'year_inc':5,
                          # colormapping for category lists
                          'colormapping_order':'alternate3',  # as we have triplets in undiagnosed --> diagnosed --> on treatment
-                         'formatter': None, # FuncFormatter(self.PopSuffixFormatter), # KMSuffixFormatter) ,
+                         'formatter': FuncFormatter(self.KMSuffixFormatter) ,
                          'barwidth': 0.8,
                          'bar_offset': 0.2,
                          # alpha for fill-between
@@ -506,7 +506,7 @@ class PlottingSettings():
     def presentationSettings(self):
         pl.rcParams['font.size'] = 14
         pl.rcParams['figure.figsize'] = (9, 7)
-        pl.rcParams['savefig.dpi'] = 300
+        pl.rcParams['savefig.dpi'] = 200
 
         pl.rcParams['lines.linewidth'] = 5
         pl.rcParams['lines.marker'] = 'None'
