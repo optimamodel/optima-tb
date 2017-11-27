@@ -429,9 +429,10 @@ def runParallel(func, params, num_threads=2):
         pool = mp.Pool()
     else:
         pool = mp.Pool(num_threads)
-    pool.map_async(func, params)
+    pool.map(func, params)
     pool.close()
     pool.join()
+    return pool.get()
 
 # Allows stacktrace in threads. HOW TO USE: Decorate any function you wish to call with runParallel (the function func
 # references) with '@trace_exception'. Whenever an exception is thrown by the decorated function when executed parallel,
