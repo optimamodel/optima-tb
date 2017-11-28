@@ -443,9 +443,9 @@ def runParallelProcesses(func, params, num_procs=None):
     :return: list of return values of func in the order of execution
     """
     if num_procs == None:
-        pool = mp.ProcessPool()
+        pool = mp.Pool()
     else:
-        pool = mp.ProcessPool(num_procs)
+        pool = mp.Pool(num_procs)
     result = pool.map(func, params)
     pool.close()
     pool.join()
