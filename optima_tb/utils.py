@@ -5,6 +5,8 @@ from numpy import array
 from numbers import Number
 import numpy as np
 import multiprocessing as mp
+import multiprocessing.pool as mpp
+
 
 logger = logging.getLogger(__name__)
 
@@ -423,21 +425,68 @@ class OptimaException(Exception):
         Exception.__init__(self, *args, **kwargs)
 
 
-# Wrapper for parallel tasks
-def runParallel(func, params, num_threads=2):
-    if num_threads == None:
-        pool = mp.Pool()
+
+def runParallelProcesses(func, params, num_procs=None):
+    """
+    Wrapper function which initalises a worker pool and processes the passed params in parallel. This function makes use
+    of PROCESSES, therefore keep two things in mind when using this function:
+    a) Whatever elements in params are contained, they will be copied to the respective process. That is, if params
+    contains e.g. [obj, obj], where obj is merely a reference (shallow copy) of an object, a deep copy is performed
+    when the parameters are passed to the process. Thus no race conditions occur, but also changes to the object are
+    lost after the process terminates.
+    b) func and params must be globally accessible, i.e. if class methods or class specific data is accessed, this
+    function will fail with a pickle(!) error. Resolving this issue is an art itself..
+
+    :param func: function which is applied to the passed parameters
+    :param params: iterable of parameters for func
+    :param num_procs: int which specifies how many processes to use
+    :return: list of return values of func in the order of execution
+    """
+    if num_procs == None:
+        pool = mp.ProcessPool()
     else:
-        pool = mp.Pool(num_threads)
-    pool.map(func, params)
+        pool = mp.ProcessPool(num_procs)
+    result = pool.map(func, params)
     pool.close()
     pool.join()
-    return pool.get()
+    return result
 
-# Allows stacktrace in threads. HOW TO USE: Decorate any function you wish to call with runParallel (the function func
-# references) with '@trace_exception'. Whenever an exception is thrown by the decorated function when executed parallel,
-# a stacktrace is printed; the thread terminates but the execution of other threads is not affected.
+
+def runParallelThreads(func, params, num_threads=None):
+    """
+    Wrapper function which initalises a worker pool and processes the passed params in parallel. This function makes use
+    of THREADS, therefore keep this in mind when using this function:
+    Whatever elements in params are contained, they will be used as is. That is, if params contains e.g. [obj, obj],
+    where obj is merely a reference (shallow copy) of an object, the threads use this shallow copy. Thus race
+    conditions may occur and reduce the runtime or inconsistencies/data corruption may occur.
+
+    If you have trouble using runParallelProcesses(), this is an easy alternative because this parallelism works
+    independent of the scope. But be wary what parameters you pass and how you use them. Deep copying all parameters may
+    lead to huge memory consumption.
+
+    :param func: function which is applied to the passed parameters
+    :param params: iterable of parameters for func
+    :param num_procs: int which specifies how many processes to use
+    :return: list of return values of func in the order of execution
+    """
+    if num_threads == None:
+        pool = mpp.ThreadPool()
+    else:
+        pool = mp.ThreadPool(num_threads)
+    result = pool.map(func, params)
+    pool.close()
+    pool.join()
+    return result
+
+
 def trace_exception(func):
+    """
+    Allows stacktrace in processes.
+
+    HOW TO USE: Decorate any function you wish to call with runParallel (the function func
+    references) with '@trace_exception'. Whenever an exception is thrown by the decorated function when executed
+    parallel, a stacktrace is printed; the thread terminates but the execution of other threads is not affected.
+    """
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         try:

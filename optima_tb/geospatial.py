@@ -102,7 +102,7 @@ class GeospatialOptimization:
         # - optimal outcomes per region
         self._outcome = {}
 
-    def _calculateBudgetOutcomes(self, budget_scaling, filename=None, num_iter=5):
+    def _calculateBudgetOutcomes(self, budget_scaling, filename=None, num_iter=5, num_threads=1):
         """
         For the given budget scaling factors, determine the spending for the optimal outcome. If filename is not None,
         the results are pickled in to a file for later reference.
@@ -111,8 +111,8 @@ class GeospatialOptimization:
         resource allocation is computed
         :param filename: Name of the pickle-file in which the results are stored
         :param num_iter: int which specifies how many runs with asd per region are to be computed
+        :param num_threads: int which specify how many threads should be used for computation
         """
-
         # sanity checks:
         # - make sure budget_scaling is a list
         if not isinstance(budget_scaling, list):
@@ -125,20 +125,17 @@ class GeospatialOptimization:
         #  interpolation
         self._budgetScalings = sorted(budget_scaling)
 
-        # compute budget outcome for each region for each scaled budget
-        self._BO = {}
+        # create list which contains the tasks to process
+        tasks = self._createBOCalculationTasks(num_iter)
+
+        best_results = self._processTasks(tasks, num_iter, num_threads)
+
+        # create a dict which contains each region and an entry for each scaled budget; must be in the same order as in
+        # _createBOCalculationTasks()
         for region in self._opt:
             self._BO[region] = []
-            for scaling in budget_scaling:
-                logger.info('Optimising region \'%s\' with budget scaled by %f' % (region, scaling))
-                opt = self._scaleBudget(scaling, self._opt[region])
-                best = np.inf
-                for it in range(num_iter):
-                    _, obj_vals, _ = self._proj.optimize(parset_name=region, progset_name=region, options=opt)
-                    if best > obj_vals[-1]:
-                        best = obj_vals[-1]
-
-                self._BO[region].append(best)
+            for scaling in self._budgetScalings:
+                self._BO[region].append(best_results.pop(0)[1])
 
         if filename is not None:
             logger.info('Saving computed budget outcomes in %s' % filename)
@@ -151,6 +148,61 @@ class GeospatialOptimization:
         for region in sorted(self._BO.keys()):
             self._BOC[region] = BudgetOutcomeCurve(PchipInterpolator(
                 [x * self._opt[region]['constraints']['total'] for x in self._budgetScalings], self._BO[region]))
+
+    def _call_project_optimize(self, task):
+        """
+        Wrapper around the budget optimisation algorithm Project.optimize(). This wrapper is used to provide an
+        interface to parallel computation.
+
+
+        :param task: tuple of (Project, kwargs), where Project is the object on which the optimisation is performed and
+            kwargs are arguments required by the Project.optimize() function
+        :return: tuple of (allocation, outcome), where allocation is the budget allocation across interventions and
+            outcome is the optimal outcome
+        """
+        proj = task[0]
+        kwargs = task[1]
+        params, obj_vals, _ = proj.optimize(**kwargs)
+        return params, obj_vals[-1]
+
+    def _createBOCalculationTasks(self, num_iter, budget_scaling=None):
+        """
+        Create a list of dicts which can be passed to the optimisation function for parallel(or serial)
+        processing. In this case it is the Project.optimize-function.
+
+        CAUTION: This function creates a deep copy of the project for each task. This is to ensure no inconsistencies
+        occur during parallel processing by modifying the project. If it can be guaranteed that the Project object is
+        not modified during Project.optimize, no deep copies are necessary.
+
+        :param num_iter: int which specifies how often the budget outcome should be computed
+        :param budget_scaling: None or list of floats which specifies if a specific budget scaling is used (list) or all
+            budgetScalings should be used (None). First case is used when an optimal spending already exists, in fact
+            the optimal spending scaling is the parameter 'scaling'; the second case is used to determine budget outcome
+            samples from which BOCs are computed
+        """
+        params = []
+        if budget_scaling is None:
+            # in this case apply each scaling to each region num_iter times and optimise
+            for region in self._opt:
+                for scaling in self._budgetScalings:
+                    opt = self._scaleBudget(scaling, self._opt[region])
+                    for it in range(num_iter):
+                        params.append((dcp(self._proj),
+                                       {'parset_name': region, 'progset_name': region, 'options': opt}))
+        else:
+            assert(len(budget_scaling) == len(self._opt))
+            for i, region in enumerate(sorted(self._opt.keys())):
+                # scale original budget according to optimal budget;
+                # creating a new entry in _opt would also have been a choice
+                org_budget = self._opt[region]['constraints']['total']
+                new_budget = budget_scaling[i]
+                scaling = new_budget / org_budget
+                opt = self._scaleBudget(scaling, self._opt[region])
+                for it in range(num_iter):
+                    params.append((dcp(self._proj),
+                                   {'parset_name': region, 'progset_name': region, 'options': opt}))
+        return params
+
 
     def _getBOCderivatives(self, currentRegionalSpending, extraFunds):
         from numpy import linspace
@@ -216,13 +268,13 @@ class GeospatialOptimization:
             self._BO = pickle.loads(pickle.load(f))
             self._budgetScalings = pickle.loads(pickle.load(f))
 
-    def _optimize(self, total_national_budget, num_iter):
+    def _optimize(self, total_national_budget, num_iter, num_threads):
         """
         Determine the optimal spending per region and then optimise the spendings per region
 
         :param total_national_budget: total budget which is to be distributed among the regions
         :param num_iter: int which specifies how many runs with asd per region are to be computed
-
+        :param num_threads: int which specify how many threads should be used for computation
         """
         logger.info('Computing budget-outcome-curves..')
         self._calculateBudgetOutcomeCurves()
@@ -232,37 +284,50 @@ class GeospatialOptimization:
         opt_regional_budgets = self._runGridSearch(spendings)
 
         logger.info('Computing optimal outcomes based on the optimal budget')
-        self._optimizeInterventions(opt_regional_budgets, num_iter)
+        self._optimizeInterventions(opt_regional_budgets, num_iter, num_threads)
 
-    def _optimizeInterventions(self, opt_budgets, num_iter):
+    def _optimizeInterventions(self, opt_budgets, num_iter, num_threads):
         """
         Optimise the spendings on interventions for a given budget.
 
         :param opt_budgets: Budget for which the spendings are optimised
         :param num_iter: int which specifies how many runs with asd per region are to be computed
+        :param num_threads: int which specify how many threads should be used for computation
         """
-        # perform optimisation for each region
-        for i, region in enumerate(sorted(self._opt.keys())):
-            # scale original budget according to optimal budget;
-            # creating a new entry in _opt would also have been a choice
-            org_budget = self._opt[region]['constraints']['total']
-            new_budget = opt_budgets[i]
-            scaling = new_budget / org_budget
-            opt = self._scaleBudget(scaling, self._opt[region])
-            # optimize interventions of current region
-            best_val = np.inf
-            best_alloc = {}
-            for it in range(num_iter):
-                alloc, obj_vals, _ = \
-                    self._proj.optimize(parset_name=region, progset_name=region, options=opt)
-                if best_val > obj_vals[-1]:
-                    best_val = obj_vals[-1]
-                    best_alloc = alloc
+        tasks = self._createBOCalculationTasks(num_iter, opt_budgets)
 
-            self._opt[region]['opt_alloc'] = best_alloc
-            self._outcome[region] = best_val
+        best_results = self._processTasks(tasks, num_iter, num_threads)
 
-    def runFromScratch(self, total_national_budget, budget_scalings, BO_file=None, num_iter=5):
+        # create a dict which contains each region and an entry for each scaled budget; must be in the same order as in
+        # _createBOCalculationTasks()
+        for region in self._opt:
+            obj_param, obj_val = best_results.pop(0)
+            self._opt[region]['opt_alloc'] = obj_param
+            self._outcome[region] = obj_val
+
+    def _processTasks(self, tasks, num_iter, num_threads):
+        """
+        Enqueues the passed tasks and processes them sequentially, either in parallel or serially. After the tasks
+        are done, the best task, i.e. the one with the smallest outcome, per region and/or budget is chosen.
+
+        :param tasks: list of tuple generated by _createBOCalculationTasks()
+        :param num_iter: int which specifies how many runs with asd per region are to be computed
+        :param num_threads: int which specify how many threads should be used for computation
+        :return: list of best outcomes per region and/or budget
+        """
+        # process tasks serially or in parallel
+        if num_threads < 2:
+            results = map(self._call_project_optimize, tasks)
+        else:
+            results = runParallelThreads(self._call_project_optimize, tasks)
+
+        # extract the best result, i.e. the maximum outcome, from all computed scenarios:
+        # due to the process which is used to set up the task, it is possible to split the array of results into arrays
+        # which contain the results of only a region with a given budget (that array has a length of num_iter). On each
+        # of these arrays the min()-operation is performed to obtain the best outcome.
+        return map(lambda x: min(x, key=lambda y: y[1]), np.array_split(results, len(tasks) / num_iter))
+
+    def runFromScratch(self, total_national_budget, budget_scalings, BO_file=None, num_iter=5, num_threads=1):
         """
         Run the geospatial analyses without precomputed budget-outcome samples.
 
@@ -270,22 +335,24 @@ class GeospatialOptimization:
         :param budget_scalings: list of budget scaling factors which is used to computed budget-outcome samples
         :param BO_file: If not None, the budget-outcome samples along with the budget_scalings are written to that file
         :param num_iter: int which specifies how many runs with asd per region are to be computed
+        :param num_threads: int which specify how many threads should be used for computation
         """
         logger.info('Computing budget outcomes:')
-        self._calculateBudgetOutcomes(budget_scalings, BO_file, num_iter)
-        self._optimize(total_national_budget, num_iter)
+        self._calculateBudgetOutcomes(budget_scalings, BO_file, num_iter, num_threads)
+        self._optimize(total_national_budget, num_iter, num_threads)
 
-    def runWithBOC(self, total_national_budget, BO_file, num_iter=5):
+    def runWithBOC(self, total_national_budget, BO_file, num_iter=5, num_threads=1):
         """
         Run the geospatial analyses using previously computed budget-outcome samples.
 
         :param total_national_budget: total budget which is to be distributed among the regions
         :param BO_file: Filename from which the budget-outcome samples are loaded
         :param num_iter: int which specifies how many runs with asd per region are to be computed
+        :param num_threads: int or None which specify how many threads should be used for computation
         """
         logger.info('Loading budget outcomes..')
         self._loadBudgetOutcomes(BO_file)
-        self._optimize(total_national_budget, num_iter)
+        self._optimize(total_national_budget, num_iter, num_threads)
 
     def _runGridSearch(self, currentRegionalSpending, extraFunds=None):
         """ If specified, extraFunds is a scalar value which represents funds to be distributed on top of fixed current
@@ -363,6 +430,9 @@ class GeospatialOptimization:
         return opt
 
     def _writeBudgetOutcomesToFile(self, filename):
+        """
+        Write budget outcomes and the scalings in a pickle-file.
+        """
         with open(filename, 'wb') as f:
             pickle.dump(pickle.dumps(self._BO), f)
             pickle.dump(pickle.dumps(self._budgetScalings), f)
