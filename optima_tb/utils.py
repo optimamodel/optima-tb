@@ -426,53 +426,73 @@ class OptimaException(Exception):
 
 
 
-def runParallelProcesses(func, params, num_procs=None):
+def pmap(func, params, num_procs=None):
     """
-    Wrapper function which initalises a worker pool and processes the passed params in parallel. This function makes use
-    of PROCESSES, therefore keep two things in mind when using this function:
-    a) Whatever elements in params are contained, they will be copied to the respective process. That is, if params
+    Wrapper function for map() (and intended to be used like map()) which initialises a worker pool and processes the
+    passed params in parallel. This function makes use of PROCESSES, therefore keep three things in mind when using this
+    function:
+    * Whatever elements in params are contained, they will be copied to the respective process. That is, if params
     contains e.g. [obj, obj], where obj is merely a reference (shallow copy) of an object, a deep copy is performed
     when the parameters are passed to the process. Thus no race conditions occur, but also changes to the object are
     lost after the process terminates.
-    b) func and params must be globally accessible, i.e. if class methods or class specific data is accessed, this
-    function will fail with a pickle(!) error. Resolving this issue is an art itself..
+    * func must be globally accessible, i.e. func **MUST NOT** be a method (class function), not even a static function.
+    If you do it anyway, a pickle(!) error (mentioning 'instancemethod') will be raised.
+    * params must be pickle-able, thus the class **MUST NEITHER** contain nested functions **NOR** lambda functions
+    assigned to instance variables. If you do it anyway, a pickle(!) error (mentioning '__builtin__.function') will be
+    raised.
 
     :param func: function which is applied to the passed parameters
     :param params: iterable of parameters for func
     :param num_procs: int which specifies how many processes to use
     :return: list of return values of func in the order of execution
     """
-    if num_procs == None:
+    if num_procs < 1:
+        raise OptimaException(('The number of threads to be used must be an integer > 0 or None. '
+                               '{} was passed'.format(num_procs)))
+
+    if num_procs == 1:
+        return map(func, params)
+
+    if num_procs is None:
         pool = mp.Pool()
     else:
         pool = mp.Pool(num_procs)
+
     result = pool.map(func, params)
     pool.close()
     pool.join()
     return result
 
 
-def runParallelThreads(func, params, num_threads=None):
+def tmap(func, params, num_threads=None):
     """
-    Wrapper function which initalises a worker pool and processes the passed params in parallel. This function makes use
-    of THREADS, therefore keep this in mind when using this function:
+    Wrapper function for map() (and intended to be used like map()) which initialises a worker pool and processes the
+    passed params in parallel. This function makes use of THREADS, therefore keep this in mind when using this function:
     Whatever elements in params are contained, they will be used as is. That is, if params contains e.g. [obj, obj],
     where obj is merely a reference (shallow copy) of an object, the threads use this shallow copy. Thus race
-    conditions may occur and reduce the runtime or inconsistencies/data corruption may occur.
+    conditions may occur which reduce the runtime or inconsistencies/data corruption.
 
     If you have trouble using runParallelProcesses(), this is an easy alternative because this parallelism works
-    independent of the scope. But be wary what parameters you pass and how you use them. Deep copying all parameters may
-    lead to huge memory consumption.
+    independent of the scope, but it may be slower. But be wary what parameters you pass and how you use them. Deep
+    copying all parameters may lead to huge memory consumption. pmap() should be definitely preferred over tmap() for
+    computationally intensive tasks.
 
     :param func: function which is applied to the passed parameters
     :param params: iterable of parameters for func
     :param num_procs: int which specifies how many processes to use
     :return: list of return values of func in the order of execution
     """
-    if num_threads == None:
+    if num_threads < 1:
+        raise OptimaException(('The number of threads to be used must be an integer > 0 or None. '
+                               '{} was passed'.format(num_threads)))
+    if num_threads == 1:
+        return map(func, params)
+
+    if num_threads is None:
         pool = mpp.ThreadPool()
     else:
         pool = mp.ThreadPool(num_threads)
+
     result = pool.map(func, params)
     pool.close()
     pool.join()

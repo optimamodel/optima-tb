@@ -3,7 +3,7 @@ from optima_tb.utils import *
 from scipy.interpolate import PchipInterpolator
 import pickle
 from copy import deepcopy as dcp
-
+import copy_reg
 
 class BudgetOutcomeCurve:
     """
@@ -61,6 +61,24 @@ class BudgetOutcomeCurve:
         self._yshift -= down
 
 
+@trace_exception
+def _call_project_optimize(task):
+    """
+    Wrapper around the budget optimisation algorithm Project.optimize(). This wrapper is used to provide an
+    interface to parallel computation.
+
+
+    :param task: tuple of (Project, kwargs), where Project is the object on which the optimisation is performed and
+        kwargs are arguments required by the Project.optimize() function
+    :return: tuple of (allocation, outcome), where allocation is the budget allocation across interventions and
+        outcome is the optimal outcome
+    """
+    proj = task[0]
+    kwargs = task[1]
+    params, obj_vals, _ = proj.optimize(**kwargs)
+    return params, obj_vals[-1]
+
+
 class GeospatialOptimization:
     """
     GeospatialOptimization initialises one project with one cascade and many parameter and program sets, which represent
@@ -102,7 +120,7 @@ class GeospatialOptimization:
         # - optimal outcomes per region
         self._outcome = {}
 
-    def _calculateBudgetOutcomes(self, budget_scaling, filename=None, num_iter=5, num_threads=1):
+    def _calculateBudgetOutcomes(self, budget_scaling, num_threads, filename=None, num_iter=5):
         """
         For the given budget scaling factors, determine the spending for the optimal outcome. If filename is not None,
         the results are pickled in to a file for later reference.
@@ -149,22 +167,6 @@ class GeospatialOptimization:
             self._BOC[region] = BudgetOutcomeCurve(PchipInterpolator(
                 [x * self._opt[region]['constraints']['total'] for x in self._budgetScalings], self._BO[region]))
 
-    def _call_project_optimize(self, task):
-        """
-        Wrapper around the budget optimisation algorithm Project.optimize(). This wrapper is used to provide an
-        interface to parallel computation.
-
-
-        :param task: tuple of (Project, kwargs), where Project is the object on which the optimisation is performed and
-            kwargs are arguments required by the Project.optimize() function
-        :return: tuple of (allocation, outcome), where allocation is the budget allocation across interventions and
-            outcome is the optimal outcome
-        """
-        proj = task[0]
-        kwargs = task[1]
-        params, obj_vals, _ = proj.optimize(**kwargs)
-        return params, obj_vals[-1]
-
     def _createBOCalculationTasks(self, num_iter, budget_scaling=None):
         """
         Create a list of dicts which can be passed to the optimisation function for parallel(or serial)
@@ -187,8 +189,7 @@ class GeospatialOptimization:
                 for scaling in self._budgetScalings:
                     opt = self._scaleBudget(scaling, self._opt[region])
                     for it in range(num_iter):
-                        params.append((dcp(self._proj),
-                                       {'parset_name': region, 'progset_name': region, 'options': opt}))
+                        params.append((self._proj, {'parset_name': region, 'progset_name': region, 'options': opt}))
         else:
             assert(len(budget_scaling) == len(self._opt))
             for i, region in enumerate(sorted(self._opt.keys())):
@@ -199,8 +200,7 @@ class GeospatialOptimization:
                 scaling = new_budget / org_budget
                 opt = self._scaleBudget(scaling, self._opt[region])
                 for it in range(num_iter):
-                    params.append((dcp(self._proj),
-                                   {'parset_name': region, 'progset_name': region, 'options': opt}))
+                    params.append((self._proj, {'parset_name': region, 'progset_name': region, 'options': opt}))
         return params
 
 
@@ -316,10 +316,7 @@ class GeospatialOptimization:
         :return: list of best outcomes per region and/or budget
         """
         # process tasks serially or in parallel
-        if num_threads < 2:
-            results = map(self._call_project_optimize, tasks)
-        else:
-            results = runParallelThreads(self._call_project_optimize, tasks)
+        results = pmap(_call_project_optimize, tasks, num_threads)
 
         # extract the best result, i.e. the maximum outcome, from all computed scenarios:
         # due to the process which is used to set up the task, it is possible to split the array of results into arrays
@@ -338,7 +335,7 @@ class GeospatialOptimization:
         :param num_threads: int which specify how many threads should be used for computation
         """
         logger.info('Computing budget outcomes:')
-        self._calculateBudgetOutcomes(budget_scalings, BO_file, num_iter, num_threads)
+        self._calculateBudgetOutcomes(budget_scalings, num_threads, BO_file, num_iter)
         self._optimize(total_national_budget, num_iter, num_threads)
 
     def runWithBOC(self, total_national_budget, BO_file, num_iter=5, num_threads=1):
