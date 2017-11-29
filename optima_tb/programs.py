@@ -1,5 +1,6 @@
 from optima_tb.utils import OptimaException, odict
 from optima_tb.interpolation import interpolateFunc
+from functools import partial
 
 import logging
 
@@ -360,8 +361,8 @@ class Program:
         # unnecessary parameters
         if sat is None and cost_only:
             # cost only case
-            self.__bud_func = lambda x, y: np.nan
-            self.__cov_func = lambda x, y: np.nan
+            self.__bud_func = constCostCov
+            self.__cov_func = constCostCov
 
         # Always return the same type (fraction/number) for coverage as the given input!
 
@@ -374,13 +375,18 @@ class Program:
 
             # sat is assumed to be a fraction
             if self.cov_format.lower() == 'fraction':
-                self.__bud_func = lambda cov, pop: - pop * sat * unit_cost / 2. * np.log((sat - cov)/(cov + sat))
-                self.__cov_func = lambda bud, pop: (2. * sat / (1. + np.exp(-2. * bud / (pop * sat * unit_cost))) - sat)
+                self.__bud_func = partial(logCovCost, saturation=sat, unit_cost=unit_cost,
+                                          pop_size=self.pop_size, is_fraction=True)
+                self.__cov_func = partial(logCostCov, saturation=sat, unit_cost=unit_cost,
+                                          pop_size=self.pop_size, is_fraction=True)
             else:
-                self.__bud_func = lambda cov, pop: - pop * sat * unit_cost / 2. * np.log((sat * pop - cov)/(cov + sat * pop))
-                self.__cov_func = lambda bud, pop: (2. * sat / (1. + np.exp(-2. * bud / (pop * sat * unit_cost))) - sat) * pop
+                self.__bud_func = partial(logCovCost, saturation=sat, unit_cost=unit_cost,
+                                          pop_size=self.pop_size, is_fraction=False)
+                self.__cov_func = partial(logCostCov, saturation=sat, unit_cost=unit_cost,
+                                          pop_size=self.pop_size, is_fraction=False)
 
-            # Use truncated linear functions as fallback plan
+            # Use truncated linear functions as fallback plan, BUT DO get rid of the lambda expressions or parallelism
+            # will fail
             # if self.cov_format.lower() == 'fraction':
             #     self.__bud_func = lambda cov, pop: np.minimum(cov, sat) * unit_cost / 0.01
             #     self.__cov_func = lambda bud, pop: np.minimum(bud * 0.01 / unit_cost, sat)
@@ -392,11 +398,11 @@ class Program:
             # linear case
             if self.cov_format.lower() == 'fraction':
                 # Unit cost is per percentage when format is a fraction.
-                self.__bud_func = lambda cov, pop: cov * unit_cost / 0.01
-                self.__cov_func = lambda bud, pop: bud * 0.01 / unit_cost
+                self.__bud_func = partial(linCovCost, unit_cost=unit_cost, is_fraction=True)
+                self.__cov_func = partial(linCostCov, unit_cost=unit_cost, is_fraction=True)
             else:
-                self.__bud_func = lambda cov, pop: cov * unit_cost
-                self.__cov_func = lambda bud, pop: bud / unit_cost
+                self.__bud_func = partial(linCovCost, unit_cost=unit_cost, is_fraction=False)
+                self.__cov_func = partial(linCostCov, unit_cost=unit_cost, is_fraction=False)
 
 
     def getDefaultBudget(self, year=None):
@@ -430,7 +436,11 @@ class Program:
         if pop_size is not None:
             self.pop_size = pop_size
 
-        return self.__bud_func(coverage, self.pop_size)
+        # check if budget function makes use of this parameter, if it does, update the value
+        if 'pop_size' in self.__bud_func.keywords:
+            self.__bud_func.keywords['pop_size'] = self.pop_size
+
+        return self.__bud_func(coverage)
 
 
     def getCoverage(self, budget, pop_size=None):
@@ -444,7 +454,11 @@ class Program:
         if pop_size is not None:
             self.pop_size = pop_size
 
-        return self.__cov_func(budget, self.pop_size)
+        # check if coverage function makes use of this parameter, if it does, update the value
+        if 'pop_size' in self.__bud_func.keywords:
+            self.__bud_func.keywords['pop_size'] = self.pop_size
+
+        return self.__cov_func(budget)
 
 
     def getImpact(self, budget, pop_size=None, impact_label=None, parser=None, years=None, budget_is_coverage=False):
@@ -488,3 +502,37 @@ class Program:
                 imp *= new_val  # Scale coverage.
 
         return imp
+
+
+def constCostCov(*args, **kwargs):
+    return np.nan
+
+
+def logCostCov(budget, unit_cost, saturation, pop_size, is_fraction):
+    val = (2. * saturation / (1. + np.exp(-2. * budget / (pop_size * saturation * unit_cost))) - saturation)
+    if is_fraction:
+        return val
+    else:
+        return val * pop_size
+
+
+def logCovCost(coverage, unit_cost, saturation, pop_size, is_fraction):
+    if is_fraction:
+        return - pop_size * saturation * unit_cost / 2. * np.log((saturation - coverage) / (coverage + saturation))
+    else:
+        return - pop_size * saturation * unit_cost / \
+               2. * np.log((saturation * pop_size - coverage) / (coverage + saturation * pop_size))
+
+
+def linCostCov(budget, unit_cost, is_fraction):
+    if is_fraction:
+        return budget * 0.01 / unit_cost
+    else:
+        return budget / unit_cost
+
+
+def linCovCost(coverage, unit_cost, is_fraction):
+    if is_fraction:
+        return coverage * unit_cost / 0.01
+    else:
+        return coverage * unit_cost
