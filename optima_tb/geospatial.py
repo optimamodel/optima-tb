@@ -234,6 +234,23 @@ class GeospatialOptimization:
             costEffVecs.append(costEffThisRegion)
         return costEffVecs, spendingVec, outcomeVec
 
+    def getBOCs(self):
+        """
+        Retrieve the interpolated budget-outcome-curves and the range of budgets for which they are computed.
+
+        :return: tuple of (dict of BOCs, tuple of (minimal budget, maximal budget))
+        """
+        if not self._BOC:
+            raise OptimaException(('No BOCs computed yet. Call runFromScratch() or runWithBO()'
+                                   'before calling getBOCs()!'))
+
+        min_scale = self._budgetScalings[0]
+        max_scale = self._budgetScalings[-1]
+        spendings = sorted([self._opt[region]['constraints']['total'] for region in self._BOC.keys()])
+        x_range = (min_scale * spendings[0], max_scale * spendings[-1])
+
+        return self._BOC, x_range
+
     def getGAResults(self):
         """
         Retrieve the geospatial optimisation result.
@@ -242,7 +259,7 @@ class GeospatialOptimization:
         """
         if not self._outcome:
             raise OptimaException(('No results computed. Call runFromScratch() or runWithBO()'
-                                   'before calling getGAResults!'))
+                                   'before calling getGAResults()!'))
 
         alloc = {}
         outcome = {}
