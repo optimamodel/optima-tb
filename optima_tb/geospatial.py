@@ -62,7 +62,7 @@ class BudgetOutcomeCurve:
 
 
 @trace_exception
-def _call_project_optimize(task):
+def _call_project_optimize(proj, parset_name, progset_name, options):
     """
     Wrapper around the budget optimisation algorithm Project.optimize(). This wrapper is used to provide an
     interface to parallel computation.
@@ -73,9 +73,7 @@ def _call_project_optimize(task):
     :return: tuple of (allocation, outcome), where allocation is the budget allocation across interventions and
         outcome is the optimal outcome
     """
-    proj = task[0]
-    kwargs = task[1]
-    params, obj_vals, _ = proj.optimize(**kwargs)
+    params, obj_vals, _ = proj.optimize(parset_name=parset_name, progset_name=progset_name, options=options)
     return params, obj_vals[-1]
 
 
@@ -189,7 +187,8 @@ class GeospatialOptimization:
                 for scaling in self._budgetScalings:
                     opt = self._scaleBudget(scaling, self._opt[region])
                     for it in range(num_iter):
-                        params.append((self._proj, {'parset_name': region, 'progset_name': region, 'options': opt}))
+                        params.append({'proj': self._proj, 'parset_name': region,
+                                       'progset_name': region, 'options': opt})
         else:
             assert(len(budget_scaling) == len(self._opt))
             for i, region in enumerate(sorted(self._opt.keys())):
@@ -200,7 +199,7 @@ class GeospatialOptimization:
                 scaling = new_budget / org_budget
                 opt = self._scaleBudget(scaling, self._opt[region])
                 for it in range(num_iter):
-                    params.append((self._proj, {'parset_name': region, 'progset_name': region, 'options': opt}))
+                    params.append({'proj': self._proj, 'parset_name': region, 'progset_name': region, 'options': opt})
         return params
 
 
@@ -333,7 +332,7 @@ class GeospatialOptimization:
         :return: list of best outcomes per region and/or budget
         """
         # process tasks serially or in parallel
-        results = pmap(_call_project_optimize, tasks, num_threads)
+        results = pmap(lambda kwargs: _call_project_optimize(**kwargs), tasks, num_threads)
 
         # extract the best result, i.e. the maximum outcome, from all computed scenarios:
         # due to the process which is used to set up the task, it is possible to split the array of results into arrays
