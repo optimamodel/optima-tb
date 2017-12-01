@@ -69,7 +69,7 @@ class ProgramSet:
                     sat = None
                 # required for defaults.py which requires func_specs['type'] to be set
                 new_prog.func_specs['type'] = 'other'
-            new_prog.genFunctionSpecs(unit_cost, sat, cost_only)
+            new_prog.genFunctionSpecs(unit_cost, sat, cost_only, settings)
 
             self.progs.append(new_prog)
             self.prog_ids[prog_label] = l
@@ -354,8 +354,7 @@ class Program:
 
         return output
 
-
-    def genFunctionSpecs(self, unit_cost, sat=None, cost_only=False):
+    def genFunctionSpecs(self, unit_cost, sat=None, cost_only=False, settings=None):
         # getCoverage/getBudget requires 2 parameters, but not all cost curve types need 2 parameters. So lambda
         # function takes to arguments so that getCoverage/getBudget can be uniformly called and simply discards
         # unnecessary parameters
@@ -373,17 +372,13 @@ class Program:
             try: sat = sat[0]
             except: pass
 
+            frac = (self.cov_format.lower() == 'fraction')
+
             # sat is assumed to be a fraction
-            if self.cov_format.lower() == 'fraction':
-                self.__bud_func = partial(logCovCost, saturation=sat, unit_cost=unit_cost,
-                                          pop_size=self.pop_size, is_fraction=True)
-                self.__cov_func = partial(logCostCov, saturation=sat, unit_cost=unit_cost,
-                                          pop_size=self.pop_size, is_fraction=True)
-            else:
-                self.__bud_func = partial(logCovCost, saturation=sat, unit_cost=unit_cost,
-                                          pop_size=self.pop_size, is_fraction=False)
-                self.__cov_func = partial(logCostCov, saturation=sat, unit_cost=unit_cost,
-                                          pop_size=self.pop_size, is_fraction=False)
+            self.__bud_func = partial(logCovCost, saturation=sat, unit_cost=unit_cost,
+                                      pop_size=self.pop_size, is_fraction=frac, dt_year=settings.tvec_dt)
+            self.__cov_func = partial(logCostCov, saturation=sat, unit_cost=unit_cost,
+                                      pop_size=self.pop_size, is_fraction=frac, dt_year=settings.tvec_dt)
 
             # Use truncated linear functions as fallback plan, BUT DO get rid of the lambda expressions or parallelism
             # will fail
@@ -396,14 +391,10 @@ class Program:
 
         else:
             # linear case
-            if self.cov_format.lower() == 'fraction':
-                # Unit cost is per percentage when format is a fraction.
-                self.__bud_func = partial(linCovCost, unit_cost=unit_cost, is_fraction=True)
-                self.__cov_func = partial(linCostCov, unit_cost=unit_cost, is_fraction=True)
-            else:
-                self.__bud_func = partial(linCovCost, unit_cost=unit_cost, is_fraction=False)
-                self.__cov_func = partial(linCostCov, unit_cost=unit_cost, is_fraction=False)
-
+            frac = (self.cov_format.lower() == 'fraction')
+            # Unit cost is per percentage when format is a fraction.
+            self.__bud_func = partial(linCovCost, unit_cost=unit_cost, is_fraction=frac)
+            self.__cov_func = partial(linCostCov, unit_cost=unit_cost, is_fraction=frac)
 
     def getDefaultBudget(self, year=None):
         '''
@@ -505,26 +496,30 @@ class Program:
 
 
 def constCostCov(*args, **kwargs):
+    """Cost only function. Simply returns NaN."""
     return np.nan
 
 
-def logCostCov(budget, unit_cost, saturation, pop_size, is_fraction):
+def logCostCov(budget, unit_cost, saturation, pop_size, is_fraction, dt_year):
+    """Logistic cost coverage function. Returns coverage, expects a budget"""
     val = (2. * saturation / (1. + np.exp(-2. * budget / (pop_size * saturation * unit_cost))) - saturation)
     if is_fraction:
         return val
     else:
-        return val * pop_size
+        return val * pop_size / (365. * dt_year)
 
 
-def logCovCost(coverage, unit_cost, saturation, pop_size, is_fraction):
+def logCovCost(coverage, unit_cost, saturation, pop_size, is_fraction, dt_year):
+    """Logistic coverage cost function. Returns budget, expects a coverage"""
     if is_fraction:
         return - pop_size * saturation * unit_cost / 2. * np.log((saturation - coverage) / (coverage + saturation))
     else:
         return - pop_size * saturation * unit_cost / \
-               2. * np.log((saturation * pop_size - coverage) / (coverage + saturation * pop_size))
+               2. * np.log((saturation * pop_size - coverage) / (coverage + saturation * pop_size)) * 365. * dt_year
 
 
 def linCostCov(budget, unit_cost, is_fraction):
+    """Linear cost coverage function. Returns coverage, expects a budget"""
     if is_fraction:
         return budget * 0.01 / unit_cost
     else:
@@ -532,6 +527,7 @@ def linCostCov(budget, unit_cost, is_fraction):
 
 
 def linCovCost(coverage, unit_cost, is_fraction):
+    """Linear coverage cost function. Returns budget, expects a coverage"""
     if is_fraction:
         return coverage * unit_cost / 0.01
     else:
