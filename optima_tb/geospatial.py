@@ -332,7 +332,7 @@ class GeospatialOptimization:
         :return: list of best outcomes per region and/or budget
         """
         # process tasks serially or in parallel
-        results = pmap(lambda kwargs: _call_project_optimize(**kwargs), tasks, num_threads)
+        results = pmap(Unpacker(_call_project_optimize), tasks, num_threads)
 
         # extract the best result, i.e. the maximum outcome, from all computed scenarios:
         # due to the process which is used to set up the task, it is possible to split the array of results into arrays

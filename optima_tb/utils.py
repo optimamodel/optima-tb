@@ -424,6 +424,17 @@ class OptimaException(Exception):
     def __init(self, *args, **kwargs):
         Exception.__init__(self, *args, **kwargs)
 
+class Unpacker:
+    """Function object which unpacks the *keyword* arguments passed to function. This is essentially a lambda function
+    substitute for parallel processing, as this class can be pickled (unlike lambda).
+
+    The Unpacker is equivalent to 'lambda kwargs: func(**kwargs)'
+    """
+    def __init__(self, func):
+        self._func = func
+
+    def __call__(self, kwargs):
+        return self._func(**kwargs)
 
 
 def pmap(func, params, num_procs=None):
@@ -440,6 +451,9 @@ def pmap(func, params, num_procs=None):
     * params must be pickle-able, thus the class **MUST NEITHER** contain nested functions **NOR** lambda functions
     assigned to instance variables. If you do it anyway, a pickle(!) error (mentioning '__builtin__.function') will be
     raised.
+
+    Convenience notice: by calling pmap(Unpacker(func), params, num_procs), the elements of iterable params are
+    automatically unpacked and passed to func. There is no need to write an additional wrapper
 
     :param func: function which is applied to the passed parameters
     :param params: iterable of parameters for func
@@ -476,6 +490,9 @@ def tmap(func, params, num_threads=None):
     independent of the scope, but it may be slower. But be wary what parameters you pass and how you use them. Deep
     copying all parameters may lead to huge memory consumption. pmap() should be definitely preferred over tmap() for
     computationally intensive tasks.
+
+    Convenience notice: by calling pmap(Unpacker(func), params, num_procs), the elements of iterable params are
+    automatically unpacked and passed to func. There is no need to write an additional wrapper
 
     :param func: function which is applied to the passed parameters
     :param params: iterable of parameters for func
