@@ -37,7 +37,19 @@ class Parameter(object):
         self.autocalibrate = autocalibrate      # A set of boolean flags corresponding to y_factor that denote whether this parameter can be autocalibrated.
 
 
+
     def getValuesAt(self, start, stop=None, pop_label=None):
+        """
+        Return values from a parameter (analogous to ResultSet.getValuesAt()) for a given interval [start, stop) and
+        given populations. The return values are scaled by the corresponding y_factor!
+
+        :param start: float which specifies the starting year (inclusive) of values to extract
+        :param stop: None or float which specifies which stopping year (exclusive) of values to extract. None indicates
+            that the last available entry is to be used
+        :param pop_label: None or list of string (population labels) which specifies which populations to consider
+        :return: {population label: np.array of values in a given interval}
+        """
+
         # if no population is specified use them all
         if pop_label == None:
             pop_label = self.y.keys()
@@ -49,9 +61,11 @@ class Parameter(object):
 
         vals = {}
         for pop in pop_label:
-            # get list of all valid time steps (filter) and map them to the corresponding values (map)
-            vals[pop] = np.array(map(lambda z: self.y[pop][self.t[pop].tolist().index(z)],
-                                     filter(lambda x: start <= x < stop, self.t[pop])))
+            # get list of all valid time steps (filter), map them to the corresponding indices (map), and multiply
+            # the values by the scaling factor (map)
+            vals[pop] = np.array(map(lambda v: self.y[pop][v] * self.y_factor[pop],
+                                     map(lambda z: self.t[pop].tolist().index(z),
+                                     filter(lambda x: start <= x < stop, self.t[pop]))))
 
         return vals
 
