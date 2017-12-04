@@ -180,15 +180,13 @@ class GeospatialOptimization:
             the optimal spending scaling is the parameter 'scaling'; the second case is used to determine budget outcome
             samples from which BOCs are computed
         """
-        params = []
         if budget_scaling is None:
             # in this case apply each scaling to each region num_iter times and optimise
             for region in self._opt:
                 for scaling in self._budgetScalings:
                     opt = self._scaleBudget(scaling, self._opt[region])
                     for it in range(num_iter):
-                        params.append({'proj': self._proj, 'parset_name': region,
-                                       'progset_name': region, 'options': opt})
+                        yield {'proj': self._proj, 'parset_name': region, 'progset_name': region, 'options': opt}
         else:
             assert(len(budget_scaling) == len(self._opt))
             for i, region in enumerate(sorted(self._opt.keys())):
@@ -199,9 +197,7 @@ class GeospatialOptimization:
                 scaling = new_budget / org_budget
                 opt = self._scaleBudget(scaling, self._opt[region])
                 for it in range(num_iter):
-                    params.append({'proj': self._proj, 'parset_name': region, 'progset_name': region, 'options': opt})
-        return params
-
+                    yield {'proj': self._proj, 'parset_name': region, 'progset_name': region, 'options': opt}
 
     def _getBOCderivatives(self, currentRegionalSpending, extraFunds):
         from numpy import linspace
