@@ -1,14 +1,15 @@
 from optima_tb.defaults import defaultOptimOptions
 from optima_tb.utils import *
 from scipy.interpolate import PchipInterpolator
+from scipy.optimize import fsolve
 import pickle
 from copy import deepcopy as dcp
-import copy_reg
+
 
 class BudgetOutcomeCurve:
     """
     Represents a piecewise cubic hermite interpolating polynomial (pchip) which is used in the grid search algorithm. It
-    contains the function itself but also its first derivative and functionality to shift the function
+    contains the function itself but also its first two derivatives and functionality to shift the function
     up/down/left/right.
     """
 
@@ -20,6 +21,8 @@ class BudgetOutcomeCurve:
         self._pfun = dcp(pchip)
         # store the first derivative of the interpolated polynomial
         self._pder = self._pfun.derivative(1)
+        # store second derivative (curvature) of interpolated polynomial
+        self._pcur = self._pfun.derivative(2)
         # initial shifts: none
         self._xshift = 0.
         self._yshift = 0.
@@ -32,6 +35,24 @@ class BudgetOutcomeCurve:
         """
         return self.eval(x)
 
+    def curv(self, x):
+        """
+        Evaluates the second derivative of the interpolated polynomial at point x including previous shifts.
+
+        :param x: float
+        :return: Function value of the first derivative of the interpolated polynomial
+        """
+        return self._pcur(x - self._xshift)
+
+    def deriv(self, x):
+        """
+        Evaluates the first derivative of the interpolated polynomial at point x including previous shifts.
+
+        :param x: float
+        :return: Function value of the first derivative of the interpolated polynomial
+        """
+        return self._pder(x - self._xshift)
+
     def eval(self, x):
         """
         Evaluates the interpolated polynomial at point x including previous shifts.
@@ -41,24 +62,14 @@ class BudgetOutcomeCurve:
         """
         return self._pfun(x - self._xshift) + self._yshift
 
-    def deriv(self, x):
-        """
-        Evaluates the first derivative of the interpolated polynomial at point x including previous shifts.
-
-        :param x: float
-        :return: Function value of the first derivative of the interpolated polynomial
-        """
-        return self._pder(x - self._xshift) + self._yshift
-
-    def shift(self, left, down):
+    def shift(self, left):
         """
         Shifts the interpolated polynomial and its derivative left and down. All shifts are cumulative!
 
         :param left: float which shifts the curve to the left (i.e. negative value shifts it to the right)
-        :param down: float which shifts the curve down (i.e. negative value shifts it up)
         """
-        self._xshift += left
-        self._yshift -= down
+        self._xshift -= left
+        self._yshift -= self._pfun(left)
 
 
 @trace_exception
@@ -275,6 +286,82 @@ class GeospatialOptimization:
         spendings = [budget] * num_regions
         return spendings
 
+    def _greedySearch(self, currentRegionalSpending, extraFunds=None):
+        """
+        Assign budget to regions by allocating the most 'effective' region until another region becomes more effective.
+
+        In essence, the derivatives of each budget-outcome-curve at the origin (i.e. zero spending) is considered. The
+        region with the (absolutely) largest gradient is the most effective region and obtains as much funding until the
+        gradient of the most effective region coincides with any gradient from the other regions. This is computed by
+        determining f'(x) - g'(0) = 0, where f' is the derivative of the most effective region and g' is the
+        derivative of another region. After that, the most effective region changes and the procedure is repeated.
+
+        :param currentRegionalSpending: list of float which specifies how much money is spent in each region
+        :param extraFunds: None; currently not in use
+        :return: list of float with the optimal money allocation per region
+        """
+        # determine the budget to spend and set the current spending to zero
+        remainingBudget = sum(currentRegionalSpending)
+        currentRegionalSpending = [0. for _ in currentRegionalSpending]
+        # fix maximal spending per iteration to prevent the entire budget being spent to one region
+        maxSpending = 1e6
+
+        # determine region with steepest gradient at origin (at 0.)
+        gradients = {}
+        for region in self._BOC:
+            gradients[region] = self._BOC[region].deriv(0.)
+
+        while remainingBudget > 1e-6:
+            # determine which regions are worthy of funding:
+            # 1. sort regions w.r.t. their gradient in descending order (best results come first)
+            gradkeys = sorted(gradients, key=lambda x: gradients[x])
+            # 2. remove those entries from fund-worthy regions whose gradient is smaller than the maximum gradient and
+            # whose gradient is positive. that leaves the most effective regions in the list.
+            # the tolerance of 1e-10 is the accuracy of the underlying computations
+            gradkeys = filter(lambda x: abs(gradients[x] - gradients[gradkeys[0]]) < 1e-10 and gradients[x] < 0.,
+                              gradkeys)
+
+            # determine how much of the budget could be spent before another intervention is more efficient:
+            regionSet = set(self._BOC).difference(set(gradkeys))  # contains the not-fund-worthy regions
+            if not gradkeys:
+                # if gradkeys is empty, only positive gradients exist and the remaining funding is distributed
+                # uniformly. TODO check if this case can actually occur
+                # wrap things up to terminate search
+                gradkeys = self._BOC.keys()
+                minFunding = remainingBudget / len(gradkeys)
+            elif not regionSet:
+                # all gradients are equal. distribute a small funding to all regions to break the tie
+                minFunding = 1e4
+            else:
+                minFunding = np.inf
+                for gradkey in gradkeys:
+                    for region in regionSet:
+                        # determine if and where the curves intersect:
+                        # starting point 1e4 is arbitrarily chosen. it just should be larger than 0 and a bit away from
+                        # the origin to prevent the solver from computing intersections at negative values
+                        sol = fsolve(lambda x: self._BOC[gradkey].deriv(x) - self._BOC[region].deriv(0.), 1e4)
+                        # check if this is the region with minimum spending (which must be > 0 to avoid not to spend
+                        # any money)
+                        if 1e-8 < sol[0] < minFunding:
+                            minFunding = sol[0]
+
+            for region in gradkeys:
+                # apply spending to best region:
+                # 1. cap the money spent by minFunding, maxSpending and the remaining budget
+                spent = min(minFunding, min(remainingBudget, maxSpending)/len(gradkeys))
+                # 2. subtract the spent money from the remaining budget
+                remainingBudget -= spent
+                # 3. assign the spent money to its region's tally
+                currentRegionalSpending[sorted(self._BO.keys()).index(region)] += spent
+
+                # update curve and derivative:
+                # 1. shift the budget-outcome-curve of the best region to the left by the amount which was spent
+                self._BOC[region].shift(spent)
+                # 2. update the gradient of the best region at the origin
+                gradients[region] = self._BOC[region].deriv(0.)
+
+        return currentRegionalSpending
+
     def _loadBudgetOutcomes(self, filename):
         with open(filename, 'rb') as f:
             self._BO = pickle.loads(pickle.load(f))
@@ -293,7 +380,7 @@ class GeospatialOptimization:
 
         logger.info('Finding the optimal budget for each region..')
         spendings = self._getSpendingsPerRegion(total_national_budget)
-        opt_regional_budgets = self._runGridSearch(spendings)
+        opt_regional_budgets = self._greedySearch(spendings)
 
         logger.info('Computing optimal outcomes based on the optimal budget')
         self._optimizeInterventions(opt_regional_budgets, num_iter, num_threads)
@@ -334,7 +421,7 @@ class GeospatialOptimization:
         # due to the process which is used to set up the task, it is possible to split the array of results into arrays
         # which contain the results of only a region with a given budget (that array has a length of num_iter). On each
         # of these arrays the min()-operation is performed to obtain the best outcome.
-        return map(lambda x: min(x, key=lambda y: y[1]), np.array_split(results, len(tasks) / num_iter))
+        return map(lambda x: min(x, key=lambda y: y[1]), np.array_split(results, len(results) / num_iter))
 
     def runFromScratch(self, total_national_budget, budget_scalings, BO_file=None, num_iter=5, num_threads=1):
         """
