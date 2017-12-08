@@ -372,10 +372,12 @@ class GeospatialOptimization:
                 # uniformly. TODO check if this case can actually occur
                 # wrap things up to terminate search
                 gradkeys = self._BOC.keys()
-                minFunding = remainingBudget / len(gradkeys)
+                distribution = [remainingBudget / len(gradkeys)] * len(gradkeys)
             else:
-                minFunding = remainingBudget
-                for gradkey in gradkeys:
+                # for each region whose gradient is maximal, initial the minimal spending by the maximum bound
+                distribution = [remainingBudget] * len(gradkeys)
+                # find the spending for each region to match the gradient of the next best region
+                for i, gradkey in enumerate(gradkeys):
                     for region in regionSet:
                         # determine if and where the curves intersect:
                         # starting point 1e4 is arbitrarily chosen. it just should be larger than 0 and a bit away from
@@ -383,11 +385,8 @@ class GeospatialOptimization:
                         sol = fsolve(lambda x: self._BOC[gradkey].deriv(x) - self._BOC[region].deriv(0.), 1e4)
                         # check if this is the region with minimum spending (which must be > 0 to avoid not to spend
                         # any money)
-                        if 1e-8 < sol[0] < minFunding:
-                            minFunding = sol[0]
-
-            # each region is assigned minFunding, so a multiple of minFunding will be spent
-            distribution = [minFunding] * len(gradkeys)
+                        if 1e-8 < sol[0] < distribution[i]:
+                            distribution[i] = sol[0]
 
             # if there is not enough money left to spend on all regions, spread the remaining money on each region, s.t.
             # the gradient of each region is equal
@@ -406,16 +405,14 @@ class GeospatialOptimization:
 
             for i, region in enumerate(gradkeys):
                 # apply spending to best region:
-                # 1. cap the money spent by minFunding, maxSpending and the remaining budget
-                spent = distribution[i]
-                # 2. subtract the spent money from the remaining budget
-                remainingBudget -= spent
-                # 3. assign the spent money to its region's tally
-                currentRegionalSpending[sorted(self._BO.keys()).index(region)] += spent
+                # 1. subtract the spent money from the remaining budget
+                remainingBudget -= distribution[i]
+                # 2. assign the spent money to its region's tally
+                currentRegionalSpending[sorted(self._BO.keys()).index(region)] += distribution[i]
 
                 # update curve and derivative:
                 # 1. shift the budget-outcome-curve of the best region to the left by the amount which was spent
-                self._BOC[region].shift(spent)
+                self._BOC[region].shift(distribution[i])
                 # 2. update the gradient of the best region at the origin
                 gradients[region] = self._BOC[region].deriv(0.)
 
