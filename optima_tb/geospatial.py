@@ -4,6 +4,7 @@ from scipy.interpolate import PchipInterpolator
 from scipy.optimize import fsolve
 import pickle
 from copy import deepcopy as dcp
+from functools import partial
 
 
 class BudgetOutcomeCurve:
@@ -26,6 +27,8 @@ class BudgetOutcomeCurve:
         # initial shifts: none
         self._xshift = 0.
         self._yshift = 0.
+        # orientation: values are 1 or -1 which determine if the function is flipped around the x-axis or not
+        self._flip = 1.
 
     def __call__(self, x):
         """
@@ -42,7 +45,7 @@ class BudgetOutcomeCurve:
         :param x: float
         :return: Function value of the first derivative of the interpolated polynomial
         """
-        return self._pcur(x - self._xshift)
+        return self._flip * self._pcur(x - self._xshift)
 
     def deriv(self, x):
         """
@@ -51,7 +54,7 @@ class BudgetOutcomeCurve:
         :param x: float
         :return: Function value of the first derivative of the interpolated polynomial
         """
-        return self._pder(x - self._xshift)
+        return self._flip * self._pder(x - self._xshift)
 
     def eval(self, x):
         """
@@ -60,7 +63,11 @@ class BudgetOutcomeCurve:
         :param x: float
         :return: Function value of the interpolated polynomial
         """
-        return self._pfun(x - self._xshift) + self._yshift
+        return self._flip * (self._pfun(x - self._xshift) + self._yshift)
+
+    def flip(self):
+        """Mirror the curve on the x-axis."""
+        self._flip *= -1.
 
     def shift(self, left):
         """
@@ -128,6 +135,38 @@ class GeospatialOptimization:
         self._BOC = {}
         # - optimal outcomes per region
         self._outcome = {}
+
+    def _budgetAllocation(self, x, keys, total):
+        """
+        Function to be passed to fsolve() to determine the budget allocation per region.
+
+        This function sets up a nonlinear system of equations:
+
+        * f(x) - g(y) = 0
+        * g(y) - g(z) = 0
+        * ...
+        * x + y + z + ... - SUM = 0
+
+        This can be interpreted as 'how much money can be spent on each region, s.t. the function value is identical
+        and the amount spent sums to SUM'.
+
+        The number of variables are dependent on the number of elements contained in x. Before this function can be
+        called by fsolve() keys and total must be bound by functools.partial.
+
+        :param x: np.array of floats of the initial distribution per region
+        :param keys: list of string which contains references to which regions are considered
+        :param total: float which specifies the maximum amount of money to be spent (SUM)
+        :return: np.array of floats of the evaluated input x
+        """
+        # allocate result array
+        result = np.zeros(len(x))
+        for i, key in enumerate(keys[:-1]):
+            # pick two subsequent regions and evaluate their derivative
+            # RESULT  =                      f  ( x  ) -                          g   (   y   )
+            result[i] = self._BOC[keys[i]].deriv(x[i]) - self._BOC[keys[i + 1]].deriv(x[i + 1])
+        # sum over all x must be total; last equation
+        result[-1] = sum(x) - total
+        return result
 
     def _calculateBudgetOutcomes(self, budget_scaling, num_threads, filename=None, num_iter=5):
         """
@@ -303,8 +342,13 @@ class GeospatialOptimization:
         # determine the budget to spend and set the current spending to zero
         remainingBudget = sum(currentRegionalSpending)
         currentRegionalSpending = [0. for _ in currentRegionalSpending]
-        # fix maximal spending per iteration to prevent the entire budget being spent to one region
-        maxSpending = 1e6
+
+        # obtain information about a maximisation or minimisation objective. multiply objective by -1, if necessary, to
+        # formalise every region in terms of a minimisation
+        for region in self._opt:
+            objective_key = self._opt[region]['objectives'].keys()[0]
+            if self._opt[region]['objectives'][objective_key]['weight'] < 0.:
+                self._BOC[region].flip()
 
         # determine region with steepest gradient at origin (at 0.)
         gradients = {}
@@ -329,11 +373,8 @@ class GeospatialOptimization:
                 # wrap things up to terminate search
                 gradkeys = self._BOC.keys()
                 minFunding = remainingBudget / len(gradkeys)
-            elif not regionSet:
-                # all gradients are equal. distribute a small funding to all regions to break the tie
-                minFunding = 1e4
             else:
-                minFunding = np.inf
+                minFunding = remainingBudget
                 for gradkey in gradkeys:
                     for region in regionSet:
                         # determine if and where the curves intersect:
@@ -345,10 +386,28 @@ class GeospatialOptimization:
                         if 1e-8 < sol[0] < minFunding:
                             minFunding = sol[0]
 
-            for region in gradkeys:
+            # each region is assigned minFunding, so a multiple of minFunding will be spent
+            distribution = [minFunding] * len(gradkeys)
+
+            # if there is not enough money left to spend on all regions, spread the remaining money on each region, s.t.
+            # the gradient of each region is equal
+            if sum(distribution) > remainingBudget:
+                # set money to spent to the remaining budget, then distribute it
+                distribution = [i / sum(distribution) * remainingBudget for i in distribution]
+
+                assert(abs(sum(distribution) - remainingBudget) < 1e-8)
+
+                # if there is more than one region, use system of non-linear equations to compute the solution..
+                if len(gradkeys) > 1:
+                    distribution = fsolve(partial(self._budgetAllocation, total=sum(distribution), keys=gradkeys),
+                                          np.array(distribution))
+
+            # NOTE: else-cases can be omitted, because they do not require special treatment
+
+            for i, region in enumerate(gradkeys):
                 # apply spending to best region:
                 # 1. cap the money spent by minFunding, maxSpending and the remaining budget
-                spent = min(minFunding, min(remainingBudget, maxSpending)/len(gradkeys))
+                spent = distribution[i]
                 # 2. subtract the spent money from the remaining budget
                 remainingBudget -= spent
                 # 3. assign the spent money to its region's tally
