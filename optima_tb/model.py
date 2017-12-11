@@ -838,6 +838,7 @@ class Model(object):
                             for prog_label in progset.impacts[par_label]:
                                 prog = progset.getProg(prog_label)
                                 prog_type = prog.prog_type
+                                dt_impact = None    # Just to distinguish between dt-ly impact and non-transition program impacts that currently have no coverage.
 
                                 # Make sure the population in the loop is a target of this program.
                                 if pop.label not in prog.target_pops:
@@ -863,45 +864,60 @@ class Model(object):
                                                 for from_pop in prog.target_pops:
                                                     source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]
 
-                                    # Impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
+                                    # Coverage and impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
                                     # Makes sure that the right value is selected.
-                                    try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
-                                    except: net_impact = self.prog_vals[prog_label]['impact'][par_label]
-
-                                    # Make sure each program impact is in the format of the parameter it affects.
-                                    # NOTE: Can be compressed. Currently left explicit.
-                                    if pars[0].val_format == 'fraction':
-                                        if prog.cov_format == 'fraction':
-                                            impact = net_impact
-                                        elif prog.cov_format == 'number':
-                                            if source_element_size <= project_settings.TOLERANCE:
-                                                impact = 0.0
-                                            else:
-                                                impact = net_impact / source_set_size
-        #                                    if impact > 1.0: impact = 1.0   # Maximum fraction allowable due to timestep conversion.
-                                    elif pars[0].val_format == 'number':
-                                        if prog.cov_format == 'fraction':
-                                            impact = net_impact * source_element_size
-                                        elif prog.cov_format == 'number':
-                                            if source_element_size <= project_settings.TOLERANCE:
-                                                impact = 0.0
-                                            else:
-                                                impact = net_impact * source_element_size / source_set_size
-
-                                    # Calculate how excessive program coverage is for the provided budgets.
-                                    # If coverage is a fraction, excess is compared to unity.
-                                    # If coverage is a number, excess is compared to the total number of people available for coverage.
-                                    overflow_factor = 0
                                     try: net_cov = self.prog_vals[prog_label]['cov'][ti]
                                     except: net_cov = self.prog_vals[prog_label]['cov']
+                                    try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
+                                    except: net_impact = self.prog_vals[prog_label]['impact'][par_label]
+                                    try: impact_factor = float(net_impact) / float(net_cov)
+                                    except ZeroDivisionError:
+                                        impact_factor = 0.
+                                        if not float(net_impact) == 0.:
+                                            raise OptimaException('Attempted to divide impact of {0} by coverage of {1} for program "{2}" with impact parameter "{3}".'.format(net_impact, net_cov, prog_label, par_label))
+
+                                    # Assume all program coverage/impact that targets transition parameters is 'effective', not 'probabilistic'.
+                                    # For number format coverages/impacts, this will be uniformly distributed across timesteps.
+                                    # For fraction format coverages/impacts, a dt-ly rate is the same as the intended annual rate.
+                                    # This means the two formats result in differing t-dependent distributions, but the total should be the same, assuming no coverage capping. 
                                     if prog.cov_format == 'fraction':
-                                        overflow_factor = net_cov
+                                        dt_cov = net_cov
+                                        dt_impact = net_impact
                                     elif prog.cov_format == 'number':
-                                        if float(source_set_size) <= project_settings.TOLERANCE:
-                                            overflow_factor = np.inf
+                                        dt_cov = net_cov * settings.tvec_dt
+                                        dt_impact = net_impact * settings.tvec_dt
+                                    else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
+                                    
+                                    # Convert dt-ly coverage/impact into a dt-ly fractonal coverage/impact, i.e. normalise for number available to transition.
+                                    if prog.cov_format == 'fraction':
+                                        frac_dt_cov = dt_cov
+                                        frac_dt_impact = dt_impact
+                                    elif prog.cov_format == 'number':
+                                        if source_set_size <= project_settings.TOLERANCE:
+                                            frac_dt_cov = 0.0
+                                            frac_dt_impact = 0.0
                                         else:
-                                            overflow_factor = net_cov / float(source_set_size)
-                                    overflow_list.append(overflow_factor)
+                                            frac_dt_cov = dt_cov / source_set_size
+                                            frac_dt_impact = dt_impact / source_set_size
+                                    else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
+                                    
+#                                    # Cap dt-ly coverage for each program.
+#                                    if pars[0].val_format == 'fraction':
+#                                        if frac_dt_cov > 1.0:
+#                                            frac_dt_cov = 1.0
+#                                            frac_dt_impact = frac_dt_cov * impact_factor
+                                    
+                                    # A fractional dt-ly coverage happens to be considered overflow.
+                                    # For instance, dt-ly impacts of [0.7,1] with corresponding dt-ly coverage of [1.2,1.3] will scale down so net dt-ly coverage is 1.
+                                    overflow_list.append(frac_dt_cov)
+                                    
+                                    # Convert fraction-based program coverage/impact to parameter format, multiplying by the transition-source compartment size if needed.
+                                    if pars[0].val_format == 'fraction':
+                                        dt_cov = frac_dt_cov
+                                        dt_impact = frac_dt_impact
+                                    elif pars[0].val_format == 'number':
+                                        dt_cov = frac_dt_cov * source_element_size
+                                        dt_impact = frac_dt_impact * source_element_size
 
                                 # If a program target is any other parameter, the parameter value is directly overwritten by coverage.
                                 # TODO: Decide how to handle coverage distribution.
@@ -910,8 +926,8 @@ class Model(object):
                                     except: impact = self.prog_vals[prog_label]['impact'][par_label]
 
 
-#                                year_check = 2015   # Hard-coded check.
-#                                par_check = ['spdno_rate','sndno_rate']#['spdsuc_rate','spdno_rate']
+#                                year_check = 2016.5   # Hard-coded check.
+#                                par_check = ['spdyes_rate']#['spdsuc_rate','spdno_rate']
 #                                if par_label in par_check:
 #                                    if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
 #                                        print('Year: %s' % self.sim_settings['tvec'][ti])
@@ -932,15 +948,34 @@ class Model(object):
                                 if first_prog:
                                     new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
                                     first_prog = False
-#                                new_val += impact
-                                impact_list.append(impact)
+
+                                if dt_impact is None:
+                                    impact_list.append(impact)  # This is for impact parameters without transition tags.
+                                else:   # Alternatively, if the parameter has a transition tag...
+                                    impact_list.append(dt_impact)
 
 #                            print overflow_list
 
                             # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
                             # Otherwise renormalises impacts.
+                            # As a sidenote, only programs with coverage have overflow, which means that impact list is filled with dt-ly impacts.
+                            # TODO: Validate that program impact-factors are less than 1 so that the impact list is definitely less than overflow list.
+                            prev_dt_impacts = impact_list   # Just for debugging diagnostics.
+                            dt_impacts = []     # Just for debugging diagnostics.
                             if len(overflow_list) > 0 and sum(overflow_list) > 1:
-                                impact_list = np.multiply(impact_list, 1 / sum(overflow_list))
+                                impact_list = np.array(impact_list)/sum(overflow_list)
+                            
+                            # Transition tagged parameters involved dt-ly impacts.
+                            # They must be summed and converted back to annual parameter values at this step.
+                            if 'tag' in settings.linkpar_specs[par_label]:
+                                impact_list = np.array([np.sum(impact_list)])
+                                # Converting to annual impacts following normalisation and summation.
+                                if pars[0].val_format == 'number':
+                                    impact_list = impact_list * (1.0/settings.tvec_dt)
+                                elif pars[0].val_format == 'fraction':
+                                    impact_list = 1.0 - (1.0 - impact_list) ** (1.0/settings.tvec_dt)
+                                else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
+                                
 
                             # TODO: This is most likely where modality interactions should be developed.
                             # At the moment, impacts are summed together but can potentially combined in nested ways, e.g. by taking a maximum.
@@ -959,12 +994,20 @@ class Model(object):
                 for par in pars:
 
 #                    year_check = 2015   # Hard-coded check.
-#                    par_check = ['spdno_rate','sndno_rate']#['spdsuc_rate','spdno_rate']
+#                    par_check = ['spmyes_rate']#['spdsuc_rate','spdno_rate']
 #                    if par_label in par_check:
 #                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
 #                            print('Year: %s' % self.sim_settings['tvec'][ti])
 #                            print('Target Population: %s' % pop.label)
 #                            print('Target Parameter: %s' % par_label)
+#                            print net_cov
+#                            print dt_cov
+#                            print frac_dt_cov
+#                            print source_set_size
+#                            print overflow_list
+#                            print prev_dt_impacts
+#                            print dt_impacts
+#                            print impact_list
 #                            print('Final Impact: %f' % new_val)
 #                            print
 
