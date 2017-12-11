@@ -14,10 +14,27 @@ from numbers import Number
 from copy import deepcopy as dcp
 
 
+WB_COLORS = {'blue'         : '#00CCFF',
+             'light_blue'   : '#B7EBFF',
+             'grey'         : '#BFBFBF',
+             'light_grey'   : '#D9D9D9',
+             'green'        : '#69AD45',
+             'white'        : '#ffffff'}
+
+WB_FORMATS = {
+                'lblue_bground': {'align': 'right',
+                                        'valign': 'vcenter',
+                                        'bg_color': WB_COLORS['light_blue'],
+                                        'border': 1,
+                                        'border_color': WB_COLORS['white']
+                                        },
+              }
+
+
 
 # %% Utility functions to generate sub-blocks of the project databook
 
-def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assumption=0.0, assumption_overrides=None, data_formats=None, print_conditions=None, print_conditions_blank_preloading=True, no_header=False, only_assumption=False):
+def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, cell_formats=None, assumption=0.0, assumption_overrides=None, data_formats=None, print_conditions=None, print_conditions_blank_preloading=True, no_header=False, only_assumption=False):
     '''
     Create a block where users choose data-entry format and enter values either as an assumption or time-dependent array.
     
@@ -60,6 +77,8 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
         preloaded_data_format = ''
         preloaded_assumption = ''
 
+    print preloaded_data_format
+
     offset = at_col + 3  # This is the column at which the input year range and corresponding values should be written.
 
     if not no_header:
@@ -85,21 +104,25 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, assump
         worksheet.write(row_id, at_col, data_format_assumption)  # Default choice for data format.
         worksheet.data_validation('%s' % rc(row_id, at_col), {'validate': 'list', 'source': data_formats, 'ignore_blank': False})
         if not print_conditions is None and not print_conditions[aid] is None:
-            worksheet.write(row_id, at_col, '=IF(%s,"%s","")' % (print_conditions[aid], data_format_assumption), None, preloaded_data_format)  # Default choice for data format.
+            worksheet.write(row_id, at_col, '=IF(%s,"%s","")' % (print_conditions[aid], data_format_assumption), cell_formats['lblue_bground'], preloaded_data_format)  # Default choice for data format.
             worksheet.write(row_id, at_col + 1, '=IF(%s,IF(SUMPRODUCT(--(%s:%s<>"%s"))=0,%s,"N.A."),"")' % (print_conditions[aid], rc(row_id, offset), rc(row_id, offset + len(tvec) - 1), value_default, assumption_overrides[aid]), None, preloaded_assumption)
             worksheet.write(row_id, at_col + 2, '=IF(%s,"OR","")' % print_conditions[aid], None, '')
             if only_assumption:
                 for k in xrange(len(tvec)):
-                    worksheet.write(row_id, at_col + 3 + k, '=IF(%s,"%s","")' % (print_conditions[aid], value_default), None, '')
+                    worksheet.write(row_id, at_col + 3 + k, '=IF(%s,"%s","")' % (print_conditions[aid], value_default), cell_formats['lblue_bground'], '')
                     worksheet.data_validation('%s' % rc(row_id, at_col + 3 + k), {'validate': 'list', 'source': ['%s' % value_default], 'ignore_blank': False})
         else:
             worksheet.write(row_id, at_col, data_format_assumption)  # Default choice for data format.
-            worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>"%s"))=0,%s,"N.A.")' % (rc(row_id, offset), rc(row_id, offset + len(tvec) - 1), value_default, assumption_overrides[aid]), None, assumption)
+            worksheet.write(row_id, at_col + 1, '=IF(SUMPRODUCT(--(%s:%s<>"%s"))=0,%s,"N.A.")' % (rc(row_id, offset), rc(row_id, offset + len(tvec) - 1), value_default, assumption_overrides[aid]), cell_formats['lblue_bground'], assumption)
             worksheet.write(row_id, at_col + 2, 'OR')
             if only_assumption:
                 for k in xrange(len(tvec)):
-                    worksheet.write(row_id, at_col + 3 + k, '%s' % value_default)
+                    worksheet.write(row_id, at_col + 3 + k, '%s' % value_default, cell_formats['lblue_bground'])
                     worksheet.data_validation('%s' % rc(row_id, at_col + 3 + k), {'validate': 'list', 'source': ['%s' % value_default], 'ignore_blank': False})
+
+        if not only_assumption: # for the cases that we do not have an assumption, but still need to format the cells for data entry
+            for k in xrange(len(tvec)):
+                worksheet.write(row_id, at_col + 3 + k, None, cell_formats['lblue_bground'])
 
 
 def makeTagMatrix(worksheet, at_row, num_rows, at_col, labels, formula_labels=None, allowed_vals=None, no_validation=False):
@@ -199,6 +222,8 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops=5, num_migrations=2, n
             raise OptimaException('ERROR: Attempting to create a databook with program sections, despite no program types defined in loaded cascade.')
 
     workbook = xw.Workbook(databook_path)
+    workbook, cell_formats = createFormats(workbook)
+
     ws_pops = workbook.add_worksheet(settings.databook['sheet_names']['pops'])
     ws_contact = workbook.add_worksheet(settings.databook['sheet_names']['contact'])
     ws_transmat = workbook.add_worksheet(settings.databook['sheet_names']['transmat'])
@@ -227,6 +252,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops=5, num_migrations=2, n
     ws_progval_width = 35
     name_width = 60
     assumption_width = 10
+
 
     # %% Population names sheet.
     age_min_col = 2
@@ -310,7 +336,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops=5, num_migrations=2, n
                         assumption_equation = "IF(AND('%s'!%s<>%s,'%s'!%s<>%s),1/('%s'!%s-'%s'!%s+1),0)" % (sh_pops, rc(source_id + 1, age_max_col), '""', sh_pops, rc(source_id + 1, age_min_col), '""', sh_pops, rc(source_id + 1, age_max_col), sh_pops, rc(source_id + 1, age_min_col))
                         assumption_overrides.append(assumption_equation)
                     k += 1
-        makeValueEntryArrayBlock(worksheet=ws_transval, at_row=print_row, at_col=3, num_arrays=num_pops * (num_pops - 1), tvec=data_tvec, assumption_overrides=assumption_overrides, print_conditions=print_conditions)
+        makeValueEntryArrayBlock(worksheet=ws_transval, at_row=print_row, at_col=3, num_arrays=num_pops * (num_pops - 1), tvec=data_tvec, assumption_overrides=assumption_overrides, print_conditions=print_conditions, cell_formats=cell_formats)
 
         row_id += 2
 
@@ -377,9 +403,9 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops=5, num_migrations=2, n
             ws_progval.write(row_id + 2, 1, prog_cov_prefix + prog_cov_header)
             ws_progval.write(row_id + 3, 1, 'Program Funding')
             ws_progval.write(row_id + 4, 1, '=' + prog_unit_header, None, 'Unit Cost Estimate')  # As long as this expression starts with 'Unit Cost Estimate', it doesn't matter what it's preloaded as.
-            makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 1, at_col=2, num_arrays=1, tvec=data_tvec, data_formats=['Number', 'Fraction'], print_conditions=['%s<>"..."' % rc(row_id + 2, 1)])
-            makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 3, at_col=2, num_arrays=1, tvec=data_tvec, data_formats=['USD'], no_header=True)
-            makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 4, at_col=2, num_arrays=1, tvec=data_tvec, assumption='1.0E+300', data_formats=['USD'], print_conditions=['%s<>"..."' % rc(row_id + 4, 1)], no_header=True, only_assumption=True)
+            makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 1, at_col=2, num_arrays=1, tvec=data_tvec, data_formats=['Number', 'Fraction'], print_conditions=['%s<>"..."' % rc(row_id + 2, 1)], cell_formats=cell_formats)
+            makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 3, at_col=2, num_arrays=1, tvec=data_tvec, data_formats=['USD'], no_header=True, cell_formats=cell_formats)
+            makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 4, at_col=2, num_arrays=1, tvec=data_tvec, assumption='1.0E+300', data_formats=['USD'], print_conditions=['%s<>"..."' % rc(row_id + 4, 1)], no_header=True, only_assumption=True, cell_formats=cell_formats)
 
             print_conditions = []
             ws_progval.write(row_id + 5, 0, 'Impact Attributes')
@@ -398,7 +424,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops=5, num_migrations=2, n
                         assumption_attname = attrib_name
                     super_string = 'IF(%s="%s","%s",%s)' % (rc(row_id, 1), progtype_name, attrib_name, super_string)
                 ws_progval.write(row_id + 5 + row_imp, 1, '=' + super_string, None, assumption_attname)
-            makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 5, at_col=2, num_arrays=rows_imp, tvec=data_tvec, data_formats=['Unique'], print_conditions=print_conditions, print_conditions_blank_preloading=False, no_header=True)
+            makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 5, at_col=2, num_arrays=rows_imp, tvec=data_tvec, data_formats=['Unique'], print_conditions=print_conditions, print_conditions_blank_preloading=False, no_header=True, cell_formats=cell_formats)
 
 
             row_id += 6 + rows_imp
@@ -439,7 +465,7 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops=5, num_migrations=2, n
                     for pair in settings.links[settings.linkpar_specs[def_label]['tag']]:
                         if 'junction' in settings.node_specs[pair[0]].keys():
                             data_formats = ['Proportion']
-            makeValueEntryArrayBlock(worksheet=ws, at_row=row_id, at_col=1, num_arrays=num_pops, tvec=data_tvec, assumption=default_val, data_formats=data_formats)
+            makeValueEntryArrayBlock(worksheet=ws, at_row=row_id, at_col=1, num_arrays=num_pops, tvec=data_tvec, assumption=default_val, data_formats=data_formats, cell_formats=cell_formats)
 
             # Make the population references.
             ws.write(row_id, 0, def_name + opt_suffix)
@@ -900,6 +926,12 @@ def loadSpreadsheetFunc(settings, databook_path):
         pass
     return data
 
+def createFormats(workbook):
+    formats = odict()
+    for fkey, fmt in WB_FORMATS.iteritems():
+        formats[fkey] = workbook.add_format(fmt)
+
+    return workbook, formats
 
 def __addCharacteristicData(data, charac_label, pop_label, ts, ys, y_format, y_factor=1.):
     """

@@ -11,7 +11,7 @@ from optima_tb.model import runModel
 from optima_tb.settings import Settings
 from optima_tb.parameters import ParameterSet, export_paramset, load_paramset
 from optima_tb.programs import ProgramSet
-from optima_tb.plotting import plotProjectResults
+# from optima_tb.plotting import plotProjectResults
 from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from optima_tb.optimization import optimizeFunc, parallelOptimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
@@ -110,8 +110,15 @@ class Project(object):
         return results
 
 
-    def optimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None, max_iter=500, maxtime=None):
+    def optimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None, max_iter=None, max_time=None):
         ''' Optimize model using a selected parset and store/return results. '''
+
+        optimization_params = dcp(self.settings.optimization_params)
+
+        if max_time is not None:    # Update asd settings with new values ...
+            optimization_params['maxtime'] = max_time
+        if max_iter is not None:
+            optimization_params['maxiters'] = max_iter
 
         if parset is None:
             if len(self.parsets) < 1:
@@ -127,14 +134,32 @@ class Project(object):
                 try: progset = self.progsets[progset_name]
                 except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot optimize model.' % (self.name, progset_name))
 
-        results = optimizeFunc(settings=self.settings, parset=parset, progset=progset, options=options, max_iter=max_iter, maxtime=maxtime)
+        results = optimizeFunc(settings=self.settings, parset=parset, progset=progset, options=options, **optimization_params)
 
         return results
 
 
     def parallelOptimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None,
-                         num_threads=4, block_iter=10, max_blocks=10, max_iter=None, doplot=False, fullfval=False, randseed=None, maxtime=None):
+                         num_threads=4, block_iter=10, max_blocks=10, max_iter=None, doplot=False, fullfval=False, randseed=None, max_time=None):
         ''' Like optimize, but parallel '''
+        parallel_optimization_params = dcp(self.settings.parallel_optimization_params)
+
+        if max_time is not None:    # Update asd settings with new values ...
+            parallel_optimization_params['maxtime'] = max_time
+        if max_iter is not None:
+            parallel_optimization_params['maxiters'] = max_iter
+        if num_threads is not None:
+            parallel_optimization_params['num_threads'] = num_threads
+        if block_iter is not None:
+            parallel_optimization_params['block_iter'] = block_iter
+        if max_blocks is not None:
+            parallel_optimization_params['max_blocks'] = max_blocks
+        if fullfval is not None:
+            parallel_optimization_params['fullfval'] = fullfval
+
+        if parallel_optimization_params['num_threads'] > 1:
+            logging.warning("WARNING: Setting reltol to None during parallel optimization")
+            parallel_optimization_params['reltol'] = None
 
         if parset is None:
             if len(self.parsets) < 1:
@@ -151,9 +176,8 @@ class Project(object):
                 except: raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot optimize model.' % (self.name, progset_name))
 
 
-        results = parallelOptimizeFunc(settings=self.settings, parset=parset, progset=progset, options=options, num_threads=num_threads,
-                                       block_iter=block_iter, max_blocks=max_blocks, max_iter=max_iter, doplot=doplot, fullfval=fullfval,
-                                       randseed=randseed, maxtime=maxtime)
+        results = parallelOptimizeFunc(settings=self.settings, parset=parset, progset=progset, options=options,
+                                       randseed=randseed, doplot=doplot, **parallel_optimization_params)
 
         return results
 
@@ -500,13 +524,14 @@ class Project(object):
         logger.info("Running scenarios: ")
 
         if include_bau:
-            results[bau_label] = self.runSim(parset_name=original_parset_name, progset=orig_progset, options=original_budget_options, plot=plot)
+#             results[bau_label] = self.runSim(parset_name=original_parset_name, progset=orig_progset, options=original_budget_options, plot=plot)
+            results[bau_label] = self.runSim(parset_name=original_parset_name, plot=plot)
             logger.info("Completed scenario case: %s" % bau_label)
 
 
 #         logger.info(run_scenario_names)
         for scen in self.scenarios.keys():
-            scen_name = 'scenario_%s' % self.scenarios[scen].name
+            scen_name = '%s' % self.scenarios[scen].name
             if (run_scenario_names is not None and self.scenarios[scen].name in run_scenario_names) or (run_scenario_names is None and self.scenarios[scen].run_scenario):
                 progset, budget_options = self.scenarios[scen].getScenarioProgset(orig_progset, original_budget_options)
                 logger.info("Starting scenario case: %s" % scen_name)

@@ -114,13 +114,13 @@ def reconcileFunc(proj, reconcile_for_year, parset_name, progset_name, sigma_dic
 #         print "xmax", xmax
 #         print "optim args", optim_args
         logging.info("About to use ASD during reconciliation")
-        best_attribute_list = asd(reconciliationMetric, attribute_list, args, xmin=xmin, xmax=xmax, **optim_args)
+        best_attribute_list, _, _ = asd(reconciliationMetric, attribute_list, args, xmin=xmin, xmax=xmax, **optim_args)
         logging.info("Regenerating attributes dictionary")
         best_attribute_dict = regenerateAttributesDict(attribute_list=best_attribute_list, orig_attribute_dict=attribute_dict)
         if constrain_budget:
             best_attribute_dict, _, _, _ = rescaleAllocation(best_attribute_dict, attribute_dict)
+        print best_attribute_dict
         logging.info("Updating progset")
-#         print best_attribute_dict
         progset = updateProgset(new_pars_dict=best_attribute_dict, progset=progset, year=reconcile_for_year)
         impact['reconciled'] = compareOutcomesFunc(proj=proj, parset_name=parset_name, progset_name=progset_name, year=reconcile_for_year, compareoutcome=True, display=False)
 #        print impact['original']['snmno_rate']
@@ -182,7 +182,6 @@ def compareOutcomesFunc(proj, year, parset_name=None, progset_name=None, budget_
     if not parset_name in proj.parsets.keys(): raise OptimaException("ERROR: No parameter set '%s' found" % parset_name)
     if not progset_name in proj.progsets.keys(): raise OptimaException("ERROR: No program set '%s' found" % progset_name)
 
-    logging.info("Setting up for compareOutcomes")
     # Set years for Simulation runs
     proj.setYear([2000, year], False)
     # Setup compareOutcomes kwargs
@@ -237,12 +236,13 @@ def createAttributeDict(settings, progset):
     '''
     attributes_dict = odict()
     for prog_label in progset.prog_ids.keys():
-#         print('\n\nProgram Name: %s' % prog_label)
+
         mark_for_delete = False
         if prog_label not in attributes_dict.keys():
             attributes_dict[prog_label] = odict()
 
         index = progset.prog_ids[prog_label]
+
         if 'unit_cost' not in progset.progs[index].func_specs['pars'].keys():
             # it's a fixed program
             mark_for_delete = True
@@ -265,6 +265,7 @@ def createAttributeDict(settings, progset):
 #                     break
                 else:
                     attributes_dict[prog_label][key] = interpolated_attributes[key][-1]
+
 
         if mark_for_delete:
             del attributes_dict[prog_label]
@@ -392,6 +393,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
 #         print "\n======"*5
         proposed_dict = regenerateAttributesDict(new_attributes, attribute_dict)
 #         print "\n!!!======"*5
+
         if constrain_budget:
             constrained_dict, orig_total_budget, proposed_total_budget, constrained_total_budget = rescaleAllocation(proposed_dict, attribute_dict)
             new_dict = constrained_dict
@@ -418,7 +420,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 impact_list = []    # Notes for each program what its impact would be before coverage limitations.
                 overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
                                     # Each individual overflow is capped at 1.
-                                                                                                          
+
                 if par_label not in prog_attributes[popkey].keys(): prog_attributes[popkey][par_label] = odict()
                 extra_metric = 0.0
                 for prog_label in progset.impacts[par_label]:
@@ -451,6 +453,30 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                                     from_pop = results.m_pops[results.pop_label_index[from_pop_label]]
                                     source_set_size += from_pop.comps[alt_pars[0].index_from[1]].popsize[-1]
                     # print('Program Label: %s, Parameter: %s, Source set size: %f, source_element_size: %f' % (prog_label, par_label, source_set_size, source_element_size))
+
+                    net_impact = prog.getImpact(prog_budget, impact_label=par_label, parser=parser, years=[reconcile_for_year])
+                    if par.val_format == 'fraction':
+                        if prog.cov_format == 'fraction':
+                            impact = float(net_impact)
+                        elif prog.cov_format == 'number':
+                            if source_element_size <= settings.TOLERANCE:
+                                impact = 0.0
+                            else:
+                                impact = net_impact / source_set_size
+                    elif par.val_format == 'number':
+                        if prog.cov_format == 'fraction':
+                            impact = net_impact * source_element_size
+                        elif prog.cov_format == 'number':
+                            if source_element_size <= settings.TOLERANCE:
+                                impact = 0.0
+                            else:
+                                impact = net_impact * source_element_size / source_set_size
+
+                    # Calculate how excessive program coverage is for the provided budgets.
+                    # If coverage is a fraction, excess is compared to unity.
+                    # If coverage is a number, excess is compared to the total number of people available for coverage.
+                    overflow_factor = 0.
+
                     net_cov = prog.getCoverage(prog_budget)
                     net_impact = prog.getImpact(prog_budget, impact_label=par_label, parser=parser, years=[reconcile_for_year])
                     try: impact_factor = float(net_impact) / float(net_cov)
@@ -470,7 +496,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
 #                            frac_cov = net_cov / source_set_size
 #                            frac_impact = net_impact / source_set_size
 #                    else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
-#                    
+#
 #                    # Limit any program to a coverage that corresponds with a fractional annual impact of 1.
 #                    # This avoids problem for fractional transition conversions.
 #                    impact = frac_impact
@@ -512,7 +538,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                     # Assume all program coverage/impact that targets transition parameters is 'effective', not 'probabilistic'.
                     # For number format coverages/impacts, this will be uniformly distributed across timesteps.
                     # For fraction format coverages/impacts, a dt-ly rate is the same as the intended annual rate.
-                    # This means the two formats result in differing t-dependent distributions, but the total should be the same, assuming no coverage capping. 
+                    # This means the two formats result in differing t-dependent distributions, but the total should be the same, assuming no coverage capping.
                     if prog.cov_format == 'fraction':
                         dt_cov = net_cov
                         dt_impact = net_impact
@@ -520,7 +546,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                         dt_cov = net_cov * proj.settings.tvec_dt
                         dt_impact = net_impact * proj.settings.tvec_dt
                     else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
-                    
+
                     # Convert dt-ly coverage/impact into a dt-ly fractonal coverage/impact, i.e. normalise for number available to transition.
                     if prog.cov_format == 'fraction':
                         frac_dt_cov = dt_cov
@@ -530,26 +556,31 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                             frac_dt_cov = 0.0
                             frac_dt_impact = 0.0
                         else:
+
                             frac_dt_cov = dt_cov / source_set_size
                             frac_dt_impact = dt_impact / source_set_size
                     else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
+
                     
                     # Currently a minor disincentive to fund programs beyond saturation.
                     # Change to a much larger number like actual coverage for a major disincentive.
                     if frac_dt_cov > 1.0:
                         extra_metric += frac_dt_cov
                     
+
 #                    # Cap dt-ly coverage for each program.
 #                    if par.val_format == 'fraction':
 #                        if frac_dt_cov > 1.0:
 #                            frac_dt_cov = 1.0
 #                            frac_dt_impact = frac_dt_cov * impact_factor
-                    
+
                     # A fractional dt-ly coverage happens to be considered overflow.
                     # For instance, dt-ly impacts of [0.7,1] with corresponding dt-ly coverage of [1.2,1.3] will scale down so net dt-ly coverage is 1.
                     overflow_list.append(frac_dt_cov)
+
                     
                     impact = np.nan     # Used only to imagine what the corresponding annual probability (or number) would be before coverage capping.
+
                     # Convert fraction-based program coverage/impact to parameter format, multiplying by the transition-source compartment size if needed.
                     if par.val_format == 'fraction':
                         dt_cov = frac_dt_cov
@@ -562,6 +593,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                         dt_cov = frac_dt_cov * source_element_size
                         dt_impact = frac_dt_impact * source_element_size
                         impact = dt_impact * (1.0 / proj.settings.tvec_dt)
+
 
                     if first_prog:
                         new_val = 0.
@@ -576,6 +608,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 # Otherwise renormalises impacts.
                 if len(overflow_list) > 0 and sum(overflow_list) > 1:
                     impact_list = np.multiply(impact_list, 1 / sum(overflow_list))
+
                
                 # Always sum impact list and convert to annual transition probability, given that reconciliation only handles transition-tag impact parameters.
                 impact_list = np.array([np.sum(impact_list)])
@@ -585,13 +618,14 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                     impact_list = 1.0 - (1.0 - impact_list) ** (1.0 / proj.settings.tvec_dt)
                 else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
                 
+
                 new_val += np.sum(impact_list)
 #                print('Pop key: %s, Par Label: %s, New Val: %s' % (popkey, par_label, new_val))
                 if prog_attributes[popkey][par_label]:
                     prog_attributes[popkey][par_label]['Coverage Cap Impact Value'] = new_val
                     prog_attributes[popkey][par_label]['overflow_list'] = [format(float(x), '.2f') for x in overflow_list]
-
                     prog_attributes[popkey][par_label]['Extra Metric'] = extra_metric
+
 
     ###############################################################################
     # #Cleanup prog_attributes dictionary if empty odicts exist

@@ -879,7 +879,7 @@ class Model(object):
                                     # Assume all program coverage/impact that targets transition parameters is 'effective', not 'probabilistic'.
                                     # For number format coverages/impacts, this will be uniformly distributed across timesteps.
                                     # For fraction format coverages/impacts, a dt-ly rate is the same as the intended annual rate.
-                                    # This means the two formats result in differing t-dependent distributions, but the total should be the same, assuming no coverage capping. 
+                                    # This means the two formats result in differing t-dependent distributions, but the total should be the same, assuming no coverage capping.
                                     if prog.cov_format == 'fraction':
                                         dt_cov = net_cov
                                         dt_impact = net_impact
@@ -887,7 +887,7 @@ class Model(object):
                                         dt_cov = net_cov * settings.tvec_dt
                                         dt_impact = net_impact * settings.tvec_dt
                                     else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
-                                    
+
                                     # Convert dt-ly coverage/impact into a dt-ly fractonal coverage/impact, i.e. normalise for number available to transition.
                                     if prog.cov_format == 'fraction':
                                         frac_dt_cov = dt_cov
@@ -900,17 +900,17 @@ class Model(object):
                                             frac_dt_cov = dt_cov / source_set_size
                                             frac_dt_impact = dt_impact / source_set_size
                                     else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
-                                    
+
 #                                    # Cap dt-ly coverage for each program.
 #                                    if pars[0].val_format == 'fraction':
 #                                        if frac_dt_cov > 1.0:
 #                                            frac_dt_cov = 1.0
 #                                            frac_dt_impact = frac_dt_cov * impact_factor
-                                    
+
                                     # A fractional dt-ly coverage happens to be considered overflow.
                                     # For instance, dt-ly impacts of [0.7,1] with corresponding dt-ly coverage of [1.2,1.3] will scale down so net dt-ly coverage is 1.
                                     overflow_list.append(frac_dt_cov)
-                                    
+
                                     # Convert fraction-based program coverage/impact to parameter format, multiplying by the transition-source compartment size if needed.
                                     if pars[0].val_format == 'fraction':
                                         dt_cov = frac_dt_cov
@@ -963,19 +963,19 @@ class Model(object):
                             prev_dt_impacts = impact_list   # Just for debugging diagnostics.
                             dt_impacts = []     # Just for debugging diagnostics.
                             if len(overflow_list) > 0 and sum(overflow_list) > 1:
-                                impact_list = np.array(impact_list)/sum(overflow_list)
-                            
+                                impact_list = np.array(impact_list) / sum(overflow_list)
+
                             # Transition tagged parameters involved dt-ly impacts.
                             # They must be summed and converted back to annual parameter values at this step.
                             if 'tag' in settings.linkpar_specs[par_label]:
                                 impact_list = np.array([np.sum(impact_list)])
                                 # Converting to annual impacts following normalisation and summation.
                                 if pars[0].val_format == 'number':
-                                    impact_list = impact_list * (1.0/settings.tvec_dt)
+                                    impact_list = impact_list * (1.0 / settings.tvec_dt)
                                 elif pars[0].val_format == 'fraction':
-                                    impact_list = 1.0 - (1.0 - impact_list) ** (1.0/settings.tvec_dt)
+                                    impact_list = 1.0 - (1.0 - impact_list) ** (1.0 / settings.tvec_dt)
                                 else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
-                                
+
 
                             # TODO: This is most likely where modality interactions should be developed.
                             # At the moment, impacts are summed together but can potentially combined in nested ways, e.g. by taking a maximum.
@@ -993,23 +993,28 @@ class Model(object):
 
                 for par in pars:
 
-#                    year_check = 2015   # Hard-coded check.
-#                    par_check = ['spmyes_rate']#['spdsuc_rate','spdno_rate']
-#                    if par_label in par_check:
-#                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
-#                            print('Year: %s' % self.sim_settings['tvec'][ti])
-#                            print('Target Population: %s' % pop.label)
-#                            print('Target Parameter: %s' % par_label)
-#                            print net_cov
-#                            print dt_cov
-#                            print frac_dt_cov
-#                            print source_set_size
-#                            print overflow_list
-#                            print prev_dt_impacts
-#                            print dt_impacts
-#                            print impact_list
-#                            print('Final Impact: %f' % new_val)
-#                            print
+
+                    year_check = 2015   # Hard-coded check.
+                    par_check = ['spdyes_rate']# ['spdsuc_rate','spdno_rate']
+                    if par_label in par_check:
+                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5 * settings.tvec_dt:
+                            print('Year: %s' % self.sim_settings['tvec'][ti])
+                            print('Target Population: %s' % pop.label)
+                            print('Target Parameter: %s' % par_label)
+                            try:
+                                print net_cov
+                                print dt_cov
+                                print frac_dt_cov
+                                print source_set_size
+                                print overflow_list
+                                print prev_dt_impacts
+                                print dt_impacts
+                                print impact_list
+                            except:
+                                print "-"
+                            print('Final Impact: %f' % new_val)
+                            print
+
 
                     par.vals[ti] = new_val
 

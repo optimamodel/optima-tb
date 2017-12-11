@@ -7,6 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 import pylab as pl
+import numpy as np
 from matplotlib.ticker import FuncFormatter
 
 
@@ -53,7 +54,7 @@ class Settings(object):
 
 
         self.tvec_start = 2000.0  # Default start year for data input and simulations.
-        self.tvec_end = 2030.0  # Default end year for data input and simulations.
+        self.tvec_end = 2035.0  # Default end year for data input and simulations.
         self.tvec_observed_end = 2015.0
         self.tvec_dt = 1.0 / 4  # Default timestep for simulations.
 
@@ -65,8 +66,8 @@ class Settings(object):
         # Separate autofit and optimization parameters so that can use the asd algorithm
         # with different settings.
         self.autofit_params = self.resetCalibrationParameters()
-        self.optimization_params = self.resetCalibrationParameters()
-
+        self.optimization_params = self.resetOptimizationParameters()
+        self.parallel_optimization_params = self.resetOptimizationParameters()
         # Settings for databooks / spreadsheets / workbooks / cascades:
         self.loadCascadeSettings(cascade_path)
         self.initCustomDatabookFramework()  # Creates self.countrybook.
@@ -132,7 +133,7 @@ class Settings(object):
     def resetCalibrationParameters(self):
         """
         Sets calibration parameters for use in ASD algorithm, 
-        which is used for autofitting the calibration and running optimizations
+        which is used for autofitting the calibration.
         For full list of calibration parameters, see asd.py > asd() function signature.
         """
         calibration = odict()
@@ -145,7 +146,29 @@ class Settings(object):
         calibration['fulloutput'] = False
 
         calibration['useYFactor'] = True
-        calibration['useInitCompartments'] = True
+#         calibration['useInitCompartments'] = True
+
+        return calibration
+
+    def resetOptimizationParameters(self):
+        """
+        Sets calibration parameters for use in ASD algorithm, 
+        which is used for running optimizations
+        For full list of calibration parameters, see asd.py > asd() function signature.
+        """
+        calibration = odict()
+        calibration['stepsize'] = 0.1
+        calibration['maxiters'] = 2000
+        calibration['maxtime'] = 3600.  # Time in seconds.
+        calibration['reltol'] = 1e-3
+        calibration['sinc'] = 2.
+        calibration['sdec'] = 2.
+        calibration['fulloutput'] = True
+        calibration['num_threads'] = 4
+        calibration['block_iter'] = 10
+        calibration['max_blocks'] = 10
+#         calibration['useYFactor'] = True
+#         calibration['useInitCompartments'] = True
 
         return calibration
 
@@ -355,10 +378,10 @@ class PlottingSettings():
             'The two args are the value and tick position'
             if x >= 1e6:
                 return '%1.1fM' % (x * 1e-6)
-            elif x >= 1e3:
-                return '%1.1fK' % (x * 1e-3)
+#             elif x >= 1e3:
+#                 return '%1.1fK' % (x * 1e-3)
             else:
-                return x
+                return '%g' % x
 
     def PopSuffixFormatter(self, x, pos):
             'The two args are the value and tick position'
@@ -409,12 +432,14 @@ class PlottingSettings():
         self.plotdict = {  # scatter plotting values
                          'marker' : 'o',
                          'facecolors' : 'none',
+                         'marker_color': 'k',
+                         'hatch_bg' : 'white',
                          's' : 40,
                          # axes format
                          'year_inc':5,
                          # colormapping for category lists
                          'colormapping_order':'alternate3',  # as we have triplets in undiagnosed --> diagnosed --> on treatment
-                         'formatter': FuncFormatter(self.PopSuffixFormatter), # KMSuffixFormatter) ,
+                         'formatter': FuncFormatter(self.KMSuffixFormatter) ,
                          'barwidth': 0.8,
                          'bar_offset': 0.2,
                          # alpha for fill-between
@@ -426,9 +451,23 @@ class PlottingSettings():
                          'box_offset' : 0.,
                          # legend
                          'legend_off' : False, # I am legend
-                         'legendsettings': {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1},
+                         'legendsettings': {'loc':'center left',
+                                            'bbox_to_anchor':(1.05, 0.5),
+                                            'ncol':1},
                          # labels
-                         'use_full_labels' : False
+                         'use_full_labels' : False,
+                         'effective_rate': "Effective number",
+                         'default_ylabel' : "Number of cases",
+                         'default_pops' : "All populations",
+                         'default_figname' : "Figname",
+                         'default_year' : 2016., # TODO change so that it's last year,
+                         'title' : None,
+                         # relative plot settings
+                         'relative_yticks' : np.arange(0., 1.1, 0.2),
+                         'y_intercept_line': {'colors': '#AAAAAA',
+                                         'linewidth': 3.,
+                                         'alpha': 0.5,
+                                         'linestyle':':'}
                          }
 
     def devSettings(self):
@@ -438,16 +477,36 @@ class PlottingSettings():
 
     def printSettings(self):
 
-        pl.rcParams['figure.figsize'] = (15, 10)
-        pl.rcParams['savefig.dpi'] = 300
+        pl.rcParams['figure.figsize'] = (9, 7)
+        pl.rcParams['savefig.dpi'] = 200
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
-        self.plotdict['legend_off'] = True
+        pl.rcParams['font.size'] = 14
+        pl.rcParams['lines.linewidth'] = 4
+
+        self.plotdict['legend_off'] = False
         self.plotdict['use_full_labels'] = True
+        self.plotdict['title'] = ''  # No title when we have presentation quality
+
+
+        pl.rcParams['axes.linewidth'] = 3
+        pl.rcParams['axes.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['axes.titlesize'] = pl.rcParams['font.size']
+
+        pl.rcParams['xtick.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['xtick.major.size'] = 3
+        pl.rcParams['xtick.minor.size'] = 0
+        pl.rcParams['xtick.major.width'] = 2
+        pl.rcParams['xtick.minor.width'] = 0
+        pl.rcParams['ytick.labelsize'] = pl.rcParams['font.size']
+        pl.rcParams['ytick.major.size'] = 3
+        pl.rcParams['ytick.minor.size'] = 0
+        pl.rcParams['ytick.major.width'] = 2
+        pl.rcParams['ytick.minor.width'] = 0
 
     def presentationSettings(self):
         pl.rcParams['font.size'] = 14
         pl.rcParams['figure.figsize'] = (9, 7)
-        pl.rcParams['savefig.dpi'] = 300
+        pl.rcParams['savefig.dpi'] = 200
 
         pl.rcParams['lines.linewidth'] = 5
         pl.rcParams['lines.marker'] = 'None'
@@ -469,24 +528,23 @@ class PlottingSettings():
 
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
 
-        self.plotdict['legend_off'] = True
+        self.plotdict['legend_off'] = True # plots separate legend
         self.plotdict['title'] = ''  # No title when we have presentation quality
         self.plotdict['num_cols'] = 1
         self.plotdict['use_full_labels'] = True
 
     def guiSettings(self):
 
-        pl.rcParams['lines.linewidth'] = 2
+        pl.rcParams['lines.linewidth'] = 4
         pl.rcParams['axes.linewidth'] = 1.5
         pl.rcParams['axes.labelsize'] = pl.rcParams['font.size']
         pl.rcParams['axes.titlesize'] = pl.rcParams['font.size']
 
-        pl.rcParams['legend.frameon'] = False
 
-        self.plotdict['legendsettings'] = {'loc': 0 } # best ##{'loc': 4 } # lower right
-        self.plotdict['box_width'] = 0.9
-        self.plotdict['box_offset'] = 0.1
-        self.plotdict['use_full_labels'] = True
+#         self.plotdict['legendsettings'] = {'loc': 'center left' , 'ncol':1} # best ##{'loc': 4 } # lower right
+#         self.plotdict['box_width'] = 0.9
+#         self.plotdict['box_offset'] = 0.1
+#         self.plotdict['use_full_labels'] = True
 
 
 
