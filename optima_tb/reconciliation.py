@@ -543,8 +543,8 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                         dt_cov = net_cov
                         dt_impact = net_impact
                     elif prog.cov_format == 'number':
-                        dt_cov = net_cov * settings.tvec_dt
-                        dt_impact = net_impact * settings.tvec_dt
+                        dt_cov = net_cov * proj.settings.tvec_dt
+                        dt_impact = net_impact * proj.settings.tvec_dt
                     else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
 
                     # Convert dt-ly coverage/impact into a dt-ly fractonal coverage/impact, i.e. normalise for number available to transition.
@@ -561,6 +561,13 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                             frac_dt_impact = dt_impact / source_set_size
                     else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
 
+                    
+                    # Currently a minor disincentive to fund programs beyond saturation.
+                    # Change to a much larger number like actual coverage for a major disincentive.
+                    if frac_dt_cov > 1.0:
+                        extra_metric += frac_dt_cov
+                    
+
 #                    # Cap dt-ly coverage for each program.
 #                    if par.val_format == 'fraction':
 #                        if frac_dt_cov > 1.0:
@@ -571,13 +578,21 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                     # For instance, dt-ly impacts of [0.7,1] with corresponding dt-ly coverage of [1.2,1.3] will scale down so net dt-ly coverage is 1.
                     overflow_list.append(frac_dt_cov)
 
+                    
+                    impact = np.nan     # Used only to imagine what the corresponding annual probability (or number) would be before coverage capping.
+
                     # Convert fraction-based program coverage/impact to parameter format, multiplying by the transition-source compartment size if needed.
-                    if pars[0].val_format == 'fraction':
+                    if par.val_format == 'fraction':
                         dt_cov = frac_dt_cov
                         dt_impact = frac_dt_impact
-                    elif pars[0].val_format == 'number':
+                        if frac_dt_impact > 1.0:
+                            impact = np.nan     # There is no annual probability that matches this quarterly impact fraction.
+                        else:
+                            impact = 1.0 - (1.0 - frac_dt_impact) ** (1.0 / proj.settings.tvec_dt)
+                    elif par.val_format == 'number':
                         dt_cov = frac_dt_cov * source_element_size
                         dt_impact = frac_dt_impact * source_element_size
+                        impact = dt_impact * (1.0 / proj.settings.tvec_dt)
 
 
                     if first_prog:
@@ -593,13 +608,16 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 # Otherwise renormalises impacts.
                 if len(overflow_list) > 0 and sum(overflow_list) > 1:
                     impact_list = np.multiply(impact_list, 1 / sum(overflow_list))
-                    impact_list = np.array([np.sum(impact_list)])
-                    # Converting to annual impacts following normalisation and summation.
-                    if par.val_format == 'number':
-                        impact_list = impact_list * (1.0 / proj.settings.tvec_dt)
-                    elif par.val_format == 'fraction':
-                        impact_list = 1.0 - (1.0 - impact_list) ** (1.0 / proj.settings.tvec_dt)
-                    else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
+
+               
+                # Always sum impact list and convert to annual transition probability, given that reconciliation only handles transition-tag impact parameters.
+                impact_list = np.array([np.sum(impact_list)])
+                if par.val_format == 'number':
+                    impact_list = impact_list * (1.0 / proj.settings.tvec_dt)
+                elif par.val_format == 'fraction':
+                    impact_list = 1.0 - (1.0 - impact_list) ** (1.0 / proj.settings.tvec_dt)
+                else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
+                
 
                 new_val += np.sum(impact_list)
 #                print('Pop key: %s, Par Label: %s, New Val: %s' % (popkey, par_label, new_val))
@@ -649,6 +667,11 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                 continue
             else: del par_attributes[popkey[par_label]]
     ###############################################################################
+    
+#    proposed_dict = regenerateAttributesDict(new_attributes, attribute_dict)
+#    try: print proposed_dict['MDR-TB']
+#    except: pass
+    
     # #Create a single comparison dictionary
     impact = odict()
 
@@ -662,6 +685,15 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
             temp_progset_impact = prog_attributes[popkey][par_label]['Coverage Cap Impact Value']
             extra_metric = prog_attributes[popkey][par_label]['Extra Metric']
             difference = extra_metric + (temp_parset_impact - temp_progset_impact) ** 2
+#            if par_label in ['spmyes_rate','spmno_rate','spmsuc_rate']:
+#                if not popkey.startswith('Pris'):
+#                    print popkey
+#                    print par_label
+#                    print temp_parset_impact
+#                    print temp_progset_impact
+#                    print difference
+#                    print
+            if np.isnan(difference): difference = np.inf
             impact[par_label][popkey] = {'Impact Difference': difference}
             impact['net_difference'] += difference
     if compareoutcome == False:

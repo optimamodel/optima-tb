@@ -993,6 +993,7 @@ class Model(object):
 
                 for par in pars:
 
+
                     year_check = 2015   # Hard-coded check.
                     par_check = ['spdyes_rate']# ['spdsuc_rate','spdno_rate']
                     if par_label in par_check:
@@ -1013,6 +1014,7 @@ class Model(object):
                                 print "-"
                             print('Final Impact: %f' % new_val)
                             print
+
 
                     par.vals[ti] = new_val
 
