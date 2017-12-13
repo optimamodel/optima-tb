@@ -205,7 +205,7 @@ class GeospatialOptimization:
 
         if filename is not None:
             logger.info('Saving computed budget outcomes in %s' % filename)
-            self._writeBudgetOutcomesToFile(filename)
+            self._saveBudgetOutcomesToFile(filename)
 
     def _calculateBudgetOutcomeCurves(self):
         """
@@ -420,8 +420,7 @@ class GeospatialOptimization:
 
     def _loadBudgetOutcomes(self, filename):
         with open(filename, 'rb') as f:
-            self._BO = pickle.loads(pickle.load(f))
-            self._budgetScalings = pickle.loads(pickle.load(f))
+            self._BO, self._budgetScalings = pickle.loads(pickle.load(f))
 
     def _optimize(self, total_national_budget, num_iter, num_threads):
         """
@@ -565,6 +564,14 @@ class GeospatialOptimization:
         rescaledAllocation = [x * scaleRatio for x in regionalAllocations]
         return rescaledAllocation
 
+    def _saveBudgetOutcomesToFile(self, filename):
+        """
+        Write budget outcomes and the scalings in a pickle-file.
+        """
+        data = (self._BO, self._budgetScalings)
+        with open(filename, 'wb') as f:
+            pickle.dump(pickle.dumps(data), f)
+
     def _scaleBudget(self, scaling, options):
         """
         Scale all values in the options-dict by scaling which relate to the budget.
@@ -580,11 +587,3 @@ class GeospatialOptimization:
             options['init_alloc'][prog] *= scaling
 
         return opt
-
-    def _writeBudgetOutcomesToFile(self, filename):
-        """
-        Write budget outcomes and the scalings in a pickle-file.
-        """
-        with open(filename, 'wb') as f:
-            pickle.dump(pickle.dumps(self._BO), f)
-            pickle.dump(pickle.dumps(self._budgetScalings), f)
