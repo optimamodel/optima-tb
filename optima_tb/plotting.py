@@ -987,6 +987,12 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         legendsettings = plotdict['legendsettings']
         separateLegend(labels=legend_labels, colors=cat_colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
 
+    if save_fig:
+        fig.savefig('%s' % (fig_name))
+        logger.info("Saved figure: '%s'" % fig_name)
+
+
+
     return fig
 
 
@@ -1294,6 +1300,11 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
         legendsettings = plotdict['legendsettings']
         # TODO: fix usage when legend should use colors rather than cat_colors
         separateLegend(labels=legend_labels, colors=cat_colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
+
+    if save_fig:
+        fig.savefig('%s' % (fig_name))
+        logger.info("Saved figure: '%s'" % fig_name)
+
 
     return fig
 
@@ -1791,9 +1802,7 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
         ax.set_yticklabels(y_ticks[1])
 
     _turnOffBorder()
-    if save_fig:
-        fig.savefig('%s' % (save_figname))
-        logger.info("Saved figure: '%s'" % save_figname)
+
 
     return fig
 
@@ -1962,8 +1971,8 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     _turnOffBorder()
 
     if save_fig:
-        fig.savefig('%s' % (save_figname))
-        logger.info("Saved figure: '%s'" % save_figname)
+        fig.savefig('%s.png' % (save_figname))
+        logger.info("Saved figure: '%s.png'" % save_figname)
 
     return fig
 
