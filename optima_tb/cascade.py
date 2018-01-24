@@ -73,6 +73,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     cid_birth = None
     cid_dead = None
     cid_junction = None
+    cid_infection = None
     for col_id in xrange(ws_nodes.ncols):
         if ws_nodes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
         if ws_nodes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
@@ -81,6 +82,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_nodes.cell_value(0, col_id) == 'Birth Tag': cid_birth = col_id
         if ws_nodes.cell_value(0, col_id) == 'Dead Tag': cid_dead = col_id
         if ws_nodes.cell_value(0, col_id) == 'Junction': cid_junction = col_id
+        if ws_nodes.cell_value(0, col_id) == 'Infected': cid_infection = col_id
     if None in [cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade compartment worksheet does not have correct column headers.')
 
@@ -122,6 +124,12 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 if val not in ['']:
                     settings.node_specs[node_label]['tag_dead'] = val
                     good_for_transfer = False
+
+            # Store optional information about whether this node represents a stage of infection.
+            if not cid_infection is None:
+                val = str(ws_nodes.cell_value(row_id, cid_infection))
+                if val not in ['']:
+                    settings.node_specs[node_label]['infected'] = True if val == 'y' else False
 
             # Optionally note down whether the compartment is just a junction.
             # Junctions empty themselves via outflows at the end of each model timestep.

@@ -100,6 +100,9 @@ class ResultSet(object):
                 self.budgets = budget_options['init_alloc']
                 self.coverages = progset.getCoverages(self.budgets)
 
+        self.dw = dcp(parset.dw)
+        self.years_lost = dcp(parset.years_lost)
+
         # /work-in-progress
 
     def __repr__(self):
@@ -144,6 +147,9 @@ class ResultSet(object):
 
         if pop_labels is None:
             pop_labels = self.pop_labels
+
+        if not isinstance(pop_labels, list):
+            pop_labels = [pop_labels]
 
         # Get time array ids for values between initial (inclusive) and end year (exclusive).
         tvals = np.array(self.sim_settings['tvec'])
@@ -378,6 +384,26 @@ class ResultSet(object):
                     datapoints[cj][pi] = self.outputs[cj][pi]
         return datapoints, chars, pops
 
+    def getDALY(self, settings, year_start, year_end=None, pop_labels=None):
+        """
+        Determine disability-adjusted life years (DALY) over a given interval. It is computed by summing up YLL and YLD.
+
+        :param settings: Settings which contains compartment information
+        :param year_start: float which specifies the start of the interval in which DALY is determined
+        :param year_end: None or float. If float, it specifies the end of the interval in which YLL is determined; if
+            it is None, the end of simulation is chosen as the end of interval
+        :param pop_labels: None or list of str. If list of str, it contains the population labels for which the YLL is
+            determined; if None, the YLL of all populations is determined
+        :return: an odict of {pop_label: DALY}
+        """
+        yll = self.getYLL(settings, year_start, year_end, pop_labels)
+        yld = self.getYLD(settings, year_start, year_end, pop_labels)
+
+        daly = odict()
+        for pop in yll:
+            daly[pop] = yll[pop] + yld[pop]
+
+        return daly
 
     def getFlow(self, link_label, pop_labels=None):
 #                 (comp, inflows = True, outflows = True, invert = False, link_legend = None, exclude_transfers = False):
@@ -450,6 +476,90 @@ class ResultSet(object):
 
         return datapoints, link_label, pops
 
+    def getYLD(self, settings, year_start, year_end=None, pop_labels=None):
+        """
+        Determine years lost due to disability (YLD) over a given interval.
+
+        :param settings: Settings which contains compartment information
+        :param year_start: float which specifies the start of the interval in which YLL is determined
+        :param year_end: None or float. If float, it specifies the end of the interval in which YLD is determined; if
+            it is None, the end of simulation is chosen as the end of interval
+        :param pop_labels: None or list of str. If list of str, it contains the population labels for which the YLL is
+            determined; if None, the YLL of all populations is determined
+        :return: an odict of {pop_label: YLD}
+        """
+        if len(self.years_lost) == 0:
+            raise OptimaException('ERROR: Cannot compute YLD because no ' +
+                                  'disability weight is defined in the databook')
+
+        # fix pop_labels: either use all pops available or only the ones passed to the function
+        if pop_labels is None:
+            pop_labels = self.pop_labels
+        elif pop_labels is not None and isinstance(pop_labels, basestring):
+            pop_labels = [pop_labels]
+
+        # fix end point of evaluation
+        if year_end is None:
+            year_end = self.t_step[-1]
+
+        infected_comps = filter(lambda x: 'infected' in settings.node_specs[x] and settings.node_specs[x]['infected'],
+                                settings.node_specs)
+
+        yld = odict()
+        # for each population, compute how many people are infected in the specified interval
+        for pop in pop_labels:
+            yld[pop] = 0.
+            for comp in infected_comps:
+                infected, _ = self.getValuesAt(comp, year_start, year_end, pop, True)
+                yld[pop] += infected
+            yld[pop] *= self.dw[pop]
+
+        return yld
+
+    def getYLL(self, settings, year_start, year_end=None, pop_labels=None):
+        """
+        Determine years of life lost due to premature mortality (YLL) over a given interval.
+
+        :param settings: Settings which contains compartment information
+        :param year_start: float which specifies the start of the interval in which YLL is determined
+        :param year_end: None or float. If float, it specifies the end of the interval in which YLL is determined; if
+            it is None, the end of simulation is chosen as the end of interval
+        :param pop_labels: None or list of str. If list of str, it contains the population labels for which the YLL is
+            determined; if None, the YLL of all populations is determined
+        :return: an odict of {pop_label: YLL}
+        """
+        if len(self.years_lost) == 0:
+            raise OptimaException('ERROR: Cannot compute YLL because no ' +
+                                  'average life expectancy is defined in the databook')
+
+        # fix pop_labels: either use all pops available or only the ones passed to the function
+        if pop_labels is None:
+            pop_labels = self.pop_labels
+        elif pop_labels is not None and isinstance(pop_labels, basestring):
+            pop_labels = [pop_labels]
+
+        # fix end point of evaluation
+        if year_end is None:
+            year_end = self.t_step[-1]
+
+        # obtain relevant death compartments
+        # introduced a new flag 'yy' which indicates yll-relevant deaths
+        death_comps = filter(
+            lambda x: 'tag_dead' in settings.node_specs[x] and settings.node_specs[x]['tag_dead'] == 'yy',
+            settings.node_specs)
+        # obtain transitions leading to the relevant death compartments
+        death_trans = filter(lambda x: any([item[1] in death_comps for item in settings.links[x]]), settings.links)
+
+        yll = odict()
+        # for each population, compute how many people have died in the specified interval
+        for pop in pop_labels:
+            yll[pop] = 0.
+            for trans in death_trans:
+                deaths, _ = self.getValuesAt(trans, year_start, year_end, pop, True)
+                yll[pop] += deaths
+            yll[pop] *= self.years_lost[pop]
+
+        return yll
 
     def export(self, filestem=None, sep=',', writetofile=True, use_alltimesteps=True):
         """

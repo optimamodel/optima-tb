@@ -129,7 +129,12 @@ class ParameterSet(object):
         
         self.transfers = odict()    # Dictionary of inter-population transitions.
         self.contacts = odict()     # Dictionary of inter-population interaction weights.
-        
+
+        # disability weight per population
+        self.dw = odict()
+        # life expectancy per population
+        self.years_lost = odict()
+
         logging.info("Created ParameterSet: %s"%self.name)
         
     def getPar(self, label):
@@ -188,6 +193,14 @@ class ParameterSet(object):
                     self.transfers[trans_type][source].y_factor[target] = data['transfers'][trans_type][source][target]['y_factor']
                     
         self.contacts = dcp(data['contacts'])   # Simple copying of the contacts structure into data. No need to be an object.
+
+        # copy disability weights
+        self.dw = dcp(data['pops']['dw'])
+        # determine the average years lost per population assuming a given average life expectancy
+        self.years_lost = odict()
+        for pop in data['pops']['life_exp']:
+            avg_age = 0.5 * (data['pops']['ages'][pop]['max'] + data['pops']['ages'][pop]['min'])
+            self.years_lost[pop] = max(0., data['pops']['life_exp'][pop] - avg_age)
     
     
     def inflate(self,tvec):
