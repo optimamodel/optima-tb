@@ -403,19 +403,22 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops=5, num_migrations=2, n
             ws_progval.write(row_id + 2, 0, 'Cost-Coverage Details')
             ws_progval.write(row_id + 3, 0, '...')
             ws_progval.write(row_id + 4, 0, '...')
+            ws_progval.write(row_id + 5, 0, '...')
             ws_progval.write(row_id + 2, 1, prog_cov_prefix + prog_cov_header)
             ws_progval.write(row_id + 3, 1, 'Program Funding')
             ws_progval.write(row_id + 4, 1, '=' + prog_unit_header, None, 'Unit Cost Estimate')  # As long as this expression starts with 'Unit Cost Estimate', it doesn't matter what it's preloaded as.
+            ws_progval.write(row_id + 5, 1, 'Program Saturation')
             makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 1, at_col=2, num_arrays=1, tvec=data_tvec, data_formats=['Number', 'Fraction'], print_conditions=['%s<>"..."' % rc(row_id + 2, 1)], cell_formats=cell_formats)
             makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 3, at_col=2, num_arrays=1, tvec=data_tvec, data_formats=['USD'], no_header=True, cell_formats=cell_formats)
             makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 4, at_col=2, num_arrays=1, tvec=data_tvec, assumption='1.0E+300', data_formats=['USD'], print_conditions=['%s<>"..."' % rc(row_id + 4, 1)], no_header=True, only_assumption=True, cell_formats=cell_formats)
+            makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 5, at_col=2, num_arrays=1, tvec=data_tvec, assumption='0.95', data_formats=['Fraction'], print_conditions=['%s<>"..."' % rc(row_id + 5, 1)], no_header=True, only_assumption=True, cell_formats=cell_formats)
 
             print_conditions = []
-            ws_progval.write(row_id + 5, 0, 'Impact Attributes')
+            ws_progval.write(row_id + 6, 0, 'Impact Attributes')
             for row_imp in xrange(rows_imp):
-                if row_imp == 0: ws_progval.write(row_id + 5 + row_imp, 0, 'Impact Attributes')
-                else: ws_progval.write(row_id + 5 + row_imp, 0, '...')
-                print_conditions.append('%s<>"..."' % rc(row_id + 5 + row_imp, 1))
+                if row_imp == 0: ws_progval.write(row_id + 6 + row_imp, 0, 'Impact Attributes')
+                else: ws_progval.write(row_id + 6 + row_imp, 0, '...')
+                print_conditions.append('%s<>"..."' % rc(row_id + 6 + row_imp, 1))
                 super_string = '"..."'
                 assumption_attname = super_string
                 for k in xrange(num_progtypes):
@@ -426,8 +429,8 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops=5, num_migrations=2, n
                     if k == 0:
                         assumption_attname = attrib_name
                     super_string = 'IF(%s="%s","%s",%s)' % (rc(row_id, 1), progtype_name, attrib_name, super_string)
-                ws_progval.write(row_id + 5 + row_imp, 1, '=' + super_string, None, assumption_attname)
-            makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 5, at_col=2, num_arrays=rows_imp, tvec=data_tvec, data_formats=['Unique'], print_conditions=print_conditions, print_conditions_blank_preloading=False, no_header=True, cell_formats=cell_formats)
+                ws_progval.write(row_id + 6 + row_imp, 1, '=' + super_string, None, assumption_attname)
+            makeValueEntryArrayBlock(worksheet=ws_progval, at_row=row_id + 6, at_col=2, num_arrays=rows_imp, tvec=data_tvec, data_formats=['Unique'], print_conditions=print_conditions, print_conditions_blank_preloading=False, no_header=True, cell_formats=cell_formats)
 
 
             row_id += 6 + rows_imp
@@ -719,6 +722,9 @@ def loadSpreadsheetFunc(settings, databook_path):
                 if important_col == 'Program Funding':
                     tag = 'cost'
                     get_data = True
+                if important_col == 'Program Saturation':
+                    tag = 'sat'
+                    get_data = True
                 if important_col.startswith('Unit Cost Estimate'):
                     estim = str(ws_progval.cell_value(row_id, 3))
                     if not estim in ['']:
@@ -727,7 +733,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                     tag = settings.progtype_specs[progtype_label]['attribute_name_labels'][important_col]
                     get_data = True
                 if get_data:
-                    for col_id in xrange(ws_progval.ncols):
+                    for col_id in xrange(2, ws_progval.ncols):
 #                        print tag
 #                        print ws_progval.cell_value(row_id, col_id)
                         if col_id == 2:
@@ -736,19 +742,41 @@ def loadSpreadsheetFunc(settings, databook_path):
                             else:  # Assume attributes have unique formats. No need to store at this time.
                                 pass
 #                                data['progs'][prog_label]['attributes']['%s_format' % tag] = str(ws_progval.cell_value(row_id, col_id)).lower()
-                        if col_id > 2 and isinstance(ws_progval.cell_value(row_id, col_id), Number):
+                        elif col_id > 2 and isinstance(ws_progval.cell_value(row_id, col_id), Number):
                             val = ws_progval.cell_value(row_id, col_id)
 
                             if not isinstance(ws_progval.cell_value(prog_row_id + 1, col_id), Number):
                                 tval = str(ws_progval.cell_value(prog_row_id + 1, col_id + 2))
                                 temp[prog_label]['t_assumption'] = tval
-                                if ('%s_assumption' % tag) not in temp[prog_label].keys(): temp[prog_label]['%s_assumption' % tag] = dict()
+                                if ('%s_assumption' % tag) not in temp[prog_label].keys():
+                                    temp[prog_label]['%s_assumption' % tag] = dict()
                                 temp[prog_label]['%s_assumption' % tag] = val
                                 break
                             else:
                                 tval = str(ws_progval.cell_value(prog_row_id + 1, col_id))
                                 if tval not in temp[prog_label].keys(): temp[prog_label][tval] = dict()
                                 temp[prog_label][tval][tag] = val
+
+                        # special rule: assumption may also specify string referring to another program
+                        # IMPORTANT NOTE: referenced programs must have been defined before!
+                        elif col_id == 3 and ws_progval.cell_value(row_id, col_id) in temp.keys():
+                            val = ws_progval.cell_value(row_id, col_id)
+                            tval = str(ws_progval.cell_value(prog_row_id + 1, col_id + 2))
+                            temp[prog_label]['t_assumption'] = tval
+                            if ('%s_assumption' % tag) not in temp[prog_label].keys():
+                                temp[prog_label]['%s_assumption' % tag] = dict()
+                            temp[prog_label]['%s_assumption' % tag] = val
+                            break
+                        elif col_id == 3:
+                            attr = ws_progval.cell_value(row_id, col_id - 2)
+                            if attr not in settings.progtype_specs[progtype_label]['attribute_name_labels']:
+                                continue
+                            lab = settings.progtype_specs[progtype_label]['attribute_name_labels'][attr]
+                            if lab.startswith('$ref_'):
+                                logger.warn('If "{}" is to refer to the program '.format(prog_label) +
+                                            '"{}", it must be defined '.format(ws_progval.cell_value(row_id, col_id)) +
+                                            'in the databook before {}.'.format(prog_label) +
+                                            ' Ignoring entry; this may result in unpredictable behaviour.')
 
 
 
@@ -769,6 +797,7 @@ def loadSpreadsheetFunc(settings, databook_path):
             list_t = []
             list_cost = []
             list_cov = []
+            list_sat = []
             progtype_label = data['progs'][prog_label]['prog_type']
             special_tag = None
             if 'special' in settings.progtype_specs[progtype_label]:
@@ -796,15 +825,27 @@ def loadSpreadsheetFunc(settings, databook_path):
                     cov = float(temp[prog_label][tval]['cov'])
                 elif 'cov_assumption' in temp[prog_label]:
                     cov = float(temp[prog_label]['cov_assumption'])
+                if 'sat' in temp[prog_label][tval]:
+                    sat = float(temp[prog_label][tval]['sat'])
+                elif 'sat_assumption' in temp[prog_label]:
+                    sat = float(temp[prog_label]['sat_assumption'])
+                else:
+                    sat = None
+
                 list_cost.append(cost)
                 list_cov.append(cov)
+                list_sat.append(sat)
+
                 for aid in xrange(num_attribs):
                     attrib_label = settings.progtype_specs[progtype_label]['attribute_name_labels'][aid]
                     attrib = np.nan
                     if attrib_label in temp[prog_label][tval]:
                         attrib = float(temp[prog_label][tval][attrib_label])
                     elif attrib_label + '_assumption' in temp[prog_label]:
-                        attrib = float(temp[prog_label][attrib_label + '_assumption'])
+                        if attrib_label.startswith('$ref_'): # special case of programs cross-referencing other programs
+                            attrib = temp[prog_label][attrib_label + '_assumption']
+                        else:
+                            attrib = float(temp[prog_label][attrib_label + '_assumption'])
                     list_attribs[aid].append(attrib)
 
 
@@ -813,6 +854,7 @@ def loadSpreadsheetFunc(settings, databook_path):
                     list_t.append(float(temp[prog_label]['t_assumption']))
                     list_cost.append(float(temp[prog_label]['cost_assumption']))
                     list_cov.append(float(temp[prog_label]['cov_assumption']))
+                    list_sat.append(float(temp[prog_label]['sat_assumption']))
 #                    print num_attribs
 #                    print list_attribs
 #                    print temp[prog_label]
@@ -825,6 +867,7 @@ def loadSpreadsheetFunc(settings, databook_path):
             data['progs'][prog_label]['t'] = np.array(list_t)
             data['progs'][prog_label]['cost'] = np.array(list_cost)
             data['progs'][prog_label]['cov'] = np.array(list_cov)
+            data['progs'][prog_label]['sat'] = np.array(list_sat)
             for aid in xrange(num_attribs):
                 attrib_label = settings.progtype_specs[progtype_label]['attribute_name_labels'][aid]
                 data['progs'][prog_label]['attributes'][attrib_label] = np.array(list_attribs[aid])
