@@ -261,6 +261,9 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops=5, num_migrations=2, n
     ws_pops.write(0, 1, 'Abbreviation')
     ws_pops.write(0, age_min_col, 'Minimum Age')
     ws_pops.write(0, age_max_col, 'Maximum Age')
+    ws_pops.write(0, 4, 'Disability Weight')
+    ws_pops.write(0, 5, 'Average Life Expectancy')
+
 
     # While writing default population names and labels, they are stored for future reference as well.
     pop_names_default = []
