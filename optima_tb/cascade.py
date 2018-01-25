@@ -74,6 +74,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
     cid_dead = None
     cid_junction = None
     cid_infection = None
+    cid_dbd = None
     for col_id in xrange(ws_nodes.ncols):
         if ws_nodes.cell_value(0, col_id) == 'Code Label': cid_label = col_id
         if ws_nodes.cell_value(0, col_id) == 'Full Name': cid_name = col_id
@@ -83,6 +84,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         if ws_nodes.cell_value(0, col_id) == 'Dead Tag': cid_dead = col_id
         if ws_nodes.cell_value(0, col_id) == 'Junction': cid_junction = col_id
         if ws_nodes.cell_value(0, col_id) == 'Infected': cid_infection = col_id
+        if ws_nodes.cell_value(0, col_id) == 'Death By Disease': cid_dbd = col_id
     if None in [cid_label, cid_name]:
         raise OptimaException('ERROR: Cascade compartment worksheet does not have correct column headers.')
 
@@ -130,6 +132,12 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 val = str(ws_nodes.cell_value(row_id, cid_infection))
                 if val not in ['']:
                     settings.node_specs[node_label]['infected'] = True if val == 'y' else False
+
+            # Store optional information about whether this node represents a deaths caused by the disease.
+            if not cid_dbd is None:
+                val = str(ws_nodes.cell_value(row_id, cid_dbd))
+                if val not in ['']:
+                    settings.node_specs[node_label]['dbd'] = True if val == 'y' else False
 
             # Optionally note down whether the compartment is just a junction.
             # Junctions empty themselves via outflows at the end of each model timestep.
@@ -693,8 +701,15 @@ def cascadeValidation(settings=None, validation=True):
         Output is simply a complete log of errors found in relavant databook        
     '''
     flow = {'outflow': 0, 'inflow': 1}
-    birth_nodes = [nid for nid in settings.node_specs.keys() if 'tag_birth' in settings.node_specs[nid]]
-    death_nodes = [nid for nid in settings.node_specs.keys() if 'tag_dead' in settings.node_specs[nid]]
+    birth_nodes = [nid for nid in settings.node_specs if 'tag_birth' in settings.node_specs[nid]]
+    death_nodes = [nid for nid in settings.node_specs if 'tag_dead' in settings.node_specs[nid]]
+    dbd_nodes = [nid for nid in settings.node_specs if 'dbd' in settings.node_specs[nid]]
+
+    validation = all([node in death_nodes for node in dbd_nodes])
+    if not validation:
+        for i, item in filter(lambda x: not x[1], enumerate([node in death_nodes for node in dbd_nodes])):
+            logging.warning('Node "{}" is represents death by disease,'.format(dbd_nodes[i]) +
+                            ' but "{}" is not tagged by "Dead Tag"'.format(dbd_nodes[i]))
 
     validation = validateBirthNode(birth_nodes, settings, validation, flow)
     validation = validateDeathNode(death_nodes, settings, validation, flow)

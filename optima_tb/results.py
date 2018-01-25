@@ -545,8 +545,7 @@ class ResultSet(object):
         # obtain relevant death compartments
         # introduced a new flag 'yy' which indicates yll-relevant deaths
         death_comps = filter(
-            lambda x: 'tag_dead' in settings.node_specs[x] and settings.node_specs[x]['tag_dead'] == 'yy',
-            settings.node_specs)
+            lambda x: 'dbd' in settings.node_specs[x] and settings.node_specs[x]['dbd'], settings.node_specs)
         # obtain transitions leading to the relevant death compartments
         death_trans = filter(lambda x: any([item[1] in death_comps for item in settings.links[x]]), settings.links)
 
