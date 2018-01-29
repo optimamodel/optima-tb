@@ -131,7 +131,7 @@ class ResultSet(object):
             label_names[label] = names[i]
         return label_names
 
-    def getValuesAt(self, label, year_init, year_end=None, pop_labels=None, integrated=False):
+    def getValuesAt(self, label, year_init, year_end=None, pop_labels=None, settings=None, integrated=False):
         """
         Derives transition flow rates, characteristic or compartment values for results, according to label provided.
        
@@ -139,6 +139,8 @@ class ResultSet(object):
         In the absence of a year_end, the value corresponding to only the year_init timepoint is returned.
         Values are summed across all population groups unless a subset is specified with pop_labels.
         Values can also be optionally integrated to return a scalar.
+
+        settings is only required to determine DALYs and is ignored if label != 'dalys'
         
         Outputs values as array or integrated scalar, as well as the the corresponding timepoints.
         """
@@ -187,12 +189,21 @@ class ResultSet(object):
                 popvalues = values[pop]
                 output += values[pop][label].popsize[idx]
 
+        elif label == 'daly':
+            if settings is not None:
+                dalys = self.getDALY(settings, year_init, year_end, pop_labels)
+                output[0] = np.sum(dalys.values())
+            else:
+                raise OptimaException('Cannot calculate DALYs without a Settings object. ' +
+                                      'Please provide Project.settings to ResultSet.getValuesAt()')
         else:
-            logger.warn('Unable to find values for label="%s", with no corresponding characteristic, transition or compartment found.' % label)
+            logger.warn('Unable to find values for label="%s", with no corresponding characteristic, '.format(label) +
+                        'transition or compartment found.')
 
         # Do a simple integration process if specified by user.
         if integrated:
-            output = output.sum() * dt
+            # enforced that return-type is always an iterable
+            output = np.array([output.sum() * dt])
 
         return output, tvals[idx]
 
@@ -510,8 +521,8 @@ class ResultSet(object):
         for pop in pop_labels:
             yld[pop] = 0.
             for comp in infected_comps:
-                infected, _ = self.getValuesAt(comp, year_start, year_end, pop, True)
-                yld[pop] += infected
+                infected, _ = self.getValuesAt(comp, year_start, year_end, pop, None, True)
+                yld[pop] += np.sum(infected)
             yld[pop] *= self.dw[pop]
 
         return yld
@@ -543,7 +554,7 @@ class ResultSet(object):
             year_end = self.t_step[-1]
 
         # obtain relevant death compartments
-        # introduced a new flag 'yy' which indicates yll-relevant deaths
+        # introduced a new tag 'death by disease' which indicates yll-relevant deaths
         death_comps = filter(
             lambda x: 'dbd' in settings.node_specs[x] and settings.node_specs[x]['dbd'], settings.node_specs)
         # obtain transitions leading to the relevant death compartments
@@ -554,8 +565,8 @@ class ResultSet(object):
         for pop in pop_labels:
             yll[pop] = 0.
             for trans in death_trans:
-                deaths, _ = self.getValuesAt(trans, year_start, year_end, pop, True)
-                yll[pop] += deaths
+                deaths, _ = self.getValuesAt(trans, year_start, year_end, pop, None, True)
+                yll[pop] += np.sum(deaths)
             yll[pop] *= self.years_lost[pop]
 
         return yll

@@ -264,8 +264,7 @@ class Model(object):
                         try: eps = self.sim_settings['constraints']['max_yearly_change'][prog.label]['val']
                         except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog.label)
                         if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog.label] and self.sim_settings['constraints']['max_yearly_change'][prog.label]['rel'] is True:
-                            eps *= default
-                        if np.isnan(eps): eps = np.inf  # Eps likely becomes a nan if it was infinity multiplied by zero.
+                            if not np.isinf(eps): eps *= default
                         if np.abs(eps * settings.tvec_dt) < np.abs(alloc - default):
                             if np.abs(eps) < project_settings.TOLERANCE:
                                 raise OptimaException('ERROR: The change in budget for ramp-constrained "%s" is effectively zero. Model will not continue running; change in program funding would be negligible.' % prog.label)

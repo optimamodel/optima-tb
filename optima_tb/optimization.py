@@ -33,9 +33,12 @@ def constrainAllocation(alloc, settings, options, algorithm_refs, attempt=0):
 #        print options['constraints']['limits'][prog_key]['vals']
 #        print options['orig_alloc'][prog_key]
         if options['constraints']['limits'][prog_key]['rel']:
+            # moved the check before the actual computation to avoid a compiler warning
+            if np.isinf(options['constraints']['limits'][prog_key]['vals'][1]):
+                check = np.inf
+            else:
+                check = options['constraints']['limits'][prog_key]['vals'][1] * options['orig_alloc'][prog_key]
 
-            check = options['constraints']['limits'][prog_key]['vals'][1] * options['orig_alloc'][prog_key]
-            if check is np.nan: check = options['constraints']['limits'][prog_key]['vals'][1]   # Avoids infinity times zero case.
             # If new budget is less than the relative lower limit times original budget...
             if alloc[k] <= options['constraints']['limits'][prog_key]['vals'][0] * options['orig_alloc'][prog_key]:
                 alloc[k] = options['constraints']['limits'][prog_key]['vals'][0] * options['orig_alloc'][prog_key]
@@ -147,10 +150,8 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
             for k in xrange(len(alloc)):
                 options_iter['init_alloc'][algorithm_refs['alloc_ids']['id_progs'][k]] = alloc[k]
         else:
-#            logger.warn("No allocation-id program-label conversion dictionary can be found during optimization. \nMaking a potentially dangerous assumption that optimization alloc is in the same order as init alloc in the options dictionary.")
-#            for k in xrange(len(alloc)):
-#                options_iter['init_alloc'][k] = alloc[k]
-            raise OptimaException('ERROR: No allocation-id program-label conversion dictionary can be found during optimization. Cannot push alloc back into an options dictionary.')
+            raise OptimaException('ERROR: No allocation-id program-label conversion dictionary can be ' +
+                                  'found during optimization. Cannot push alloc back into an options dictionary.')
 
         t = tic()
         results = runModel(settings=settings, parset=parset, progset=progset, options=options_iter)
@@ -159,38 +160,32 @@ def calculateObjective(alloc, settings, parset, progset, options, algorithm_refs
     if 'previous_results' in algorithm_refs:
         algorithm_refs['previous_results'] = dcp(results)   # Store the new results for the next iteration.
 
-#    index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
-#    logging.debug( index_start)
-#    logging.debug( results.sim_settings['tvec'][index_start:])
     objective = 0.0
 
     for objective_label in options['objectives']:
-#        charac_label = options['objective_weight'].keys()[0]
         weight = 1.0
         if 'weight' in options['objectives'][objective_label]: weight = options['objectives'][objective_label]['weight']
 
-
-#        objective = results.getValuesAt(label = objective_label, year_init = options['progs_start'])
-
         # Handle an objective that wants to know the value in a particular year, e.g. a snapshot of a characteristic.
         if 'year' in options['objectives'][objective_label]:
-#            index_start = np.where(results.sim_settings['tvec'] >= options['objectives'][objective_label]['year'])[0][0]
-#            for pop_label in results.outputs[objective_label].keys():
-#                objective += results.outputs[objective_label][pop_label][index_start] * weight
-#            index_start = np.where(results.sim_settings['tvec'] >= options['progs_start'])[0][0]
-#             logging.debug("getValuesAt")
-#             logging.debug(results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight)
-#             logging.debug("getValueAt")
-#             logging.debug(results.getValueAt(label=objective_label, year_init=options['objectives'][objective_label]['year']) * weight)
-#             logging.info("Obj label = %s, eval = %.2f" % (objective_label, results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight))
-            objective += results.getValuesAt(label=objective_label, year_init=options['objectives'][objective_label]['year'])[0][0] * weight
-        # Handle the default objective that wants to know a cumulative value. Timestep scaling is done inside Results.getValueAt().
+            accumulated_value, _ = \
+                results.getValuesAt(label=objective_label,
+                                    settings=settings,
+                                    year_init=options['objectives'][objective_label]['year'])
+        # Handle the default objective that wants to know a cumulative value. Timestep scaling is done inside
+        # Results.getValueAt().
         else:
-#            for pop_label in results.outputs[objective_label].keys():
-#                objective += sum(results.outputs[objective_label][pop_label][index_start:]) * results.dt * weight
-            objective += results.getValuesAt(label=objective_label, year_init=options['progs_start'], year_end=settings.tvec_end, integrated=True)[0][0] * weight
+            accumulated_value, _ = \
+                results.getValuesAt(label=objective_label, settings=settings, year_init=options['progs_start'],
+                                    year_end=settings.tvec_end, integrated=True)
 
-#     logging.info(objective)
+        if len(accumulated_value) == 0:
+            error_msg = '"{}" cannot be evaluated at '.format(objective_label) + \
+                        '{} because simulation ends at '.format(options['objectives'][objective_label]['year']) + \
+                        '{}. Treating value as 0.'.format(settings.tvec_end)
+            logger.warn(error_msg)
+        else:
+            objective += accumulated_value[0] * weight
 
     return objective
 
