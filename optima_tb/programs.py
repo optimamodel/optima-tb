@@ -1,6 +1,6 @@
 from optima_tb.utils import OptimaException, odict
 from optima_tb.interpolation import interpolateFunc
-from optima_tb.costcovfunction import LogisticCCF, ConstCCF, CCFAttr
+from optima_tb.costcovfunction import LogisticCCF, LinearCCF, ConstCCF, CCFAttr
 
 import logging
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class ProgramSet:
             cost = data['progs'][prog_label]['cost']
             cost_format = data['progs'][prog_label]['cost_format']
             cov = data['progs'][prog_label]['cov']
-            sat = data['progs'][prog_label]['sat']
+            sat = data['progs'][prog_label]['sat'] if 'sat' in data['progs'][prog_label] else None
             cov_format = data['progs'][prog_label]['cov_format']
             attributes = data['progs'][prog_label]['attributes']
             target_pops = data['progs'][prog_label]['target_pops']
@@ -150,8 +150,11 @@ class Program:
 
         # self.func_specs = dict()
 
-        if any([sat is None, target_pop_size is None, unit_cost is None]) or special == 'cost_only':
+        if special == 'cost_only':
             self.ccf = ConstCCF()
+        elif any([sat is None, target_pop_size is None]):
+            # backward compatibility: linear cost coverage curves
+            self.ccf = LinearCCF(unit_cost=unit_cost)
         else:
             cif = True if self.cov_format == 'fraction' else False
             self.ccf = LogisticCCF(unit_cost, sat, target_pop_size, dt, cif=cif)
@@ -252,16 +255,6 @@ class Program:
                 output[val_type] = interpolateFunc(t_array, val_array, tvec)
 
         return output
-
-#     def genFunctionSpecs(self, func_pars, func_type='linear'):
-#
-#         self.func_specs['type'] = func_type
-#
-# #        # WARNING: HARD-CODED AND SIMPLISTIC UNIT-COST GENERATION METHOD. IMAGINE IF THERE IS ZERO SPENDING FOR A PROGRAM IN THE LAST YEAR. AMEND ASAP.
-# #        output = self.interpolate(tvec=[max(self.t)])    # Use the latest year stored in the program to inform unit costs.
-#         self.func_specs['pars'] = dcp(func_pars)
-# #        self.func_specs['pars']['unit_cost'] = output['cov'][-1]/output['cost'][-1]
-# #        self.func_specs['pars']['unit_cost'] = func_pars['unit_cost']
 
     def getDefaultBudget(self, year=None):
         '''
