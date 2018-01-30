@@ -264,13 +264,13 @@ class LinearCCF(CostCovFunction):
         self._setAttribute(CCFAttr.uc, unit_cost)
 
     def _costsFraction(self, coverage):
-        return coverage * self._attr[CCFAttr.uc] / 0.01
+        return self._costsNotFraction(coverage) / 0.01
 
     def _costsNotFraction(self, coverage):
         return coverage * self._attr[CCFAttr.uc]
 
     def _coverageFraction(self, costs):
-        return costs * 0.01 / self._attr[CCFAttr.uc]
+        return self._coverageNotFraction(costs) * 0.01
 
     def _coverageNotFraction(self, costs):
         return costs / self._attr[CCFAttr.uc]
@@ -302,7 +302,7 @@ class LogisticCCF(CostCovFunction):
     def _costsNotFraction(self, coverage):
         return - self._attr[CCFAttr.pop] * self._attr[CCFAttr.sat] * self._attr[CCFAttr.uc] \
                / 2. * np.log((self._attr[CCFAttr.sat] * self._attr[CCFAttr.pop] - coverage)
-                           / (coverage + self._attr[CCFAttr.sat] * self._attr[CCFAttr.pop])) \
+                             / (coverage + self._attr[CCFAttr.sat] * self._attr[CCFAttr.pop])) \
                * 365. * self._attr[CCFAttr.dt]
 
     def _coverageFraction(self, costs):
@@ -310,7 +310,4 @@ class LogisticCCF(CostCovFunction):
                (1. + np.exp(-2. * costs / (self._attr[CCFAttr.pop] * self._attr[CCFAttr.sat] * self._attr[CCFAttr.uc])))
 
     def _coverageNotFraction(self, costs):
-        return (- self._attr[CCFAttr.sat] + 2. * self._attr[CCFAttr.sat]
-                / (1. + np.exp(-2. * costs
-                               / (self._attr[CCFAttr.pop] * self._attr[CCFAttr.sat] * self._attr[CCFAttr.uc])))) \
-               * self._attr[CCFAttr.pop] / (365. * self._attr[CCFAttr.dt])
+        return self._coverageFraction(costs) * self._attr[CCFAttr.pop] / (365. * self._attr[CCFAttr.dt])
