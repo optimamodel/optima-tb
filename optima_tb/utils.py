@@ -5,6 +5,9 @@ logger = logging.getLogger(__name__)
 from collections import OrderedDict
 from numpy import array
 from numbers import Number
+import multiprocessing as mp
+import functools
+import traceback
 
 
 #%% Timing functions
@@ -420,3 +423,79 @@ class OptimaException(Exception):
     def __init(self, *args, **kwargs):
         Exception.__init__(self, *args, **kwargs)
 
+
+def pmap(func, params, num_procs=None):
+    """
+    Wrapper function for map() (and intended to be used like map()) which initialises a worker pool and processes the
+    passed params in parallel. This function makes use of PROCESSES, therefore keep three things in mind when using this
+    function:
+    * Whatever elements in params are contained, they will be copied to the respective process. That is, if params
+    contains e.g. [obj, obj], where obj is merely a reference (shallow copy) of an object, a deep copy is performed
+    when the parameters are passed to the process. Thus no race conditions occur, but also changes to the object are
+    lost after the process terminates.
+    * func must be globally accessible, i.e. func **MUST NOT** be a method (class function), not even a static function.
+    If you do it anyway, a pickle(!) error (mentioning 'instancemethod') will be raised.
+    * params must be pickle-able, thus the class **MUST NEITHER** contain nested functions **NOR** lambda functions
+    assigned to instance variables. If you do it anyway, a pickle(!) error (mentioning '__builtin__.function') will be
+    raised.
+
+    Convenience notice: by decorating the implementation of the function (func) with 'unpack_args', the elements of
+    iterable params are automatically unpacked and passed to func. There is no need to write an additional wrapper
+
+    :param func: function which is applied to the passed parameters
+    :param params: iterable of parameters for func
+    :param num_procs: int which specifies how many processes to use
+    :return: list of return values of func in the order of execution
+    """
+    if num_procs < 1:
+        raise OptimaException(('The number of threads to be used must be an integer > 0 or None. '
+                               '{} was passed'.format(num_procs)))
+
+    if num_procs == 1:
+        return map(func, params)
+
+    if num_procs is None:
+        pool = mp.Pool()
+    else:
+        pool = mp.Pool(num_procs)
+
+    result = pool.map(func, params)
+    pool.close()
+    pool.join()
+    return result
+
+
+def trace_exception(func):
+    """
+    Allows stacktrace in processes.
+
+    HOW TO USE: Decorate any function you wish to call with runParallel (the function func
+    references) with '@trace_exception'. Whenever an exception is thrown by the decorated function when executed
+    parallel, a stacktrace is printed; the thread terminates but the execution of other threads is not affected.
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except:
+            traceback.print_exc()
+    return wrapper
+
+
+def unpack_args(func):
+    """
+    Unpacks arguments passed to a function. This includes both iterables and mappings.
+
+    If map(func, (item0, .., itemN)) is used, func is passed each item* for processing. item* is treated are one
+    parameter, but generally the implementation of func has an arbitrary number of parameters. Suppose the required
+    number of parameters are contained in item*, this decorator unpacks item* so that func can be used as usual.
+    """
+    @functools.wraps(func)
+    def unpacker(args):
+        try:
+            # try to unpack the arguments as mapping
+            return func(**args)
+        except TypeError:
+            # args are not a mapping in this case, so treat them as tuple
+            return func(*args)
+    return unpacker
