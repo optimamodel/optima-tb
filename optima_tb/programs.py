@@ -1,5 +1,6 @@
 from optima_tb.utils import OptimaException, odict
 from optima_tb.interpolation import interpolateFunc
+from optima_tb.costcovfunction import LogisticCCF, ConstCCF, CCFAttr
 
 import logging
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class ProgramSet:
             cost = data['progs'][prog_label]['cost']
             cost_format = data['progs'][prog_label]['cost_format']
             cov = data['progs'][prog_label]['cov']
+            sat = data['progs'][prog_label]['sat']
             cov_format = data['progs'][prog_label]['cov_format']
             attributes = data['progs'][prog_label]['attributes']
             target_pops = data['progs'][prog_label]['target_pops']
@@ -42,22 +44,35 @@ class ProgramSet:
                 if target_par not in self.impacts: self.impacts[target_par] = []
                 self.impacts[target_par].append(prog_label)
 
+            alive_tag = settings.charac_pop_count
+            target_pop_size = np.sum([data['characs'][alive_tag][pop]['y'][0] for pop in target_pops])
+
+            if 'unit_cost' in data['progs'][prog_label]:
+                unit_cost = data['progs'][prog_label]['unit_cost']
+            else:
+                unit_cost = None
+
             new_prog = Program(name=prog_name, label=prog_label, prog_type=prog_type,
-                               t=t, cost=cost, cov=cov,
+                               t=t, cost=cost, cov=cov, sat=sat,
                                cost_format=cost_format, cov_format=cov_format,
                                attributes=attributes,
-                               target_pops=target_pops, target_pars=target_pars)
+                               target_pops=target_pops,
+                               target_pop_size=target_pop_size,
+                               target_pars=target_pars,
+                               unit_cost=unit_cost,
+                               dt=settings.tvec_dt,
+                               special=special)
 
 
-            func_pars = dict()
-            # TODO: This is where new function types can be specified, such as sigmoid cost-curves.
-            # The func_type and func_pars dict will need to reflect this, e.g. with func_pars['unit_cost'] and func_pars['asymptote'].
-            if special == 'cost_only':
-                func_type = 'cost_only'
-            else:
-                func_type = 'linear'
-                func_pars['unit_cost'] = data['progs'][prog_label]['unit_cost']
-            new_prog.genFunctionSpecs(func_pars=func_pars, func_type=func_type)
+            # func_pars = dict()
+            # # TODO: This is where new function types can be specified, such as sigmoid cost-curves.
+            # # The func_type and func_pars dict will need to reflect this, e.g. with func_pars['unit_cost'] and func_pars['asymptote'].
+            # if special == 'cost_only':
+            #     func_type = 'cost_only'
+            # else:
+            #     func_type = 'linear'
+            #     func_pars['unit_cost'] = data['progs'][prog_label]['unit_cost']
+            # new_prog.genFunctionSpecs(func_pars=func_pars, func_type=func_type)
 
             self.progs.append(new_prog)
             self.prog_ids[prog_label] = l
@@ -105,7 +120,9 @@ class ProgramSet:
 
 class Program:
 
-    def __init__(self, name, label, prog_type, t=None, cost=None, cov=None, cost_format=None, cov_format=None, attributes={}, target_pops=None, target_pars=None):
+    def __init__(self, name, label, prog_type, t=None, cost=None, cov=None, sat=None, cost_format=None, cov_format=None,
+                 attributes={}, target_pops=None, target_pop_size=None, target_pars=None, unit_cost=None, dt=None,
+                 special=''):
         """
         
         """
@@ -131,7 +148,13 @@ class Program:
         if target_pars is None: target_pars = []
         self.target_pars = target_pars
 
-        self.func_specs = dict()
+        # self.func_specs = dict()
+
+        if any([sat is None, target_pop_size is None, unit_cost is None]) or special == 'cost_only':
+            self.ccf = ConstCCF()
+        else:
+            cif = True if self.cov_format == 'fraction' else False
+            self.ccf = LogisticCCF(unit_cost, sat, target_pop_size, dt, cif=cif)
         
     def insertValuePair(self, t, y, attribute, rescale_after_year=False):
         '''
@@ -230,15 +253,15 @@ class Program:
 
         return output
 
-    def genFunctionSpecs(self, func_pars, func_type='linear'):
-
-        self.func_specs['type'] = func_type
-
-#        # WARNING: HARD-CODED AND SIMPLISTIC UNIT-COST GENERATION METHOD. IMAGINE IF THERE IS ZERO SPENDING FOR A PROGRAM IN THE LAST YEAR. AMEND ASAP.
-#        output = self.interpolate(tvec=[max(self.t)])    # Use the latest year stored in the program to inform unit costs.
-        self.func_specs['pars'] = dcp(func_pars)
-#        self.func_specs['pars']['unit_cost'] = output['cov'][-1]/output['cost'][-1]
-#        self.func_specs['pars']['unit_cost'] = func_pars['unit_cost']
+#     def genFunctionSpecs(self, func_pars, func_type='linear'):
+#
+#         self.func_specs['type'] = func_type
+#
+# #        # WARNING: HARD-CODED AND SIMPLISTIC UNIT-COST GENERATION METHOD. IMAGINE IF THERE IS ZERO SPENDING FOR A PROGRAM IN THE LAST YEAR. AMEND ASAP.
+# #        output = self.interpolate(tvec=[max(self.t)])    # Use the latest year stored in the program to inform unit costs.
+#         self.func_specs['pars'] = dcp(func_pars)
+# #        self.func_specs['pars']['unit_cost'] = output['cov'][-1]/output['cost'][-1]
+# #        self.func_specs['pars']['unit_cost'] = func_pars['unit_cost']
 
     def getDefaultBudget(self, year=None):
         '''
@@ -251,9 +274,8 @@ class Program:
         budget = output['cost'][-1]
         return budget
 
-    # TODO: Extend this method to account for non-linear cost-coverage curves. Probably if-else by func_type after deciding their hardcoded labels.
     # Note that inverse functions may be more challenging than the functions employed in Program.getCoverage().
-    def getBudget(self, coverage):
+    def getBudget(self, coverage, pop_size=None):
         '''
         Returns a budget that corresponds to a program coverage. In simplest form, this is coverage times unit cost.
         Note that this method is not typically used during model processing.
@@ -263,20 +285,15 @@ class Program:
         try: coverage = float(coverage)
         except: coverage = dcp(np.array(coverage, 'float'))
 
-        if self.func_specs['type'] == 'cost_only':
-            bud = np.nan    # A fixed-cost program has no coverage, so a coverage-budget conversion should return a NaN.
-                            # This will not bother value-updating in the model, as fixed-cost programs should not have impact parameters anyway.
-        elif self.cov_format is None:
-            raise OptimaException('ERROR: Attempted to convert coverage to budget for a program (%s) that does not have coverage.' % self.label)
+        # if pop_size is provided, update current pop_size
+        if pop_size is not None:
+            params = {CCFAttr.pop: pop_size}
         else:
-            if self.cov_format.lower() == 'fraction':
-                bud = coverage * self.func_specs['pars']['unit_cost'] / 0.01     # Unit cost is per percentage when format is a fraction.
-            else:
-                bud = coverage * self.func_specs['pars']['unit_cost']
-        return bud
+            params = {}
 
-    # TODO: Extend this method to account for non-linear cost-coverage curves. Probably if-else by func_type after deciding their hardcoded labels.
-    def getCoverage(self, budget):
+        return self.ccf.costs(coverage, params)
+
+    def getCoverage(self, budget, pop_size=None):
         '''
         Returns prospective coverage for a program. In simplest form, this is budget divided by unit cost.
         Note that this coverage will be dynamically divided amongst populations/compartments in the model prior to scaling into an impact.
@@ -287,19 +304,23 @@ class Program:
         try: budget = float(budget)
         except: budget = dcp(np.array(budget, 'float'))
 
-        if self.cov_format is None:
-            cov = np.nan  # Fixed cost programs have no coverage.
+        # if pop_size is provided, update current pop_size
+        if pop_size is not None:
+            params = {CCFAttr.pop: pop_size}
         else:
-            if self.cov_format.lower() == 'fraction':
-                cov = budget * 0.01 / self.func_specs['pars']['unit_cost']     # Unit cost is per percentage when format is a fraction.
-            else:
-                cov = budget / self.func_specs['pars']['unit_cost']
-        return cov
+            params = {}
 
-    def getImpact(self, budget, impact_label=None, parser=None, years=None, budget_is_coverage=False):
+        return self.ccf.coverage(budget, params)
 
-        if self.func_specs['type'] == 'cost_only':
+
+    def getImpact(self, budget, pop_size=None, impact_label=None, parser=None, years=None, budget_is_coverage=False):
+        # if it is a cost only function, nan will be returned independent of the input values
+        if np.isnan(np.sum(self.getCoverage(budget, pop_size))):
             return 0.0
+
+        # if pop_size is provided, update current pop_size
+        if pop_size is not None:
+            self.pop_size = pop_size
 
         budget = dcp(budget)    # Just in case.
 

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 import numpy as np
 from copy import deepcopy as dcp
-
+from costcovfunction import ConstCCF
 #%% Functions to generate default structures
 
 def defaultOptimOptions(settings, progset = None, progs_start = None):
@@ -25,7 +25,7 @@ def defaultOptimOptions(settings, progset = None, progs_start = None):
         for prog in progset.progs:
             options['init_alloc'][prog.label] = prog.getDefaultBudget(year=progs_start)
             options['constraints']['limits'][prog.label] = {'vals':[0.0,np.inf],'rel':True}
-            if prog.func_specs['type'] == 'cost_only':
+            if isinstance(prog, ConstCCF):
                 options['constraints']['limits'][prog.label]['vals'] = [1.0,1.0]
             else:
                 # All programs that are not fixed-cost can have a default ramp constraint.

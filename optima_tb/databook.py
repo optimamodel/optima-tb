@@ -723,8 +723,9 @@ def loadSpreadsheetFunc(settings, databook_path):
                     tag = 'cost'
                     get_data = True
                 if important_col == 'Program Saturation':
-                    tag = 'sat'
-                    get_data = True
+                    estim = str(ws_progval.cell_value(row_id, 3))
+                    if not estim in ['']:
+                        data['progs'][prog_label]['sat'] = float(estim)
                 if important_col.startswith('Unit Cost Estimate'):
                     estim = str(ws_progval.cell_value(row_id, 3))
                     if not estim in ['']:
@@ -825,16 +826,9 @@ def loadSpreadsheetFunc(settings, databook_path):
                     cov = float(temp[prog_label][tval]['cov'])
                 elif 'cov_assumption' in temp[prog_label]:
                     cov = float(temp[prog_label]['cov_assumption'])
-                if 'sat' in temp[prog_label][tval]:
-                    sat = float(temp[prog_label][tval]['sat'])
-                elif 'sat_assumption' in temp[prog_label]:
-                    sat = float(temp[prog_label]['sat_assumption'])
-                else:
-                    sat = None
 
                 list_cost.append(cost)
                 list_cov.append(cov)
-                list_sat.append(sat)
 
                 for aid in xrange(num_attribs):
                     attrib_label = settings.progtype_specs[progtype_label]['attribute_name_labels'][aid]
@@ -854,7 +848,6 @@ def loadSpreadsheetFunc(settings, databook_path):
                     list_t.append(float(temp[prog_label]['t_assumption']))
                     list_cost.append(float(temp[prog_label]['cost_assumption']))
                     list_cov.append(float(temp[prog_label]['cov_assumption']))
-                    list_sat.append(float(temp[prog_label]['sat_assumption']))
 #                    print num_attribs
 #                    print list_attribs
 #                    print temp[prog_label]
@@ -867,7 +860,6 @@ def loadSpreadsheetFunc(settings, databook_path):
             data['progs'][prog_label]['t'] = np.array(list_t)
             data['progs'][prog_label]['cost'] = np.array(list_cost)
             data['progs'][prog_label]['cov'] = np.array(list_cov)
-            data['progs'][prog_label]['sat'] = np.array(list_sat)
             for aid in xrange(num_attribs):
                 attrib_label = settings.progtype_specs[progtype_label]['attribute_name_labels'][aid]
                 data['progs'][prog_label]['attributes'][attrib_label] = np.array(list_attribs[aid])
