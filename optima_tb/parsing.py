@@ -1,7 +1,7 @@
 #%% Imports
 
 from optima_tb.utils import OptimaException
-
+import math
 import logging
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ from copy import deepcopy as dcp
 #%% Parser for functions written as strings
 
 class FunctionParser(object):
-    '''
+    """
     A parser that can decompose a string of numbers and variables into tokens, then evaluate the expression.
     Incorporates BODMAS operations, as well as exponentiation and negative numbers.
     Any modifications to this should be made with care, given the left-to-right parsing grammar.
@@ -22,9 +22,9 @@ class FunctionParser(object):
     Accordingly, implementing further tokens (e.g. exponential functions) should search fourFn.py online.
     
     Version: 2016nov01
-    '''
+    """
 
-    def __init__(self, debug = False):
+    def __init__(self, debug=False):
         self.debug = debug      # Print out steps for string decomposition and evaluation.
         
         self.expr_stack = []    # A list for storing tokens in reverse evaluation order.
@@ -42,35 +42,49 @@ class FunctionParser(object):
         rpar  = Literal(')').suppress()
         num = Word(nums + ".")
         var = Word(alphanums + "_")
+        sep = Literal(",")
+        func = Word(alphanums)
         
         self.op_dict = {"+": operator.add,
                         "-": operator.sub,
                         "*": operator.mul,
                         "/": operator.truediv,
                         "^": operator.pow}
+
+        # unary functions
+        self.ufn_dict = {'exp': math.exp,
+                         'abs': math.fabs}
+
+        # binary functions
+        self.bfn_dict = {'min': min,
+                         'max': max}
         
         self.grammar = Forward()
-        primary = (neg + ((num | var.setParseAction(self.noteVariable)).setParseAction(self.pushFirst) | Group(lpar + self.grammar + rpar))).setParseAction(self.pushUnaryMinus)        
+        primary = (neg + ((num
+                           | func + lpar + self.grammar + rpar
+                           | func + lpar + self.grammar + sep + self.grammar + rpar
+                           | var.setParseAction(self.noteVariable)).setParseAction(self.pushFirst)
+                           | Group(lpar + self.grammar + rpar))).setParseAction(self.pushUnaryMinus)
         factor = Forward()      # Making sure chain-exponentiation tokens are evaluated from right to left.
         factor << primary + ZeroOrMore((expop + factor).setParseAction(self.pushFirst))
         term = factor + ZeroOrMore((multop + factor).setParseAction(self.pushFirst))
         self.grammar << term + ZeroOrMore((addop + term).setParseAction(self.pushFirst))
         
     def pushFirst(self, s, loc, toks):
-        ''' Used to push tokens into an evaluation (FILO) stack. '''
+        """ Used to push tokens into an evaluation (FILO) stack. """
         self.expr_stack.append(toks[0])
         
     def pushUnaryMinus(self, s, loc, toks):
-        ''' Used to push a unary-minus token into an evaluation stack (i.e. a symbol denoting a negative number). '''
+        """ Used to push a unary-minus token into an evaluation stack (i.e. a symbol denoting a negative number). """
         if toks and toks[0]=='-': 
             self.expr_stack.append('u-')
             
     def noteVariable(self, s, loc, toks):
-        ''' Used to keep track of variables in string (a.k.a. dependencies). '''
+        """ Used to keep track of variables in string (a.k.a. dependencies). """
         self.var_dict[toks[0]] = 0.0    # Set default values of 0.0, in case these values are used in immediate evaluation.
             
     def produceStack(self, string):
-        ''' Produces a list of tokens in FILO evaluation order. Also returns a dictionary of variable dependencies. '''
+        """ Produces a list of tokens in FILO evaluation order. Also returns a dictionary of variable dependencies. """
         self.expr_stack = []
         self.var_dict = {}
         val = self.grammar.parseString(string)
@@ -91,37 +105,46 @@ class FunctionParser(object):
         return expr_stack, var_dict 
         
     def evaluateStack(self, stack, deps = None, level = None):
-        '''
+        """
         Recursively evaluates a stack produced from a string representing a mathematical function.
         The stack must have been produced in FILO order, where the last tokens (popped out) are evaluated first.
         A dictionary of dependencies (with values) must be provided as deps if there are variable names in the stack.
-        '''
+        """
         
-        if level == None:
-            if self.debug: print('Progressing through stack evaluation...')
+        if level is None:
+            if self.debug:
+                print('Progressing through stack evaluation...')
             level = 0
-        op = stack.pop()
+        op = stack[-1]
+        # op = stack.pop()
         if op == 'u-':
-            return -self.evaluateStack(stack, deps = deps, level = level + 1)
+            return -self.evaluateStack(stack[:-1], deps=deps, level=level + 1)
         elif op in "+-*/^":
-            op2 = self.evaluateStack(stack, deps = deps, level = level + 1)
-            op1 = self.evaluateStack(stack, deps = deps, level = level + 1)
+            op2 = self.evaluateStack(stack[:-1], deps=deps, level=level + 1)
+            op1 = self.evaluateStack(stack[:-1], deps=deps, level=level + 1)
             if self.debug: print('Level %i: %s %s %s = %s' % (level, op1, op, op2, self.op_dict[op](op1, op2)))
             return self.op_dict[op](op1, op2)
+        elif op in self.ufn_dict:
+            return self.ufn_dict[op](self.evaluateStack(stack[:-1], deps=deps, level=level + 1))
+        elif op in self.bfn_dict:
+            op2 = self.evaluateStack(stack[:-1], deps=deps, level=level + 1)
+            op1 = self.evaluateStack(stack[:-1], deps=deps, level=level + 1)
+            return self.bfn_dict[op](op1, op2)
         elif op[0].isalpha():
             try:
                 opval = deps[op]
             except:
-                raise OptimaException('ERROR: Dependent variable "%s" has not been provided a value via function parser.' % op)
+                raise OptimaException('ERROR: Dependent variable "{}" '.format(op) +
+                                      'has not been provided a value via function parser.')
             return opval
         else:
             return float(op)
             
-    def parse(self, string, deps = None):
-        '''
+    def parse(self, string, deps=None):
+        """
         Decomposes a string into a token stack and then evaluates it, using dictionary deps to give values to variables.
         For the sake of performance, it is recommended to separate stack production and evaluation in practice.
-        '''
+        """
         expr_stack, var_dict = self.produceStack(string)
-        if not deps is None: var_dict = deps
-        return self.evaluateStack(stack = expr_stack, deps = var_dict)
+        if deps is not None: var_dict = deps
+        return self.evaluateStack(stack=expr_stack, deps=var_dict)

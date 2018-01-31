@@ -32,11 +32,22 @@ class ProgramSet:
                 special = settings.progtype_specs[prog_type]['special']
 
             t = data['progs'][prog_label]['t']
-            cost = data['progs'][prog_label]['cost']
+
             cost_format = data['progs'][prog_label]['cost_format']
-            cov = data['progs'][prog_label]['cov']
-            sat = data['progs'][prog_label]['sat'] if 'sat' in data['progs'][prog_label] else None
+            cost = data['progs'][prog_label]['cost']
+
             cov_format = data['progs'][prog_label]['cov_format']
+            cov = data['progs'][prog_label]['cov']
+            # Assume all program coverage/impact that targets transition parameters is 'effective', not 'probabilistic'.
+            # For number format coverages/impacts, this will be uniformly distributed across timesteps.
+            # For fraction format coverages/impacts, a dt-ly rate is the same as the intended annual rate.
+            # This means the two formats result in differing t-dependent distributions, but the total should be the same,
+            # assuming no coverage capping.
+            if cov_format == 'number':
+                cov *= settings.tvec_dt
+
+            sat = data['progs'][prog_label]['sat'] if 'sat' in data['progs'][prog_label] else None
+
             attributes = data['progs'][prog_label]['attributes']
             target_pops = data['progs'][prog_label]['target_pops']
             target_pars = settings.progtype_specs[prog_type]['impact_pars']
@@ -328,8 +339,8 @@ class Program:
             if 'f_stack' in self.target_pars[impact_label].keys():
                 if parser is None:
                     raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" without a parser, due to the existence of an impact function.' % (self.label, impact_label))
-                f_stack = dcp(self.target_pars[impact_label]['f_stack'])
-                attribs = dcp(self.target_pars[impact_label]['attribs'])
+                f_stack = self.target_pars[impact_label]['f_stack']
+                attribs = self.target_pars[impact_label]['attribs']
                 for attrib_label in attribs.keys():
                     if attrib_label in self.attributes.keys():
                         if years is None: years = [max(self.t)]
