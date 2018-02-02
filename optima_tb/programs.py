@@ -1,13 +1,14 @@
-from optima_tb.utils import OptimaException, odict
+from optima_tb.utils import OptimaException
 from optima_tb.interpolation import interpolateFunc
 from optima_tb.costcovfunction import LogisticCCF, LinearCCF, ConstCCF, CCFAttr
-
-import logging
-logger = logging.getLogger(__name__)
-
 from copy import deepcopy as dcp
 import numpy as np
 from uuid import uuid4 as uuid
+import logging
+
+
+logger = logging.getLogger(__name__)
+
 
 class ProgramSet:
 
@@ -20,73 +21,77 @@ class ProgramSet:
 
         self.impacts = dict()
 
+        # stores program dependencies as sorted list. sorted in this context means from independent to dependent
+        self.deps = []
+
         logging.info("Created ProgramSet: %s" % self.name)
 
     def makeProgs(self, data, settings):
         for l, prog_label in enumerate(data['progs']):
-            prog_name = data['progs'][prog_label]['name']
-            prog_type = data['progs'][prog_label]['prog_type']
-
             special = None
+            prog_type = data['progs'][prog_label]['prog_type']
             if 'special' in settings.progtype_specs[prog_type]:
                 special = settings.progtype_specs[prog_type]['special']
+            data['progs'][prog_label]['special'] = special
 
-            t = data['progs'][prog_label]['t']
-
-            cost_format = data['progs'][prog_label]['cost_format']
-            cost = data['progs'][prog_label]['cost']
-
-            cov_format = data['progs'][prog_label]['cov_format']
-            cov = data['progs'][prog_label]['cov']
             # Assume all program coverage/impact that targets transition parameters is 'effective', not 'probabilistic'.
             # For number format coverages/impacts, this will be uniformly distributed across timesteps.
             # For fraction format coverages/impacts, a dt-ly rate is the same as the intended annual rate.
-            # This means the two formats result in differing t-dependent distributions, but the total should be the same,
-            # assuming no coverage capping.
-            if cov_format == 'number':
-                cov *= settings.tvec_dt
+            # This means the two formats result in differing t-dependent distributions, but the total should be the
+            # same, assuming no coverage capping.
+            if data['progs'][prog_label]['cov_format'] == 'number':
+                data['progs'][prog_label]['cov'] *= settings.tvec_dt
 
-            sat = data['progs'][prog_label]['sat'] if 'sat' in data['progs'][prog_label] else None
-
-            attributes = data['progs'][prog_label]['attributes']
-            target_pops = data['progs'][prog_label]['target_pops']
             target_pars = settings.progtype_specs[prog_type]['impact_pars']
             for target_par in target_pars.keys():
                 if target_par not in self.impacts: self.impacts[target_par] = []
                 self.impacts[target_par].append(prog_label)
+            data['progs'][prog_label]['target_pars'] = target_pars
 
             alive_tag = settings.charac_pop_count
-            target_pop_size = np.sum([data['characs'][alive_tag][pop]['y'][0] for pop in target_pops])
+            target_pop_size = np.sum([data['characs'][alive_tag][pop]['y'][0]
+                                      for pop in data['progs'][prog_label]['target_pops']])
+            data['progs'][prog_label]['target_pop_size'] = target_pop_size
 
-            if 'unit_cost' in data['progs'][prog_label]:
-                unit_cost = data['progs'][prog_label]['unit_cost']
-            else:
-                unit_cost = None
+            data['progs'][prog_label]['dt'] = settings.tvec_dt
 
-            new_prog = Program(name=prog_name, label=prog_label, prog_type=prog_type,
-                               t=t, cost=cost, cov=cov, sat=sat,
-                               cost_format=cost_format, cov_format=cov_format,
-                               attributes=attributes,
-                               target_pops=target_pops,
-                               target_pop_size=target_pop_size,
-                               target_pars=target_pars,
-                               unit_cost=unit_cost,
-                               dt=settings.tvec_dt,
-                               special=special)
-
-
-            # func_pars = dict()
-            # # TODO: This is where new function types can be specified, such as sigmoid cost-curves.
-            # # The func_type and func_pars dict will need to reflect this, e.g. with func_pars['unit_cost'] and func_pars['asymptote'].
-            # if special == 'cost_only':
-            #     func_type = 'cost_only'
-            # else:
-            #     func_type = 'linear'
-            #     func_pars['unit_cost'] = data['progs'][prog_label]['unit_cost']
-            # new_prog.genFunctionSpecs(func_pars=func_pars, func_type=func_type)
-
-            self.progs.append(new_prog)
+            self.progs.append(Program(prog_label, data['progs'][prog_label]))
             self.prog_ids[prog_label] = l
+
+        # figure out in which order the programs can be processed without violating dependencies:
+        # extract all independent programs -> prog.deps is None
+        dep_set = set([prog.label for prog in self.progs if prog.deps is None])
+        if not dep_set:
+            # if there are no dependencies, there is no use in trying to resolve dependencies
+            return
+
+        # complementary set which include all dependent programs
+        rem_set = set([prog.label for prog in self.progs if prog.label not in dep_set])
+        prev_len = -1
+
+        # until all dependencies are resolved..
+        while len(dep_set) != len(self.progs):
+            # .. check if the number of resolved dependencies has increased:
+            if prev_len == len(dep_set):
+                # if not, there is a cyclic dependency and further iteration will not help
+                raise OptimaException('Cyclic dependency can not be resolved between the two sets'
+                                      + '"{}" and "{}"'.format(list(dep_set), list(rem_set)))
+            else:
+                # if so, update the number of resolved dependencies
+                prev_len = len(dep_set)
+
+            # resolve dependencies of all the programs whose dependencies have not be resolved yet
+            for prog in filter(lambda x: x.label in rem_set, self.progs):
+                # resolve dependency: a dependency is considered resolved if all programs on which it is dependent have
+                # their dependencies resolved
+                if prog.deps.issubset(dep_set):
+                    # add program if dependency was resolved
+                    dep_set.update(prog_label)
+
+            # update remaining set by removing all newly resolved dependencies
+            rem_set.difference_update(dep_set)
+
+        self.deps = list(dep_set)
 
     def getProg(self, label):
         if label in self.prog_ids.keys():
@@ -131,44 +136,45 @@ class ProgramSet:
 
 class Program:
 
-    def __init__(self, name, label, prog_type, t=None, cost=None, cov=None, sat=None, cost_format=None, cov_format=None,
-                 attributes={}, target_pops=None, target_pop_size=None, target_pars=None, unit_cost=None, dt=None,
-                 special=''):
+    def __init__(self, label, ppd):
         """
-        
+
+        :param label: str which denotes the label of the program
+        :param ppd: dict which is generate by parsing the databook limited to the section of one program. This
+            abbreviation is for 'program property dictionary'.
         """
-        self.name = name
-        self.label = label
-        self.prog_type = prog_type
+        self.name = dcp(ppd['name'])
+        self.label = dcp(label)
+        self.prog_type = dcp(ppd['prog_type'])
         self.uid = uuid()
 
-        if t is None: t = []
-        if cost is None: cost = []
-        if cov is None: cov = []
-        if attributes is None: attributes = odict()
-        self.t = t  # Time data.
-        self.cost = cost  # Spending data.
-        self.cov = cov  # Coverage data.
-        self.cost_format = cost_format
-        self.cov_format = cov_format
-        self.attributes = attributes
+        self.t = dcp(ppd['t'])  # Time data.
 
-        if target_pops is None: target_pops = []
-        self.target_pops = target_pops
+        self.cost = dcp(ppd['cost'])  # Spending data.
+        self.cost_format = dcp(ppd['cost_format'])
 
-        if target_pars is None: target_pars = []
-        self.target_pars = target_pars
+        self.cov = dcp(ppd['cov'])  # Coverage data.
+        self.cov_format = dcp(ppd['cov_format'])
 
-        # self.func_specs = dict()
+        self.attributes = dcp(ppd['attributes'])
 
-        if special == 'cost_only':
+        self.target_pops = dcp(ppd['target_pops'])
+        self.target_pars = dcp(ppd['target_pars'])
+
+        self.deps = dcp(ppd['deps']) if 'deps' in ppd else None
+        self.dep_types = dcp(ppd['dep_type']) if 'dep_type' in ppd else None
+
+        sat = ppd['sat'] if 'sat' in ppd else None
+        unit_cost = ppd['unit_cost'] if 'unit_cost' in ppd else None
+
+        if ppd['special'] == 'cost_only':
             self.ccf = ConstCCF()
-        elif any([sat is None, target_pop_size is None]):
+        elif any([sat is None, ppd['target_pop_size'] is None]):
             # backward compatibility: linear cost coverage curves
             self.ccf = LinearCCF(unit_cost=unit_cost)
         else:
             cif = True if self.cov_format == 'fraction' else False
-            self.ccf = LogisticCCF(unit_cost, sat, target_pop_size, dt, cif=cif)
+            self.ccf = LogisticCCF(unit_cost, sat, ppd['target_pop_size'], ppd['dt'], cif=cif)
         
     def insertValuePair(self, t, y, attribute, rescale_after_year=False):
         '''
