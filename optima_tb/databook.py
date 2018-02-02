@@ -730,6 +730,14 @@ def loadSpreadsheetFunc(settings, databook_path):
                     estim = str(ws_progval.cell_value(row_id, 3))
                     if not estim in ['']:
                         data['progs'][prog_label]['unit_cost'] = float(estim)
+                if important_col == 'Dependency Type':
+                    types = [item.strip() for item in ws_progval.cell_value(row_id, 3).split(',')]
+                    if len(types) != 0:
+                        data['progs'][prog_label]['dep_type'] = types
+                if important_col == 'Dependent On':
+                    types = [item.strip() for item in ws_progval.cell_value(row_id, 3).split(',')]
+                    if len(types) != 0:
+                        data['progs'][prog_label]['deps'] = types
                 if important_col in settings.progtype_specs[progtype_label]['attribute_name_labels'].keys():
                     tag = settings.progtype_specs[progtype_label]['attribute_name_labels'][important_col]
                     get_data = True
@@ -1061,11 +1069,25 @@ def databookValidation(data=None):
                         else:
                             logging.warning('Invalid attribute "%s" in population %s encountered' % (attribute, pop))
                             validation = False
-                    elif key in ['meta', 'contacts', 'progs']:
+                    elif key == 'progs':
+                        prog_labels = set(data['progs'].keys())
+                        for prog in filter(lambda x: 'deps' in data['progs'][x], data['progs']):
+                            num_dep_progs = len(data['progs'][prog]['deps'])
+                            num_dep_types = len(data['progs'][prog]['dep_type'])
+                            if num_dep_progs != num_dep_types:
+                                raise OptimaException('Program "{}" defines {} '.format(prog, num_dep_types)
+                                                      + 'types of dependencies on {} programs. '.format(num_dep_progs)
+                                                      + 'The number of dependencies and programs must be equal!')
+
+                            for item in data['progs'][prog]['deps']:
+                                if item not in prog_labels:
+                                    raise OptimaException('Program "{}" is dependent on "{}" '.format(prog, item)
+                                                          + 'which is not defined in the databook')
+                    elif key in ['meta', 'contacts']:
                         # NOTE: Similar validation to be filled in for these keys at some point if required.
                         pass
                     else:
-                        for loop in range (len(data[key][attribute][pop][label])):
+                        for loop in range(len(data[key][attribute][pop][label])):
                             validation = validateFormatType(data[key][attribute][pop], label, loop, key, attribute, pop, validation)
     return validation
 
