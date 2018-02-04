@@ -293,42 +293,34 @@ class Model(object):
                 else:
                     logger.warn("Program '%s' was not contained in init_alloc and not saturated, therefore was not created." % prog.label)
 
-            # Convert coverage into impact for programs.
-            if prog.label in self.prog_vals:
-                if 'cov' in self.prog_vals[prog.label]:
-                    cov = self.prog_vals[prog.label]['cov']
+                # Convert coverage into impact for programs.
+                if prog.label in self.prog_vals:
+                    if 'cov' in self.prog_vals[prog.label]:
+                        cov = self.prog_vals[prog.label]['cov']
 
-                    # Check if program attributes have multiple distinct values across time.
-                    do_full_tvec_check = {}
-                    for att_label in prog.attributes:
-                        att_vals = prog.attributes[att_label]
-                        if len(set(att_vals[~np.isnan(att_vals)])) <= 1:
-                            do_full_tvec_check[att_label] = False
-                        else:
-                            do_full_tvec_check[att_label] = True
+                        # Check if program attributes have multiple distinct values across time.
+                        do_full_tvec_check = {}
+                        for att_label in prog.attributes:
+                            att_vals = prog.attributes[att_label]
+                            if len(set(att_vals[~np.isnan(att_vals)])) <= 1:
+                                do_full_tvec_check[att_label] = False
+                            else:
+                                do_full_tvec_check[att_label] = True
 
-                    # If attributes change over time and coverage values are greater than zero, impact functions based on them need to be interpolated across all time.
-                    # Otherwise interpolating for the very last timestep alone should be sufficient.
-                    # This means impact values can be stored as full arrays, single-element arrays or scalars in the case that an impact function has no attributes.
-                    for par_label in prog.target_pars:
-                        do_full_tvec = False
-                        if 'attribs' in prog.target_pars[par_label] and np.sum(cov) > project_settings.TOLERANCE:
-                            for att_label in prog.target_pars[par_label]['attribs']:
-                                if att_label in do_full_tvec_check and do_full_tvec_check[att_label] is True:
-                                    do_full_tvec = True
-                        if do_full_tvec is True:
-                            years = self.sim_settings['tvec']
-                        else:
-                            years = [self.sim_settings['tvec'][-1]]
-                        self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=self.parser, years=years, budget_is_coverage=True)
-
-                    # remove all entries other than 'impact' and 'cov' from dict
-                    imp = self.prog_vals[prog.label]['impact']
-                    cov = self.prog_vals[prog.label]['cov']
-                    self.prog_vals[prog.label].clear()
-                    self.prog_vals[prog.label]['impact'] = imp
-                    self.prog_vals[prog.label]['cov'] = cov
-
+                        # If attributes change over time and coverage values are greater than zero, impact functions based on them need to be interpolated across all time.
+                        # Otherwise interpolating for the very last timestep alone should be sufficient.
+                        # This means impact values can be stored as full arrays, single-element arrays or scalars in the case that an impact function has no attributes.
+                        for par_label in prog.target_pars:
+                            do_full_tvec = False
+                            if 'attribs' in prog.target_pars[par_label] and np.sum(cov) > project_settings.TOLERANCE:
+                                for att_label in prog.target_pars[par_label]['attribs']:
+                                    if att_label in do_full_tvec_check and do_full_tvec_check[att_label] is True:
+                                        do_full_tvec = True
+                            if do_full_tvec is True:
+                                years = self.sim_settings['tvec']
+                            else:
+                                years = [self.sim_settings['tvec'][-1]]
+                            self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=self.parser, years=years, budget_is_coverage=True)
 
     def build(self, settings, parset, progset=None, options=None):
         ''' Build the full model. '''
@@ -545,11 +537,10 @@ class Model(object):
                 if tag in settings.node_specs[node_label]:
                     self.sim_settings[tag] = node_label
 
-
     def _calculateProgramImpact(self, par_label, pars, pop, progset, settings):
         ti = self.t_index
         # True if program in prog_label loop is the first one in the impact dict list.
-        first_prog = True
+        # first_prog = True
         # Notes for each program what its impact would be before coverage limitations.
         impact_list = []
         # Notes for each program how much greater its funded coverage is than people available to be
@@ -560,6 +551,8 @@ class Model(object):
         rel_prog_labels = filter(lambda x: x in self.prog_vals and pop.label in progset.getProg(x).target_pops,
                                  progset.impacts[par_label])
 
+        new_val = 0.
+
         for prog_label in rel_prog_labels:
             prog = progset.getProg(prog_label)
             # Just to distinguish between dt-ly impact and non-transition program impacts that currently
@@ -569,8 +562,7 @@ class Model(object):
             # If a program target is a transition parameter,
             # its coverage must be distributed and format-converted.
             if 'tag' in settings.linkpar_specs[par_label]:
-                source_set_size, source_element_size = \
-                    self._processGrouping(par_label, pars, pop, prog, settings)
+                source_set_size, source_element_size = self._processGrouping(par_label, pars, pop, prog, settings)
 
                 # Coverage and impact functions can be parsed/calculated as time-dependent arrays or
                 # time-independent scalars. Makes sure that the right value is selected.
@@ -584,15 +576,15 @@ class Model(object):
                 except:
                     net_impact = self.prog_vals[prog_label]['impact'][par_label]
 
-                if not isinstance(net_cov, float) or net_cov == 0.:
-                    raise OptimaException('Attempted to divide impact of {} '.format(net_impact)
-                                          + 'by coverage of {} '.format(net_cov)
-                                          + 'for program "{}" '.format(prog_label)
-                                          + 'with impact parameter "{}".'.format(par_label))
+                if not (isinstance(net_cov, float) or isinstance(net_impact, float)):
+                    if net_cov == 0. and float(net_impact) != 0.:
+                        raise OptimaException('Attempted to divide impact of {} '.format(net_impact)
+                                              + 'by coverage of {} '.format(net_cov)
+                                              + 'for program "{}" '.format(prog_label)
+                                              + 'with impact parameter "{}".'.format(par_label))
 
                 dt_cov, dt_impact, overflow = \
-                    self._processParameterType(net_cov, net_impact, pars, prog, source_set_size,
-                                               source_element_size)
+                    self._processParameterType(net_cov, net_impact, pars, prog, source_set_size, source_element_size)
                 overflow_list.append(overflow)
 
             # If a program target is any other parameter, the parameter value is directly overwritten
@@ -604,11 +596,11 @@ class Model(object):
                 except:
                     impact = self.prog_vals[prog_label]['impact'][par_label]
 
-            if first_prog:
-                # Zero out the new impact parameter for the first program that targets it within an
-                # update, just to make sure the overwrite works.
-                new_val = 0
-                first_prog = False
+            # if first_prog:
+            #     # Zero out the new impact parameter for the first program that targets it within an
+            #     # update, just to make sure the overwrite works.
+            #     new_val = 0
+            #     first_prog = False
 
             if dt_impact is None:
                 # This is for impact parameters without transition tags.
@@ -740,8 +732,8 @@ class Model(object):
                 if dep_label in settings.par_deps or dep_label in settings.charac_deps:
                     val = pop.getDep(dep_label).vals[ti]
                 else:
-                    val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[
-                        ti]  # As links are duplicated for the same tag, can pull values from the zeroth one.
+                    # As links are duplicated for the same tag, can pull values from the zeroth one.
+                    val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti]
                 deps[dep_label] = val
             return self.parser.evaluateStack(stack=f_stack, deps=deps)
         else:
@@ -1110,14 +1102,15 @@ class Model(object):
 
                 # WARNING: CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
                 if progs_active and par_label in progset.impacts:
-                    self._calculateProgramImpact(par_label, pars, pop, progset, settings)
+                    new_val = self._calculateProgramImpact(par_label, pars, pop, progset, settings)
 
                 for par in pars:
                     par.vals[ti] = new_val
 
                     # Backup the values of parameters that are tagged with special rules.
                     if 'rules' in settings.linkpar_specs[par_label]:
-                        if par.vals_old is None: par.vals_old = dcp(par.vals)
+                        if par.vals_old is None:
+                            par.vals_old = dcp(par.vals)
                         par.vals_old[ti] = new_val
 
             # Handle parameters tagged with special rules. Overwrite vals if necessary.
