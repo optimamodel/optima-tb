@@ -416,13 +416,19 @@ class ResultSet(object):
 
         return daly
 
-    def getFlow(self, link_label, pop_labels=None):
-#                 (comp, inflows = True, outflows = True, invert = False, link_legend = None, exclude_transfers = False):
+    def getFlow(self, link_label=None, pop_labels=None, annualize=True):
         """
-        TODO finish method (moved across from plotting.py)
-        
-        """
+        Returns the number of people (as absolute number) moved from one compartment to another during the simulation.
 
+        :param link_label: None or a list of str which represent from which links/transitions the number of moved people
+            are extracted. In case of None, all are considered.
+        :param pop_labels: None or a list of str which specify which populations to consider. In case of None, all are
+            considered.
+        :param annualize: Boolean which specifies if the number of moved people should be annualized or not. If True,
+            an annual average is computed; if False, the number of people per time step is computed
+        :return: dict of {link_label: {pop_label: value}}, where value is either a float (annualize==True)
+            or a np.array(annualize==False)
+        """
         if pop_labels is not None:
             if isinstance(pop_labels, list):
                 pops = pop_labels
@@ -432,60 +438,51 @@ class ResultSet(object):
             pops = self.pop_labels
 
         if link_label is not None:
-            if isinstance(link_label, list):
-                pass
-            else:
+            if not isinstance(link_label, list):
                 link_label = [link_label]
         else:
-            link_label = self.link_label
+            link_label = self.link_labels
 
         datapoints = odict()
 
         for link_lab in link_label:
-
             datapoints[link_lab] = odict()
+
             for pi in pops:
-
-                datapoints[link_lab] [pi] = odict()
-
+                datapoints[link_lab][pi] = odict()
                 p_index = self.pop_label_index[pi]
+                num_flow_list = np.zeros(len(self.t_step))
 
-                num_flow_list = []
                 for link_index in self.link_label_ids[link_lab]:
                     link = self.m_pops[p_index].links[link_index]
-                    num_flow = dcp(link.vals)
                     comp_source = self.m_pops[p_index].comps[link.index_from[1]]
-
-    #                if link.val_format == 'proportion':
-    #                    denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
-    #                    num_flow /= denom_val
-    #
-    #                    print num_flow
-    #
-    #                if link.val_format == 'fraction':
-    #
-    #                    num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
-    #                    num_flow *= comp_source.popsize
-    #                    num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
+                    # scaled annual flow rate
+                    num_flow = link.vals * link.scale_factor
 
                     was_proportion = False
                     if link.val_format == 'proportion':
-                        denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
+                        denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals
+                                        for lid_tuple in comp_source.outlink_ids)
                         num_flow /= denom_val
                         was_proportion = True
                     if link.val_format == 'fraction' or was_proportion is True:
                         if was_proportion is True:
                             num_flow *= comp_source.popsize_old
                         else:
+                            # remove TOLERANCE excess from flow values
                             num_flow[np.logical_and(num_flow > 1., num_flow < (1. + project_settings.TOLERANCE))] = 1.
-                            num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
-                            num_flow *= comp_source.popsize
-                        num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
-                    num_flow_list.append(num_flow)
-                num_flow = sum(num_flow_list)
-                datapoints[link_lab][pi] = num_flow
+                            num_flow[np.logical_and(num_flow < 0., num_flow > (0. - project_settings.TOLERANCE))] = 0.
 
-        return datapoints, link_label, pops
+                            # convert annual flow to flow per time step
+                            num_flow_list = (1. - (1. - num_flow) ** self.dt) * comp_source.popsize
+
+                if annualize:
+                    # All timestep-based effective fractional rates must be annualised.
+                    datapoints[link_lab][pi] = np.sum(num_flow_list / self.dt)
+                else:
+                    datapoints[link_lab][pi] = num_flow_list
+
+        return datapoints
 
     def getYLD(self, settings, year_start, year_end=None, pop_labels=None):
         """
