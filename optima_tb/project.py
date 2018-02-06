@@ -376,9 +376,9 @@ class Project(object):
         if max_time is not None:    # Update autocalibration settings with new time limit...
             prev_max_time = self.settings.autofit_params['maxtime']
             self.settings.autofit_params['maxtime'] = max_time
-        try: new_parset = performAutofit(self, parset, new_parset_name=new_parset_name, target_characs=target_characs, **self.settings.autofit_params)
-        except Exception as e:
-            raise OptimaException("ERROR: Autocalibration failed.")
+        new_parset = performAutofit(self, parset, new_parset_name=new_parset_name, target_characs=target_characs, **self.settings.autofit_params)
+        # except Exception as e:
+        #     raise OptimaException("ERROR: Autocalibration failed. Error was: %s" % (str(e)))
         if max_time is not None:    # ...and revert.
             self.settings.autofit_params['maxtime'] = prev_max_time
 
