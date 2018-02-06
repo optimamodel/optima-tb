@@ -77,7 +77,7 @@ def makeValueEntryArrayBlock(worksheet, at_row, at_col, num_arrays, tvec, cell_f
         preloaded_data_format = ''
         preloaded_assumption = ''
 
-    print preloaded_data_format
+    # print preloaded_data_format
 
     offset = at_col + 3  # This is the column at which the input year range and corresponding values should be written.
 
