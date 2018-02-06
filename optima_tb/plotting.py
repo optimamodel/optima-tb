@@ -484,14 +484,17 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
         logging.error("No output label specified for plotting")
         return None
 
+    assert isinstance(output_labels,list), "Requested outputs should be specified in a list"
+
+    figs = []
     for out_label in output_labels:
-        fig = innerPlotTrend(proj, [result], [out_label], compare_type=COMPARETYPE_POP, pop_labels=pop_labels,
+        figs.append(innerPlotTrend(proj, [result], [out_label], compare_type=COMPARETYPE_POP, pop_labels=pop_labels,
                              plot_total=plot_total, plot_type=plot_type, plot_relative=plot_relative,
                              plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                              plot_ybounds=plot_ybounds,
                              colormappings=colormappings, colors=colors, linestyles=linestyles,
-                             title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
-    return fig # return last fig handle
+                             title=title, save_fig=save_fig, fig_name=fig_name, **kwargs))
+    return figs
 
 def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
                        plot_total=False, plot_observed_data=True, observed_data_label=None,
@@ -2079,7 +2082,7 @@ def plotPopulation(results, data, pop_labels=None, title='', colormappings=None,
                    comp_labels=plot_comp_labels)
 
     """
-    logging.warn("plotPopulation() is to be deprecated. Please move to new plotting library function")
+    
     # setup data structures
     if pop_labels is None:
         pop_labels = results.pop_labels
@@ -2183,7 +2186,7 @@ def plotPopulation(results, data, pop_labels=None, title='', colormappings=None,
 
 
 def _calculateDatapoints(data, data_labels, pop):
-    logging.warn("_calculateDatapoints() is to be deprecated. Please move to new plotting library function")
+    
 
     yvals = None
     for (i, label) in enumerate(data_labels):
@@ -2211,7 +2214,7 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
         plot_observed_label   label of location of observed datapoints
         use_full_labels
     """
-    logging.warn("extractCompartment() is to be deprecated. Please move to new plotting library function")
+    
 
     datapoints, pop_labels, comp_labels = results.getCompartmentSizes(pop_labels=pop_labels, comp_label=comp_labels, use_observed_times=False)
     yhat, that = [], []
@@ -2257,7 +2260,7 @@ def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_l
         plot_total            flag indicating whether to sum across populations
 
     """
-    logging.warn("extractCharacteristic() is to be deprecated. Please move to new plotting library function")
+    
 
     datapoints, _, _ = results.getCharacteristicDatapoints(pop_label=pop_labels, char_label=charac_labels, use_observed_times=False)
 
@@ -2329,7 +2332,7 @@ def extractFlows(pop_labels, comp_label, results, settings, tvec, link_labels=No
         sum_population       flag indicating whether to sum across the populations
 
     """
-    logging.warn("extractFlows() is to be deprecated. Please move to new plotting library function")
+    
 
     all_rates = []
     all_tvecs = []
@@ -2410,7 +2413,7 @@ def plotSingleCompartmentFlow(results, settings, comp_labels=None, comp_titles=N
     # TODO complete
 
     """
-    logging.warn("plotSingleCompartmentFlow() is to be deprecated. Please move to new plotting library function")
+    
 
     plotdict = settings.plot_settings
     year_inc = 5.  # TODO remove hardcoded ref
@@ -2563,7 +2566,7 @@ def plotPopulationFlows(results, settings, comp_labels=None, comp_titles=None, p
                       save_fig=True, fig_name=fig_name+"_XDRIncidencePop")
 
     """
-    logging.warn("plotPopulationFlows() is to be deprecated. Please move to new plotting library function")
+    
 
     plotdict = settings.plot_settings
     year_inc = 5.  # TODO remove hardcoded ref
@@ -2700,7 +2703,6 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
 
 
     """
-    logging.warn("DEPRECATED (plotCharacterstic): please replace usage with plotResult()")
     charac_specs = settings.charac_specs
     # setup:
     if outputIDs is None:
@@ -2823,7 +2825,7 @@ def plotScenarioFlows(scen_results, scen_labels, settings, data,
 
 
     """
-    logging.warn("plotScenarioFlows() is to be deprecated. Please move to new plotting library function")
+    
 
     # close all remaining windows
     pl.close("all")
@@ -2944,7 +2946,7 @@ def isPlottableCharac(output_id, charac_specs):
     Returns False if specified in cascade spreadsheet as 'n' or 'N' for plot characteristic.
     Else returns True
     """
-    logging.warn("isPlottableCharac() is to be deprecated. Please move to new plotting library function")
+    
 
     try:  # Better to try and ask for forgiveness than for permission ...
         if charac_specs[output_id]['plot_characteristic'].lower() == 'n':
@@ -2959,7 +2961,7 @@ def getPIDs(results, poplabels):
     TODO: this can be improved and made more efficient by either a better implementation of this
     look up, OR (better yet) by improving the data structures of mpops.
     """
-    logging.warn("getPIDs() is to be deprecated. Please move to new plotting library function")
+    
 
     pids = []
     for poplabel in poplabels:
@@ -2989,7 +2991,7 @@ def plotProjectResults(results, settings, data, title='',
     """
 
 
-    logging.warn("plotProjectResults() is to be deprecated. Please move to new plotting library function")
+    
 
     # close all remaining windows
     pl.close("all")
@@ -3032,7 +3034,7 @@ def plotScenarios(scen_results, scen_labels, settings, data, plot_charac=None, p
         percentage_relative_to    scalar (float) that results should be rescaled to, and shown as 100% of.
         y_bar                scalar that plots a dashed grey line at value at.
     """
-    logging.warn("plotScenarios() is to be deprecated. Please move to new plotting library function")
+    
 
     print "figname", fig_name
 
@@ -3170,7 +3172,7 @@ def _plotLine(ys, ts, labels, colors=None, y_hat=[], t_hat=[],
         y_bounds    list of array for each ys entry, with format of (tbound, ybound_min, ybound_ymax), thus can be specified independently of ts
         **kwargs    further keyword arguments, such as ylims, legend_off, edgecolors, etc.
     """
-    logging.warn("_plotLine() is to be deprecated. Please move to new plotting library function")
+    
 
 
     if legendsettings is None: legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':1}
@@ -3318,7 +3320,7 @@ def _plotStackedCompartments(tvec, comps, labels=None, datapoints=None, title=''
         datapoints  observed datapoints, specified as a list of tuples
         **kwargs    further keyword arguments, such as ylims, legend_off, edgecolors, etc.
     """
-    logging.warn("plotStackedCompartments() is to be deprecated. Please move to new plotting library function")
+    
 
     if colors is None or len(colors) != len(comps):
         if len(colors) != len(comps):
@@ -3398,7 +3400,7 @@ def plotAllOutflows(results, num_subplots=5):
     """
     Visualise outflows for each compartment in each population as fractions of compartment size
     """
-    logging.warn("plotAllOutflows() is to be deprecated. Please move to new plotting library function")
+    
 
     mpops = results.m_pops
     sim_settings = results.sim_settings
@@ -3457,7 +3459,7 @@ def plotScenarioBar (scen_results, scen_labels, settings, data, output_list=None
 
 
     """
-    logging.warn("_plotLine() is to be deprecated. Please move to new plotting library function")
+    
 
     xlim = 3
     if len(scen_labels) > 3:
@@ -3510,7 +3512,7 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
 
 
     """
-    logging.warn("plotStackedBarOutputs() is to be deprecated. Please move to new plotting library function")
+    
 
     xlim = 3
     if len(xlabels) > 3:
@@ -3575,7 +3577,7 @@ def plotValueBars(results, settings, pop_labels, label, years, title=None, y_int
 
     hatch='//'
     """
-    logging.warn("plotValueBars() is to be deprecated. Please move to new plotting library function")
+    
 
     plotdict = settings.plot_settings
     num_bars = len(pop_labels)
@@ -3631,7 +3633,7 @@ def plotCareCascade(results, settings, pop_labels, labels, years, title="", norm
     """
 
     """
-    logging.warn("plotCareCascade() is to be deprecated. Please move to new plotting library function")
+    
 
     xlabels = labels.keys()
     plotdict = dcp(settings.plot_settings)
