@@ -11,7 +11,7 @@ from optima_tb.model import runModel
 from optima_tb.settings import Settings
 from optima_tb.parameters import ParameterSet, export_paramset, load_paramset
 from optima_tb.programs import ProgramSet
-# from optima_tb.plotting import plotProjectResults
+from optima_tb.plotting import plotProjectResults
 from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from optima_tb.optimization import optimizeFunc, parallelOptimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit

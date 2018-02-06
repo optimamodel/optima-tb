@@ -2779,11 +2779,11 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
         if dataobs is not None:  # this can be improved
             final_dict['y_hat'] = yhat[i]
             final_dict['t_hat'] = that[i]
-        print "/////////////"
-        print plotdict
+        # print "/////////////"
+        # print plotdict
         final_dict.update(plotdict)
-        print final_dict
-        print "\\\\\\\\\\\\\\\\\\\\\|||"
+        # print final_dict
+        # print "\\\\\\\\\\\\\\\\\\\\\|||"
 
         if y_bounds is not None:
             yb = y_bounds[i]
@@ -2926,7 +2926,7 @@ def plotScenarioFlows(scen_results, scen_labels, settings, data,
             final_dict['ylabel'] = ylabel
             final_dict['ylim'] = [0, 105.]
         final_dict.update(plotdict)
-        print colors
+        # print colors
         _plotLine(ys=yvals, ts=tvals, labels=labels, colors=colors, save_fig=save_fig, reverse_order=True, smooth=True, **final_dict)
 
         if final_dict.has_key('legend_off') and final_dict['legend_off']:
@@ -2987,6 +2987,8 @@ def plotProjectResults(results, settings, data, title='',
         pop_labels      list of population labels. Default: None, which selects all populations
         debug           boolean flag, indicating whether to plot internal variables if True
     """
+
+
     logging.warn("plotProjectResults() is to be deprecated. Please move to new plotting library function")
 
     # close all remaining windows
