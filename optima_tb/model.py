@@ -232,9 +232,14 @@ class Model(object):
 
     def _preCalcProgValsFromDatabook(self, settings, progset):
         for prog in progset.progs:
-            self.prog_vals[prog.label] = prog.interpolate(
+            self.prog_vals[prog.label] = {}
+            self.prog_vals[prog.label]['impact'] = prog.interpolate(
                 tvec=np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt/2, settings.tvec_dt),
-                attributes=prog.attributes.keys() + ['cov'])
+                attributes=prog.attributes.keys())
+
+            self.prog_vals[prog.label].update(prog.interpolate(
+                tvec=np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt / 2, settings.tvec_dt),
+                attributes=['cov']))
 
     def preCalculateProgsetVals(self, settings, progset):
         ''' Work out program coverages and impacts ahead of the model run. '''
@@ -249,7 +254,7 @@ class Model(object):
         except: raise OptimaException('ERROR: Pre-calculation of program set values has been initiated without specifying whether starting allocation is in money or coverage.')
 
         # in this case use the data provided in the databook
-        if init_alloc == None:
+        if init_alloc is None:
             self._preCalcProgValsFromDatabook(settings, progset)
         else:
             for prog in progset.progs:
@@ -260,10 +265,10 @@ class Model(object):
 
                     # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to timevec.
                     if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog.label in self.sim_settings['constraints']['max_yearly_change']:
-                        if alloc_is_coverage:
-                            default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
-                        else:
-                            default = prog.getDefaultBudget(year=start_year)
+                        # if alloc_is_coverage:
+                        #     default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
+                        # else:
+                        #     default = prog.getDefaultBudget(year=start_year)
                         default = prog.getDefaultBudget(year=start_year)
                         if np.abs(alloc - default) > project_settings.TOLERANCE:
     #                        print 'Start it up...'
@@ -320,6 +325,18 @@ class Model(object):
                                 years = self.sim_settings['tvec']
                             else:
                                 years = [self.sim_settings['tvec'][-1]]
+
+                            # sample implementation of a nested program
+                            if prog.deps is not None:
+                                # find minimum coverage of all referenced programs
+                                min_cov = cov
+                                for dep_prog in prog.deps:
+                                    try:
+                                        min_cov = min(min_cov, self.prog_vals[dep_prog]['cov'][0])
+                                    except:
+                                        min_cov = min(min_cov, self.prog_vals[dep_prog]['cov'])
+                                cov = min_cov
+
                             self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=self.parser, years=years, budget_is_coverage=True)
 
     def build(self, settings, parset, progset=None, options=None):
@@ -595,12 +612,6 @@ class Model(object):
                     impact = self.prog_vals[prog_label]['impact'][par_label][ti]
                 except:
                     impact = self.prog_vals[prog_label]['impact'][par_label]
-
-            # if first_prog:
-            #     # Zero out the new impact parameter for the first program that targets it within an
-            #     # update, just to make sure the overwrite works.
-            #     new_val = 0
-            #     first_prog = False
 
             if dt_impact is None:
                 # This is for impact parameters without transition tags.

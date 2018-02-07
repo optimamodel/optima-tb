@@ -58,45 +58,10 @@ class ProgramSet:
             self.progs.append(Program(prog_label, data['progs'][prog_label]))
             self.prog_ids[prog_label] = l
 
-        # figure out in which order the programs can be processed without violating dependencies:
-        # extract all independent programs -> prog.deps is None
-        dep_set = set([prog.label for prog in self.progs if prog.deps is None])
-        if not dep_set:
-            # if there are no dependencies, there is no use in trying to resolve dependencies
-            return
+        self._sortProgramDependencies()
 
-        # complementary set which include all dependent programs
-        rem_set = set([prog.label for prog in self.progs if prog.label not in dep_set])
-        prev_len = -1
-
-        # until all dependencies are resolved..
-        while len(dep_set) != len(self.progs):
-            # .. check if the number of resolved dependencies has increased:
-            if prev_len == len(dep_set):
-                # if not, there is a cyclic dependency and further iteration will not help
-                raise OptimaException('Cyclic dependency can not be resolved between the two sets'
-                                      + '"{}" and "{}"'.format(list(dep_set), list(rem_set)))
-            else:
-                # if so, update the number of resolved dependencies
-                prev_len = len(dep_set)
-
-            # resolve dependencies of all the programs whose dependencies have not be resolved yet
-            for prog in filter(lambda x: x.label in rem_set, self.progs):
-                # resolve dependency: a dependency is considered resolved if all programs on which it is dependent have
-                # their dependencies resolved
-                if prog.deps.issubset(dep_set):
-                    # add program if dependency was resolved
-                    dep_set.update(prog_label)
-
-            # update remaining set by removing all newly resolved dependencies
-            rem_set.difference_update(dep_set)
-
-        self.deps = list(dep_set)
-
-    def getProg(self, label):
-        if label in self.prog_ids.keys():
-            return self.progs[self.prog_ids[label]]
-        raise OptimaException('ERROR: Label "%s" cannot be found in program set "%s".' % (label, self.name))
+    def copy(self):
+        pass
 
     def getBudgets(self, coverages):
         """
@@ -130,8 +95,62 @@ class ProgramSet:
             coverage[prog.label] = prog.getCoverage(budgets[prog_label])
         return coverage
 
-    def copy(self):
-        pass
+    def getFundedPrograms(self):
+        """
+        Get all programs which have a (i.e. non-zero coverage) funding associated with it
+        :return: list of programs
+        """
+        return filter(lambda x: not x.coverage, self.progs)
+
+    def getProg(self, label):
+        if label in self.prog_ids.keys():
+            return self.progs[self.prog_ids[label]]
+        raise OptimaException('ERROR: Label "%s" cannot be found in program set "%s".' % (label, self.name))
+
+    def _sortProgramDependencies(self):
+        """
+        Iterates through programs' dependencies and sorts them from independent to dependent. The result is stored
+        in `self.deps`.
+
+        NOTE: This function will re-order self.progs and self.prog_ids!
+        """
+        # figure out in which order the programs can be processed without violating dependencies:
+        # extract all independent programs -> prog.deps is None
+        dep_set = set([prog.label for prog in self.progs if prog.deps is None])
+        if not dep_set:
+            # if there are no dependencies, there is no use in trying to resolve dependencies
+            return
+
+        # complementary set which include all dependent programs
+        rem_set = set([prog.label for prog in self.progs if prog.label not in dep_set])
+        prev_len = -1
+
+        # until all dependencies are resolved..
+        while len(dep_set) != len(self.progs):
+            # .. check if the number of resolved dependencies has increased:
+            if prev_len == len(dep_set):
+                # if not, there is a cyclic dependency and further iteration will not help
+                raise OptimaException('Cyclic dependency can not be resolved between the two sets '
+                                      + '{} and {}'.format(list(dep_set), list(rem_set)))
+            else:
+                # if so, update the number of resolved dependencies
+                prev_len = len(dep_set)
+
+            # resolve dependencies of all the programs whose dependencies have not be resolved yet
+            for prog in filter(lambda x: x.label in rem_set, self.progs):
+                # resolve dependency: a dependency is considered resolved if all programs on which it is dependent have
+                # their dependencies resolved
+                if set(prog.deps).issubset(dep_set):
+                    # add program if dependency was resolved
+                    dep_set.update([prog.label])
+
+            # update remaining set by removing all newly resolved dependencies
+            rem_set.difference_update(dep_set)
+
+        self.deps = list(dep_set)
+
+        self.progs = sorted(self.progs, key=lambda x: self.deps.index(x.label))
+        self.prog_ids = dict(zip(self.deps, range(len(self.deps))))
 
 
 class Program:
@@ -175,7 +194,7 @@ class Program:
         else:
             cif = True if self.cov_format == 'fraction' else False
             self.ccf = LogisticCCF(unit_cost, sat, ppd['target_pop_size'], ppd['dt'], cif=cif)
-        
+
     def insertValuePair(self, t, y, attribute, rescale_after_year=False):
         '''
         Check if the inserted t value already exists for the attribute type.
