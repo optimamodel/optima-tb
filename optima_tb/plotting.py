@@ -500,7 +500,7 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
                        plot_total=False, plot_observed_data=True, observed_data_label=None,
                        colormappings=None, colors=None, linestyles=None,
                        plot_relative=None, y_intercept=None,
-                       title=None, save_fig=False, fig_name=None, **kwargs):
+                       title=None, save_fig=False, fig_name='', **kwargs):
     """
     Plots either characteristics, compartment size, or flow rate, as across a result set. 
     
