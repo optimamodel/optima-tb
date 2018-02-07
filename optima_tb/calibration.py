@@ -33,7 +33,7 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
     
     for char in char_labels:
         if char not in obs_data.keys():
-            logger.debug("Results: could not extract characteristic datapoint values for characteristic '%s' as this does not appear in databook"%char)
+            # logger.debug("Results: could not extract characteristic datapoint values for characteristic '%s' as this does not appear in databook"%char)
             continue
         #logger.debug("calculating fit for char=%s"%char)
         for pop in pop_labels:
