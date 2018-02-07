@@ -185,14 +185,14 @@ class Program:
 
         sat = ppd['sat'] if 'sat' in ppd else None
         unit_cost = ppd['unit_cost'] if 'unit_cost' in ppd else None
+        cif = True if self.cov_format == 'fraction' else False
 
         if ppd['special'] == 'cost_only':
             self.ccf = ConstCCF()
         elif any([sat is None, ppd['target_pop_size'] is None]):
             # backward compatibility: linear cost coverage curves
-            self.ccf = LinearCCF(unit_cost=unit_cost)
+            self.ccf = LinearCCF(unit_cost=unit_cost, cif=cif)
         else:
-            cif = True if self.cov_format == 'fraction' else False
             self.ccf = LogisticCCF(unit_cost, sat, ppd['target_pop_size'], ppd['dt'], cif=cif)
 
     def insertValuePair(self, t, y, attribute, rescale_after_year=False):

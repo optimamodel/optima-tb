@@ -70,7 +70,7 @@ class CostCovFunction(object):
         Numerical errors are not ignored by default.
         """
         # maps attribute labels (CCFAttr) to their respective values
-        self._attr = {}
+        self.attr = {}
 
         # ine should be assigned first to prevent errors happening due to other parameters relying on ine
         self._setAttribute(CCFAttr.ine, False)
@@ -132,11 +132,11 @@ class CostCovFunction(object):
         elif validation_type == CostCovFunction.CCFValidation.boolean and not isinstance(value, bool):
             all_good = False
 
-        if not self._attr[CCFAttr.ine] and (np.isnan(value) or np.isinf(value)):
+        if not self.attr[CCFAttr.ine] and (np.isnan(value) or np.isinf(value)):
             # this is done to pass the information of the error to _createErrorMessage
             validation_type = CostCovFunction.CCFValidation.valid_number
             all_good = False
-        elif not all_good and self._attr[CCFAttr.ine] and (np.isnan(value) or np.isinf(value)):
+        elif not all_good and self.attr[CCFAttr.ine] and (np.isnan(value) or np.isinf(value)):
             # in this case one of the previous validations fails due to NaN or Inf. Since ine is set in this case,
             # this error is ignored -> all good :)
             all_good = True
@@ -177,7 +177,7 @@ class CostCovFunction(object):
         :param attr_label: CCFAttr which defines the attribute
         :param attr_value: float/boolean which is assigned to the specified attribute
         """
-        self._attr[attr_label] = attr_value
+        self.attr[attr_label] = attr_value
         self._checkParameter(attr_value, self._sanityChecks[attr_label])
 
     def costs(self, coverage, params={}):
@@ -191,7 +191,7 @@ class CostCovFunction(object):
         """
         self.update(params)
 
-        if self._attr[CCFAttr.cif]:
+        if self.attr[CCFAttr.cif]:
             self._checkParameter(coverage, CostCovFunction.CCFValidation.fraction)
             cost = self._costsFraction(coverage)
         else:
@@ -215,7 +215,7 @@ class CostCovFunction(object):
 
         self._checkParameter(costs, CostCovFunction.CCFValidation.nonnegative)
 
-        if self._attr[CCFAttr.cif]:
+        if self.attr[CCFAttr.cif]:
             coverage = self._coverageFraction(costs)
             self._checkParameter(coverage, CostCovFunction.CCFValidation.fraction)
         else:
@@ -225,9 +225,9 @@ class CostCovFunction(object):
         return coverage
 
     def update(self, params):
-        for attr in filter(lambda x: x in params, self._attr):
+        for attr in filter(lambda x: x in params, self.attr):
             self._checkParameter(params[attr], self._sanityChecks[attr])
-            self._attr[attr] = params[attr]
+            self.attr[attr] = params[attr]
 
 
 class ConstCCF(CostCovFunction):
@@ -267,13 +267,13 @@ class LinearCCF(CostCovFunction):
         return self._costsNotFraction(coverage) / 0.01
 
     def _costsNotFraction(self, coverage):
-        return coverage * self._attr[CCFAttr.uc]
+        return coverage * self.attr[CCFAttr.uc]
 
     def _coverageFraction(self, costs):
         return self._coverageNotFraction(costs) * 0.01
 
     def _coverageNotFraction(self, costs):
-        return costs / self._attr[CCFAttr.uc]
+        return costs / self.attr[CCFAttr.uc]
 
 
 class LogisticCCF(CostCovFunction):
@@ -296,18 +296,18 @@ class LogisticCCF(CostCovFunction):
         self._setAttribute(CCFAttr.dt, dt)
 
     def _costsFraction(self, coverage):
-        return - self._attr[CCFAttr.pop] * self._attr[CCFAttr.sat] * self._attr[CCFAttr.uc] / 2. \
-               * np.log((self._attr[CCFAttr.sat] - coverage) / (coverage + self._attr[CCFAttr.sat]))
+        return - self.attr[CCFAttr.pop] * self.attr[CCFAttr.sat] * self.attr[CCFAttr.uc] / 2. \
+               * np.log((self.attr[CCFAttr.sat] - coverage) / (coverage + self.attr[CCFAttr.sat]))
 
     def _costsNotFraction(self, coverage):
-        return - self._attr[CCFAttr.pop] * self._attr[CCFAttr.sat] * self._attr[CCFAttr.uc] \
-               / 2. * np.log((self._attr[CCFAttr.sat] * self._attr[CCFAttr.pop] - coverage)
-                             / (coverage + self._attr[CCFAttr.sat] * self._attr[CCFAttr.pop])) \
-               * 365. * self._attr[CCFAttr.dt]
+        return - self.attr[CCFAttr.pop] * self.attr[CCFAttr.sat] * self.attr[CCFAttr.uc] \
+               / 2. * np.log((self.attr[CCFAttr.sat] * self.attr[CCFAttr.pop] - coverage)
+                             / (coverage + self.attr[CCFAttr.sat] * self.attr[CCFAttr.pop])) \
+               * 365. * self.attr[CCFAttr.dt]
 
     def _coverageFraction(self, costs):
-        return - self._attr[CCFAttr.sat] + 2. * self._attr[CCFAttr.sat] / \
-               (1. + np.exp(-2. * costs / (self._attr[CCFAttr.pop] * self._attr[CCFAttr.sat] * self._attr[CCFAttr.uc])))
+        return - self.attr[CCFAttr.sat] + 2. * self.attr[CCFAttr.sat] / \
+                                          (1. + np.exp(-2. * costs / (self.attr[CCFAttr.pop] * self.attr[CCFAttr.sat] * self.attr[CCFAttr.uc])))
 
     def _coverageNotFraction(self, costs):
-        return self._coverageFraction(costs) * self._attr[CCFAttr.pop] / (365. * self._attr[CCFAttr.dt])
+        return self._coverageFraction(costs) * self.attr[CCFAttr.pop] / (365. * self.attr[CCFAttr.dt])
