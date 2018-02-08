@@ -631,8 +631,9 @@ def __addCharacteristic(settings, charac_label, full_name, plot_value=True, plot
 
 # %% Function to plot a cascade framework loaded into settings
 
-def plotCascadeFunc(settings):
-
+def plotCascadeFunc(settings,code_labels):
+    # If code_labels=True then the short names e.g. spdu will be used
+    # Otherwise, long names will be used
     import networkx as nx
 
     fig, ax = pl.subplots(figsize=(10, 10))
@@ -642,6 +643,18 @@ def plotCascadeFunc(settings):
     G.add_nodes_from(plottable_nodes)
     G.add_edges_from(plottable_links)
 
+    if code_labels:
+        node_labels = {x:x for x in plottable_nodes}
+        size = 12
+    else:
+        node_labels = {x:settings.node_specs[x]['name'] for x in plottable_nodes}
+        size = 5
+
+    width = 20
+    for nid in node_labels:
+        this_label = node_labels[nid]
+        node_labels[nid] = '\n'.join(this_label.split())
+    
     # Use plot coordinates if stored and arrange the rest of the cascade out in a unit circle.
     pos = {}
     num_nodes = len(plottable_nodes)
@@ -658,12 +671,17 @@ def plotCascadeFunc(settings):
             for link in settings.links[settings.linkpar_specs[par_name]['tag']]:
                 el[link] = settings.linkpar_specs[par_name]['tag']
 
-    nx.draw_networkx_nodes(G, pos, node_shape='o', nodelist=[x for x in G.nodes() if not 'junction' in settings.node_specs[x].keys()], node_size=1250, node_color='w')
-    nx.draw_networkx_nodes(G, pos, node_shape='s', nodelist=[x for x in G.nodes() if 'junction' in settings.node_specs[x].keys()], node_size=750, node_color='w')
+    compartment_color = 'w'
+    junction_color = 'w'
+    colors = [junction_color if 'junction' in settings.node_specs[nid].keys() else compartment_color for nid in plottable_nodes]
+
+    nx.draw(G,pos,nodelist=plottable_nodes,node_shape='o',node_color=colors,node_size=1250)
+    #nx.draw_networkx_nodes(G, pos, node_shape='o', nodelist=[x for x in G.nodes() if not 'junction' in settings.node_specs[x].keys()], node_size=1250, node_color='w')
+    #nx.draw_networkx_nodes(G, pos, node_shape='s', nodelist=[x for x in G.nodes() if 'junction' in settings.node_specs[x].keys()], node_size=750, node_color='w')
     ax.axis('tight')
-    nx.draw_networkx_labels(G, pos)
-    nx.draw_networkx_edges(G, pos)
-#        nx.draw_networkx_edge_labels(G, pos, edge_labels = el, label_pos = 0.25, font_size = 14)
+    nx.draw_networkx_labels(G, pos,labels=node_labels,font_size=size)
+    #nx.draw_networkx_edges(G, pos,arrowsize=10)
+    #nx.draw_networkx_edge_labels(G, pos, edge_labels = el, label_pos = 0.25, font_size = 14)
 
     [sp.set_visible(False) for sp in ax.spines.values()]
     ax.set_xticks([])
