@@ -177,9 +177,9 @@ class Settings(object):
         self.resetCascade()
         loadCascadeSettingsFunc(cascade_path, settings=self)
 
-    def plotCascade(self):
+    def plotCascade(self,code_labels=True):
         ''' Plots cascade network. '''
-        plotCascadeFunc(settings=self)
+        plotCascadeFunc(settings=self,code_labels=code_labels)
 
 
 
