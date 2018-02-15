@@ -992,30 +992,6 @@ class Model(object):
                                 if new_val > vals[1]: new_val = vals[1]
 
                 for par in pars:
-
-
-                    year_check = 2015   # Hard-coded check.
-                    par_check = ['spdyes_rate']# ['spdsuc_rate','spdno_rate']
-                    if par_label in par_check:
-                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5 * settings.tvec_dt:
-                            print('Year: %s' % self.sim_settings['tvec'][ti])
-                            print('Target Population: %s' % pop.label)
-                            print('Target Parameter: %s' % par_label)
-                            try:
-                                print net_cov
-                                print dt_cov
-                                print frac_dt_cov
-                                print source_set_size
-                                print overflow_list
-                                print prev_dt_impacts
-                                print dt_impacts
-                                print impact_list
-                            except:
-                                print "-"
-                            print('Final Impact: %f' % new_val)
-                            print
-
-
                     par.vals[ti] = new_val
 
                     # Backup the values of parameters that are tagged with special rules.
