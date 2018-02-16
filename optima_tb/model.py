@@ -582,12 +582,7 @@ class Model(object):
 
                         converted_amt = 0
 
-#                        # TODO: Make this range check more efficient by pre-validating. Could use extra validation for user error.
-#                        if link.label in settings.linkpar_specs:
-#                            if 'min' in settings.linkpar_specs[link.label] and settings.linkpar_specs[link.label]['min'] > link.vals[ti]:
-#                                link.vals[ti] = settings.linkpar_specs[link.label]['min']
-#                            if 'max' in settings.linkpar_specs[link.label] and settings.linkpar_specs[link.label]['max'] < link.vals[ti]:
-#                                link.vals[ti] = settings.linkpar_specs[link.label]['max']
+
 
                         transition = link.vals[ti]
 
