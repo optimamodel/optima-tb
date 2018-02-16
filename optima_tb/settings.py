@@ -331,8 +331,7 @@ class ValidationSettings():
 
 
     def getValidationTypes(self):
-        return ['negative_population',  # runs @ validation/checkNegativePopulation
-                'transition_fraction',  # runs @ validation/checkTransitionFraction
+        return ['transition_fraction',  # runs @ validation/checkTransitionFraction
                 'databook_validation',  # runs @ databook/loadSpreadsheetFunc
                 ]
 
