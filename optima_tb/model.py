@@ -583,11 +583,6 @@ class Model(object):
                         if link.val_format == 'fraction':
                             # check if there are any violations, and if so, deal with them
                             if transition > 1.:
-                                # TODO: If transition > 1 it may still be desirable to use the uncorrected value
-                                # when deciding how to proportionately rescale the outgoing links so as to prevent
-                                # negative people. This ought not to be a problem a-priori because before rescaling, the
-                                # _net_ outflow from the compartment is permitted to be a fraction > 1, so why is this
-                                # not allowed for a single link?
                                 transition = checkTransitionFraction(transition, settings.validation)
                             converted_frac = 1 - (1 - transition) ** dt  # A formula for converting from yearly fraction values to the dt equivalent.
                             converted_amt = comp_source.popsize[ti] * converted_frac
