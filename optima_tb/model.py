@@ -545,78 +545,6 @@ class Model(object):
 
         return self.pops, self.sim_settings
 
-    def _calculateDPops(self, settings, ti, dt, modified_compartment={}, empty_compartment=[], reset_compartment=[]):
-        """
-        
-        This function gets called from model.stepForward() but also from within a validation check. 
-        
-        Params:
-            settings
-            ti
-            dt
-            modified_compartment optional: Dictionary of (did,reduction_ratio) pairs that indicate by what percentage an dpop amount should be reduced.  
-            empty_compartment    optional: List of compartment did that are empty
-            reset_compartment    optional: List of compartment did that already have a negative value
-        
-        """
-
-        # Preallocate a change-in-popsize array. Requires each population to have the same cascade.
-        num_pops = len(self.pops)
-        num_comps = len(self.pops[0].comps)         # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
-        dpop_in = np.zeros(num_pops*num_comps)
-        dpop_out = np.zeros(num_pops * num_comps)
-
-        for pop in self.pops:
-
-            for comp_source in pop.comps:
-
-                if comp_source.label not in settings.junction_labels:      # Junctions collect inflows during this step. They do not process outflows here.
-                    
-                    source_id = comp_source.index[0] * num_comps + comp_source.index[1] # Indexing into dpop_in and dpop_out
-                    outlinks = [pop.links[link_id[-1]] for link_id in comp_source.outlink_ids] # List of outgoing links
-                    dest_id = [link.index_to[0] * num_comps + link.index_to[1] for link in outlinks] # List of flattened destination compartment IDs
-                    outflow = np.zeros(comp_source.num_outlinks) # Outflow for each link # TODO - store in the link objects?
-
-                    for i,link in enumerate(outlinks):
-
-                        # Compute the number of people that are going out of each link
-                        converted_amt = 0
-                        transition = link.vals[ti]
-
-                        if link.scale_factor is not None and link.scale_factor != project_settings.DO_NOT_SCALE : # scale factor should be available to be used
-                            transition *= link.scale_factor
-                        
-                        if link.val_format == 'fraction':
-                            # check if there are any violations, and if so, deal with them
-                            if transition > 1.:
-                                # TODO: If transition > 1 it may still be desirable to use the uncorrected value
-                                # when deciding how to proportionately rescale the outgoing links so as to prevent
-                                # negative people. This ought not to be a problem a-priori because before rescaling, the
-                                # _net_ outflow from the compartment is permitted to be a fraction > 1, so why is this
-                                # not allowed for a single link?
-                                transition = checkTransitionFraction(transition, settings.validation)
-                            converted_frac = 1 - (1 - transition) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
-                            converted_amt = comp_source.popsize[ti] * converted_frac
-                        elif link.val_format == 'number':
-                            converted_amt = transition * dt
-                            if link.is_transfer:
-                                transfer_rescale = comp_source.popsize[ti] / pop.getDep(settings.charac_pop_count).vals[ti]
-                                converted_amt *= transfer_rescale
-                        else:
-                            raise OptimaException("Unknown link type: %s in model\nObserved for population %s, compartment %s" % (link.val_format, pop.label, comp.label))
-
-                        outflow[i] = converted_amt
-
-                    # Prevent negative population by proportionately downscaling if there are insufficient people in the compartment
-                    if np.sum(outflow) > comp_source.popsize[ti] and not comp_source.tag_birth:
-                        outflow = outflow/np.sum(outflow)*comp_source.popsize[ti]
-
-                    for i in xrange(0,len(dest_id)):
-                        dpop_in[dest_id[i]] += outflow[i]
-                    dpop_out[source_id] = -np.sum(outflow)
-
-        return dpop_in, dpop_out
-
     def stepForward(self, settings, dt=1.0):
         '''
         Evolve model characteristics by one timestep (defaulting as 1 year).
@@ -630,15 +558,63 @@ class Model(object):
         num_pops = len(self.pops)
         num_comps = len(self.pops[0].comps)         # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
 
-        # First loop through all pops and compartments to calculate value changes.
-        dpop_in, dpop_out = self._calculateDPops(settings, ti, dt)
+        for pop in self.pops:
+            for comp in pop.comps:
+                comp.popsize[ti+1] = comp.popsize[ti]
 
-        # Second loop through all pops and comps to apply value changes at next timestep index.
-        # TODO - merge this into _calculateDPops for improved performance (or move function body into here)
-        for pid in xrange(num_pops):
-            for cid in xrange(num_comps):
-                did = pid * num_comps + cid
-                self.pops[pid].comps[cid].popsize[ti + 1] = max(0,self.pops[pid].comps[cid].popsize[ti] + dpop_in[did] + dpop_out[did]) # Enforce >=0 in the event of numerical errors
+        for pop in self.pops:
+
+            for comp_source in pop.comps:
+
+                if not comp_source.junction:  # Junctions collect inflows during this step. They do not process outflows here.
+
+                    outlinks = [pop.links[link_id[1]] for link_id in comp_source.outlink_ids]  # List of outgoing links
+                    outflow = np.zeros(comp_source.num_outlinks)  # Outflow for each link # TODO - store in the link objects?
+
+                    for i, link in enumerate(outlinks):
+
+                        # Compute the number of people that are going out of each link
+                        converted_amt = 0
+                        transition = link.vals[ti]
+
+                        if link.scale_factor is not None and link.scale_factor != project_settings.DO_NOT_SCALE:  # scale factor should be available to be used
+                            transition *= link.scale_factor
+
+                        if link.val_format == 'fraction':
+                            # check if there are any violations, and if so, deal with them
+                            if transition > 1.:
+                                # TODO: If transition > 1 it may still be desirable to use the uncorrected value
+                                # when deciding how to proportionately rescale the outgoing links so as to prevent
+                                # negative people. This ought not to be a problem a-priori because before rescaling, the
+                                # _net_ outflow from the compartment is permitted to be a fraction > 1, so why is this
+                                # not allowed for a single link?
+                                transition = checkTransitionFraction(transition, settings.validation)
+                            converted_frac = 1 - (1 - transition) ** dt  # A formula for converting from yearly fraction values to the dt equivalent.
+                            converted_amt = comp_source.popsize[ti] * converted_frac
+                        elif link.val_format == 'number':
+                            converted_amt = transition * dt
+                            if link.is_transfer:
+                                transfer_rescale = comp_source.popsize[ti] / pop.getDep(settings.charac_pop_count).vals[ti]
+                                converted_amt *= transfer_rescale
+                        else:
+                            raise OptimaException("Unknown link type: %s in model\nObserved for population %s, compartment %s" % (link.val_format, pop.label, comp.label))
+
+                        outflow[i] = converted_amt
+
+                    # Prevent negative population by proportionately downscaling the outflow
+                    # if there are insufficient people _currently_ in the compartment
+                    if np.sum(outflow) > comp_source.popsize[ti] and not comp_source.tag_birth:
+                        outflow = outflow / np.sum(outflow) * comp_source.popsize[ti]
+
+                    # Apply the flows to the compartments
+                    for i, link in enumerate(outlinks):
+                        self.pops[link.index_to[0]].comps[link.index_to[1]].popsize[ti+1] += outflow[i]
+                    comp_source.popsize[ti+1] -= np.sum(outflow)
+
+        # Guard against populations becoming negative due to numerical artifacts
+        for pop in self.pops:
+            for comp in pop.comps:
+                comp.popsize[ti+1] = max(0,comp.popsize[ti+1])
 
         # Update timestep index.
         self.t_index += 1
