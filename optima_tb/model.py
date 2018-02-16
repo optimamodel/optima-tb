@@ -608,7 +608,7 @@ class Model(object):
                         outflow[i] = converted_amt
 
                     # Prevent negative population by proportionately downscaling if there are insufficient people in the compartment
-                    if np.sum(outflow) > comp_source.popsize[ti]:
+                    if np.sum(outflow) > comp_source.popsize[ti] and not comp_source.tag_birth:
                         outflow = outflow/np.sum(outflow)*comp_source.popsize[ti]
 
                     for i in xrange(0,len(dest_id)):
