@@ -1,7 +1,7 @@
 # %% Imports
 
 from optima_tb.utils import flattenDict, odict, OptimaException
-from optima_tb.validation import checkNegativePopulation, checkTransitionFraction
+from optima_tb.validation import checkTransitionFraction
 import optima_tb.settings as project_settings
 from optima_tb.results import ResultSet
 from optima_tb.parsing import FunctionParser
