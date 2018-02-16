@@ -571,23 +571,10 @@ class Model(object):
         for pop in self.pops:
             for comp in pop.comps:
 
-                # If not pre-allocated, extend compartment variable arrays. Either way copy current value to the next position in the array.
-                if not len(comp.popsize) > ti + 1:
-                    comp.popsize = np.append(comp.popsize, 0.0)
-                if not len(comp.popsize) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
-                    raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment "%s".' % (comp.label))
-                comp.popsize[ti + 1] = comp.popsize[ti]
-
                 if comp.label not in settings.junction_labels:      # Junctions collect inflows during this step. They do not process outflows here.
                     for lid_tuple in comp.outlink_ids:
                         lid = lid_tuple[-1]
                         link = pop.links[lid]
-
-                        # If link values are not pre-allocated to the required time-vector length, extend with the same value as the last index.
-                        if not len(link.vals) > ti + 1:
-                            link.vals = np.append(link.vals, link.vals[-1])
-                        if not len(link.vals) > ti + 1:         # If one extension did not create an index of ti+1, something is seriously wrong...
-                            raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment "%s".' % (link.label))
 
                         did_from = link.index_from[0] * num_comps + link.index_from[1]
                         did_to = link.index_to[0] * num_comps + link.index_to[1]
@@ -992,30 +979,6 @@ class Model(object):
                                 if new_val > vals[1]: new_val = vals[1]
 
                 for par in pars:
-
-
-                    year_check = 2015   # Hard-coded check.
-                    par_check = ['spdyes_rate']# ['spdsuc_rate','spdno_rate']
-                    if par_label in par_check:
-                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5 * settings.tvec_dt:
-                            print('Year: %s' % self.sim_settings['tvec'][ti])
-                            print('Target Population: %s' % pop.label)
-                            print('Target Parameter: %s' % par_label)
-                            try:
-                                print net_cov
-                                print dt_cov
-                                print frac_dt_cov
-                                print source_set_size
-                                print overflow_list
-                                print prev_dt_impacts
-                                print dt_impacts
-                                print impact_list
-                            except:
-                                print "-"
-                            print('Final Impact: %f' % new_val)
-                            print
-
-
                     par.vals[ti] = new_val
 
                     # Backup the values of parameters that are tagged with special rules.
