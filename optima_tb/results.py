@@ -379,7 +379,7 @@ class ResultSet(object):
         return datapoints, chars, pops
 
 
-    def getFlow(self, link_label, pop_labels=None,target_flow=False):
+    def getFlow(self, link_label, pop_labels=None,target_flow=False,annualize=True):
         """
         Return the flow at each time point in the simulation
 
@@ -387,6 +387,7 @@ class ResultSet(object):
         - link_label : A string or list of strings of link labels to get flows for. If None, use all links
         - pop_label : A list or list of strings of population labels. If None, use all populations
         - target_flow : By default, the actual flow rates accounting for compartment sizes during integration will be used. If target_flow=True, then the target flow rate will be returned
+        - annualize : Boolean which specifies if the number of moved people should be annualized or not. If True, an annual average is computed; if False, the number of people per time step is computed
         
         For each link label, the flow will be summed within requested populations. Thus if there are multiple links
         with the same link_label (e.g. a 'doth' link for death by other causes, for which there may be one for every compartment)
@@ -440,6 +441,9 @@ class ResultSet(object):
                         flows.append(link.flow)
 
                 datapoints[link_lab][pi] = sum(flows)
+
+                if annualize:
+                    datapoints[link_lab][pi] /= self.dt
 
         return datapoints, link_label, pops
 
