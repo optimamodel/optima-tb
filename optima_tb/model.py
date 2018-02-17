@@ -200,7 +200,7 @@ class ModelPopulation(Node):
             link.vals = np.ones(len(sim_settings['tvec'])) * np.nan
             link.vals[0] = init_val
             link.target_flow = dcp(link.vals)
-            link.actual_flow = dcp(link.vals)
+            link.flow = dcp(link.vals)
         for dep in self.deps:
             init_val = dep.vals[0]
             dep.vals = np.ones(len(sim_settings['tvec'])) * np.nan
@@ -515,7 +515,7 @@ class Model(object):
                                 link.scale_factor = par.y_factor[pop_target]
 #                                if link.val_format == 'number': link.vals /= settings.num_transfer_nodes # todo - should be able to remove this comment, because transfer disaggregation is done in updateValues now
                                 link.target_flow = np.ones(len(self.sim_settings['tvec'])) * np.nan # Preallocation should be done in ModelPopulation.preAllocate but the transfer links are only added here because they can't be present when the parameters are being added
-                                link.actual_flow = np.ones(len(self.sim_settings['tvec'])) * np.nan
+                                link.flow = np.ones(len(self.sim_settings['tvec'])) * np.nan
                                 self.getPop(pop_source).links.append(link)
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
 
@@ -610,7 +610,7 @@ class Model(object):
                     # Apply the flows to the compartments
                     for i, link in enumerate(outlinks):
                         self.pops[link.index_to[0]].comps[link.index_to[1]].popsize[ti+1] += outflow[i]
-                        link.actual_flow[ti] = outflow[i]
+                        link.flow[ti] = outflow[i]
                     comp_source.popsize[ti+1] -= np.sum(outflow)
 
         # Guard against populations becoming negative due to numerical artifacts

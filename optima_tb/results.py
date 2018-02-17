@@ -84,8 +84,8 @@ class ResultSet(object):
         self.comp_specs = settings.node_specs
         self.comp_label_names = self.__generateLabelNames(self.comp_specs.keys(), self.comp_labels)
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
-        self.link_labels = model.pops[0].link_ids.keys()
-        self.link_label_ids = model.pops[0].link_ids
+        self.link_labels = [link.label for link in model.pops[0].links]
+        self.link_label_ids = {label:[i for i, link in enumerate(model.pops[0].links) if link.label == label] for label in self.link_labels} # For each link label, the index of the link list that had it
 
         self.budgets = {} # placeholders
         self.coverages = {}
@@ -379,11 +379,29 @@ class ResultSet(object):
         return datapoints, chars, pops
 
 
-    def getFlow(self, link_label, pop_labels=None):
-#                 (comp, inflows = True, outflows = True, invert = False, link_legend = None, exclude_transfers = False):
+    def getFlow(self, link_label, pop_labels=None,target_flow=False):
         """
-        TODO finish method (moved across from plotting.py)
+        Return the flow at each time point in the simulation
+
+        INPUTS
+        - link_label : A string or list of strings of link labels to get flows for. If None, use all links
+        - pop_label : A list or list of strings of population labels. If None, use all populations
+        - target_flow : By default, the actual flow rates accounting for compartment sizes during integration will be used. If target_flow=True, then the target flow rate will be returned
         
+        For each link label, the flow will be summed within requested populations. Thus if there are multiple links
+        with the same link_label (e.g. a 'doth' link for death by other causes, for which there may be one for every compartment)
+        then these will be aggregated
+
+        OUTPUT
+        - datapoints : dictionary `datapoints[link_label][pop_label]` has an array of number of people moved at each point in time
+        - link_label : links that were used
+        - pops : Populations that were used
+        
+        Note that the flow rate is linked to the time step by
+
+        popsize[t+1] = popsize[t]+net_flow[t]
+
+        That is, it is the number of people who will transition between t and t+dt (i.e. after the current time)
         """
 
         if pop_labels is not None:
@@ -413,40 +431,15 @@ class ResultSet(object):
 
                 p_index = self.pop_label_index[pi]
 
-                num_flow_list = []
+                flows = []
                 for link_index in self.link_label_ids[link_lab]:
                     link = self.m_pops[p_index].links[link_index]
-                    num_flow = dcp(link.vals)
-                    comp_source = self.m_pops[p_index].comps[link.index_from[1]]
+                    if target_flow:
+                        flows.append(link.target_flow)
+                    else:
+                        flows.append(link.flow)
 
-    #                if link.val_format == 'proportion':
-    #                    denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
-    #                    num_flow /= denom_val
-    #
-    #                    print num_flow
-    #
-    #                if link.val_format == 'fraction':
-    #
-    #                    num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
-    #                    num_flow *= comp_source.popsize
-    #                    num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
-
-                    was_proportion = False
-                    if link.val_format == 'proportion':
-                        denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
-                        num_flow /= denom_val
-                        was_proportion = True
-                    if link.val_format == 'fraction' or was_proportion is True:
-                        if was_proportion is True:
-                            num_flow *= comp_source.popsize_old
-                        else:
-                            num_flow[np.logical_and(num_flow > 1., num_flow < (1. + project_settings.TOLERANCE))] = 1.
-                            num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
-                            num_flow *= comp_source.popsize
-                        num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
-                    num_flow_list.append(num_flow)
-                num_flow = sum(num_flow_list)
-                datapoints[link_lab][pi] = num_flow
+                datapoints[link_lab][pi] = sum(flows)
 
         return datapoints, link_label, pops
 
