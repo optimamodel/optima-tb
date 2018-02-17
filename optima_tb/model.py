@@ -72,6 +72,8 @@ class Link(Variable):
         self.label_to = object_to.label
         self.scale_factor = scale_factor
         self.is_transfer = is_transfer
+        self.target_flow = val # For each time point, store the number of people that were proposed to move (in units of number of people)
+        self.flow = val # For each time point, store the actual flow rate in number of people (in units of number of people)
 
     def __repr__(self, *args, **kwargs):
         print "self.scale_factor = ", self.scale_factor, type(self.scale_factor)
@@ -197,6 +199,8 @@ class ModelPopulation(Node):
             init_val = link.vals[0]
             link.vals = np.ones(len(sim_settings['tvec'])) * np.nan
             link.vals[0] = init_val
+            link.target_flow = dcp(link.vals)
+            link.actual_flow = dcp(link.vals)
         for dep in self.deps:
             init_val = dep.vals[0]
             dep.vals = np.ones(len(sim_settings['tvec'])) * np.nan
@@ -509,8 +513,9 @@ class Model(object):
                                 link.vals = par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_target)
                                 link.val_format = par.y_format[pop_target]
                                 link.scale_factor = par.y_factor[pop_target]
-#                                if link.val_format == 'number': link.vals /= settings.num_transfer_nodes
-
+#                                if link.val_format == 'number': link.vals /= settings.num_transfer_nodes # todo - should be able to remove this comment, because transfer disaggregation is done in updateValues now
+                                link.target_flow = np.ones(len(self.sim_settings['tvec'])) * np.nan # Preallocation should be done in ModelPopulation.preAllocate but the transfer links are only added here because they can't be present when the parameters are being added
+                                link.actual_flow = np.ones(len(self.sim_settings['tvec'])) * np.nan
                                 self.getPop(pop_source).links.append(link)
                                 self.getPop(pop_source).link_ids[trans_tag] = [num_links]
 
@@ -595,6 +600,7 @@ class Model(object):
                             raise OptimaException("Unknown link type: %s in model\nObserved for population %s, compartment %s" % (link.val_format, pop.label, comp.label))
 
                         outflow[i] = converted_amt
+                        link.target_flow[ti] = converted_amt
 
                     # Prevent negative population by proportionately downscaling the outflow
                     # if there are insufficient people _currently_ in the compartment
@@ -604,6 +610,7 @@ class Model(object):
                     # Apply the flows to the compartments
                     for i, link in enumerate(outlinks):
                         self.pops[link.index_to[0]].comps[link.index_to[1]].popsize[ti+1] += outflow[i]
+                        link.actual_flow[ti] = outflow[i]
                     comp_source.popsize[ti+1] -= np.sum(outflow)
 
         # Guard against populations becoming negative due to numerical artifacts
