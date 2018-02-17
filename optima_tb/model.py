@@ -47,9 +47,12 @@ class Variable(object):
     '''
     Lightweight abstract class to store a variable array of values (presumably corresponding to an external time vector).
     Includes an attribute to describe the format of these values.
+
+    Examples include characteristics and dependent parameters (NB. all non-dependents parameter correspond to links)
     '''
-    def __init__(self, label='default', val=0.0):
+    def __init__(self, label='default', val=0.0,dependency=False):
         self.label = label
+        self.dependency = dependency # This flag indicates whether another variable depends on this one, indicating the value needs to be computed during integration
         self.vals = np.array([float(val)])  # An abstract array of values.
         self.vals_old = None                # An optional array that stores old values in the case of overwriting.
         if val > 1:
@@ -57,6 +60,25 @@ class Variable(object):
         else:
             self.val_format = 'fraction'
 
+class Characteristic(Variable):
+    ''' A characteristic represents a grouping of compartments 
+    '''
+    def __init__(self, includes, denominator = None, label='default', val=0.0,dependency=False):
+        # includes is a list of ModelCompartments, whose values are summed 
+        # the denominator is another Characteristic that normalizes this one
+        # All passed by reference so minimal performance impact
+        Variable.__init__(self, label=label, val=val)
+        for x in includes:
+            assert isa(x,ModelCompartment) or isa(x,Characteristic), 'Characteristic dependencies must be compartments or other characteristics'
+        self.includes = includes
+        self.denominator = denominator
+
+    # Declaring the popsize as a property means that you can ask for a Characteristic's popsize the same
+    # way as you can query a compartment's popsize
+    @property
+    def popsize(self):
+        return self.vals 
+    
 
 class Link(Variable):
     '''
@@ -64,8 +86,9 @@ class Link(Variable):
     The values stored in this extended version of Variable refer to flow rates.
     If used in ModelPop, the Link references two cascade compartments within a single population.
     '''
-    def __init__(self, object_from, object_to, label='default', val=0.0, scale_factor=1.0, is_transfer=False):
+    def __init__(self, object_from, object_to, label='default', parameter_label='default', val=0.0, scale_factor=1.0, is_transfer=False):
         Variable.__init__(self, label=label, val=val)
+        self.parameter_label = parameter_label # A transition constructed from a parameter will be labelled with the transition tag rather than the parameter's label
         self.index_from = object_from.index
         self.index_to = object_to.index
         self.label_from = object_from.label
@@ -109,10 +132,10 @@ class ModelPopulation(Node):
         Node.__init__(self, label=label, index=index)
         self.comps = list()         # List of cascade compartments that this model population subdivides into.
         self.links = list()         # List of intra-population cascade transitions within this model population.
-        self.deps = list()          # List of value arrays for link-dependencies (both characteristic and untagged parameters) required by model.
+        self.outputs = list()       # List of output characteristics and parameters (dependencies computed during integration, pure outputs added after)
         self.comp_ids = dict()      # Maps label of a compartment to its position index within compartments list.
         self.link_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
-        self.dep_ids = dict()       # Maps label of a relevant characteristic/parameter to its position index within dependencies list.
+        self.output_ids = dict()    # Maps label of a relevant characteristic/parameter to its position index within dependencies list.
         self.t_index = 0            # Keeps track of array index for current timepoint data within all compartments.
         self.id = index             # A numerical id of the Population. Ideally corresponds to its storage index within Model container.
 
@@ -140,8 +163,8 @@ class ModelPopulation(Node):
 
     def getDep(self, dep_label):
         ''' Allow dependencies to be retrieved by label rather than index. Returns a Variable. '''
-        dep_index = self.dep_ids[dep_label]
-        return self.deps[dep_index]
+        dep_index = self.output_ids[dep_label]
+        return self.outputs[dep_index]
 
     def genCascade(self, settings):
         '''
@@ -172,18 +195,50 @@ class ModelPopulation(Node):
                     k += 1
 
         k = 0
-        # Now create variable objects for dependencies, starting with characteristics.
+        # Now create variable objects for characteristics and compartments
+        # NB. Order constraints mean that the chararacteristics and parameters are
+        # added in dependency order i.e. any dependencies in the characteristics
+        # must already be present in the compartment or output list
         for label in settings.charac_specs:
-            if 'par_dependency' in settings.charac_specs[label]:
-                self.deps.append(Variable(label=label))
-                self.dep_ids[label] = k
-                k += 1
+            
+            inc_labels = settings.charac_specs[label]['includes']
+            den_label = settings.charac_specs[dep.label]['denom']
+            dependency ='par_dependency' in settings.charac_specs[label]
+
+            includes = []
+            for label in inc_labels:
+
+                if label in self.comp_ids:
+                    includes.append(self.comps[self.comp_ids[label]])
+                elif label in self.output_ids:
+                    includes.append(self.outputs[self.output_ids[label]])
+
+            if den_label in self.comp_ids:  # NOTE: See above note for avoiding parameter-type dependencies.
+                denom = self.comps[self.comp_ids[den_label]]
+            elif den_label in self.output_ids:
+                denom = self.outputs[self.output_ids[den_label]]
+
+            self.outputs.append(Characteristic(includes,denom,label=label,dependency=dependency))
+            self.output_ids[label] = k
+            k += 1
 
         # Finish dependencies with untagged parameters, i.e. ones that are not considered transition flow rates.
         for label in settings.par_deps:
-            self.deps.append(Variable(label=label))
-            self.dep_ids[label] = k
+            self.outputs.append(Variable(label=label),dependency=True)
+            self.output_ids[label] = k
             k += 1
+
+        for label in settings.linkpar_outputs:
+            self.outputs.append(Variable(label=label),dependency=False)
+            self.output_ids[label] = k
+            k += 1
+
+        # Precompute a list of dependent parameters (outputs and links) that need to be computed
+        # during integration
+        self.dep_pars = [p for p in outputs if p.dependency and not isa(p,Characteristic)]
+        self.dep_pars += self.links # Note this does not include transfers. Transfer links are added later and are 
+
+
 
     def preAllocate(self, sim_settings):
         '''
@@ -201,7 +256,8 @@ class ModelPopulation(Node):
             link.vals[0] = init_val
             link.target_flow = dcp(link.vals)
             link.actual_flow = dcp(link.vals)
-        for dep in self.deps:
+
+        for dep in self.outputs: # Note - pure outputs could harmlessly be preallocated too, but they don't exist yet since they're only instantiated after integration
             init_val = dep.vals[0]
             dep.vals = np.ones(len(sim_settings['tvec'])) * np.nan
             dep.vals[0] = init_val
@@ -477,24 +533,24 @@ class Model(object):
 
             else:
                 for pop_label in parset.pop_labels:
-                    dep_id = self.getPop(pop_label).dep_ids[par.label]          # Map dependency label to dependency id in ModelPop.
-                    self.getPop(pop_label).deps[dep_id].vals = par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
-                    self.getPop(pop_label).deps[dep_id].val_format = par.y_format[pop_label]
-                    self.getPop(pop_label).deps[dep_id].scale_factor = par.y_factor[pop_label]
+                    dep_id = self.getPop(pop_label).output_ids[par.label]          # Map dependency label to dependency id in ModelPop.
+                    self.getPop(pop_label).outputs[dep_id].vals = par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
+                    self.getPop(pop_label).outputs[dep_id].val_format = par.y_format[pop_label]
+                    self.getPop(pop_label).outputs[dep_id].scale_factor = par.y_factor[pop_label]
 
                 # Apply min/max restrictions on all parameters that are not functions.
                 # Functional parameters will be calculated and constrained during a run, hence they can be np.nan at this stage.
                 if not par.label in settings.par_funcs.keys():
                     if 'min' in settings.linkpar_specs[par.label]:
                         for pop_label in parset.pop_labels:
-                            dep_id = self.getPop(pop_label).dep_ids[par.label]
-                            vals = self.getPop(pop_label).deps[dep_id].vals
-                            self.getPop(pop_label).deps[dep_id].vals[vals < settings.linkpar_specs[par.label]['min']] = settings.linkpar_specs[par.label]['min']
+                            dep_id = self.getPop(pop_label).output_ids[par.label]
+                            vals = self.getPop(pop_label).outputs[dep_id].vals
+                            self.getPop(pop_label).outputs[dep_id].vals[vals < settings.linkpar_specs[par.label]['min']] = settings.linkpar_specs[par.label]['min']
                     if 'max' in settings.linkpar_specs[par.label]:
                         for pop_label in parset.pop_labels:
-                            dep_id = self.getPop(pop_label).dep_ids[par.label]
-                            vals = self.getPop(pop_label).deps[dep_id].vals
-                            self.getPop(pop_label).deps[dep_id].vals[vals > settings.linkpar_specs[par.label]['max']] = settings.linkpar_specs[par.label]['max']
+                            dep_id = self.getPop(pop_label).output_ids[par.label]
+                            vals = self.getPop(pop_label).outputs[dep_id].vals
+                            self.getPop(pop_label).outputs[dep_id].vals[vals > settings.linkpar_specs[par.label]['max']] = settings.linkpar_specs[par.label]['max']
 
 
         # Propagating transfer parameter parset values into Model object.
@@ -689,47 +745,29 @@ class Model(object):
 
         ti = self.t_index
 
+        # The output list maintains the order in which characteristics and parameters appear in the
+        # settings, and also puts characteristics before parameters. So iterating through that list
+        # will automatically compute them in the correct order
+
+        # First, compute dependent characteristics
         for pop in self.pops:
-
-            # Characteristics that are dependencies first...
-            for dep in pop.deps:
-                if dep.label in settings.charac_deps:
-                    dep.vals[ti] = 0
-
-                    # Sum up all relevant compartment popsizes (or previously calculated characteristics).
-                    for inc_label in settings.charac_specs[dep.label]['includes']:
-                        if inc_label in pop.comp_ids:
-                            val = pop.getComp(inc_label).popsize[ti]
-                        elif inc_label in pop.dep_ids:    # NOTE: This should not select a parameter-type dependency due to settings validation, but can validate here if desired.
-                            val = pop.getDep(inc_label).vals[ti]
-                        else:
-#                            print inc_label
-#                            print settings.charac_specs[dep.label]['includes']
-#                            print pop.comp_ids
-#                            print pop.dep_ids
-                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
-
-                        dep.vals[ti] += val
-
-                    # Divide by relevant compartment popsize (or previously calculated characteristic).
-                    if 'denom' in settings.charac_specs[dep.label]:
-                        den_label = settings.charac_specs[dep.label]['denom']
-                        if den_label in pop.dep_ids:  # NOTE: See above note for avoiding parameter-type dependencies.
-                            val = pop.getDep(den_label).vals[ti]
-                        elif den_label in pop.comp_ids:
-                            val = pop.getComp(den_label).popsize[ti]
-                        else:
-                            raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, dep.label))
+            for output in outputs:
+                if output.dependency and isa(output,Characteristic):
+                    output.vals[ti] = 0
+                    for comp in output.includes:
+                        output.vals[ti] += comp.popsize[ti]
+                    if output.denom is not None:
+                        val  = output.denom.popsize[ti]
 
                         if val == 0:
                             if abs(dep.vals[ti]) < project_settings.TOLERANCE:
-                                dep.vals[ti] = 0        # Given a zero/zero case, make the answer zero.
+                                output.vals[ti] = 0        # Given a zero/zero case, make the answer zero.
                             else:
-                                dep.vals[ti] = np.inf   # Given a non-zero/zero case, keep the answer infinite.
+                                output.vals[ti] = np.inf   # Given a non-zero/zero case, keep the answer infinite.
                         else:
-                            dep.vals[ti] /= val
-
-        # Handle parameters now that require calculations between timestep-based updates.
+                            output.vals[ti] /= val            
+            
+        # Next, handle dependent parameters
         # 1st:  Any parameter that is a function of others (i.e. of previously calculated dependencies).
         # 2nd:  Any parameter that is overwritten by a program-based cost-coverage-impact transformation.
         # 3rd:  Any parameter that is overwritten by a special rule, e.g. averaging across populations.
@@ -737,6 +775,7 @@ class Model(object):
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
         for par_label in (settings.par_funcs.keys() + self.sim_settings['impact_pars_not_func']):
             for pop in self.pops:
+                pars = [p for p in outputs if p.dependency and not ]
                 pars = []
                 if par_label in settings.par_deps:
                     pars.append(pop.getDep(par_label))
@@ -1017,13 +1056,21 @@ class Model(object):
         Include any parameters marked as an output in the cascade sheet.
         '''
 
-        outputs = odict()
+        # A characteristic was a dependency if it appeared in settings.charac_specs[label]
+        # A characteristic an output if it does 
+            if 'par_dependency' in settings.charac_specs[label]:
+
+        for label in settings.par_deps:
+
+
+
 
         # For characteristics...
+        existing_outputs = [o.label for o in self.pops[0].outputs] # NB this assumes that 
+
         for cid in settings.charac_specs:
-            outputs[cid] = odict()
             for pop in self.pops:
-                outputs[cid][pop.label] = None
+                new_output = Variable(cid,None)
 
                 # Sum up all relevant compartment popsizes (or previously calculated characteristics).
                 # TODO: Don't recalculate if characteristic was calculated as a dependency.
@@ -1035,10 +1082,10 @@ class Model(object):
                     else:
                         raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
 
-                    if outputs[cid][pop.label] is None:
-                        outputs[cid][pop.label] = dcp(vals)
+                    if new_output is None:
+                        new_output = dcp(vals)
                     else:
-                        outputs[cid][pop.label] += vals
+                        new_output += vals
 
                 # Divide by relevant compartment popsize (or previously calculated characteristic).
                 if 'denom' in settings.charac_specs[cid]:
@@ -1050,7 +1097,7 @@ class Model(object):
                     else:
                         raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
 
-                    outputs[cid][pop.label] /= (vals + project_settings.TOLERANCE)
+                    new_output /= (vals + project_settings.TOLERANCE)
 
         # For parameters...
         for cid in settings.linkpar_outputs:
@@ -1058,9 +1105,9 @@ class Model(object):
             for pop in self.pops:
                 if 'tag' in settings.linkpar_specs[cid]:    # If a parameter is a transition, grab values from its (first, if duplicated,) link object.
                     tag = settings.linkpar_specs[cid]['tag']
-                    outputs[cid][pop.label] = pop.getLinks(tag)[0].vals
-                elif cid in pop.dep_ids:             # If a parameter is a dependency, grab values from the dependency object.
-                    outputs[cid][pop.label] = pop.getDep(cid).vals
+                    new_output = pop.getLinks(tag)[0].vals
+                elif cid in pop.output_ids:             # If a parameter is a dependency, grab values from the dependency object.
+                    new_output = pop.getDep(cid).vals
                 else:
                     raise OptimaException('ERROR: Output parameter "%s" was not calculated as a "dependency" during the model run.' % cid)
 
