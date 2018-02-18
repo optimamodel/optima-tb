@@ -603,8 +603,20 @@ class Model(object):
 
                     # Prevent negative population by proportionately downscaling the outflow
                     # if there are insufficient people _currently_ in the compartment
+                    # Rescaling is performed if the validation setting is 'avert', otherwise
+                    # either a warning will be displayed or an error will be printed
                     if np.sum(outflow) > comp_source.popsize[ti] and not comp_source.tag_birth:
-                        outflow = outflow / np.sum(outflow) * comp_source.popsize[ti]
+                        validation_level = settings.validation['negative_population']
+
+                        if validation_level == project_settings.VALIDATION_AVERT:
+                            outflow = outflow / np.sum(outflow) * comp_source.popsize[ti]
+                        else:
+                            warning = "Negative value encountered for: (%s - %s) at ti=%g : popsize = %g, outflow = %g" % (pop.label,comp_source.label,ti,comp_source.popsize[ti],sum(outflow))
+                            if validation_level == project_settings.VALIDATION_ERROR:
+                                raise OptimaException(warning)
+                            elif validation_level == project_settings.VALIDATION_WARN:
+                                logger.warn(warning)
+
 
                     # Apply the flows to the compartments
                     for i, link in enumerate(outlinks):
