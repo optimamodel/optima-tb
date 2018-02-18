@@ -9,9 +9,11 @@ from optima_tb.parsing import FunctionParser
 
 import logging
 logger = logging.getLogger(__name__)
+parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
 import numpy as np
 from copy import deepcopy as dcp
+from uuid import uuid4 as uuid
 
 
 
@@ -20,28 +22,11 @@ from copy import deepcopy as dcp
 class Node(object):
     ''' Lightweight abstract class to represent one object within a network. '''
     def __init__(self, label='default', index=0):
+        self.uid = uuid()
         self.label = label          # Reference name for this object.
         self.index = index          # Index to denote storage position in Model object. Format is left unspecified.
                                     # For a ModelPopulation, this is intended as an integer.
                                     # For a ModelCompartment, this is intended as a tuple with first element denoting index of ModelPopulation.
-        self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
-        self.outlink_ids = []       # List of tupled indices corresponding to each outgoing link.
-        self.inlink_ids = []        # List of tupled indices corresponding to each ingoing link.
-                                    # Note that the second element of each tuple is the storage id of the link.
-                                    # The first element of each tuple is the storage id of the superset container (e.g. ModelPopulation)
-
-    def makeLinkTo(self, other_node, link_index, link_label, is_transfer=False):
-        '''
-        Link this node to another (i.e. create a transition link).
-        Must provide an index that, by intention, uniquely represents where this link is positioned in its storage container.
-        Must also provide the variable label for the link, in case Settings.linkpar_specs[link_label] need to be referred to.
-        '''
-        if not isinstance(other_node, Node):
-            raise OptimaException('ERROR: Attempting to link compartment to something that is not a compartment.')
-        self.num_outlinks += 1
-        self.outlink_ids.append(link_index)
-        other_node.inlink_ids.append(link_index)
-        return Link(object_from=self, object_to=other_node, label=link_label, is_transfer=is_transfer)
 
 class Variable(object):
     '''
@@ -51,52 +36,125 @@ class Variable(object):
     Examples include characteristics and dependent parameters (NB. all non-dependents parameter correspond to links)
     '''
     def __init__(self, label='default', val=0.0,dependency=False):
+        self.uid = uuid()
         self.label = label
         self.dependency = dependency # This flag indicates whether another variable depends on this one, indicating the value needs to be computed during integration
         self.vals = np.array([float(val)])  # An abstract array of values.
         self.vals_old = None                # An optional array that stores old values in the case of overwriting.
+        self.limits = None
         if val > 1:
             self.val_format = 'number'
         else:
             self.val_format = 'fraction'
 
+    def update(self,ti=None):
+        # A Variable can have a function to update its value at a given time, which is
+        # overloaded differently for Characteristics and Parameters
+        return
+
+    def constrain(self,ti):
+        # NB. Must be an array, so ti must must not be supplied
+        if self.limits is not None:
+            self.vals[ti] = max(self.limits[0],self.vals[ti])
+            self.vals[ti] = min(self.limits[1],self.vals[ti])
+
+
 class Characteristic(Variable):
     ''' A characteristic represents a grouping of compartments 
     '''
     def __init__(self, includes, denominator = None, label='default', val=0.0,dependency=False):
-        # includes is a list of ModelCompartments, whose values are summed 
+        # includes is a list of ModelCompartments, whose values are summed
         # the denominator is another Characteristic that normalizes this one
         # All passed by reference so minimal performance impact
-        Variable.__init__(self, label=label, val=val)
+        Variable.__init__(self, label=label, val=val,dependency=dependency)
         for x in includes:
-            assert isa(x,ModelCompartment) or isa(x,Characteristic), 'Characteristic dependencies must be compartments or other characteristics'
+            assert isinstance(x,ModelCompartment) or isinstance(x,Characteristic), 'Characteristic dependencies must be compartments or other characteristics'
+            x.dependency = True # Automatically mark an included compartment as requiring computation during integration
         self.includes = includes
         self.denominator = denominator
 
+    def update(self,ti=None):
+        # Read popsizes at time ti from includes, and update the value of this characteristic
+        # If ti is none, then use all vals
+        if ti is None:
+            ti = np.arange(0,self.vals.size) # This corresponds to every time point
+        else:
+            ti = np.array(ti) # This allows ti.size to be used - but this is inefficient and should be done better
+
+        self.vals[ti] = 0
+
+        for comp in self.includes:
+            self.vals[ti] += comp.popsize[ti]
+
+        if self.denominator is not None:
+            denom  = self.denominator.popsize[ti]
+
+            ## Todo - do this better!
+            if ti.size == 1:
+                if abs(denom) < project_settings.TOLERANCE:
+                    self.vals[ti] = 0  # Given a zero/zero case, make the answer zero.
+                else:
+                    self.vals[ti] = np.inf  # Given a non-zero/zero case, keep the answer infinite.
+            else:
+                for i in xrange(0,len(ti)):
+                    if abs(denom[i]) < project_settings.TOLERANCE:
+                        self.vals[ti[i]] = 0  # Given a zero/zero case, make the answer zero.
+                    else:
+                        self.vals[ti[i]] = np.inf  # Given a non-zero/zero case, keep the answer infinite.
+
     # Declaring the popsize as a property means that you can ask for a Characteristic's popsize the same
-    # way as you can query a compartment's popsize
+    # way as you can query a compartment's popsize, so the two can be treated interchangably
     @property
     def popsize(self):
         return self.vals 
     
+class Parameter(Variable):
 
-class Link(Variable):
+    # A parameter is a Variable that can have a value computed via an f_stack and a list of 
+    # dependent Variables. This class may need to be renamed to avoid confusion with
+    # the class in Parameter.py which provides a means of computing the Parameter that is used by the model
+    def __init__(self, label='default', val=0.0,dependency=False,f_stack = None, deps = None):
+        Variable.__init__(self, label=label, val=val,dependency=dependency)
+        if deps is not None:
+            for dep in deps:
+                dep.dependency = True # Mark all required Variables as dependent
+        self.deps = deps
+        self.f_stack = f_stack
+
+    def update(self,ti):
+
+        if self.f_stack is None:
+            return
+
+        f_stack = dcp(self.f_stack) # TODO - change parser.evaluateStack() to not pop items from the list
+        dep_vals = {}
+        for dep in self.deps:
+            dep_vals[dep.label] = dep.vals[ti]
+
+        self.vals[ti] = parser.evaluateStack(stack=f_stack, deps=dep_vals)
+
+
+class Link(Parameter):
     '''
-    A more involved version of Variable, representing unidirectional flow between two objects in a network.
+    A Link is a parameter that maps to a transition between compartments. As such, it also 
+    contains an inflow and outflow compartment. 
     The values stored in this extended version of Variable refer to flow rates.
     If used in ModelPop, the Link references two cascade compartments within a single population.
     '''
     def __init__(self, object_from, object_to, label='default', parameter_label='default', val=0.0, scale_factor=1.0, is_transfer=False):
-        Variable.__init__(self, label=label, val=val)
+        Parameter.__init__(self, label=label, val=val)
         self.parameter_label = parameter_label # A transition constructed from a parameter will be labelled with the transition tag rather than the parameter's label
         self.index_from = object_from.index
         self.index_to = object_to.index
         self.label_from = object_from.label
         self.label_to = object_to.label
         self.scale_factor = scale_factor
-        self.is_transfer = is_transfer
+        self.is_transfer = is_transfer # A transfer connections compartments across populations
         self.target_flow = val # For each time point, store the number of people that were proposed to move (in units of number of people)
         self.flow = val # For each time point, store the actual flow rate in number of people (in units of number of people)
+        
+        self.source = object_from
+        self.dest = object_to
 
     def __repr__(self, *args, **kwargs):
         print "self.scale_factor = ", self.scale_factor, type(self.scale_factor)
@@ -115,12 +173,41 @@ class ModelCompartment(Node):
         self.tag_dead = False                       # Tag for whether this compartment contains dead people.
         self.junction = False
 
+        self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
+        self.outlink_ids = []       # List of tupled indices corresponding to each outgoing link.
+        self.inlink_ids = []        # List of tupled indices corresponding to each ingoing link.
+                                    # Note that the second element of each tuple is the storage id of the link.
+                                    # The first element of each tuple is the storage id of the superset container (e.g. ModelPopulation)
+        self.outlinks = []
+        self.inlinks = []
+
     def __repr__(self, *args, **kwargs):
         return "%s: %g" % (self.label, self.popsize[0])
 
     def getValue(self, ti):
         """ Get value of population at timestep ti """
         return self.popsize[ti]
+
+    def makeLinkTo(self, destination, link_index, link_label, is_transfer=False):
+        '''
+        Link this compartment to another (i.e. create a transition link).
+        Must provide an index that, by intention, uniquely represents where this link is positioned in its storage container.
+        Must also provide the variable label for the link, in case Settings.linkpar_specs[link_label] need to be referred to.
+        '''
+        if not isinstance(destination, Node):
+            raise OptimaException('ERROR: Attempting to link compartment to something that is not a compartment.')
+        
+        link = Link(object_from=self, object_to=destination, label=link_label, is_transfer=is_transfer)
+
+        self.num_outlinks += 1
+
+        self.outlinks.append(link)
+        self.outlink_ids.append(link_index)
+
+        destination.inlinks.append(link)
+        destination.inlink_ids.append(link_index)
+
+        return link
 
 class ModelPopulation(Node):
     '''
@@ -143,6 +230,16 @@ class ModelPopulation(Node):
 
     def __repr__(self, *args, **kwargs):
         return "".join("%s" % self.comps)
+
+    def popsize(self,ti):
+        # A population's popsize is the sum of all of the people in its compartments, excluding
+        # birth and death compartments
+        n = 0
+        for comp in self.comps:
+            if not comp.tag_birth and not comp.tag_dead:
+                n += comp.popsize[ti]
+        return n
+
 
     def getModelState(self, ti):
         states = [c.getValue(ti) for c in self.comps]
@@ -172,6 +269,8 @@ class ModelPopulation(Node):
         Fill out the compartment, transition and dependency lists within the model population object.
         Maintaining order as defined in a cascade workbook is crucial due to cross-referencing.
         '''
+
+        # First, make a ModelCompartment for every compartment in the cascade
         for k, label in enumerate(settings.node_specs.keys()):
             self.comps.append(ModelCompartment(label=label, index=(self.index, k)))
             if 'tag_birth' in settings.node_specs[label]:
@@ -182,62 +281,89 @@ class ModelPopulation(Node):
                 self.comps[-1].junction = True
             self.comp_ids[label] = k
 
+        # Create links between compartments according to the transitions in the cascade
+        # Links are identified as parameters that have a transition tag associated with them
         k = 0
-        # Create actual link objects for parameters with tags, a.k.a. transitions.
         for label in settings.linkpar_specs:
             if 'tag' in settings.linkpar_specs[label]:
                 tag = settings.linkpar_specs[label]['tag']
                 for pair in settings.links[tag]:
-                    self.links.append(self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]), link_index=(self.id, k), link_label=label))
+                    new_link = self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]), link_index=(self.id, k), link_label=label)
+                    self.links.append(new_link)
                     if not tag in self.link_ids:
                         self.link_ids[tag] = []
                     self.link_ids[tag].append(k)
                     k += 1
 
         k = 0
-        # Now create variable objects for characteristics and compartments
-        # NB. Order constraints mean that the chararacteristics and parameters are
-        # added in dependency order i.e. any dependencies in the characteristics
-        # must already be present in the compartment or output list
+        # Now create variables for characteristics
+        # Characteristics are added in dependency order i.e. any other characteristics they include must have
+        # already been added.
+        # may already have been added.
         for label in settings.charac_specs:
             
             inc_labels = settings.charac_specs[label]['includes']
-            den_label = settings.charac_specs[dep.label]['denom']
+            den_label = settings.charac_specs[label]['denom'] if 'denom' in settings.charac_specs[label] else None
             dependency ='par_dependency' in settings.charac_specs[label]
 
             includes = []
-            for label in inc_labels:
-
-                if label in self.comp_ids:
-                    includes.append(self.comps[self.comp_ids[label]])
-                elif label in self.output_ids:
-                    includes.append(self.outputs[self.output_ids[label]])
+            for inc_label in inc_labels:
+                if inc_label in self.comp_ids:
+                    includes.append(self.comps[self.comp_ids[inc_label]])
+                elif inc_label in self.output_ids:
+                    includes.append(self.outputs[self.output_ids[inc_label]])
 
             if den_label in self.comp_ids:  # NOTE: See above note for avoiding parameter-type dependencies.
                 denom = self.comps[self.comp_ids[den_label]]
             elif den_label in self.output_ids:
                 denom = self.outputs[self.output_ids[den_label]]
+            else:
+                denom = None
 
             self.outputs.append(Characteristic(includes,denom,label=label,dependency=dependency))
             self.output_ids[label] = k
+
             k += 1
 
-        # Finish dependencies with untagged parameters, i.e. ones that are not considered transition flow rates.
+        # For parameters, this is not the case, because transition tags are added first
+        # even though they may depend on other parameters or characteristics. So we actually need to
+        # instantiate all of the parameter objects before wiring them up
         for label in settings.par_deps:
-            self.outputs.append(Variable(label=label),dependency=True)
+            self.outputs.append(Variable(label=label))
             self.output_ids[label] = k
             k += 1
 
         for label in settings.linkpar_outputs:
-            self.outputs.append(Variable(label=label),dependency=False)
+            self.outputs.append(Variable(label=label))
             self.output_ids[label] = k
             k += 1
 
-        # Precompute a list of dependent parameters (outputs and links) that need to be computed
-        # during integration
-        self.dep_pars = [p for p in outputs if p.dependency and not isa(p,Characteristic)]
-        self.dep_pars += self.links # Note this does not include transfers. Transfer links are added later and are 
+        # Wire up all parameters (both transitions and outputs)
+        for par in (self.links + self.outputs):
+            if isinstance(par,Parameter): # Don't wire up characteristics...!
+                specs = settings.linkpar_specs[par.label]
+                if 'f_stack' in specs:
+                    par.f_stack = dcp(specs['f_stack'])
+                    deps = []
+                    # Todo - clean up finding the dependent parameters
+                    # Todo - dependencies are defined here (i.e. if a Parameter is included as a dependent parameter
+                    # somewhere, then it itself must be a dependency) so that could simplify parsing the cascade in Settings
+                    for dep_label in specs['deps']:
+                        if dep_label in settings.par_deps or dep_label in settings.charac_deps:
+                            deps.append(self.getDep(dep_label))
+                        else:
+                            deps.append(self.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti])
+                    
+                    par.deps = deps
 
+                # Add limits
+                if 'min' in specs or 'max' in specs:
+                    limits = [-np.inf,np.inf]
+                    if 'min' in specs:
+                        limits[0] = specs['min']
+                    if 'max' in specs:
+                        limits[0] = specs['max']
+                    par.limits = limits
 
 
     def preAllocate(self, sim_settings):
@@ -279,11 +405,85 @@ class Model(object):
 
         self.t_index = 0                # Keeps track of array index for current timepoint data within all compartments.
 
-        self.parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
-
         self.prog_vals = dict()         # Stores coverage and impact values for programs, given budget info passed into model.
                                         # Intended to avoid constant getImpact() calls during parameter value overwrites.
 
+    def __getstate__(self):
+        # Break cycles when deepcopying or pickling by swapping them for UIDs
+        # Primary storage is in the comps, links, and outputs properties
+        d = self.__dict__    # get attribute dictionary
+
+        # Todo - it is dissatisfying that this function refers to internal variables
+        # so it would be cleaner if the subobjects implemented methods to pickle and
+        # unpickle themselves. However, unpickling is tricky because they probably won't have access
+        # to the required other objects...
+
+        def convert_to_uid(l):
+            if isinstance(l,list):
+                u = []
+                for i in xrange(0,len(l)):
+                    u.append(l[i].uid if l[i] is not None else None)
+                return u
+            else:
+                return l.uid if l is not None else None
+
+        for pop in d['pops']:
+            for comp in pop.comps:
+                comp.inlinks = convert_to_uid(comp.inlinks)
+                comp.outlinks = convert_to_uid(comp.outlinks)
+
+            for var in pop.outputs + pop.links:
+                if isinstance(var,Characteristic):
+                    var.includes = convert_to_uid(var.includes)
+                    var.denominator = convert_to_uid(var.denominator)
+
+                if isinstance(var,Parameter):
+                    var.deps = convert_to_uid(var.deps)
+
+                if isinstance(var,Link):
+                    var.source = convert_to_uid(var.source)
+                    var.dest = convert_to_uid(var.dest)
+
+        return d
+
+    def __setstate__(self, d):
+
+        # Build a dict of all objects in the model
+        objs = {}
+        for pop in d['pops']:
+            for obj in pop.comps+pop.outputs+pop.links:
+                objs[obj.uid] = obj
+
+        def get_obj(uid):
+            return objs[uid] if uid is not None else None
+
+        def convert_to_obj(l):
+            if isinstance(l,list):
+                return [get_obj(u) for u in l]
+            else:
+                return get_obj(l)
+
+        for pop in d['pops']:
+            for comp in pop.comps:
+                comp.inlinks = convert_to_obj(comp.inlinks)
+                comp.outlinks = convert_to_obj(comp.outlinks)
+
+            for var in pop.outputs+pop.links:
+                if isinstance(var,Characteristic):
+                    var.includes = convert_to_obj(var.includes)
+                    var.denominator = convert_to_obj(var.denominator)
+
+                if isinstance(var,Parameter):
+                    var.deps = convert_to_obj(var.deps)
+
+                if isinstance(var,Link):
+                    var.source = convert_to_obj(var.source)
+                    var.dest = convert_to_obj(var.dest)
+
+            for i in objs:
+                objs[i].uid = uuid() # Change the UUIDs indicating a clone has been made
+
+            self.__dict__ = d
 
     def getPop(self, pop_label):
         ''' Allow model populations to be retrieved by label rather than index. '''
@@ -372,7 +572,7 @@ class Model(object):
                             years = self.sim_settings['tvec']
                         else:
                             years = [self.sim_settings['tvec'][-1]]
-                        self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=self.parser, years=years, budget_is_coverage=True)
+                        self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=parser, years=years, budget_is_coverage=True)
 
 
     def build(self, settings, parset, progset=None, options=None):
@@ -407,7 +607,7 @@ class Model(object):
             else:
                 raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
 
-        self.parser.debug = settings.parser_debug
+        parser.debug = settings.parser_debug
 
         for k, pop_label in enumerate(parset.pop_labels):
             self.pops.append(ModelPopulation(settings=settings, label=pop_label, index=k))
@@ -603,6 +803,10 @@ class Model(object):
             self.processJunctions(settings=settings)
             self.updateValues(settings=settings, progset=progset)
 
+        for pop in self.pops:
+            for output in pop.outputs:
+                output.update()
+
         return self.pops, self.sim_settings
 
     def stepForward(self, settings, dt=1.0):
@@ -748,33 +952,19 @@ class Model(object):
         # settings, and also puts characteristics before parameters. So iterating through that list
         # will automatically compute them in the correct order
 
-        # First, compute dependent characteristics
+        # First, compute dependent characteristics, as parameters might depend on them
         for pop in self.pops:
-            for output in outputs:
-                if output.dependency and isa(output,Characteristic):
-                    output.vals[ti] = 0
-                    for comp in output.includes:
-                        output.vals[ti] += comp.popsize[ti]
-                    if output.denom is not None:
-                        val  = output.denom.popsize[ti]
-
-                        if val == 0:
-                            if abs(dep.vals[ti]) < project_settings.TOLERANCE:
-                                output.vals[ti] = 0        # Given a zero/zero case, make the answer zero.
-                            else:
-                                output.vals[ti] = np.inf   # Given a non-zero/zero case, keep the answer infinite.
-                        else:
-                            output.vals[ti] /= val            
-            
-        # Next, handle dependent parameters
-        # 1st:  Any parameter that is a function of others (i.e. of previously calculated dependencies).
+            for output in pop.outputs:
+                if output.dependency and isinstance(output,Characteristic):
+                    output.update(ti)       
+        
+        # 1st:  Update parameters if they have an f_stack variable
         # 2nd:  Any parameter that is overwritten by a program-based cost-coverage-impact transformation.
         # 3rd:  Any parameter that is overwritten by a special rule, e.g. averaging across populations.
         # 4th:  Any parameter that is restricted within a range of values, i.e. by min/max values.
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
         for par_label in (settings.par_funcs.keys() + self.sim_settings['impact_pars_not_func']):
             for pop in self.pops:
-                pars = [p for p in outputs if p.dependency and not ]
                 pars = []
                 if par_label in settings.par_deps:
                     pars.append(pop.getDep(par_label))
@@ -782,19 +972,8 @@ class Model(object):
                     pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
                 specs = settings.linkpar_specs[par_label]
 
-                # Calculate the value of a parameter from its function if it exists, otherwise maintain the current value.
-                if 'f_stack' in specs:
-                    f_stack = dcp(specs['f_stack'])
-                    deps = dcp(specs['deps'])
-                    for dep_label in deps:
-                        if dep_label in settings.par_deps or dep_label in settings.charac_deps:
-                            val = pop.getDep(dep_label).vals[ti]
-                        else:
-                            val = pop.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti]    # As links are duplicated for the same tag, can pull values from the zeroth one.
-                        deps[dep_label] = val
-                    new_val = self.parser.evaluateStack(stack=f_stack, deps=deps)
-                else:
-                    new_val = pars[0].vals[ti]      # As links are duplicated for the same tag, can pull values from the zeroth one.
+                for par in pars:
+                    par.update(ti)
 
                 # WARNING: CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
                 if 'progs_start' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start']:
@@ -869,11 +1048,11 @@ class Model(object):
                                             frac_dt_impact = dt_impact / source_set_size
                                     else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
 
-#                                    # Cap dt-ly coverage for each program.
-#                                    if pars[0].val_format == 'fraction':
-#                                        if frac_dt_cov > 1.0:
-#                                            frac_dt_cov = 1.0
-#                                            frac_dt_impact = frac_dt_cov * impact_factor
+                                    # Cap dt-ly coverage for each program.
+                                    # if pars[0].val_format == 'fraction':
+                                    #     if frac_dt_cov > 1.0:
+                                    #         frac_dt_cov = 1.0
+                                    #         frac_dt_impact = frac_dt_cov * impact_factor
 
                                     # A fractional dt-ly coverage happens to be considered overflow.
                                     # For instance, dt-ly impacts of [0.7,1] with corresponding dt-ly coverage of [1.2,1.3] will scale down so net dt-ly coverage is 1.
@@ -894,24 +1073,24 @@ class Model(object):
                                     except: impact = self.prog_vals[prog_label]['impact'][par_label]
 
 
-#                                year_check = 2016.5   # Hard-coded check.
-#                                par_check = ['spdyes_rate']#['spdsuc_rate','spdno_rate']
-#                                if par_label in par_check:
-#                                    if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
-#                                        print('Year: %s' % self.sim_settings['tvec'][ti])
-#                                        print('Program Name: %s' % prog.name)
-#                                        print('Program %s: %f' % ('Coverage' if self.sim_settings['alloc_is_coverage'] else 'Budget', self.prog_vals[prog_label]['cost']))
-#                                        print('Target Population: %s' % pop.label)
-#                                        print('Target Parameter: %s' % par_label)
-#                                        print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
-#                                        print('Program Coverage: %f' % self.prog_vals[prog_label]['cov'])
-#                                        print('Program Impact: %f' % net_impact)
-#                                        print('Program Impact Format: %s' % prog.cov_format)
-#                                        print('Source Compartment Size (Target Pop): %f' % source_element_size)
-#                                        print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
-#                                        print('Converted Impact: %f' % impact)
-#                                        print('Converted Impact Format: %s' % pars[0].val_format)
-#                                        print
+                                # year_check = 2016.5   # Hard-coded check.
+                                # par_check = ['spdyes_rate']#['spdsuc_rate','spdno_rate']
+                                # if par_label in par_check:
+                                    # if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
+                                        # print('Year: %s' % self.sim_settings['tvec'][ti])
+                                        # print('Program Name: %s' % prog.name)
+                                        # print('Program %s: %f' % ('Coverage' if self.sim_settings['alloc_is_coverage'] else 'Budget', self.prog_vals[prog_label]['cost']))
+                                        # print('Target Population: %s' % pop.label)
+                                        # print('Target Parameter: %s' % par_label)
+                                        # print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
+                                        # print('Program Coverage: %f' % self.prog_vals[prog_label]['cov'])
+                                        # print('Program Impact: %f' % net_impact)
+                                        # print('Program Impact Format: %s' % prog.cov_format)
+                                        # print('Source Compartment Size (Target Pop): %f' % source_element_size)
+                                        # print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
+                                        # print('Converted Impact: %f' % impact)
+                                        # print('Converted Impact Format: %s' % pars[0].val_format)
+                                        # print
 
                                 if first_prog:
                                     new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
@@ -922,7 +1101,6 @@ class Model(object):
                                 else:   # Alternatively, if the parameter has a transition tag...
                                     impact_list.append(dt_impact)
 
-#                            print overflow_list
 
                             # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
                             # Otherwise renormalises impacts.
@@ -959,93 +1137,77 @@ class Model(object):
                                 if new_val < vals[0]: new_val = vals[0]
                                 if new_val > vals[1]: new_val = vals[1]
 
-                for par in pars:
-                    par.vals[ti] = new_val
+                    # Perform the value overwrite if the program set a value for the parameter
+                    for par in pars:
+                        par.vals[ti] = new_val
 
-                    # Backup the values of parameters that are tagged with special rules.
-                    if 'rules' in settings.linkpar_specs[par_label]:
-                        if par.vals_old is None: par.vals_old = dcp(par.vals)
-                        par.vals_old[ti] = new_val
+                # Backup the values of parameters that are tagged with special rules.
+                # Todo - clean up this workflow
+                if 'rules' in settings.linkpar_specs[par_label]:
+                    for par in pars:
+                        if par.vals_old is None:
+                            par.vals_old = dcp(par.vals)
+                        par.vals_old[ti] = par.vals[ti]
 
-            # Handle parameters tagged with special rules. Overwrite vals if necessary.
-            if do_special and 'rules' in settings.linkpar_specs[par_label]:
-                rule = settings.linkpar_specs[par_label]['rules']
-                for pop in self.pops:
-                    if rule == 'avg_contacts_in':
-                        from_list = self.contacts['into'][pop.label].keys()
+                # Handle parameters tagged with special rules. Overwrite vals if necessary.
+                if do_special and 'rules' in settings.linkpar_specs[par_label]:
+                    rule = settings.linkpar_specs[par_label]['rules']
+                    for pop in self.pops:
+                        if rule == 'avg_contacts_in':
+                            from_list = self.contacts['into'][pop.label].keys()
 
-                        # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
-                        if not ((len(from_list) == 1 and from_list[0] == pop.label)):
-                            old_vals = np.ones(len(from_list)) * np.nan
-                            weights = np.ones(len(from_list)) * np.nan
-                            pop_counts = np.ones(len(from_list)) * np.nan
-                            if len(from_list) == 0:
-                                new_val = 0.0
-                            else:
-                                k = 0
-                                for from_pop in from_list:
-                                    # All transition links with the same par_label are identically valued. For calculations, only one is needed for reference.
-                                    if par_label in settings.par_deps:
-                                        par = self.getPop(from_pop).getDep(par_label)
-                                    else:
-                                        par = self.getPop(from_pop).getLinks(settings.linkpar_specs[par_label]['tag'])[0]
-                                    old_vals[k] = par.vals_old[ti]
-                                    weights[k] = self.contacts['into'][pop.label][from_pop]
-                                    pop_counts[k] = self.getPop(from_pop).getDep(settings.charac_pop_count).vals[ti]
-                                    k += 1
-                                wpc = np.multiply(weights, pop_counts)          # Population counts weighted by contact rate.
-                                wpc_sum = sum(wpc)                              # Normalisation factor for weighted population counts.
-                                if abs(wpc_sum) > project_settings.TOLERANCE:
-                                    new_val = np.dot(old_vals, wpc / wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
+                            # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
+                            if not ((len(from_list) == 1 and from_list[0] == pop.label)):
+                                old_vals = np.ones(len(from_list)) * np.nan
+                                weights = np.ones(len(from_list)) * np.nan
+                                pop_counts = np.ones(len(from_list)) * np.nan
+                                if len(from_list) == 0:
+                                    new_val = 0.0
                                 else:
-                                    new_val = 0.0   # Only valid because if the weighted sum is zero, all pop_counts must be zero, meaning that the numerator is zero.
+                                    k = 0
+                                    for from_pop in from_list:
+                                        # All transition links with the same par_label are identically valued. For calculations, only one is needed for reference.
+                                        if par_label in settings.par_deps:
+                                            par = self.getPop(from_pop).getDep(par_label)
+                                        else:
+                                            par = self.getPop(from_pop).getLinks(settings.linkpar_specs[par_label]['tag'])[0]
+                                        old_vals[k] = par.vals_old[ti]
+                                        weights[k] = self.contacts['into'][pop.label][from_pop]
+                                        pop_counts[k] = self.getPop(from_pop).getDep(settings.charac_pop_count).vals[ti]
+                                        k += 1
+                                    wpc = np.multiply(weights, pop_counts)          # Population counts weighted by contact rate.
+                                    wpc_sum = sum(wpc)                              # Normalisation factor for weighted population counts.
+                                    if abs(wpc_sum) > project_settings.TOLERANCE:
+                                        new_val = np.dot(old_vals, wpc / wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
+                                    else:
+                                        new_val = 0.0   # Only valid because if the weighted sum is zero, all pop_counts must be zero, meaning that the numerator is zero.
 
-#                            if ti == 0:
-#                                print
-#                                print('Timestep: %s' % ti)
-#                                print('Weighted population-contact averaging will affect "%s" for "%s".' % (par_label, pop.label))
-#                                print('Populations initiating contact with "%s"...' % pop.label)
-#                                print from_list
-#                                print('These populations have "%s" values of...' % par_label)
-#                                print old_vals
-#                                print('Their pop counts are...')
-#                                print pop_counts
-#                                print('These are further weighted by...')
-#                                print weights
-#                                print('The new weighted population-contact average value of "%s" for "%s" is: %f' % (par_label, pop.label, new_val))
+                                # if ti == 0:
+                                #     print
+                                #     print('Timestep: %s' % ti)
+                                #     print('Weighted population-contact averaging will affect "%s" for "%s".' % (par_label, pop.label))
+                                #     print('Populations initiating contact with "%s"...' % pop.label)
+                                #     print from_list
+                                #     print('These populations have "%s" values of...' % par_label)
+                                #     print old_vals
+                                #     print('Their pop counts are...')
+                                #     print pop_counts
+                                #     print('These are further weighted by...')
+                                #     print weights
+                                #     print('The new weighted population-contact average value of "%s" for "%s" is: %f' % (par_label, pop.label, new_val))
 
-                            # Need to update all untagged/tagged links with the new value, hence the list of links.
-                            pars = []
-                            if par_label in settings.par_deps:
-                                pars.append(pop.getDep(par_label))
-                            else:
-                                pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
-                            for par in pars:
-                                par.vals[ti] = new_val
+                                # Need to update all untagged/tagged links with the new value, hence the list of links.
+                                pars = []
+                                if par_label in settings.par_deps:
+                                    pars.append(pop.getDep(par_label))
+                                else:
+                                    pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
+                                for par in pars:
+                                    par.vals[ti] = new_val
 
-            # Do a final range check on a parameter, if applicable, and restrict its value.
-            # TODO: Explore efficiency gains.
-            if 'min' in settings.linkpar_specs[par_label]:
-                for pop in self.pops:
-                    pars = []
-                    if par_label in settings.par_deps:
-                        pars.append(pop.getDep(par_label))
-                    else:
-                        pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
-                    for par in pars:
-                        if settings.linkpar_specs[par_label]['min'] > par.vals[ti]:
-                            par.vals[ti] = settings.linkpar_specs[par_label]['min']
-            if 'max' in settings.linkpar_specs[par_label]:
-                for pop in self.pops:
-                    pars = []
-                    if par_label in settings.par_deps:
-                        pars.append(pop.getDep(par_label))
-                    else:
-                        pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
-                    for par in pars:
-                        if settings.linkpar_specs[par_label]['max'] < par.vals[ti]:
-                            par.vals[ti] = settings.linkpar_specs[par_label]['max']
-
+                # Restrict the parameter's value if a limiting range was defined
+                for par in pars:
+                    par.constrain(ti)
 
 
     def calculateOutputs(self, settings):
@@ -1053,87 +1215,23 @@ class Model(object):
         Calculate outputs (called cascade characteristics in settings).
         These outputs must be calculated in the same order as defined in settings, otherwise references may break.
         Include any parameters marked as an output in the cascade sheet.
+        Return a dictionary with all of the outputs
         '''
 
-        # A characteristic was a dependency if it appeared in settings.charac_specs[label]
-        # A characteristic an output if it does 
-            if 'par_dependency' in settings.charac_specs[label]:
+        outputs = odict()
 
-        for label in settings.par_deps:
-
-
-
-
-        # For characteristics...
-        existing_outputs = [o.label for o in self.pops[0].outputs] # NB this assumes that 
-
-        for cid in settings.charac_specs:
-            for pop in self.pops:
-                new_output = Variable(cid,None)
-
-                # Sum up all relevant compartment popsizes (or previously calculated characteristics).
-                # TODO: Don't recalculate if characteristic was calculated as a dependency.
-                for inc_label in settings.charac_specs[cid]['includes']:
-                    if inc_label in self.getPop(pop.label).comp_ids:
-                        vals = self.getPop(pop.label).getComp(inc_label).popsize
-                    elif inc_label in outputs.keys()[:-1]:
-                        vals = outputs[inc_label][pop.label]
-                    else:
-                        raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
-
-                    if new_output is None:
-                        new_output = dcp(vals)
-                    else:
-                        new_output += vals
-
-                # Divide by relevant compartment popsize (or previously calculated characteristic).
-                if 'denom' in settings.charac_specs[cid]:
-                    den_label = settings.charac_specs[cid]['denom']
-                    if den_label in outputs.keys()[:-1]:
-                        vals = outputs[den_label][pop.label]
-                    elif den_label in self.getPop(pop.label).comp_ids:
-                        vals = self.getPop(pop.label).getComp(den_label).popsize
-                    else:
-                        raise OptimaException('ERROR: Compartment or characteristic "%s" has not been pre-calculated for use in calculating "%s".' % (inc_label, cid))
-
-                    new_output /= (vals + project_settings.TOLERANCE)
-
-        # For parameters...
-        for cid in settings.linkpar_outputs:
-            outputs[cid] = odict()
-            for pop in self.pops:
-                if 'tag' in settings.linkpar_specs[cid]:    # If a parameter is a transition, grab values from its (first, if duplicated,) link object.
-                    tag = settings.linkpar_specs[cid]['tag']
-                    new_output = pop.getLinks(tag)[0].vals
-                elif cid in pop.output_ids:             # If a parameter is a dependency, grab values from the dependency object.
-                    new_output = pop.getDep(cid).vals
-                else:
-                    raise OptimaException('ERROR: Output parameter "%s" was not calculated as a "dependency" during the model run.' % cid)
-
+        for pop in self.pops:
+            for output in pop.outputs:
+                if output.label not in outputs:
+                    outputs[output.label] = odict()
+                outputs[output.label][pop.label] = output.vals
+                
         return outputs
 
     def printModelState(self, ti):
         for pop in self.pops:
             logging.info("Population: %s" % pop.label)
             logging.info(pop.getModelState(ti))
-
-
-    def isBirthCompartment(self, comp_id, settings):
-        """
-        Returns True if comp_label is label for a compartment tagged as births. 
-        """
-        if 'tag_birth' in settings.node_specs[comp_id]:
-            return True
-        return False
-
-    def isDeadCompartment(self, comp_id, settings):
-        """
-        Returns True if comp_label is label for a compartment tagged as dead. 
-    
-        """
-        if 'tag_dead' in settings.node_specs[comp_id]:
-            return True
-        return False
 
 
 def runModel(settings, parset, progset=None, options=None):

@@ -28,7 +28,7 @@ class ResultSet(object):
             t_step             t_steps in real time 
             dt                 dt used to create this resultset
             outputs            simulated characteristic data points (format: ?)
-            m_pops             totals per pop per compartment
+            model              simulated model object
             
         Optional: ------------------------------------------------------
             data_observed      datapoints supplied (format: dataset)
@@ -41,6 +41,8 @@ class ResultSet(object):
                 indices_observed_data = [0,4,8,..]. This can be determined directly from dt
                 t_observed_data       = [2000.,2001.,2002., ...]
     """
+
+    # TODO - remove self.outputs() because everything should be accessible via the model directly?
 
     def __init__(self, model, parset, settings, progset=None, budget_options=None, name=None):
 
@@ -72,10 +74,10 @@ class ResultSet(object):
 
         # work-in-progress: in time, these sections should be removed and only the data
         # points we are interested should be listed
-        self.m_pops = model.pops
+        self.model = model
 
         self.pop_label_index = {}
-        for i, pop in enumerate(self.m_pops):
+        for i, pop in enumerate(self.model.pops):
             self.pop_label_index[pop.label] = i
 
         self.sim_settings = model.sim_settings
@@ -322,7 +324,7 @@ class ResultSet(object):
 
             for ci, c_label in enumerate(comps):
 
-                comp = self.m_pops[p_index].getComp(c_label)
+                comp = self.model.pops[p_index].getComp(c_label)
                 if use_observed_times:
                     datapoints[pi][c_label] = comp[self.indices_observed_data]
                 else:
@@ -434,7 +436,7 @@ class ResultSet(object):
 
                 flows = []
                 for link_index in self.link_label_ids[link_lab]:
-                    link = self.m_pops[p_index].links[link_index]
+                    link = self.model.pops[p_index].links[link_index]
                     if target_flow:
                         flows.append(link.target_flow)
                     else:

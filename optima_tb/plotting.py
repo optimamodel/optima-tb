@@ -1427,7 +1427,7 @@ def getPops(result):
     """
     Returns the full list of populations
     """
-    return [pop.label for pop in result.m_pops]
+    return [pop.label for pop in result.model.pops]
 
 def _calcRelativeDatapoint(plot_relative, ys, ts=None):
     """
