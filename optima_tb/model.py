@@ -868,7 +868,8 @@ class Model(object):
 
                     # Apply the flows to the compartments
                     for i, link in enumerate(outlinks):
-                        self.pops[link.index_to[0]].comps[link.index_to[1]].popsize[ti+1] += outflow[i]
+                        link.dest.popsize[ti+1] += outflow[i]
+                        #self.pops[link.index_to[0]].comps[link.index_to[1]].popsize[ti+1] += outflow[i]
                         link.flow[ti] = outflow[i]
                     comp_source.popsize[ti+1] -= np.sum(outflow)
 
@@ -1216,6 +1217,8 @@ class Model(object):
         These outputs must be calculated in the same order as defined in settings, otherwise references may break.
         Include any parameters marked as an output in the cascade sheet.
         Return a dictionary with all of the outputs
+
+        As outputs are all Variables or Characteristics they use the vals property for their value
         '''
 
         outputs = odict()
