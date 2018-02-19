@@ -1,7 +1,7 @@
 # %% Imports
 
 from optima_tb.utils import flattenDict, odict, OptimaException
-from optima_tb.validation import checkNegativePopulation, checkTransitionFraction
+from optima_tb.validation import checkTransitionFraction
 import optima_tb.settings as project_settings
 from optima_tb.results import ResultSet
 from optima_tb.parsing import FunctionParser
@@ -545,113 +545,6 @@ class Model(object):
 
         return self.pops, self.sim_settings
 
-    def _calculateDPops(self, settings, ti, dt, modified_compartment={}, empty_compartment=[], reset_compartment=[]):
-        """
-        
-        This function gets called from model.stepForward() but also from within a validation check. 
-        
-        Params:
-            settings
-            ti
-            dt
-            modified_compartment optional: Dictionary of (did,reduction_ratio) pairs that indicate by what percentage an dpop amount should be reduced.  
-            empty_compartment    optional: List of compartment did that are empty
-            reset_compartment    optional: List of compartment did that already have a negative value
-        
-        """
-
-        # Preallocate a change-in-popsize array. Requires each population to have the same cascade.
-        num_pops = len(self.pops)
-        num_comps = len(self.pops[0].comps)         # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
-        dpopsize = np.zeros(num_pops * num_comps)
-        # Variables for tracking in and out amounts to a compartment, separately
-        # dpop_in = np.zeros(num_pops*num_comps)
-        dpop_out = np.zeros(num_pops * num_comps)
-
-        for pop in self.pops:
-            for comp in pop.comps:
-
-                # If not pre-allocated, extend compartment variable arrays. Either way copy current value to the next position in the array.
-                if not len(comp.popsize) > ti + 1:
-                    comp.popsize = np.append(comp.popsize, 0.0)
-                if not len(comp.popsize) > ti + 1:      # If one extension did not create an index of ti+1, something is seriously wrong...
-                    raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment "%s".' % (comp.label))
-                comp.popsize[ti + 1] = comp.popsize[ti]
-
-                if comp.label not in settings.junction_labels:      # Junctions collect inflows during this step. They do not process outflows here.
-                    for lid_tuple in comp.outlink_ids:
-                        lid = lid_tuple[-1]
-                        link = pop.links[lid]
-
-                        # If link values are not pre-allocated to the required time-vector length, extend with the same value as the last index.
-                        if not len(link.vals) > ti + 1:
-                            link.vals = np.append(link.vals, link.vals[-1])
-                        if not len(link.vals) > ti + 1:         # If one extension did not create an index of ti+1, something is seriously wrong...
-                            raise OptimaException('ERROR: Current timepoint in simulation does not mesh with array length in compartment "%s".' % (link.label))
-
-                        did_from = link.index_from[0] * num_comps + link.index_from[1]
-                        did_to = link.index_to[0] * num_comps + link.index_to[1]
-                        comp_source = self.pops[link.index_from[0]].getComp(link.label_from)
-
-                        converted_amt = 0
-
-#                        # TODO: Make this range check more efficient by pre-validating. Could use extra validation for user error.
-#                        if link.label in settings.linkpar_specs:
-#                            if 'min' in settings.linkpar_specs[link.label] and settings.linkpar_specs[link.label]['min'] > link.vals[ti]:
-#                                link.vals[ti] = settings.linkpar_specs[link.label]['min']
-#                            if 'max' in settings.linkpar_specs[link.label] and settings.linkpar_specs[link.label]['max'] < link.vals[ti]:
-#                                link.vals[ti] = settings.linkpar_specs[link.label]['max']
-
-                        transition = link.vals[ti]
-
-                        if link.scale_factor is not None and link.scale_factor != project_settings.DO_NOT_SCALE : # scale factor should be available to be used
-                            transition *= link.scale_factor
-
-
-                        if link.val_format == 'fraction':
-                            # check if there are any violations, and if so, deal with them
-                            if transition > 1.:
-                                transition = checkTransitionFraction(transition, settings.validation)
-
-                            converted_frac = 1 - (1 - transition) ** dt      # A formula for converting from yearly fraction values to the dt equivalent.
-                            converted_amt = comp_source.popsize[ti] * converted_frac
-                        elif link.val_format == 'number':
-                            converted_amt = transition * dt
-                            if link.is_transfer:
-                                transfer_rescale = comp_source.popsize[ti] / pop.getDep(settings.charac_pop_count).vals[ti]
-                                converted_amt *= transfer_rescale
-
-                        else:
-                            raise OptimaException("Unknown link type: %s in model\nObserved for population %s, compartment %s" % (link.val_format, pop.label, comp.label))
-
-
-                        # If we've observed that this link contributes to the creation of a negative population size, we modify the amounts:
-                        if did_from in empty_compartment:
-                            # If the compartment is an empty one, we shouldn't update
-                            logging.debug("Empty compartment: no change made for link from=%g,to=%g" % (did_from, did_to))
-                            converted_amt = 0
-
-                        elif did_from in modified_compartment:
-                            # during validation, we encountered an outflow from a compartment that was more than the population size
-                            logging.debug("Modifying flow amount for link (from=%g,to=%g) by %g: prev amount = %g, new amount = %g" % (did_from, did_to, modified_compartment[did_from], converted_amt, modified_compartment[did_from] * converted_amt))
-                            converted_amt *= modified_compartment[did_from]
-
-                        elif did_from in reset_compartment:
-                            # set converted amount in the other direction. Hmm still not perfect
-                            converted_amt = 0
-
-
-                        dpopsize[did_from] -= converted_amt
-                        dpopsize[did_to] += converted_amt
-
-                        # Tracking in and out for a compartment
-                        # dpop_in[did_to] += converted_amt
-                        dpop_out[did_from] += converted_amt
-
-        return dpopsize, dpop_out
-
-
-
     def stepForward(self, settings, dt=1.0):
         '''
         Evolve model characteristics by one timestep (defaulting as 1 year).
@@ -665,28 +558,75 @@ class Model(object):
         num_pops = len(self.pops)
         num_comps = len(self.pops[0].comps)         # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
 
+        for pop in self.pops:
+            for comp in pop.comps:
+                comp.popsize[ti+1] = comp.popsize[ti]
 
-        # First loop through all pops and compartments to calculate value changes.
-        dpopsize, dpop_out = self._calculateDPops(settings, ti, dt)
+        for pop in self.pops:
 
-        # Check calculated rates for proposed dpop value. Note that this should be made an iterative process for
-        # when we avert an incorrect dpop change, as the avert may result in new errors.
-        # TODO: create validation as an iterative process (currently found that it was possible that there was no good solution found
-        """
-        # SUGGESTION: 
-        count = 0 
-        while count < some_limit_count: 
-            if isDPopValid(self,settings,dpopsize,ti,validation):
-                break
-            dpopsize,dpop_out,reset_ids = checkNegativePopulation(self,settings,dpopsize,dpop_out,ti,validation)
-        """
-        dpopsize, dpop_out, reset_ids = checkNegativePopulation(self, settings, dpopsize, dpop_out, ti, dt, settings.validation)
+            for comp_source in pop.comps:
 
-        # Second loop through all pops and comps to apply value changes at next timestep index.
-        for pid in xrange(num_pops):
-            for cid in xrange(num_comps):
-                did = pid * num_comps + cid
-                self.pops[pid].comps[cid].popsize[ti + 1] += dpopsize[did]
+                if not comp_source.junction:  # Junctions collect inflows during this step. They do not process outflows here.
+
+                    outlinks = [pop.links[link_id[1]] for link_id in comp_source.outlink_ids]  # List of outgoing links
+                    outflow = np.zeros(comp_source.num_outlinks)  # Outflow for each link # TODO - store in the link objects?
+
+                    for i, link in enumerate(outlinks):
+
+                        # Compute the number of people that are going out of each link
+                        converted_amt = 0
+                        transition = link.vals[ti]
+
+                        if link.scale_factor is not None and link.scale_factor != project_settings.DO_NOT_SCALE:  # scale factor should be available to be used
+                            transition *= link.scale_factor
+
+                        if link.val_format == 'fraction':
+                            # check if there are any violations, and if so, deal with them
+                            if transition > 1.:
+                                # TODO: If transition > 1 it may still be desirable to use the uncorrected value
+                                # when deciding how to proportionately rescale the outgoing links so as to prevent
+                                # negative people. This ought not to be a problem a-priori because before rescaling, the
+                                # _net_ outflow from the compartment is permitted to be a fraction > 1, so why is this
+                                # not allowed for a single link?
+                                transition = checkTransitionFraction(transition, settings.validation)
+                            converted_frac = 1 - (1 - transition) ** dt  # A formula for converting from yearly fraction values to the dt equivalent.
+                            converted_amt = comp_source.popsize[ti] * converted_frac
+                        elif link.val_format == 'number':
+                            converted_amt = transition * dt
+                            if link.is_transfer:
+                                transfer_rescale = comp_source.popsize[ti] / pop.getDep(settings.charac_pop_count).vals[ti]
+                                converted_amt *= transfer_rescale
+                        else:
+                            raise OptimaException("Unknown link type: %s in model\nObserved for population %s, compartment %s" % (link.val_format, pop.label, comp.label))
+
+                        outflow[i] = converted_amt
+
+                    # Prevent negative population by proportionately downscaling the outflow
+                    # if there are insufficient people _currently_ in the compartment
+                    # Rescaling is performed if the validation setting is 'avert', otherwise
+                    # either a warning will be displayed or an error will be printed
+                    if np.sum(outflow) > comp_source.popsize[ti] and not comp_source.tag_birth:
+                        validation_level = settings.validation['negative_population']
+
+                        if validation_level == project_settings.VALIDATION_AVERT:
+                            outflow = outflow / np.sum(outflow) * comp_source.popsize[ti]
+                        else:
+                            warning = "Negative value encountered for: (%s - %s) at ti=%g : popsize = %g, outflow = %g" % (pop.label,comp_source.label,ti,comp_source.popsize[ti],sum(outflow))
+                            if validation_level == project_settings.VALIDATION_ERROR:
+                                raise OptimaException(warning)
+                            elif validation_level == project_settings.VALIDATION_WARN:
+                                logger.warn(warning)
+
+
+                    # Apply the flows to the compartments
+                    for i, link in enumerate(outlinks):
+                        self.pops[link.index_to[0]].comps[link.index_to[1]].popsize[ti+1] += outflow[i]
+                    comp_source.popsize[ti+1] -= np.sum(outflow)
+
+        # Guard against populations becoming negative due to numerical artifacts
+        for pop in self.pops:
+            for comp in pop.comps:
+                comp.popsize[ti+1] = max(0,comp.popsize[ti+1])
 
         # Update timestep index.
         self.t_index += 1
@@ -992,30 +932,6 @@ class Model(object):
                                 if new_val > vals[1]: new_val = vals[1]
 
                 for par in pars:
-
-
-                    year_check = 2015   # Hard-coded check.
-                    par_check = ['spdyes_rate']# ['spdsuc_rate','spdno_rate']
-                    if par_label in par_check:
-                        if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5 * settings.tvec_dt:
-                            print('Year: %s' % self.sim_settings['tvec'][ti])
-                            print('Target Population: %s' % pop.label)
-                            print('Target Parameter: %s' % par_label)
-                            try:
-                                print net_cov
-                                print dt_cov
-                                print frac_dt_cov
-                                print source_set_size
-                                print overflow_list
-                                print prev_dt_impacts
-                                print dt_impacts
-                                print impact_list
-                            except:
-                                print "-"
-                            print('Final Impact: %f' % new_val)
-                            print
-
-
                     par.vals[ti] = new_val
 
                     # Backup the values of parameters that are tagged with special rules.
