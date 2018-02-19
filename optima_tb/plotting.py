@@ -734,7 +734,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
     sim_settings = results.sim_settings
     # setup: determine compartment indices to be plotted
     if output_labels is None:
-        output_labels = sorted(results.m_pops[0].comp_ids, key=results.m_pops[0].comp_ids.get)
+        output_labels = sorted(results.model.pops[0].comp_ids, key=results.model.pops[0].comp_ids.get)
 
     # select only compartments that are plottable
     output_labels = [comp_label for comp_label in output_labels if isPlottableComp(comp_label, sim_settings, results.comp_specs)]

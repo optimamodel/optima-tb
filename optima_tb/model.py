@@ -15,8 +15,6 @@ import numpy as np
 from copy import deepcopy as dcp
 from uuid import uuid4 as uuid
 
-
-
 # %% Abstract classes used in model
 
 class Node(object):
@@ -38,40 +36,47 @@ class Variable(object):
     def __init__(self, label='default', val=0.0):
         self.uid = uuid()
         self.label = label
-        self.dependency = dependency # This flag indicates whether another variable depends on this one, indicating the value needs to be computed during integration
-        self.vals = np.array([float(val)])  # An abstract array of values.
-        self.vals_old = None                # An optional array that stores old values in the case of overwriting.
-        self.limits = None
-        if val > 1:
-            self.val_format = 'number'
+        if not isinstance(val,np.ndarray):
+            self.vals = np.array([float(val)])  # An abstract array of values.
         else:
-            self.val_format = 'fraction'
+            self.vals = val
+        self.vals_old = None                # An optional array that stores old values in the case of overwriting.
+        self.val_format = None # This will be set when values are loaded into the Variable i.e. parset.pars['cascade']
+        # Or if it is a Characteristic, automatically determined based on the dependencies
+
 
     def update(self,ti=None):
         # A Variable can have a function to update its value at a given time, which is
         # overloaded differently for Characteristics and Parameters
         return
 
-    def constrain(self,ti):
-        # NB. Must be an array, so ti must must not be supplied
-        if self.limits is not None:
-            self.vals[ti] = max(self.limits[0],self.vals[ti])
-            self.vals[ti] = min(self.limits[1],self.vals[ti])
-
 
 class Characteristic(Variable):
     ''' A characteristic represents a grouping of compartments 
     '''
-    def __init__(self, includes, denominator = None, label='default', val=0.0):
+    def __init__(self, label='default'):
         # includes is a list of ModelCompartments, whose values are summed
         # the denominator is another Characteristic that normalizes this one
         # All passed by reference so minimal performance impact
-        Variable.__init__(self, label=label, val=val)
-        for x in includes:
-            assert isinstance(x,ModelCompartment) or isinstance(x,Characteristic), 'Characteristic dependencies must be compartments or other characteristics'
-            x.dependency = True # Automatically mark an included compartment as requiring computation during integration
-        self.includes = includes
-        self.denominator = denominator
+        Variable.__init__(self, label=label)
+        self.val_format = 'number' # By default, a characteristic has units of number of people
+        self.includes = []
+        self.denominator = None
+        self.dependency = False # This flag indicates whether another variable depends on this one, indicating the value needs to be computed during integration
+
+    def add_include(self,x):
+        assert isinstance(x,ModelCompartment) or isinstance(x,Characteristic)
+        self.includes.append(x)
+        if isinstance(x,Characteristic):
+            x.dependency = True
+
+    def add_denom(self,x):
+        assert isinstance(x,ModelCompartment) or isinstance(x,Characteristic)
+        self.denominator = x
+        if isinstance(x,Characteristic):
+            x.dependency = True
+        self.val_format = 'fraction' # Once a denominator is assigned, the units are now a fraction e.g. prevalence
+
 
     def update(self,ti=None):
         # Read popsizes at time ti from includes, and update the value of this characteristic
@@ -109,17 +114,32 @@ class Characteristic(Variable):
         return self.vals 
     
 class Parameter(Variable):
-
     # A parameter is a Variable that can have a value computed via an f_stack and a list of 
     # dependent Variables. This class may need to be renamed to avoid confusion with
-    # the class in Parameter.py which provides a means of computing the Parameter that is used by the model
-    def __init__(self, label='default', val=0.0,f_stack = None, deps = None):
+    # the class in Parameter.py which provides a means of computing the Parameter that is used by the model.
+    # This is a Parameter in the cascade.xlsx sense - there is one Parameter object for every item in the 
+    # Parameters sheet. A parameter that maps to multiple transitions (e.g. doth_rate) will have one parameter
+    # and multiple Link instances that depend on the same Parameter instance
+    def __init__(self, label='default', val=0.0,f_stack = None, deps = None, limits = None):
         Variable.__init__(self, label=label, val=val)
         if deps is not None:
             for dep in deps:
-                dep.dependency = True # Mark all required Variables as dependent
+                if hasattr(dep,'dependency'):
+                    # Mark all required objects as dependent if they have such a property
+                    # This will happen for Characteristics and other Parameters, but not for ModelCompartments
+                    dep.dependency = True 
+
         self.deps = deps
         self.f_stack = f_stack
+        self.limits = None
+        self.dependency = False 
+        self.scale_factor = 1.0
+
+        def constrain(self,ti):
+            # NB. Must be an array, so ti must must not be supplied
+            if self.limits is not None:
+                self.vals[ti] = max(self.limits[0],self.vals[ti])
+                self.vals[ti] = min(self.limits[1],self.vals[ti])
 
     def update(self,ti):
 
@@ -134,31 +154,36 @@ class Parameter(Variable):
         self.vals[ti] = parser.evaluateStack(stack=f_stack, deps=dep_vals)
 
 
-class Link(Parameter):
+class Link(Variable):
     '''
-    A Link is a parameter that maps to a transition between compartments. As such, it also 
-    contains an inflow and outflow compartment. 
-    The values stored in this extended version of Variable refer to flow rates.
-    If used in ModelPop, the Link references two cascade compartments within a single population.
+    A Link is a Variable that maps to a transition between compartments. As
+    such, it contains an inflow and outflow compartment.  A Link's value is
+    drawn from a Parameter, and there may be multiple links that draw values
+    from the same parameter. The values stored in this extended version of
+    Variable refer to flow rates. If used in ModelPop, the Link references two
+    cascade compartments within a single population.
     '''
-    def __init__(self, object_from, object_to, label='default', parameter_label='default', val=0.0, scale_factor=1.0, is_transfer=False):
-        Parameter.__init__(self, label=label, val=val)
-        self.parameter_label = parameter_label # A transition constructed from a parameter will be labelled with the transition tag rather than the parameter's label
-        self.index_from = object_from.index
-        self.index_to = object_to.index
-        self.label_from = object_from.label
-        self.label_to = object_to.label
-        self.scale_factor = scale_factor
-        self.is_transfer = is_transfer # A transfer connections compartments across populations
-        self.target_flow = val # For each time point, store the number of people that were proposed to move (in units of number of people)
-        self.flow = val # For each time point, store the actual flow rate in number of people (in units of number of people)
-        
-        self.source = object_from
-        self.dest = object_to
+    def __init__(self, parameter, object_from, object_to, is_transfer=False):
+        Variable.__init__(self, label=parameter.label) # A link should be labelled with the Parameter's label so it can be associated with that parameter later
 
+        self.parameter = parameter # Source parameter where the unscaled link value is drawn from (a single parameter may have multiple links)
+        self.parameter.dependency = True # A transition parameter must be updated during integration
+        self.source = object_from # ModelCompartment to remove people from
+        self.dest = object_to # ModelCompartment to add people to
+        self.is_transfer = is_transfer # A transfer connections compartments across populations
+        
+        self.target_flow = None # For each time point, store the number of people that were proposed to move (in units of number of people)
+        self.flow = None # For each time point, store the actual flow rate in number of people (in units of number of people)
+        
     def __repr__(self, *args, **kwargs):
         print "self.scale_factor = ", self.scale_factor, type(self.scale_factor)
         return "Link %s: from (%s, %s) to (%s, %s) with scale_factor=%g" % (self.label, self.index_from, self.label_from, self.index_to, self.label_to, self.scale_factor)
+
+    def update(self,ti):
+        # A link is updated by loading it with the value of its parent parameter
+        # This occurs in updateValues() after the parameter value is updated
+        # Any further adjustments
+        self.vals[ti] = self.parameter.vals[ti]
 
 # %% Cascade compartment and population classes
 
@@ -173,41 +198,22 @@ class ModelCompartment(Node):
         self.tag_dead = False                       # Tag for whether this compartment contains dead people.
         self.junction = False
 
-        self.num_outlinks = 0       # Tracks number of nodes this one is linked to as an initial node.
-        self.outlink_ids = []       # List of tupled indices corresponding to each outgoing link.
-        self.inlink_ids = []        # List of tupled indices corresponding to each ingoing link.
-                                    # Note that the second element of each tuple is the storage id of the link.
-                                    # The first element of each tuple is the storage id of the superset container (e.g. ModelPopulation)
         self.outlinks = []
         self.inlinks = []
 
     def __repr__(self, *args, **kwargs):
         return "%s: %g" % (self.label, self.popsize[0])
 
+    # val property lets it be used as a parameter dependency the same as characteristics
+    # i.e. would not be necessary to define a characteristic solely to use it in a 
+    # parameter's function
+    @property
+    def val(self):
+        return self.popsize
+    
     def getValue(self, ti):
         """ Get value of population at timestep ti """
         return self.popsize[ti]
-
-    def makeLinkTo(self, destination, link_index, link_label, is_transfer=False):
-        '''
-        Link this compartment to another (i.e. create a transition link).
-        Must provide an index that, by intention, uniquely represents where this link is positioned in its storage container.
-        Must also provide the variable label for the link, in case Settings.linkpar_specs[link_label] need to be referred to.
-        '''
-        if not isinstance(destination, Node):
-            raise OptimaException('ERROR: Attempting to link compartment to something that is not a compartment.')
-        
-        link = Link(object_from=self, object_to=destination, label=link_label, is_transfer=is_transfer)
-
-        self.num_outlinks += 1
-
-        self.outlinks.append(link)
-        self.outlink_ids.append(link_index)
-
-        destination.inlinks.append(link)
-        destination.inlink_ids.append(link_index)
-
-        return link
 
 class ModelPopulation(Node):
     '''
@@ -218,10 +224,15 @@ class ModelPopulation(Node):
     def __init__(self, settings, label='default', index=0):
         Node.__init__(self, label=label, index=index)
         self.comps = list()         # List of cascade compartments that this model population subdivides into.
+        self.characs = list()       # List of output characteristics and parameters (dependencies computed during integration, pure outputs added after)
         self.links = list()         # List of intra-population cascade transitions within this model population.
-        self.outputs = list()       # List of output characteristics and parameters (dependencies computed during integration, pure outputs added after)
+        self.pars = list()
+        
         self.comp_ids = dict()      # Maps label of a compartment to its position index within compartments list.
+        self.charac_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
         self.link_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
+        self.par_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
+
         self.output_ids = dict()    # Maps label of a relevant characteristic/parameter to its position index within dependencies list.
         self.t_index = 0            # Keeps track of array index for current timepoint data within all compartments.
         self.id = index             # A numerical id of the Population. Ideally corresponds to its storage index within Model container.
@@ -258,10 +269,15 @@ class ModelPopulation(Node):
             link_list.append(self.links[link_index])
         return link_list
 
-    def getDep(self, dep_label):
+    def getCharac(self, charac_label):
         ''' Allow dependencies to be retrieved by label rather than index. Returns a Variable. '''
-        dep_index = self.output_ids[dep_label]
-        return self.outputs[dep_index]
+        index = self.charac_ids[charac_label]
+        return self.characs[index]
+
+    def getPar(self, par_label):
+        ''' Allow dependencies to be retrieved by label rather than index. Returns a Variable. '''
+        index = self.par_ids[par_label]
+        return self.pars[index]
 
     def genCascade(self, settings):
         '''
@@ -271,100 +287,98 @@ class ModelPopulation(Node):
         '''
 
         # First, make a ModelCompartment for every compartment in the cascade
-        for k, label in enumerate(settings.node_specs.keys()):
-            self.comps.append(ModelCompartment(label=label, index=(self.index, k)))
+        for comp_id, label in enumerate(settings.node_specs.keys()):
+            self.comps.append(ModelCompartment(label=label, index=(self.index, comp_id)))
             if 'tag_birth' in settings.node_specs[label]:
                 self.comps[-1].tag_birth = True
             if 'tag_dead' in settings.node_specs[label]:
                 self.comps[-1].tag_dead = True
             if 'junction' in settings.node_specs[label]:
                 self.comps[-1].junction = True
-            self.comp_ids[label] = k
+            self.comp_ids[label] = comp_id
 
-        # Create links between compartments according to the transitions in the cascade
-        # Links are identified as parameters that have a transition tag associated with them
-        k = 0
-        for label in settings.linkpar_specs:
-            if 'tag' in settings.linkpar_specs[label]:
-                tag = settings.linkpar_specs[label]['tag']
-                for pair in settings.links[tag]:
-                    new_link = self.getComp(pair[0]).makeLinkTo(self.getComp(pair[1]), link_index=(self.id, k), link_label=label)
-                    self.links.append(new_link)
-                    if not tag in self.link_ids:
-                        self.link_ids[tag] = []
-                    self.link_ids[tag].append(k)
-                    k += 1
+        # First pass, instantiate objects
+        for charac_id,label in enumerate(settings.charac_specs.keys()):
+            self.characs.append(Characteristic(label=label))
+            self.charac_ids[label] = charac_id
 
-        k = 0
-        # Now create variables for characteristics
-        # Characteristics are added in dependency order i.e. any other characteristics they include must have
-        # already been added.
-        # may already have been added.
-        for label in settings.charac_specs:
-            
+        # Second pass, add includes and denominator
+        for charac_id,label in enumerate(settings.charac_specs.keys()):
+            charac = self.characs[charac_id]
+
             inc_labels = settings.charac_specs[label]['includes']
             den_label = settings.charac_specs[label]['denom'] if 'denom' in settings.charac_specs[label] else None
-            dependency ='par_dependency' in settings.charac_specs[label]
 
             includes = []
             for inc_label in inc_labels:
                 if inc_label in self.comp_ids:
-                    includes.append(self.comps[self.comp_ids[inc_label]])
-                elif inc_label in self.output_ids:
-                    includes.append(self.outputs[self.output_ids[inc_label]])
+                    charac.add_include(self.comps[self.comp_ids[inc_label]])
+                elif inc_label in self.charac_ids:
+                    charac.add_include(self.characs[self.charac_ids[inc_label]])
 
-            if den_label in self.comp_ids:  # NOTE: See above note for avoiding parameter-type dependencies.
-                denom = self.comps[self.comp_ids[den_label]]
-            elif den_label in self.output_ids:
-                denom = self.outputs[self.output_ids[den_label]]
+            if den_label in self.comp_ids: 
+                charac.add_denom(self.comps[self.comp_ids[den_label]])
+            elif den_label in self.charac_ids:
+                charac.add_denom(self.characs[self.charac_ids[den_label]])
+
+        # Todo - Instantiation will work fine out of order now, but evaluation will not
+        # Could safely reorder the list now to resolve dependencies and allow users to
+        # define Characteristics in any order as long as a valid order of execution exists
+
+        # Todo - perform similar adaptation for parameters
+        # Next, create parameters
+        for par_id,label in enumerate(settings.linkpar_specs.keys()):
+            spec = settings.linkpar_specs[label]
+
+            if 'f_stack' in spec:
+                f_stack = dcp(spec['f_stack'])
+                deps = []
+                # Todo - clean up finding the dependent parameters
+                for dep_label in spec['deps']:
+                    if dep_label in self.comp_ids:
+                        deps.append(self.comps[self.comp_ids[dep_label]])
+                    elif dep_label in self.charac_ids:
+                        deps.append(self.characs[self.charac_ids[dep_label]])
+                    elif dep_label in self.par_ids:
+                        deps.append(self.pars[self.par_ids[dep_label]])
+                    else:
+                        raise OptimaException('Could not find dependency %s for Parameter %s' % (dep_label,label))
             else:
-                denom = None
+                f_stack = None
+                deps = None
 
-            self.outputs.append(Characteristic(includes,denom,label=label,dependency=dependency))
-            self.output_ids[label] = k
+            # Add limits
+            if 'min' in spec or 'max' in spec:
+                limits = [-np.inf,np.inf]
+                if 'min' in spec:
+                    limits[0] = spec['min']
+                if 'max' in spec:
+                    limits[1] = spec['max']
+            else:
+                limits = None
 
-            k += 1
+            self.pars.append(Parameter(label=label,deps=deps,f_stack=f_stack,limits=limits))
+            self.par_ids[label] = par_id
 
-        # For parameters, this is not the case, because transition tags are added first
-        # even though they may depend on other parameters or characteristics. So we actually need to
-        # instantiate all of the parameter objects before wiring them up
-        for label in settings.par_deps:
-            self.outputs.append(Variable(label=label))
-            self.output_ids[label] = k
-            k += 1
+        # Finally, create links between compartments
+        link_id = 0 # Need to use a counter here because we don't know yet how many links will be added in total
+        for label,spec in settings.linkpar_specs.items():
+            par = self.pars[self.par_ids[label]]
+            if 'tag' in settings.linkpar_specs[label]:
+                tag = settings.linkpar_specs[label]['tag']
+                for pair in settings.links[tag]:
+                    src = self.getComp(pair[0])
+                    dst = self.getComp(pair[1])
+                    new_link = Link(par,src,dst) # The link needs to be labelled with the Parameter it derives from so that Results can find it later
 
-        for label in settings.linkpar_outputs:
-            self.outputs.append(Variable(label=label))
-            self.output_ids[label] = k
-            k += 1
+                    self.links.append(new_link)
+                    src.outlinks.append(new_link)
+                    dst.inlinks.append(new_link)
 
-        # Wire up all parameters (both transitions and outputs)
-        for par in (self.links + self.outputs):
-            if isinstance(par,Parameter): # Don't wire up characteristics...!
-                specs = settings.linkpar_specs[par.label]
-                if 'f_stack' in specs:
-                    par.f_stack = dcp(specs['f_stack'])
-                    deps = []
-                    # Todo - clean up finding the dependent parameters
-                    # Todo - dependencies are defined here (i.e. if a Parameter is included as a dependent parameter
-                    # somewhere, then it itself must be a dependency) so that could simplify parsing the cascade in Settings
-                    for dep_label in specs['deps']:
-                        if dep_label in settings.par_deps or dep_label in settings.charac_deps:
-                            deps.append(self.getDep(dep_label))
-                        else:
-                            deps.append(self.getLinks(settings.linkpar_specs[dep_label]['tag'])[0].vals[ti])
-                    
-                    par.deps = deps
-
-                # Add limits
-                if 'min' in specs or 'max' in specs:
-                    limits = [-np.inf,np.inf]
-                    if 'min' in specs:
-                        limits[0] = specs['min']
-                    if 'max' in specs:
-                        limits[0] = specs['max']
-                    par.limits = limits
-
+                    if not tag in self.link_ids:
+                        self.link_ids[tag] = []
+                    self.link_ids[tag].append(link_id)
+                    link_id += 1
 
     def preAllocate(self, sim_settings):
         '''
@@ -376,16 +390,14 @@ class ModelPopulation(Node):
             init_popsize = comp.popsize[0]
             comp.popsize = np.ones(len(sim_settings['tvec'])) * np.nan
             comp.popsize[0] = init_popsize
+        for charac in self.characs:
+            charac.vals = np.ones(len(sim_settings['tvec'])) * np.nan
         for link in self.links:
-            init_val = link.vals[0]
             link.vals = np.ones(len(sim_settings['tvec'])) * np.nan
-            link.vals[0] = init_val
-            link.target_flow = dcp(link.vals)
-            link.flow = dcp(link.vals)
-        for output in self.outputs: # Note - pure outputs could harmlessly be preallocated too, but they don't exist yet since they're only instantiated after integration
-            init_val = output.vals[0]
-            output.vals = np.ones(len(sim_settings['tvec'])) * np.nan
-            output.vals[0] = init_val
+            link.target_flow = np.ones(len(sim_settings['tvec'])) * np.nan
+            link.flow = np.ones(len(sim_settings['tvec'])) * np.nan
+        for par in self.pars:
+            par.vals = np.ones(len(sim_settings['tvec'])) * np.nan
 
 
 
@@ -428,11 +440,12 @@ class Model(object):
                 return l.uid if l is not None else None
 
         for pop in d['pops']:
-            for comp in pop.comps:
-                comp.inlinks = convert_to_uid(comp.inlinks)
-                comp.outlinks = convert_to_uid(comp.outlinks)
+            for var in pop.comps + pop.characs + pop.pars + pop.links:
+                
+                if isinstance(var,ModelCompartment):
+                    var.inlinks = convert_to_uid(var.inlinks)
+                    var.outlinks = convert_to_uid(var.outlinks)
 
-            for var in pop.outputs + pop.links:
                 if isinstance(var,Characteristic):
                     var.includes = convert_to_uid(var.includes)
                     var.denominator = convert_to_uid(var.denominator)
@@ -441,8 +454,12 @@ class Model(object):
                     var.deps = convert_to_uid(var.deps)
 
                 if isinstance(var,Link):
+                    var.parameter = convert_to_uid(var.parameter)
                     var.source = convert_to_uid(var.source)
                     var.dest = convert_to_uid(var.dest)
+
+        for par_label in d['pars_by_pop']:
+            d['pars_by_pop'][par_label] = convert_to_uid(d['pars_by_pop'][par_label])
 
         return d
 
@@ -451,7 +468,7 @@ class Model(object):
         # Build a dict of all objects in the model
         objs = {}
         for pop in d['pops']:
-            for obj in pop.comps+pop.outputs+pop.links:
+            for obj in pop.comps + pop.characs + pop.pars + pop.links:
                 objs[obj.uid] = obj
 
         def get_obj(uid):
@@ -464,11 +481,12 @@ class Model(object):
                 return get_obj(l)
 
         for pop in d['pops']:
-            for comp in pop.comps:
-                comp.inlinks = convert_to_obj(comp.inlinks)
-                comp.outlinks = convert_to_obj(comp.outlinks)
 
-            for var in pop.outputs+pop.links:
+            for var in pop.comps + pop.characs + pop.pars + pop.links:
+                if isinstance(var,ModelCompartment):
+                    var.inlinks = convert_to_obj(var.inlinks)
+                    var.outlinks = convert_to_obj(var.outlinks)
+
                 if isinstance(var,Characteristic):
                     var.includes = convert_to_obj(var.includes)
                     var.denominator = convert_to_obj(var.denominator)
@@ -477,13 +495,19 @@ class Model(object):
                     var.deps = convert_to_obj(var.deps)
 
                 if isinstance(var,Link):
+                    var.parameter = convert_to_obj(var.parameter)
                     var.source = convert_to_obj(var.source)
                     var.dest = convert_to_obj(var.dest)
 
-            for i in objs:
-                objs[i].uid = uuid() # Change the UUIDs indicating a clone has been made
+        for par_label in d['pars_by_pop']:
+            d['pars_by_pop'][par_label] = convert_to_obj(d['pars_by_pop'][par_label])
 
-            self.__dict__ = d
+        for i in objs:
+            # These are brand new instances, so they get new UUIDs too
+            # This might need to be reconsidered later (e.g. if it causes problems with pickling and should only be done when deepcopying)
+            objs[i].uid = uuid()
+
+        self.__dict__ = d
 
     def getPop(self, pop_label):
         ''' Allow model populations to be retrieved by label rather than index. '''
@@ -703,76 +727,80 @@ class Model(object):
                     raise OptimaException('ERROR: Initial value calculated for compartment "%s" in population "%s" is %f. Review and make sure each characteristic has at least as many people as the sum of all included compartments.' % (seed_label, pop_label, val))
                 self.getPop(pop_label).getComp(seed_label).popsize[0] = val
 
-
-
         # Propagating cascade parameter parset values into ModelPops. Handle both 'tagged' links and 'untagged' dependencies.
-        for par in parset.pars['cascade']:
+        for cascade_par in parset.pars['cascade']:
+            for pop_label in parset.pop_labels:
+                pop = self.getPop(pop_label)
+                par = pop.pars[pop.par_ids[cascade_par.label]] # Find the parameter with the requested label
 
-            if 'tag' in settings.linkpar_specs[par.label]:
-                tag = settings.linkpar_specs[par.label]['tag']                  # Map parameter label to link tag.
-                for pop_label in parset.pop_labels:
-                    for link_id in self.getPop(pop_label).link_ids[tag]:        # Map link tag to link id in ModelPop.
-                        self.getPop(pop_label).links[link_id].vals = par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
-                        self.getPop(pop_label).links[link_id].val_format = par.y_format[pop_label]
-                        self.getPop(pop_label).links[link_id].scale_factor = par.y_factor[pop_label]
+                par.vals = cascade_par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
+                par.val_format = cascade_par.y_format[pop_label]
+                par.scale_factor = cascade_par.y_factor[pop_label]
 
-                # Apply min/max restrictions on all parameters that are not functions.
-                # Functional parameters will be calculated and constrained during a run, hence they can be np.nan at this stage.
-                if not par.label in settings.par_funcs.keys():
-                    if 'min' in settings.linkpar_specs[par.label]:
-                        for pop_label in parset.pop_labels:
-                            for link_id in self.getPop(pop_label).link_ids[tag]:
-                                vals = self.getPop(pop_label).links[link_id].vals
-                                self.getPop(pop_label).links[link_id].vals[vals < settings.linkpar_specs[par.label]['min']] = settings.linkpar_specs[par.label]['min']
-                    if 'max' in settings.linkpar_specs[par.label]:
-                        for pop_label in parset.pop_labels:
-                            for link_id in self.getPop(pop_label).link_ids[tag]:
-                                vals = self.getPop(pop_label).links[link_id].vals
-                                self.getPop(pop_label).links[link_id].vals[vals > settings.linkpar_specs[par.label]['max']] = settings.linkpar_specs[par.label]['max']
-
-            else:
-                for pop_label in parset.pop_labels:
-                    dep_id = self.getPop(pop_label).output_ids[par.label]          # Map dependency label to dependency id in ModelPop.
-                    self.getPop(pop_label).outputs[dep_id].vals = par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
-                    self.getPop(pop_label).outputs[dep_id].val_format = par.y_format[pop_label]
-                    self.getPop(pop_label).outputs[dep_id].scale_factor = par.y_factor[pop_label]
-
-                # Apply min/max restrictions on all parameters that are not functions.
-                # Functional parameters will be calculated and constrained during a run, hence they can be np.nan at this stage.
-                if not par.label in settings.par_funcs.keys():
-                    if 'min' in settings.linkpar_specs[par.label]:
-                        for pop_label in parset.pop_labels:
-                            dep_id = self.getPop(pop_label).output_ids[par.label]
-                            vals = self.getPop(pop_label).outputs[dep_id].vals
-                            self.getPop(pop_label).outputs[dep_id].vals[vals < settings.linkpar_specs[par.label]['min']] = settings.linkpar_specs[par.label]['min']
-                    if 'max' in settings.linkpar_specs[par.label]:
-                        for pop_label in parset.pop_labels:
-                            dep_id = self.getPop(pop_label).output_ids[par.label]
-                            vals = self.getPop(pop_label).outputs[dep_id].vals
-                            self.getPop(pop_label).outputs[dep_id].vals[vals > settings.linkpar_specs[par.label]['max']] = settings.linkpar_specs[par.label]['max']
-
+                # Now that we constrain everything, can leave it out here
+                # But consider putting it back if the code is too slow
+                # # Apply min/max restrictions on all parameters that are not functions.
+                # # Functional parameters will be calculated and constrained during a run, hence they can be np.nan at this stage.
+                # if not cascade_par.label in settings.par_funcs.keys():
+                #     if 'min' in settings.linkpar_specs[cascade_par.label]:
+                #         for pop_label in parset.pop_labels:
+                #             for link_id in self.getPop(pop_label).link_ids[tag]:
+                #                 vals = self.getPop(pop_label).links[link_id].vals
+                #                 self.getPop(pop_label).links[link_id].vals[vals < settings.linkpar_specs[cascade_par.label]['min']] = settings.linkpar_specs[cascade_par.label]['min']
+                #     if 'max' in settings.linkpar_specs[cascade_par.label]:
+                #         for pop_label in parset.pop_labels:
+                #             for link_id in self.getPop(pop_label).link_ids[tag]:
+                #                 vals = self.getPop(pop_label).links[link_id].vals
+                #                 self.getPop(pop_label).links[link_id].vals[vals > settings.linkpar_specs[cascade_par.label]['max']] = settings.linkpar_specs[cascade_par.label]['max']
 
         # Propagating transfer parameter parset values into Model object.
+        # For each population pair, instantiate a Parameter with the values from the databook
+        # For each compartment, instantiate a set of Links that all derive from that Parameter
+        # NB. If a Program somehow the transfer parameter, those values will automatically
+        # propagate to the links
         for trans_type in parset.transfers:
             if parset.transfers[trans_type]:
                 for pop_source in parset.transfers[trans_type]:
-                    par = parset.transfers[trans_type][pop_source]
 
-                    for pop_target in par.y:
-                        for comp in self.getPop(pop_source).comps:
-                            trans_tag = comp.label + '_' + trans_type + '_to_' + pop_target       # NOTE: Perhaps there is a nicer way to set up transfer tagging.
-                            if not comp.tag_birth and not comp.tag_dead and not comp.junction:
+                    transfer_parameter = parset.transfers[trans_type][pop_source] # This contains the data for all of the destrination pops
 
-                                num_links = len(self.getPop(pop_source).links)
-                                link = comp.makeLinkTo(self.getPop(pop_target).getComp(comp.label), link_index=(self.getPop(pop_source).id, num_links), link_label=trans_tag, is_transfer=True)
-                                link.vals = par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_target)
-                                link.val_format = par.y_format[pop_target]
-                                link.scale_factor = par.y_factor[pop_target]
-#                                if link.val_format == 'number': link.vals /= settings.num_transfer_nodes # todo - should be able to remove this comment, because transfer disaggregation is done in updateValues now
-                                link.target_flow = np.ones(len(self.sim_settings['tvec'])) * np.nan # Preallocation should be done in ModelPopulation.preAllocate but the transfer links are only added here because they can't be present when the parameters are being added
-                                link.flow = np.ones(len(self.sim_settings['tvec'])) * np.nan
-                                self.getPop(pop_source).links.append(link)
-                                self.getPop(pop_source).link_ids[trans_tag] = [num_links]
+                    pop = self.getPop(pop_source)
+
+
+                    for pop_target in transfer_parameter.y:
+
+                        # Create the parameter object for this link (shared across all compartments)
+                        par_label = trans_type + '_' + pop_source + '_to_' + pop_target # e.g. 'aging_0-4_to_15-64'
+                        val = transfer_parameter.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_target)
+                        par = Parameter(label=par_label,val=val,f_stack = None, deps = None, limits = None)
+                        par.scale_factor = transfer_parameter.y_factor[pop_target]
+                        par.val_format = transfer_parameter.y_format[pop_target]
+                        par_id = len(pop.pars)
+                        pop.pars.append(par)
+                        pop.par_ids[par_label] = par_id
+
+                        target_pop_obj = self.getPop(pop_target)
+
+                        for source in pop.comps:
+                            if not (source.tag_birth or source.tag_dead or source.junction):
+                                # Instantiate a link between corresponding compartments
+                                dest = target_pop_obj.getComp(source.label) # Get the corresponding compartment
+                                link_tag = par_label + source.label # e.g. 'aging_0-4_to_15-64_sus' - this is probably never used?
+                                link = Link(par, source, dest, is_transfer=True)
+                                source.outlinks.append(link)
+                                dest.inlinks.append(link)
+                                link_id = len(pop.links)
+                                pop.links.append(link)
+                                pop.link_ids[link_tag] = link_id
+
+        # Make a lookup dict for programs
+        self.pars_by_pop = {}
+        for pop in self.pops:
+            for par in pop.pars:
+                if par.label in self.pars_by_pop:
+                    self.pars_by_pop.append(par)
+                else:
+                    self.pars_by_pop[par.label] = [par]
 
         # Make sure initially-filled junctions are processed and initial dependencies are calculated.
         self.updateValues(settings=settings, progset=progset, do_special=False)     # Done first just in case junctions are dependent on characteristics.
@@ -818,10 +846,6 @@ class Model(object):
 
         ti = self.t_index
 
-        # Requires each population to have the same cascade.
-        num_pops = len(self.pops)
-        num_comps = len(self.pops[0].comps)         # NOTE: Hard-coded reference to 'zeroth' population. Improve later.
-
         for pop in self.pops:
             for comp in pop.comps:
                 comp.popsize[ti+1] = comp.popsize[ti]
@@ -832,8 +856,8 @@ class Model(object):
 
                 if not comp_source.junction:  # Junctions collect inflows during this step. They do not process outflows here.
 
-                    outlinks = [pop.links[link_id[1]] for link_id in comp_source.outlink_ids]  # List of outgoing links
-                    outflow = np.zeros(comp_source.num_outlinks)  # Outflow for each link # TODO - store in the link objects?
+                    outlinks = comp_source.outlinks  # List of outgoing links
+                    outflow = np.zeros(len(comp_source.outlinks))  # Outflow for each link # TODO - store in the link objects?
 
                     for i, link in enumerate(outlinks):
 
@@ -853,7 +877,7 @@ class Model(object):
                         elif link.val_format == 'number':
                             converted_amt = transition * dt
                             if link.is_transfer:
-                                transfer_rescale = comp_source.popsize[ti] / pop.getDep(settings.charac_pop_count).vals[ti]
+                                transfer_rescale = comp_source.popsize[ti] / pop.getCharac(settings.charac_pop_count).vals[ti]
                                 converted_amt *= transfer_rescale
                         else:
                             raise OptimaException("Unknown link type: %s in model\nObserved for population %s, compartment %s" % (link.val_format, pop.label, comp.label))
@@ -877,13 +901,13 @@ class Model(object):
                             elif validation_level == project_settings.VALIDATION_WARN:
                                 logger.warn(warning)
 
-
                     # Apply the flows to the compartments
                     for i, link in enumerate(outlinks):
                         link.dest.popsize[ti+1] += outflow[i]
-                        #self.pops[link.index_to[0]].comps[link.index_to[1]].popsize[ti+1] += outflow[i]
                         link.flow[ti] = outflow[i]
+
                     comp_source.popsize[ti+1] -= np.sum(outflow)
+
 
         # Guard against populations becoming negative due to numerical artifacts
         for pop in self.pops:
@@ -936,19 +960,15 @@ class Model(object):
 
                     elif popsize > project_settings.TOLERANCE:
                         final_review = False    # Outflows could propagate into other junctions requiring another review.
-                        denom_val = sum(pop.links[lid_tuple[-1]].vals[ti_link] for lid_tuple in comp.outlink_ids)
+                        denom_val = sum(l.vals[ti_link] for l in comp.outlinks)
                         if denom_val == 0: raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
-                        for lid_tuple in comp.outlink_ids:
-                            lid = lid_tuple[-1]
-                            link = pop.links[lid]
-
-                            comp.popsize[ti] -= popsize * link.vals[ti_link] / denom_val
-                            pop.getComp(link.label_to).popsize[ti] += popsize * link.vals[ti_link] / denom_val
+                        for link in comp.outlinks:
+                            link.source.popsize[ti] -= popsize * link.vals[ti_link] / denom_val
+                            link.dest.popsize[ti]   += popsize * link.vals[ti_link] / denom_val
 
 
 
             review_count += 1
-
 
 
     def updateValues(self, settings, progset=None, do_special=True):
@@ -967,188 +987,169 @@ class Model(object):
 
         # First, compute dependent characteristics, as parameters might depend on them
         for pop in self.pops:
-            for output in pop.outputs:
-                if output.dependency and isinstance(output,Characteristic):
-                    output.update(ti)       
+            for charac in pop.characs:
+                if charac.dependency:
+                    charac.update(ti)
         
         # 1st:  Update parameters if they have an f_stack variable
         # 2nd:  Any parameter that is overwritten by a program-based cost-coverage-impact transformation.
         # 3rd:  Any parameter that is overwritten by a special rule, e.g. averaging across populations.
         # 4th:  Any parameter that is restricted within a range of values, i.e. by min/max values.
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
+        # We resolve one parameter at a time, in dependency order
         for par_label in (settings.par_funcs.keys() + self.sim_settings['impact_pars_not_func']):
-            for pop in self.pops:
-                pars = []
-                if par_label in settings.par_deps:
-                    pars.append(pop.getDep(par_label))
-                else:
-                    pars = pop.getLinks(settings.linkpar_specs[par_label]['tag'])
-                specs = settings.linkpar_specs[par_label]
+            pars = self.pars_by_pop[par_label]
 
-                for par in pars:
+            # First - update parameters that are dependencies, evaluating f_stack if required
+            # Again, the correct order in the outer loop over par_label is ESSENTIAL
+            for par in pars:
+                if par.dependency:
                     par.update(ti)
 
-                # WARNING: CURRENTLY IS NOT RELIABLE FOR IMPACT PARAMETERS THAT ARE DUPLICATE LINKS.
-                if 'progs_start' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start']:
-                    if not ('progs_end' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_end']):
-                        if par_label in progset.impacts:
-                            first_prog = True   # True if program in prog_label loop is the first one in the impact dict list.
-                            impact_list = []    # Notes for each program what its impact would be before coverage limitations.
-                            overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
-                            for prog_label in progset.impacts[par_label]:
-                                prog = progset.getProg(prog_label)
-                                prog_type = prog.prog_type
-                                dt_impact = None    # Just to distinguish between dt-ly impact and non-transition program impacts that currently have no coverage.
+            # Next, handle programs
+            # Programs are disaggregated across populations and impact groups, NOT compartments
+            # although the compartments indirectly matter because they need to be summed to get
+            # the popsizes
+            if ('progs_start' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start']) and not ('progs_end' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_end']):
+                for pop in self.pops:
+                    if par_label in progset.impacts:
+                        first_prog = True   # True if program in prog_label loop is the first one in the impact dict list.
+                        impact_list = []    # Notes for each program what its impact would be before coverage limitations.
+                        overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
+                        for prog_label in progset.impacts[par_label]:
+                            prog = progset.getProg(prog_label)
+                            prog_type = prog.prog_type
+                            dt_impact = None    # Just to distinguish between dt-ly impact and non-transition program impacts that currently have no coverage.
 
-                                # Make sure the population in the loop is a target of this program.
-                                if pop.label not in prog.target_pops:
-                                    continue
-                                if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']):
-                                    continue
+                            # Make sure the population in the loop is a target of this program.
+                            if pop.label not in prog.target_pops:
+                                continue
+                            if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']):
+                                continue
 
-                                # If a program target is a transition parameter, its coverage must be distributed and format-converted.
-                                if 'tag' in settings.linkpar_specs[par_label]:
-                                    # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
-                                    source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
-                                    source_set_size = 0
-                                    for from_pop in prog.target_pops:
-                                        source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
-
-                                    # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
-                                    # NOTE: This might be a place to improve performance.
-                                    if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
-                                        group_label = settings.progtype_specs[prog_type]['impact_pars'][par_label]['group']
-                                        for alt_par_label in settings.progtype_specs[prog_type]['impact_par_groups'][group_label]:
-                                            if not alt_par_label == par_label:
-                                                alt_pars = pop.getLinks(settings.linkpar_specs[alt_par_label]['tag'])
-                                                for from_pop in prog.target_pops:
-                                                    source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]
-
-                                    # Coverage and impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
-                                    # Makes sure that the right value is selected.
-                                    try: net_cov = self.prog_vals[prog_label]['cov'][ti]
-                                    except: net_cov = self.prog_vals[prog_label]['cov']
-                                    try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
-                                    except: net_impact = self.prog_vals[prog_label]['impact'][par_label]
-                                    try: impact_factor = float(net_impact) / float(net_cov)
-                                    except ZeroDivisionError:
-                                        impact_factor = 0.
-                                        if not float(net_impact) == 0.:
-                                            raise OptimaException('Attempted to divide impact of {0} by coverage of {1} for program "{2}" with impact parameter "{3}".'.format(net_impact, net_cov, prog_label, par_label))
-
-                                    # Assume all program coverage/impact that targets transition parameters is 'effective', not 'probabilistic'.
-                                    # For number format coverages/impacts, this will be uniformly distributed across timesteps.
-                                    # For fraction format coverages/impacts, a dt-ly rate is the same as the intended annual rate.
-                                    # This means the two formats result in differing t-dependent distributions, but the total should be the same, assuming no coverage capping.
-                                    if prog.cov_format == 'fraction':
-                                        dt_cov = net_cov
-                                        dt_impact = net_impact
-                                    elif prog.cov_format == 'number':
-                                        dt_cov = net_cov * settings.tvec_dt
-                                        dt_impact = net_impact * settings.tvec_dt
-                                    else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
-
-                                    # Convert dt-ly coverage/impact into a dt-ly fractonal coverage/impact, i.e. normalise for number available to transition.
-                                    if prog.cov_format == 'fraction':
-                                        frac_dt_cov = dt_cov
-                                        frac_dt_impact = dt_impact
-                                    elif prog.cov_format == 'number':
-                                        if source_set_size <= project_settings.TOLERANCE:
-                                            frac_dt_cov = 0.0
-                                            frac_dt_impact = 0.0
-                                        else:
-                                            frac_dt_cov = dt_cov / source_set_size
-                                            frac_dt_impact = dt_impact / source_set_size
-                                    else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
-
-                                    # Cap dt-ly coverage for each program.
-                                    # if pars[0].val_format == 'fraction':
-                                    #     if frac_dt_cov > 1.0:
-                                    #         frac_dt_cov = 1.0
-                                    #         frac_dt_impact = frac_dt_cov * impact_factor
-
-                                    # A fractional dt-ly coverage happens to be considered overflow.
-                                    # For instance, dt-ly impacts of [0.7,1] with corresponding dt-ly coverage of [1.2,1.3] will scale down so net dt-ly coverage is 1.
-                                    overflow_list.append(frac_dt_cov)
-
-                                    # Convert fraction-based program coverage/impact to parameter format, multiplying by the transition-source compartment size if needed.
-                                    if pars[0].val_format == 'fraction':
-                                        dt_cov = frac_dt_cov
-                                        dt_impact = frac_dt_impact
-                                    elif pars[0].val_format == 'number':
-                                        dt_cov = frac_dt_cov * source_element_size
-                                        dt_impact = frac_dt_impact * source_element_size
-
-                                # If a program target is any other parameter, the parameter value is directly overwritten by coverage.
-                                # TODO: Decide how to handle coverage distribution.
-                                else:
-                                    try: impact = self.prog_vals[prog_label]['impact'][par_label][ti]
-                                    except: impact = self.prog_vals[prog_label]['impact'][par_label]
-
-
-                                # year_check = 2016.5   # Hard-coded check.
-                                # par_check = ['spdyes_rate']#['spdsuc_rate','spdno_rate']
-                                # if par_label in par_check:
-                                    # if self.sim_settings['tvec'][ti] >= year_check and self.sim_settings['tvec'][ti] < year_check + 0.5*settings.tvec_dt:
-                                        # print('Year: %s' % self.sim_settings['tvec'][ti])
-                                        # print('Program Name: %s' % prog.name)
-                                        # print('Program %s: %f' % ('Coverage' if self.sim_settings['alloc_is_coverage'] else 'Budget', self.prog_vals[prog_label]['cost']))
-                                        # print('Target Population: %s' % pop.label)
-                                        # print('Target Parameter: %s' % par_label)
-                                        # print('Unit Cost: %f' % prog.func_specs['pars']['unit_cost'])
-                                        # print('Program Coverage: %f' % self.prog_vals[prog_label]['cov'])
-                                        # print('Program Impact: %f' % net_impact)
-                                        # print('Program Impact Format: %s' % prog.cov_format)
-                                        # print('Source Compartment Size (Target Pop): %f' % source_element_size)
-                                        # print('Source Compartment Size (Aggregated Over Target Pops): %f' % source_set_size)
-                                        # print('Converted Impact: %f' % impact)
-                                        # print('Converted Impact Format: %s' % pars[0].val_format)
-                                        # print
-
-                                if first_prog:
-                                    new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
-                                    first_prog = False
-
-                                if dt_impact is None:
-                                    impact_list.append(impact)  # This is for impact parameters without transition tags.
-                                else:   # Alternatively, if the parameter has a transition tag...
-                                    impact_list.append(dt_impact)
-
-
-                            # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
-                            # Otherwise renormalises impacts.
-                            # As a sidenote, only programs with coverage have overflow, which means that impact list is filled with dt-ly impacts.
-                            # TODO: Validate that program impact-factors are less than 1 so that the impact list is definitely less than overflow list.
-                            prev_dt_impacts = impact_list   # Just for debugging diagnostics.
-                            dt_impacts = []     # Just for debugging diagnostics.
-                            if len(overflow_list) > 0 and sum(overflow_list) > 1:
-                                impact_list = np.array(impact_list) / sum(overflow_list)
-
-                            # Transition tagged parameters involved dt-ly impacts.
-                            # They must be summed and converted back to annual parameter values at this step.
+                            # If a program target is a transition parameter, its coverage must be distributed and format-converted.
                             if 'tag' in settings.linkpar_specs[par_label]:
-                                impact_list = np.array([np.sum(impact_list)])
-                                # Converting to annual impacts following normalisation and summation.
-                                if pars[0].val_format == 'number':
-                                    impact_list = impact_list * (1.0 / settings.tvec_dt)
-                                elif pars[0].val_format == 'fraction':
-                                    impact_list = 1.0 - (1.0 - impact_list) ** (1.0 / settings.tvec_dt)
+                                # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
+                                source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].popsize[ti]
+                                source_set_size = 0
+                                for from_pop in prog.target_pops:
+                                    source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].popsize[ti]
+
+                                # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
+                                # NOTE: This might be a place to improve performance.
+                                if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
+                                    group_label = settings.progtype_specs[prog_type]['impact_pars'][par_label]['group']
+                                    for alt_par_label in settings.progtype_specs[prog_type]['impact_par_groups'][group_label]:
+                                        if not alt_par_label == par_label:
+                                            alt_pars = pop.getLinks(settings.linkpar_specs[alt_par_label]['tag'])
+                                            for from_pop in prog.target_pops:
+                                                source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].popsize[ti]
+
+                                # Coverage and impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
+                                # Makes sure that the right value is selected.
+                                try: net_cov = self.prog_vals[prog_label]['cov'][ti]
+                                except: net_cov = self.prog_vals[prog_label]['cov']
+                                try: net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
+                                except: net_impact = self.prog_vals[prog_label]['impact'][par_label]
+                                try: impact_factor = float(net_impact) / float(net_cov)
+                                except ZeroDivisionError:
+                                    impact_factor = 0.
+                                    if not float(net_impact) == 0.:
+                                        raise OptimaException('Attempted to divide impact of {0} by coverage of {1} for program "{2}" with impact parameter "{3}".'.format(net_impact, net_cov, prog_label, par_label))
+
+                                # Assume all program coverage/impact that targets transition parameters is 'effective', not 'probabilistic'.
+                                # For number format coverages/impacts, this will be uniformly distributed across timesteps.
+                                # For fraction format coverages/impacts, a dt-ly rate is the same as the intended annual rate.
+                                # This means the two formats result in differing t-dependent distributions, but the total should be the same, assuming no coverage capping.
+                                if prog.cov_format == 'fraction':
+                                    dt_cov = net_cov
+                                    dt_impact = net_impact
+                                elif prog.cov_format == 'number':
+                                    dt_cov = net_cov * settings.tvec_dt
+                                    dt_impact = net_impact * settings.tvec_dt
                                 else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
 
+                                # Convert dt-ly coverage/impact into a dt-ly fractonal coverage/impact, i.e. normalise for number available to transition.
+                                if prog.cov_format == 'fraction':
+                                    frac_dt_cov = dt_cov
+                                    frac_dt_impact = dt_impact
+                                elif prog.cov_format == 'number':
+                                    if source_set_size <= project_settings.TOLERANCE:
+                                        frac_dt_cov = 0.0
+                                        frac_dt_impact = 0.0
+                                    else:
+                                        frac_dt_cov = dt_cov / source_set_size
+                                        frac_dt_impact = dt_impact / source_set_size
+                                else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
 
-                            # TODO: This is most likely where modality interactions should be developed.
-                            # At the moment, impacts are summed together but can potentially combined in nested ways, e.g. by taking a maximum.
-                            # More complicated program interactions will of course take more design thought.
-                            new_val += np.sum(impact_list)
+                                # Cap dt-ly coverage for each program.
+                                # if pars[0].val_format == 'fraction':
+                                #     if frac_dt_cov > 1.0:
+                                #         frac_dt_cov = 1.0
+                                #         frac_dt_impact = frac_dt_cov * impact_factor
 
-                            # Handle impact constraints.
-                            # Note: This applies to any parameter that is impacted by the progset, not just for programs that are in the allocation.
-                            if 'constraints' in self.sim_settings and 'impacts' in self.sim_settings['constraints'] and par_label in self.sim_settings['constraints']['impacts']:
-                                try: vals = self.sim_settings['constraints']['impacts'][par_label]['vals']
-                                except: raise OptimaException('ERROR: An impact constraint was passed to the model for "%s" but had no values associated with it.' % par_label)
-                                if not len(vals) == 2: raise OptimaException('ERROR: Constraints for impact "%s" must be provided as a list or tuple of two values, i.e. a lower and an upper constraint.' % par_label)
-                                if new_val < vals[0]: new_val = vals[0]
-                                if new_val > vals[1]: new_val = vals[1]
+                                # A fractional dt-ly coverage happens to be considered overflow.
+                                # For instance, dt-ly impacts of [0.7,1] with corresponding dt-ly coverage of [1.2,1.3] will scale down so net dt-ly coverage is 1.
+                                overflow_list.append(frac_dt_cov)
+
+                                # Convert fraction-based program coverage/impact to parameter format, multiplying by the transition-source compartment size if needed.
+                                if pars[0].val_format == 'fraction':
+                                    dt_cov = frac_dt_cov
+                                    dt_impact = frac_dt_impact
+                                elif pars[0].val_format == 'number':
+                                    dt_cov = frac_dt_cov * source_element_size
+                                    dt_impact = frac_dt_impact * source_element_size
+
+                            # If a program target is any other parameter, the parameter value is directly overwritten by coverage.
+                            # TODO: Decide how to handle coverage distribution.
+                            else:
+                                try: impact = self.prog_vals[prog_label]['impact'][par_label][ti]
+                                except: impact = self.prog_vals[prog_label]['impact'][par_label]
+
+                            if first_prog:
+                                new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
+                                first_prog = False
+
+                            if dt_impact is None:
+                                impact_list.append(impact)  # This is for impact parameters without transition tags.
+                            else:   # Alternatively, if the parameter has a transition tag...
+                                impact_list.append(dt_impact)
+
+
+                        # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
+                        # Otherwise renormalises impacts.
+                        # As a sidenote, only programs with coverage have overflow, which means that impact list is filled with dt-ly impacts.
+                        # TODO: Validate that program impact-factors are less than 1 so that the impact list is definitely less than overflow list.
+                        prev_dt_impacts = impact_list   # Just for debugging diagnostics.
+                        dt_impacts = []     # Just for debugging diagnostics.
+                        if len(overflow_list) > 0 and sum(overflow_list) > 1:
+                            impact_list = np.array(impact_list) / sum(overflow_list)
+
+                        # Transition tagged parameters involved dt-ly impacts.
+                        # They must be summed and converted back to annual parameter values at this step.
+                        if 'tag' in settings.linkpar_specs[par_label]:
+                            impact_list = np.array([np.sum(impact_list)])
+                            # Converting to annual impacts following normalisation and summation.
+                            if pars[0].val_format == 'number':
+                                impact_list = impact_list * (1.0 / settings.tvec_dt)
+                            elif pars[0].val_format == 'fraction':
+                                impact_list = 1.0 - (1.0 - impact_list) ** (1.0 / settings.tvec_dt)
+                            else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
+
+
+                        # TODO: This is most likely where modality interactions should be developed.
+                        # At the moment, impacts are summed together but can potentially combined in nested ways, e.g. by taking a maximum.
+                        # More complicated program interactions will of course take more design thought.
+                        new_val += np.sum(impact_list)
+
+                        # Handle impact constraints.
+                        # Note: This applies to any parameter that is impacted by the progset, not just for programs that are in the allocation.
+                        if 'constraints' in self.sim_settings and 'impacts' in self.sim_settings['constraints'] and par_label in self.sim_settings['constraints']['impacts']:
+                            try: vals = self.sim_settings['constraints']['impacts'][par_label]['vals']
+                            except: raise OptimaException('ERROR: An impact constraint was passed to the model for "%s" but had no values associated with it.' % par_label)
+                            if not len(vals) == 2: raise OptimaException('ERROR: Constraints for impact "%s" must be provided as a list or tuple of two values, i.e. a lower and an upper constraint.' % par_label)
+                            if new_val < vals[0]: new_val = vals[0]
+                            if new_val > vals[1]: new_val = vals[1]
 
                     # Perform the value overwrite if the program set a value for the parameter
                     for par in pars:
@@ -1222,6 +1223,10 @@ class Model(object):
                 for par in pars:
                     par.constrain(ti)
 
+        # Load the parameter values into the Links
+        for pop in self.pops:
+            for link in pop.links:
+                link.update()
 
     def calculateOutputs(self, settings):
         '''
