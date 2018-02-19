@@ -35,7 +35,7 @@ class Variable(object):
 
     Examples include characteristics and dependent parameters (NB. all non-dependents parameter correspond to links)
     '''
-    def __init__(self, label='default', val=0.0,dependency=False):
+    def __init__(self, label='default', val=0.0):
         self.uid = uuid()
         self.label = label
         self.dependency = dependency # This flag indicates whether another variable depends on this one, indicating the value needs to be computed during integration
@@ -62,11 +62,11 @@ class Variable(object):
 class Characteristic(Variable):
     ''' A characteristic represents a grouping of compartments 
     '''
-    def __init__(self, includes, denominator = None, label='default', val=0.0,dependency=False):
+    def __init__(self, includes, denominator = None, label='default', val=0.0):
         # includes is a list of ModelCompartments, whose values are summed
         # the denominator is another Characteristic that normalizes this one
         # All passed by reference so minimal performance impact
-        Variable.__init__(self, label=label, val=val,dependency=dependency)
+        Variable.__init__(self, label=label, val=val)
         for x in includes:
             assert isinstance(x,ModelCompartment) or isinstance(x,Characteristic), 'Characteristic dependencies must be compartments or other characteristics'
             x.dependency = True # Automatically mark an included compartment as requiring computation during integration
@@ -113,8 +113,8 @@ class Parameter(Variable):
     # A parameter is a Variable that can have a value computed via an f_stack and a list of 
     # dependent Variables. This class may need to be renamed to avoid confusion with
     # the class in Parameter.py which provides a means of computing the Parameter that is used by the model
-    def __init__(self, label='default', val=0.0,dependency=False,f_stack = None, deps = None):
-        Variable.__init__(self, label=label, val=val,dependency=dependency)
+    def __init__(self, label='default', val=0.0,f_stack = None, deps = None):
+        Variable.__init__(self, label=label, val=val)
         if deps is not None:
             for dep in deps:
                 dep.dependency = True # Mark all required Variables as dependent
