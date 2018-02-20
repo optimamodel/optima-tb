@@ -15,6 +15,7 @@ import numpy as np
 from copy import deepcopy as dcp
 import uuid
 
+# np.seterr(all='raise')
 # %% Abstract classes used in model
 
 class Node(object):
