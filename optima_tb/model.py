@@ -234,8 +234,10 @@ class Link(Variable):
 
         self.is_transfer = is_transfer # A transfer connections compartments across populations
         
+        # Link vals stores the number of people actually transferred
+        # The target flow also stores for each time point, the number of people proposed to move
+        # The original parameter value is available from the Link's bound parameter
         self.target_flow = None # For each time point, store the number of people that were proposed to move (in units of number of people)
-        self.flow = None # For each time point, store the actual flow rate in number of people (in units of number of people)
         
     def __repr__(self, *args, **kwargs):
         return "Link %s - %s to %s" % (self.label, self.source.label, self.dest.label)
@@ -425,7 +427,6 @@ class ModelPopulation(Node):
         for link in self.links:
             link.vals = np.ones(len(sim_settings['tvec'])) * np.nan
             link.target_flow = np.ones(len(sim_settings['tvec'])) * np.nan
-            link.flow = np.ones(len(sim_settings['tvec'])) * np.nan
         for par in self.pars:
             par.vals = np.ones(len(sim_settings['tvec'])) * np.nan
 
@@ -771,7 +772,6 @@ class Model(object):
                                 # Todo - unify preallocation (should only be done once, in one place)
                                 link.vals = np.ones(len(self.sim_settings['tvec'])) * np.nan
                                 link.target_flow = np.ones(len(self.sim_settings['tvec'])) * np.nan
-                                link.flow = np.ones(len(self.sim_settings['tvec'])) * np.nan
                                 link_id = len(pop.links)
                                 pop.links.append(link)
                                 pop.link_ids[link_tag] = link_id
@@ -846,7 +846,7 @@ class Model(object):
 
                         # Compute the number of people that are going out of each link
                         converted_amt = 0
-                        transition = link.vals[ti]
+                        transition = link.parameter.vals[ti]
 
                         if link.parameter.scale_factor is not None and link.parameter.scale_factor != project_settings.DO_NOT_SCALE:  # scale factor should be available to be used
                             transition *= link.parameter.scale_factor
@@ -887,7 +887,7 @@ class Model(object):
                     # Apply the flows to the compartments
                     for i, link in enumerate(outlinks):
                         link.dest.vals[ti+1] += outflow[i]
-                        link.flow[ti] = outflow[i]
+                        link.vals[ti] = outflow[i]
 
                     comp_source.vals[ti+1] -= np.sum(outflow)
 
@@ -1261,11 +1261,6 @@ class Model(object):
             for par in pars:
                 par.constrain(ti)
 
-        # Load the parameter values into the Links
-        for pop in self.pops:
-            for link in pop.links:
-                link.update(ti)
-
     def calculateOutputs(self, settings):
         '''
         Calculate outputs (called cascade characteristics in settings).
@@ -1279,7 +1274,9 @@ class Model(object):
         outputs = odict()
 
         for pop in self.pops:
-            for output in pop.pars + pop.characs:
+            for output in pop.pars + pop.characs + pop.links:
+                if isinstance(output,Parameter) and len(output.links) > 0:
+                    continue # Load in links instead of this parameter
                 if output.label not in outputs:
                     outputs[output.label] = odict()
                 outputs[output.label][pop.label] = output.vals
