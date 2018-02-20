@@ -191,11 +191,10 @@ class Parameter(Variable):
         if self.f_stack is None:
             return
 
-        for i in xrange(0,ti.size):
-            dep_vals = {}
-            for dep in self.deps:
-                dep_vals[dep.label] = dep.vals[ti]
-            self.vals[ti] = parser.evaluateStack(stack=self.f_stack[0:], deps=dep_vals)   # self.f_stack[0:] makes a copy
+        dep_vals = {}
+        for dep in self.deps:
+            dep_vals[dep.label] = dep.vals[[ti]]
+        self.vals[ti] = parser.evaluateStack(stack=self.f_stack[0:], deps=dep_vals)   # self.f_stack[0:] makes a copy
 
     def source_popsize(self,ti):
         # Get the total number of people covered by this program
@@ -241,11 +240,6 @@ class Link(Variable):
     def __repr__(self, *args, **kwargs):
         return "Link %s - %s to %s" % (self.label, self.source.label, self.dest.label)
 
-    def update(self,ti):
-        # A link is updated by loading it with the value of its parent parameter
-        # This occurs in updateValues() after the parameter value is updated
-        # Any further adjustments
-        self.vals[ti] = self.parameter.vals[ti]
 
 # %% Cascade compartment and population classes
 class ModelPopulation(Node):
