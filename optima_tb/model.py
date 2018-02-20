@@ -91,7 +91,7 @@ class Compartment(Variable):
         self.inlinks = []
 
     def __repr__(self, *args, **kwargs):
-        return "%s: %g" % (self.label, self.vals[0])
+        return "Compartment %s: %g" % (self.label, self.vals[0])
 
     def getValue(self, ti):
         """ Get value of population at timestep ti """
@@ -191,13 +191,11 @@ class Parameter(Variable):
         if self.f_stack is None:
             return
 
-        # f_stack = dcp(self.f_stack) # TODO - change parser.evaluateStack() to not pop items from the list
-        
         for i in xrange(0,ti.size):
             dep_vals = {}
             for dep in self.deps:
                 dep_vals[dep.label] = dep.vals[ti]
-            self.vals[ti] = parser.evaluateStack(stack=self.f_stack, deps=dep_vals)
+            self.vals[ti] = parser.evaluateStack(stack=self.f_stack[0:], deps=dep_vals)   # self.f_stack[0:] makes a copy
 
     def source_popsize(self,ti):
         # Get the total number of people covered by this program
@@ -250,8 +248,6 @@ class Link(Variable):
         self.vals[ti] = self.parameter.vals[ti]
 
 # %% Cascade compartment and population classes
-
-
 class ModelPopulation(Node):
     '''
     A class to wrap up data for one population within model.
@@ -422,6 +418,7 @@ class ModelPopulation(Node):
         for comp in self.comps:
             init_popsize = comp.vals[0]
             comp.vals = np.ones(len(sim_settings['tvec'])) * np.nan
+            comp.vals_old = np.ones(len(sim_settings['tvec'])) * np.nan
             comp.vals[0] = init_popsize
         for charac in self.characs:
             charac.vals = np.ones(len(sim_settings['tvec'])) * np.nan
@@ -432,9 +429,7 @@ class ModelPopulation(Node):
             par.vals = np.ones(len(sim_settings['tvec'])) * np.nan
 
 
-
 # %% Model class
-
 class Model(object):
     ''' A class to wrap up multiple populations within model and handle cross-population transitions. '''
 
@@ -524,7 +519,7 @@ class Model(object):
                         default = prog.getDefaultBudget(year=start_year)
                     default = prog.getDefaultBudget(year=start_year)
                     if np.abs(alloc - default) > project_settings.TOLERANCE:
-#                        print 'Start it up...'
+                        # print 'Start it up...'
                         alloc_def = self.sim_settings['tvec'] * 0.0 + default
                         alloc_new = self.sim_settings['tvec'] * 0.0 + alloc
                         try: eps = self.sim_settings['constraints']['max_yearly_change'][prog.label]['val']
@@ -810,7 +805,7 @@ class Model(object):
         '''
 
         for t in self.sim_settings['tvec'][1:]:
-#            self.printModelState(self.t_index)
+            # self.printModelState(self.t_index)
             self.stepForward(settings=settings, dt=settings.tvec_dt)
             self.processJunctions(settings=settings)
             self.updateValues(settings=settings, progset=progset)
@@ -876,7 +871,7 @@ class Model(object):
                     if np.sum(outflow) > comp_source.vals[ti] and not comp_source.tag_birth:
                         validation_level = settings.validation['negative_population']
 
-                        if validation_level == project_settings.VALIDATION_AVERT:
+                        if validation_level == project_settings.VALIDATION_AVERT or validation_level == project_settings.VALIDATION_WARN:
                             outflow = outflow / np.sum(outflow) * comp_source.vals[ti]
                         else:
                             warning = "Negative value encountered for: (%s - %s) at ti=%g : popsize = %g, outflow = %g" % (pop.label,comp_source.label,ti,comp_source.vals[ti],sum(outflow))
@@ -911,7 +906,8 @@ class Model(object):
 
         ti = self.t_index
         ti_link = ti - 1
-        if ti_link < 0: ti_link = ti    # For the case where junctions are processed immediately after model initialisation.
+        if ti_link < 0: 
+            ti_link = ti    # For the case where junctions are processed immediately after model initialisation.
         final_review = False
 
         review_count = 0
@@ -919,38 +915,32 @@ class Model(object):
             if review_count > settings.recursion_limit: raise OptimaException('ERROR: Processing junctions (i.e. propagating contents onwards) for timestep %i is taking far too long. Infinite loop suspected.' % ti_link)
             final_review = True     # Assume that this is the final sweep through junctions to verify their emptiness.
             for pop in self.pops:
-                for junction_label in settings.junction_labels:
-                    comp = pop.getComp(junction_label)
+                junctions = [comp for comp in pop.comps if comp.junction]
+
+                for junc in junctions:
 
                     # Stores junction popsize values before emptying.
                     if review_count == 0:
-                        if comp.vals_old is None:
-                            comp.vals_old = dcp(comp.vals)
-                        else:
-                            comp.vals_old[ti] = comp.vals[ti]
-                    # If a junction is being reviewed again, it means that it received inflow before emptying.
-                    # Add this inflow to the stored popsize.
+                        junc.vals_old[ti] = junc.vals[ti] # Back up the old value (should have been preallocated)
                     else:
+                        # If a junction is being reviewed again, it means that it received inflow before emptying.
+                        # Add this inflow to the stored popsize.
                         comp.vals_old[ti] += comp.vals[ti]
-#                        print 'huzzah'
-#                        print comp.vals
-#                        print comp.vals_old
 
-                    popsize = comp.vals[ti]
-
-                    if popsize <= project_settings.TOLERANCE:   # Includes negative values.
+                    # If the compartment is numerically empty, make it empty
+                    if comp.vals[ti] <= project_settings.TOLERANCE:   # Includes negative values.
                         comp.vals[ti] = 0
-                        popsize = 0
 
                     elif popsize > project_settings.TOLERANCE:
-                        final_review = False    # Outflows could propagate into other junctions requiring another review.
-                        denom_val = sum(l.vals[ti_link] for l in comp.outlinks)
-                        if denom_val == 0: raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
+                        final_review = False    # If there is an outflow, it might have contributed to another junction, so need to loop over the junctions again
+                        denom_val = sum(link.vals[ti_link] for link in comp.outlinks) # This is the total number of people in the outflow compartments, at the previous timestep, used for splitting the outputs
+                        if denom_val == 0:
+                            raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
                         for link in comp.outlinks:
-                            link.source.vals[ti] -= popsize * link.vals[ti_link] / denom_val
-                            link.dest.vals[ti]   += popsize * link.vals[ti_link] / denom_val
-
-
+                            flow = comp.vals[ti] * link.parameter.vals[ti_link] / denom_val
+                            link.source.vals[ti] -= flow
+                            link.dest.vals[ti]   += flow
+                            link.vals[ti] = flow
 
             review_count += 1
 
@@ -1240,10 +1230,7 @@ class Model(object):
                                 k = 0
                                 for from_pop in from_list:
                                     # All transition links with the same par_label are identically valued. For calculations, only one is needed for reference.
-                                    if par_label in settings.par_deps:
-                                        par = self.getPop(from_pop).getPar(par_label)
-                                    else:
-                                        par = self.getPop(from_pop).getLinks(settings.linkpar_specs[par_label]['tag'])[0]
+                                    par = self.getPop(from_pop).getPar(par_label)
                                     old_vals[k] = par.vals_old[ti]
                                     weights[k] = self.contacts['into'][pop.label][from_pop]
                                     pop_counts[k] = self.getPop(from_pop).getCharac(settings.charac_pop_count).vals[ti]
