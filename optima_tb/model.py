@@ -167,7 +167,7 @@ class Parameter(Variable):
 
         self.deps = deps
         self.f_stack = f_stack
-        self.limits = None
+        self.limits = limits
         self.dependency = False 
         self.scale_factor = 1.0
         self.links = [] # References to links that derive from this parameter
@@ -421,6 +421,7 @@ class ModelPopulation(Node):
             link.target_flow = np.ones(len(sim_settings['tvec'])) * np.nan
         for par in self.pars:
             par.vals = np.ones(len(sim_settings['tvec'])) * np.nan
+            par.vals_old = np.ones(len(sim_settings['tvec'])) * np.nan
 
 
 # %% Model class
@@ -1202,8 +1203,6 @@ class Model(object):
             # Todo - clean up this workflow
             if 'rules' in settings.linkpar_specs[par_label]:
                 for par in pars:
-                    if par.vals_old is None:
-                        par.vals_old = dcp(par.vals)
                     par.vals_old[ti] = par.vals[ti]
 
             # Handle parameters tagged with special rules. Overwrite vals if necessary.
