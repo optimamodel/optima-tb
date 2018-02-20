@@ -181,7 +181,7 @@ class ResultSet(object):
             values, _, _ = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)
             for pop in values.keys():
                 popvalues = values[pop]
-                output += values[pop][label].popsize[idx]
+                output += values[pop][label].vals[idx]
 
         else:
             logger.warn('Unable to find values for label="%s", with no corresponding characteristic, transition or compartment found.' % label)
