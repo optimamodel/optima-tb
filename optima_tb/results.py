@@ -440,7 +440,7 @@ class ResultSet(object):
                     if target_flow:
                         flows.append(link.target_flow)
                     else:
-                        flows.append(link.flow)
+                        flows.append(link.vals)
 
                 datapoints[link_lab][pi] = sum(flows)
 
