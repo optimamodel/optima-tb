@@ -100,12 +100,12 @@ class FunctionParser(object):
         if level == None:
             if self.debug: print('Progressing through stack evaluation...')
             level = 0
-        op = stack.pop()
+        op = stack[0]
         if op == 'u-':
-            return -self.evaluateStack(stack, deps = deps, level = level + 1)
+            return -self.evaluateStack(stack[1:], deps = deps, level = level + 1)
         elif op in "+-*/^":
-            op2 = self.evaluateStack(stack, deps = deps, level = level + 1)
-            op1 = self.evaluateStack(stack, deps = deps, level = level + 1)
+            op2 = self.evaluateStack(stack[1:], deps = deps, level = level + 1)
+            op1 = self.evaluateStack(stack[1:], deps = deps, level = level + 1)
             if self.debug: print('Level %i: %s %s %s = %s' % (level, op1, op, op2, self.op_dict[op](op1, op2)))
             return self.op_dict[op](op1, op2)
         elif op[0].isalpha():
