@@ -1284,9 +1284,9 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
     final_dict = {'ylabel': ylabel,
                   'plot_stacked': plot_stacked,
                   'save_figname': fig_name}
-    print "\n"*5
-    print tmp_plotdict
-    print "\n"*5
+#    print "\n"*5
+#    print tmp_plotdict
+#    print "\n"*5
 
     tmp_plotdict.update(final_dict)
     # separately update the title, to allow if the plot settings would allow for plots
@@ -1348,7 +1348,7 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, xlabel="
         labels.sort()
 
     colors = []
-    print linestyles
+#    print linestyles
     colors, linestyles, hatches, cat_colors = setupStylings(colormappings, colors, linestyles, labels, plotdict)
 
 #     if colormappings is not None:
@@ -1852,11 +1852,11 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
         implement orientation = 'h'
         implement non-stacked plots
     """
-    print kwargs.keys()
-    print kwargs
-    print barwidth
-    print bar_offset
-    print xlim, "<----------- xlim"
+#    print kwargs.keys()
+#    print kwargs
+#    print barwidth
+#    print bar_offset
+#    print xlim, "<----------- xlim"
     # ---------------------
     # setup
     num_bars = len(values)
@@ -1952,8 +1952,8 @@ def _plotBars(values, labels=None, colors=None, title="", orientation='v', legen
     else:
         ax.get_yaxis().get_major_formatter().set_scientific(False)
 
-    print x_ticks
-    print xlabels
+#    print x_ticks
+#    print xlabels
 
     if x_ticks is not None:
         ax.set_xticks(x_ticks[0])
@@ -3560,7 +3560,7 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
 
 #     final_dict.update(plotdict)
     plotdict.update(final_dict)
-    print plotdict
+#    print plotdict
     _plotBars(values, labels=output_labels, colors=colors, xlabels=xlabels, # legendsettings=legendsettings,
               save_fig=save_fig, **plotdict)
 
@@ -3687,10 +3687,10 @@ def plotCareCascade(results, settings, pop_labels, labels, years, title="", norm
                 y_intercept = [yis * init_state for yis in y_intercept]
 
 
-        print values
-        print plotdict
-        print colors
-        print "--> convert"
+#        print values
+#        print plotdict
+#        print colors
+#        print "--> convert"
         new_val = np.array(values)
         new_val.transpose()
 
@@ -3700,8 +3700,8 @@ def plotCareCascade(results, settings, pop_labels, labels, years, title="", norm
 
         plotdict['plot_stacked'] = True
         plotdict['barwidth'] = 0.8
-        print values
-        print pop_labels.keys()
+#        print values
+#        print pop_labels.keys()
         _plotBars(new_val, pop_labels.keys(), xlabels=xlabels,
                   colors=colors, y_intercept=y_intercept, yticks=yticks,
                   legendsettings=legendsettings, save_fig=save_fig, **plotdict)
