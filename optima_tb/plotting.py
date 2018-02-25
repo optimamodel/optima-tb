@@ -416,7 +416,7 @@ def _turnOffBorder():
 
 def plotResult(proj, result, output_labels=None, pop_labels=None,
                plot_total=False, plot_type=None, plot_relative=None,
-               plot_observed_data=True, observed_data_label=None,
+               plot_observed_data=True, observed_data_labels=None,
                plot_ybounds=None,
                colormappings=None, colors=None, linestyles=None,
                title=None, save_fig=False, fig_name=None, **kwargs):
@@ -441,8 +441,8 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
         plot_relative   whether to normalize plot as a percentage. Dict with key, value indicating
                             ("year" : year value), calculated for each population or total population if plot_total=True
                             ("value": value), a numeric value
-        plot_observed_data    add observed datapoints as scatter plot, if corresponding datapoints exist. See note.
-        observed_data_label   dict of mappings of what datapoints should be used. See note.
+        plot_observed_data    add observed datapoints as scatter plot, if corresponding datapoints exist.
+        observed_data_labels   dict of mappings of what datapoints should be used for each output_label.
         colormappings   colormappings that should be used to generate colors for populations. Supercedes colors. 
                         Format: odict with color / colormap as key, value = list of populations for corresponding key 
         colors          list of colors that should be used for population. Superceded by colormappings.
@@ -487,6 +487,10 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
         return None
 
     for out_label in output_labels:
+        if observed_data_labels is not None:
+            observed_data_label = observed_data_labels[out_label]
+        else:
+            observed_data_label = None
         fig = innerPlotTrend(proj, [result], [out_label], compare_type=COMPARETYPE_POP, pop_labels=pop_labels,
                              plot_total=plot_total, plot_type=plot_type, plot_relative=plot_relative,
                              plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
@@ -811,7 +815,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         plot_type       plot type. Currently supported = line | stacked   (see PLOTTYPE_ fields)
                         if None, default value = line
         plot_observed_data    add observed datapoints as scatter plot, if corresponding datapoints exist. See note.
-        observed_data_label_dict   dict of mappings of what 
+        observed_data_label   the data label that should be used for any datapoints (if plot_observed_data is True)
         colormappings   colormappings that should be used to generate colors for populations. Supercedes colors. 
                         Format: odict with color / colormap as key, value = list of populations for corresponding key 
         colors          list of colors that should be used for population. Superceded by colormappings.
