@@ -1580,7 +1580,7 @@ def isPlottableComp(comp_label, sim_settings, comp_specs):
     """
     # TODO move this method to sim_settings / comp_specs superobject
     if comp_label not in comp_specs.keys():
-        logging.info("Attempting to plot a non-compartment: %s" % comp_label)
+        logging.info("Attempting to plot a non-compartment: %s" % comp_label)  #TODO is this a necessary warning as any rate triggers this?
         return True # TODO revisit this assumption
     if comp_label in sim_settings['tag_no_plot']:
         return False
