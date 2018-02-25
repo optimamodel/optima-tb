@@ -861,10 +861,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
     elif compare_type == COMPARETYPE_VALUE:
         series_labels = output_labels
     elif compare_type == COMPARETYPE_POP:
-        if plot_total:
-            series_labels = ['Total']
-        else:
-            series_labels = pop_labels
+        series_labels = pop_labels
     else:
         logger.info("Plotting: compare_type not specified, assuming comparing populations")
         raise OptimaException("Unknown compare_type for plotting: %s" % compare_type)
@@ -888,7 +885,11 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         legend_labels = cat_labels
         legend_cols = cat_colors
     else:
-        legend_labels = series_labels
+        if plot_total:
+            legend_labels = ['Total']
+            #TODO? add in something for legend_cols as otherwise "Total" will be the color of the first population that is part of total
+        else:
+            legend_labels = series_labels
         legend_cols = None # technically, it is colors, but if legend_cols => None, then the legend plots to
 
     # -------------------------------------------------------
@@ -920,16 +921,19 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
 
         elif compare_type == COMPARETYPE_POP:
             result = resultset[0]
-            if plot_total:
-
-                y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
+            for pop in pop_labels:
+                y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop, integrated=False)
                 y, unit_tag = _convertPercentage(y, value_label, charac_specs)
-                ys = [y]
-                ts = [t]
-            else:
-                for pop in pop_labels:
-                    y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop, integrated=False)
-                    y, unit_tag = _convertPercentage(y, value_label, charac_specs)
+                if plot_total:
+                    if ts == []:
+                        ys.append(y)
+                        ts.append(t)
+                    else:
+                        if (t == ts[0]).all():
+                            ys[0]+=y
+                        else:
+                            raise Exception('TODO handle this error of output years not matching in a more standard way if it ever happens, just checking for now')
+                else:
                     ys.append(y)
                     ts.append(t)
 
@@ -1537,8 +1541,8 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
         # we have to be a bit more careful, as there could be missing elements for the different timesteps
         try:
             ys = np.array(ys)
-            ys = ys.sum(axis=0)
-            ts = ts[0]
+            ys = [ys.sum(axis=0)]
+            ts = [ts[0]]
         except ValueError:
             # could raise a ValueError if ys elements are different lengths
             ys, ts = [], []
