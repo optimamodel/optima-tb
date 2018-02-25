@@ -357,7 +357,9 @@ def setupStylings(colormappings, colors, linestyles, series_labels, plotdict):
         cat_colors = colors
         logger.info("Plotting: setting color scheme to be default colormap, as not all lines had color assigned")
 
-    if linestyles is not None:
+    if linestyles is None:
+        linestyles = [plotdict['default_linestyle']] * len(series_labels)  #default value
+    else:
         # convert from odict (key: style) to odict (key: population)
         linestyles = getLinemapping(linestyles)
         try:
