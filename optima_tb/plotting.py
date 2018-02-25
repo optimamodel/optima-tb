@@ -1540,7 +1540,6 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
             ys, ts = [], []
 
     dataobs = (ts, ys)
-    print dataobs
     return dataobs
 
 def _convertPercentage(datapoints, output_label, charac_specs):
