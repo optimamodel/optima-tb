@@ -756,7 +756,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
             fig = innerPlotTrend(proj, [results], output_labels=output_labels,
                    compare_type=COMPARETYPE_VALUE,
                    pop_labels=[pop], plot_total=plot_total, plot_type='stacked',
-                   plot_observed_data=True, observed_data_label=observed_data_label,
+                   plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                    colormappings=colormappings, colors=colors, cat_labels=cat_labels,
                    save_fig=save_fig, fig_name="%s_%s" % (fig_name, pop), **kwargs)
         logger.info("Created multiple plots for plotCompareResults for multiple populations. Returning last plot created")
