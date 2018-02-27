@@ -19,6 +19,7 @@ class ModelProgramSet(object):
         self.programs = list()
         self.progset = progset # A complete ProgramSet instance
         self.pars = set()
+        self.dt = 0 # Timestep set when calling update_cache and same timestep used for scaling in compute_pars
 
         # Construct the ModelProgram objects
         for prog in progset.progs: # For each Program, instantiate a ModelProgram
@@ -43,7 +44,9 @@ class ModelProgramSet(object):
             self.pars.update(impact_pars) # Update the set of all Parameter objects being reached
             for par in self.pars:
                 par.program_overwrite = True # Mark the program as being overwritten by a program
-                
+
+        self.par_by_id = {x.uid:x for x in self.pars} # Map parameter ID to parameter object
+
     def unlink(self):
         self.pars = list(self.pars)
         for i in xrange(0,len(self.pars)):
@@ -65,6 +68,7 @@ class ModelProgramSet(object):
         start_year = sim_settings['progs_start']
         init_alloc = sim_settings['init_alloc']
         alloc_is_coverage = sim_settings['alloc_is_coverage']
+        self.dt = sim_settings['tvec_dt']
 
         prog_vals = dict()
 
@@ -89,7 +93,7 @@ class ModelProgramSet(object):
                         if 'rel' in sim_settings['constraints']['max_yearly_change'][prog.label] and sim_settings['constraints']['max_yearly_change'][prog.label]['rel'] is True:
                             eps *= default
                         if np.isnan(eps): eps = np.inf  # Eps likely becomes a nan if it was infinity multiplied by zero.
-                        if np.abs(eps * sim_settings['tvec_dt']) < np.abs(alloc - default):
+                        if np.abs(eps * self.dt) < np.abs(alloc - default):
                             if np.abs(eps) < project_settings.TOLERANCE:
                                 raise OptimaException('ERROR: The change in budget for ramp-constrained "%s" is effectively zero. Model will not continue running; change in program funding would be negligible.' % prog.label)
                             alloc_ramp = default + (sim_settings['tvec'] - start_year) * eps * np.sign(alloc - default)
@@ -155,7 +159,7 @@ class ModelProgramSet(object):
             if prog.is_fraction:
                 prog.net_dt_cov = net_cov
             else:
-                prog.net_dt_cov = net_cov * sim_settings['tvec_dt']
+                prog.net_dt_cov = net_cov * self.dt
 
             # Load impacts
             prog.net_dt_impact = dict()
@@ -168,7 +172,7 @@ class ModelProgramSet(object):
                 if prog.is_fraction:
                     prog.net_dt_impact[par.uid] = impact
                 else:
-                    prog.net_dt_impact[par.uid] = impact * sim_settings['tvec_dt']
+                    prog.net_dt_impact[par.uid] = impact * self.dt
 
     def compute_pars(self,ti):
         # This function takes in a timestep and updates the parameter value in place
@@ -187,6 +191,14 @@ class ModelProgramSet(object):
 
             if net_cov > 1:
                 impacts[par_id] /= net_cov
+
+            par = self.par_by_id[par_id]
+
+            if par.links:
+                if par.is_fraction: # This is if the parameter is a fraction - it's the same for all entries because they all point to the same parameter, so just check the first one
+                    impacts[par_id] = 1.0 - (1.0 - impacts[par_id]) ** (1.0 / self.dt)
+                else:
+                    impacts[par_id] = impacts[par_id] * (1.0 / self.dt)
 
             impacts[par_id] = sum(impacts[par_id])
 
@@ -248,7 +260,7 @@ class ModelProgram(object):
         par_contribution = dict()
         for par in self.pars:
 
-            if len(par.links) == 0: # If not a transition parameter, return the value directly
+            if not par.links: # If not a transition parameter, return the value directly
                 par_contribution[par.uid] = (1.0,self.net_dt_impact[par.uid][ti])
             elif par.source_popsize(ti) <= project_settings.TOLERANCE:
                 par_contribution[par.uid] = (0.0,0.0)
@@ -266,7 +278,7 @@ class ModelProgram(object):
                     eff_dt_cov = frac_dt_cov*par.source_popsize(ti)
                     eff_dt_impact = frac_dt_cov*par.source_popsize(ti)
 
-                par_contribution[par.uid] = (frac_dt_cov,eff_dt_cov*eff_dt_impact)
+                par_contribution[par.uid] = (frac_dt_cov,eff_dt_impact) # Return whether or not the par is a fraction here to avoid having to look it up later
 
         return par_contribution
 
