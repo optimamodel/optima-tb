@@ -453,7 +453,9 @@ class Model(object):
             for obj in pop.comps + pop.characs + pop.pars + pop.links:
                 obj.unlink()
 
-        d['pset'].unlink()
+        if d['pset'] is not None:
+            d['pset'].unlink()
+
         del d['pars_by_pop']
 
         return d
@@ -483,7 +485,9 @@ class Model(object):
             # This might need to be reconsidered later (e.g. if it causes problems with pickling and should only be done when deepcopying)
             objs[i].uid = uuid.uuid4()
 
-        d['pset'].relink(objs)
+        if d['pset'] is not None:
+            d['pset'].relink(objs)
+
         self.__dict__ = d
 
     def getPop(self, pop_label):
