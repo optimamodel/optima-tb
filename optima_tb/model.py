@@ -890,20 +890,23 @@ class Model(object):
         # 4th:  Any parameter that is restricted within a range of values, i.e. by min/max values.
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
         # We resolve one parameter at a time, in dependency order
+
+        if self.programs_active:
+            prog_vals = self.pset.compute_pars(ti)
+
         for par_label in (settings.par_funcs.keys() + self.sim_settings['impact_pars_not_func']):
             pars = self.pars_by_pop[par_label] # All of the parameters with this label, across populations. There should be one for each population (these are Parameters, not Links)
 
             # First - update parameters that are dependencies, evaluating f_stack if required
-            # Again, the correct order in the outer loop over par_label is ESSENTIAL
             for par in pars:
                 if par.dependency:
                     par.update(ti)
 
-        # Next, handle programs
-        if self.programs_active:
-            self.pset.update_pars(ti) # Update parameter values with program overwrites in place
-
-        for par_label in (settings.par_funcs.keys() + self.sim_settings['impact_pars_not_func']):
+            # Then overwrite
+            if self.programs_active:
+                for par in pars:
+                    if par.uid in prog_vals:
+                        par.vals[ti] = prog_vals[par.uid]
 
             # Handle parameters tagged with special rules. Overwrite vals if necessary.
             if do_special and 'rules' in settings.linkpar_specs[par_label]:

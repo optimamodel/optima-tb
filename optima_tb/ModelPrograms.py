@@ -41,7 +41,9 @@ class ModelProgramSet(object):
 
             self.programs.append(ModelProgram(prog.label,is_fraction,impact_pars,impact_groups))
             self.pars.update(impact_pars) # Update the set of all Parameter objects being reached
-            
+            for par in self.pars:
+                par.program_overwrite = True # Mark the program as being overwritten by a program
+                
     def unlink(self):
         self.pars = list(self.pars)
         for i in xrange(0,len(self.pars)):
@@ -168,7 +170,7 @@ class ModelProgramSet(object):
                 else:
                     prog.net_dt_impact[par.uid] = impact * sim_settings['tvec_dt']
 
-    def update_pars(self,ti):
+    def compute_pars(self,ti):
         # This function takes in a timestep and updates the parameter value in place
         contribs = defaultdict(list)
 
@@ -186,10 +188,9 @@ class ModelProgramSet(object):
             if net_cov > 1:
                 impacts[par_id] /= net_cov
 
-        # Write output
-        for par in self.pars:
-            par.vals[ti] = sum(impacts[par.uid])
+            impacts[par_id] = sum(impacts[par_id])
 
+        return impacts
 
 
 class ModelProgram(object):
