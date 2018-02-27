@@ -680,6 +680,8 @@ class Model(object):
 
                 if 'progs_end' in options:
                     self.sim_settings['progs_end'] = options['progs_end']
+                else:
+                    self.sim_settings['progs_end'] = np.inf # Neverending programs
                 if 'init_alloc' in options:
                     self.sim_settings['init_alloc'] = options['init_alloc']
                 else: self.sim_settings['init_alloc'] = {}
@@ -894,8 +896,8 @@ class Model(object):
         # 4th:  Any parameter that is restricted within a range of values, i.e. by min/max values.
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
         # We resolve one parameter at a time, in dependency order
-
-        if self.programs_active:
+        do_program_overwrite = self.programs_active and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start'] and self.sim_settings['tvec'][ti] <= self.sim_settings['progs_end']
+        if do_program_overwrite:
             prog_vals = self.pset.compute_pars(ti)
 
         for par_label in (settings.par_funcs.keys() + self.sim_settings['impact_pars_not_func']):
@@ -906,8 +908,8 @@ class Model(object):
                 if par.dependency:
                     par.update(ti)
 
-            # Then overwrite
-            if self.programs_active:
+            # Then overwrite with program values
+            if do_program_overwrite:
                 for par in pars:
                     if par.uid in prog_vals:
                         par.vals[ti] = prog_vals[par.uid]
