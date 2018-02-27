@@ -88,7 +88,7 @@ class Compartment(Variable):
         Variable.__init__(self, label=label, val=val)
         self.tag_birth = False                      # Tag for whether this compartment contains unborn people.
         self.tag_dead = False                       # Tag for whether this compartment contains dead people.
-        self.junction = False
+        self.is_junction = False
 
         self.outlinks = []
         self.inlinks = []
@@ -322,7 +322,7 @@ class ModelPopulation(Node):
             if 'tag_dead' in settings.node_specs[label]:
                 self.comps[-1].tag_dead = True
             if 'junction' in settings.node_specs[label]:
-                self.comps[-1].junction = True
+                self.comps[-1].is_junction = True
             self.comp_ids[label] = comp_id
 
         # First pass, instantiate objects
@@ -651,7 +651,7 @@ class Model(object):
                         target_pop_obj = self.getPop(pop_target)
 
                         for source in pop.comps:
-                            if not (source.tag_birth or source.tag_dead or source.junction):
+                            if not (source.tag_birth or source.tag_dead or source.is_junction):
                                 # Instantiate a link between corresponding compartments
                                 dest = target_pop_obj.getComp(source.label) # Get the corresponding compartment
                                 link_tag = par_label + source.label # e.g. 'aging_0-4_to_15-64_sus' - this is probably never used?
@@ -754,7 +754,7 @@ class Model(object):
 
             for comp_source in pop.comps:
 
-                if not comp_source.junction:  # Junctions collect inflows during this step. They do not process outflows here.
+                if not comp_source.is_junction:  # Junctions collect inflows during this step. They do not process outflows here.
 
                     outlinks = comp_source.outlinks  # List of outgoing links
                     outflow = np.zeros(len(comp_source.outlinks))  # Outflow for each link # TODO - store in the link objects?
@@ -827,41 +827,45 @@ class Model(object):
         ti_link = ti - 1
         if ti_link < 0: 
             ti_link = ti    # For the case where junctions are processed immediately after model initialisation.
-        final_review = False
 
+        review_required = True
         review_count = 0
-        while not final_review:
-            if review_count > settings.recursion_limit: raise OptimaException('ERROR: Processing junctions (i.e. propagating contents onwards) for timestep %i is taking far too long. Infinite loop suspected.' % ti_link)
-            final_review = True     # Assume that this is the final sweep through junctions to verify their emptiness.
+        while review_required:
+            review_count += 1
+            review_required = False # Don't re-run unless a junction has refilled
+
+            if review_count > settings.recursion_limit:
+                raise OptimaException('ERROR: Processing junctions (i.e. propagating contents onwards) for timestep %i is taking far too long. Infinite loop suspected.' % ti_link)
+
             for pop in self.pops:
-                junctions = [comp for comp in pop.comps if comp.junction]
+                junctions = [comp for comp in pop.comps if comp.is_junction]
 
                 for junc in junctions:
 
                     # Stores junction popsize values before emptying.
+                    # Todo - check if this is purely for output
                     if review_count == 0:
                         junc.vals_old[ti] = junc.vals[ti] # Back up the old value (should have been preallocated)
                     else:
                         # If a junction is being reviewed again, it means that it received inflow before emptying.
                         # Add this inflow to the stored popsize.
-                        comp.vals_old[ti] += comp.vals[ti]
+                        junc.vals_old[ti] += junc.vals[ti]
 
                     # If the compartment is numerically empty, make it empty
-                    if comp.vals[ti] <= project_settings.TOLERANCE:   # Includes negative values.
-                        comp.vals[ti] = 0
-
-                    elif popsize > project_settings.TOLERANCE:
-                        final_review = False    # If there is an outflow, it might have contributed to another junction, so need to loop over the junctions again
-                        denom_val = sum(link.vals[ti_link] for link in comp.outlinks) # This is the total number of people in the outflow compartments, at the previous timestep, used for splitting the outputs
+                    if junc.vals[ti] <= project_settings.TOLERANCE:   # Includes negative values.
+                        junc.vals[ti] = 0
+                    else:
+                        current_size = junc.vals[ti]
+                        denom_val = sum(link.parameter.vals[ti_link] for link in junc.outlinks) # This is the total number of people in the outflow compartments, at the previous timestep, used for splitting the outputs
                         if denom_val == 0:
                             raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
-                        for link in comp.outlinks:
-                            flow = comp.vals[ti] * link.parameter.vals[ti_link] / denom_val
+                        for link in junc.outlinks:
+                            flow = current_size * link.parameter.vals[ti_link] / denom_val
                             link.source.vals[ti] -= flow
                             link.dest.vals[ti]   += flow
                             link.vals[ti] = flow
-
-            review_count += 1
+                            if link.dest.is_junction:
+                                review_required = True # Need to review if a junction received an inflow at this step
 
 
     def updateValues(self, settings, progset=None, do_special=True):
