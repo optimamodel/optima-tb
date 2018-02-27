@@ -26,14 +26,14 @@ class ModelProgramSet(object):
             # Make a list of all impact Parameter objects
             impact_pars = []
             for pop in pops:
-                impact_pars += [par for par in pop.pars if par.label in prog.target_pars]
+                if pop.label in prog.target_pops:
+                    impact_pars += [par for par in pop.pars if par.label in prog.target_pars]
 
             # Now populate the impact groups with those parameters
             impact_groups = defaultdict(list)
             for par in impact_pars:
-                if 'group' in progset.progtype_specs[prog.prog_type]['impact_pars'][par.label]:
-                    for group_label in progset.progtype_specs[prog.prog_type]['impact_par_groups']:
-                        impact_groups[group_label] += [par for par in impact_pars if par.label in progset.progtype_specs[prog.prog_type]['impact_par_groups'][group_label]]
+                if 'group' in progset.progtype_specs[prog.prog_type]['impact_pars'][par.label]: # If this parameter has an impact group
+                    impact_groups[progset.progtype_specs[prog.prog_type]['impact_pars'][par.label]['group']].append(par)
                 else:
                     impact_groups[par.label].append(par) # The parameter becomes a member of its own impact group
 
@@ -191,6 +191,7 @@ class ModelProgramSet(object):
             par.vals[ti] = sum(impacts[par.uid])
 
 
+
 class ModelProgram(object):
 
     def __init__(self,label,is_fraction,pars,impact_groups,cost=None,net_dt_cov=None,net_dt_impact=None):
@@ -227,6 +228,7 @@ class ModelProgram(object):
             for i in xrange(0,len(self.impact_groups[grp])):
                 self.impact_groups[grp][i] = objs[self.impact_groups[grp][i]]
 
+    #@profile
     def get_contribution(self,ti):
         # Return fractional coverage and program value contribution for every Parameter
         # reached by this Program
@@ -247,21 +249,23 @@ class ModelProgram(object):
 
             if len(par.links) == 0: # If not a transition parameter, return the value directly
                 par_contribution[par.uid] = (1.0,self.net_dt_impact[par.uid][ti])
-
-            # Convert units depending on the *Program* units
-            grp_size = source_set_size[self.pars_to_groups[par.uid]]
-            frac_dt_cov =  self.net_dt_cov[ti] / grp_size # Note grp_size is 1.0 if self.is_fraction is True
-            frac_dt_impact = self.net_dt_impact[par.uid][ti] / grp_size
-
-            # Convert units depending on the *Parameter* units
-            if par.is_fraction:
-                eff_dt_cov = frac_dt_cov
-                eff_dt_impact = frac_dt_impact
+            elif par.source_popsize(ti) <= project_settings.TOLERANCE:
+                par_contribution[par.uid] = (0.0,0.0)
             else:
-                eff_dt_cov = frac_dt_cov*par.source_popsize(ti)
-                eff_dt_impact = frac_dt_cov*par.source_popsize(ti)
+                # Convert units depending on the *Program* units
+                grp_size = source_set_size[self.pars_to_groups[par.uid]]
+                frac_dt_cov =  self.net_dt_cov[ti] / grp_size # Note grp_size is 1.0 if self.is_fraction is True
+                frac_dt_impact = self.net_dt_impact[par.uid][ti] / grp_size
 
-            par_contribution[par.uid] = (frac_dt_cov,eff_dt_cov*eff_dt_impact)
+                # Convert units depending on the *Parameter* units
+                if par.is_fraction:
+                    eff_dt_cov = frac_dt_cov
+                    eff_dt_impact = frac_dt_impact
+                else:
+                    eff_dt_cov = frac_dt_cov*par.source_popsize(ti)
+                    eff_dt_impact = frac_dt_cov*par.source_popsize(ti)
+
+                par_contribution[par.uid] = (frac_dt_cov,eff_dt_cov*eff_dt_impact)
 
         return par_contribution
 
