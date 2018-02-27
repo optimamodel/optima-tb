@@ -174,6 +174,8 @@ class Parameter(Variable):
         self.dependency = False 
         self.scale_factor = 1.0
         self.links = [] # References to links that derive from this parameter
+        self.source_popsize_cache_time = None
+        self.source_popsize_cache_val = None
 
     def constrain(self,ti):
         # NB. Must be an array, so ti must must not be supplied
@@ -205,10 +207,15 @@ class Parameter(Variable):
         # derive from this program
         # If impact_labels is specified, it must be a list of link labels
         # Then only links whose label is in that list will be included
-        n = 0
-        for link in self.links:
-            n += link.source.vals[ti]
-        return n
+        if ti == self.source_popsize_cache_time:
+            return self.source_popsize_cache_val
+        else:
+            n = 0
+            for link in self.links:
+                n += link.source.vals[ti]
+            self.source_popsize_cache_time = ti
+            self.source_popsize_cache_val = n
+            return n
 
 class Link(Variable):
     '''
@@ -789,7 +796,7 @@ class Model(object):
                     # if there are insufficient people _currently_ in the compartment
                     # Rescaling is performed if the validation setting is 'avert', otherwise
                     # either a warning will be displayed or an error will be printed
-                    if np.sum(outflow) > comp_source.vals[ti] and not comp_source.tag_birth:
+                    if not comp_source.tag_birth and np.sum(outflow) > comp_source.vals[ti]:
                         validation_level = settings.validation['negative_population']
 
                         if validation_level == project_settings.VALIDATION_AVERT or validation_level == project_settings.VALIDATION_WARN:
@@ -818,7 +825,6 @@ class Model(object):
         self.t_index += 1
         for pop in self.pops:
             pop.t_index = self.t_index       # Keeps ModelPopulations synchronised with Model object.
-
 
     def processJunctions(self, settings):
         '''
@@ -868,7 +874,6 @@ class Model(object):
                             link.vals[ti] = flow
                             if link.dest.is_junction:
                                 review_required = True # Need to review if a junction received an inflow at this step
-
 
     def updateValues(self, settings, progset=None, do_special=True):
         '''

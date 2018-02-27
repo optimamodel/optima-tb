@@ -241,7 +241,6 @@ class ModelProgram(object):
             for i in xrange(0,len(self.impact_groups[grp])):
                 self.impact_groups[grp][i] = objs[self.impact_groups[grp][i]]
 
-    #@profile
     def get_contribution(self,ti):
         # Return fractional coverage and program value contribution for every Parameter
         # reached by this Program
@@ -272,10 +271,8 @@ class ModelProgram(object):
 
                 # Convert units depending on the *Parameter* units
                 if par.is_fraction:
-                    eff_dt_cov = frac_dt_cov
                     eff_dt_impact = frac_dt_impact
                 else:
-                    eff_dt_cov = frac_dt_cov*par.source_popsize(ti)
                     eff_dt_impact = frac_dt_cov*par.source_popsize(ti)
 
                 par_contribution[par.uid] = (frac_dt_cov,eff_dt_impact) # Return whether or not the par is a fraction here to avoid having to look it up later
