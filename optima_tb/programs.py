@@ -22,13 +22,15 @@ class ProgramSet:
         logging.info("Created ProgramSet: %s" % self.name)
 
     def makeProgs(self, data, settings):
+        self.progtype_specs = dcp(settings.progtype_specs)
+        
         for l, prog_label in enumerate(data['progs']):
             prog_name = data['progs'][prog_label]['name']
             prog_type = data['progs'][prog_label]['prog_type']
 
             special = None
-            if 'special' in settings.progtype_specs[prog_type]:
-                special = settings.progtype_specs[prog_type]['special']
+            if 'special' in self.progtype_specs[prog_type]:
+                special = self.progtype_specs[prog_type]['special']
 
             t = data['progs'][prog_label]['t']
             cost = data['progs'][prog_label]['cost']
@@ -37,7 +39,7 @@ class ProgramSet:
             cov_format = data['progs'][prog_label]['cov_format']
             attributes = data['progs'][prog_label]['attributes']
             target_pops = data['progs'][prog_label]['target_pops']
-            target_pars = settings.progtype_specs[prog_type]['impact_pars']
+            target_pars = self.progtype_specs[prog_type]['impact_pars']
             for target_par in target_pars.keys():
                 if target_par not in self.impacts: self.impacts[target_par] = []
                 self.impacts[target_par].append(prog_label)

@@ -1,63 +1,70 @@
 from collections import defaultdict
+import uuid
+import optima_tb.settings as project_settings
+from optima_tb.utils import OptimaException
+import numpy as np
 import logging
+from optima_tb.parsing import FunctionParser
+
 logger = logging.getLogger(__name__)
+parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
 class ModelProgramSet(object):
-	# Contains some programs
+    # Contains some programs
 
-	def __init__(self,progset,pops):
-		# pops is model.pops
+    def __init__(self,progset,pops):
+        # pops is model.pops
 
-		self.uid = uuid.uuid4()
-		self.programs = list()
-		self.alloc = alloc
+        self.uid = uuid.uuid4()
+        self.programs = list()
+        self.progset = progset # A complete ProgramSet instance
+        self.pars = set()
 
-		self.progset = progset # A complete ProgramSet instance
+        # Construct the ModelProgram objects
+        for prog in progset.progs: # For each Program, instantiate a ModelProgram
 
-		self.pars = list() # Array of Parameters that this ModelProgramSet will be responsible for updating
-		self.par_id_to_par = list() # Map from UID to parameter object?
+            # Make a list of all impact Parameter objects
+            impact_pars = []
+            for pop in pops:
+                impact_pars += [par for par in pop.pars if par.label in prog.target_pars]
 
-		# Construct the ModelProgram objects
-		for prog in progset.progs # For each Program, instantiate a ModelProgram
+            # Now populate the impact groups with those parameters
+            impact_groups = defaultdict(list)
+            for par in impact_pars:
+                if 'group' in progset.progtype_specs[prog.prog_type]['impact_pars'][par.label]:
+                    for group_label in progset.progtype_specs[prog.prog_type]['impact_par_groups']:
+                        impact_groups[group_label] += [par for par in impact_pars if par.label in progset.progtype_specs[prog.prog_type]['impact_par_groups'][group_label]]
+                else:
+                    impact_groups[par.label].append(par) # The parameter becomes a member of its own impact group
 
-			# Make a list of all impact Parameter objects
-			impact_pars = []
-			for pop in pops:
-				impact_pars += [par for par in pop.pars if par.label in prog.target_pars]
+            is_fraction = prog.cov_format != 'number' # programs leave this as None otherwise (because it's a fraction and not probability?)
 
-			# Now populate the impact groups with those parameters
-			impact_group_index = 0
-			impact_groups = defaultdict(list)
-			for par in impact_pars:
-				if 'group' in settings.progtype_specs[prog.prog_type]['impact_pars'][par_label]:
-					for group_label in progset.progtype_specs[prog.prog_type]['impact_par_groups']:
-						impact_groups[group_label] += [par for par in impact_pars if par.label in progset.progtype_specs[prog.prog_type]['impact_par_groups'][group_label]]
-				else:
-					impact_groups[par_label] = [par] # The parameter becomes a member of a new impact group containing only itself
+            self.programs.append(ModelProgram(prog.label,is_fraction,impact_pars,impact_groups))
+            self.pars.update(impact_pars) # Update the set of all Parameter objects being reached
+            
+    def unlink(self):
+        self.pars = list(self.pars)
+        for i in xrange(0,len(self.pars)):
+            self.pars[i] = self.pars[i].uid
+        for prog in self.programs:
+            prog.unlink()
 
-			is_fraction = prog.cov_format != 'number' # programs leave this as None otherwise (because it's a fraction and not probability?)
+    def relink(self,objs):
+        for i in xrange(0,len(self.pars)):
+            self.pars[i] = objs[self.pars[i]]
+        self.pars = set(self.pars)
+        for prog in self.programs:
+            prog.relink(objs)
 
-			self.programs.append(prog.label,is_fraction,impact_pars,impact_groups)
+    def update_cache(self,sim_settings): # Do the stuff in precalculateprogsetvals
+        # sim_settings is the dict initialized in Model.build()
+        
+        # Take in a set of times and 
+        start_year = sim_settings['progs_start']
+        init_alloc = sim_settings['init_alloc']
+        alloc_is_coverage = sim_settings['alloc_is_coverage']
 
-	def unlink(self):
-	    for i in xrange(0,len(self.pars)):
-	    	self.pars[i] = self.pars[i].uid
-	    for prog in self.programs:
-	    	prog.unlink()
-
-	def relink(self,objs):
-	    for i in xrange(0,len(self.pars)):
-	    	self.pars[i] = objs[self.pars[i]]
-    	for prog in self.programs:
-    		prog.relink(objs)
-
-	def update_cache(self,sim_settings): # Do the stuff in precalculateprogsetvals
-		# sim_settings is the dict initialized in Model.build()
-		
-		# Take in a set of times and 
-		start_year = sim_settings['progs_start']
-		init_alloc = sim_settings['init_alloc']
-		alloc_is_coverage = sim_settings['alloc_is_coverage']
+        prog_vals = dict()
 
         for prog in self.progset.progs: # Iterate over classic Programs, not ModelPrograms
 
@@ -65,7 +72,7 @@ class ModelProgramSet(object):
             if prog.label in init_alloc:
                 alloc = init_alloc[prog.label]
 
-                # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to timevec.
+                # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to time points.
                 if 'constraints' in sim_settings and 'max_yearly_change' in sim_settings['constraints'] and prog.label in sim_settings['constraints']['max_yearly_change']:
                     if alloc_is_coverage:
                         default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
@@ -129,123 +136,132 @@ class ModelProgramSet(object):
                             years = [sim_settings['tvec'][-1]]
                         prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=parser, years=years, budget_is_coverage=True)
 
-            # Finally, load the coverage and impact into the ModelPrograms
-            for prog in self.programs:
+        # Finally, load the coverage and impact into the ModelPrograms
+        # Also expand out any scalars
+        for prog in self.programs:
 
-            	# Load coverage
-            	if prog.is_fraction:
-            		prog.net_dt_cov = prog_vals[prog.label]['cov']
-            	else:
-            	    prog.net_dt_cov = prog_vals[prog.label]['cov'] * sim_settings['tvec_dt']
+            # Load cost
+            prog.cost = prog_vals[prog.label]['cost']
+            if not isinstance(prog.cost, np.ndarray) or prog.cost.size == 1:
+                prog.cost = np.full(sim_settings['tvec'].shape, prog.cost)
 
-            	# Load impacts
-            	prog.net_dt_impact = dict()
-            	for par in pars:
-            		if prog.is_fraction:
-            			prog.net_dt_impact[par.uid] = prog_vals[prog.label]['impact'][par.label]
-            		else:
-            		    prog.net_dt_impact[par.uid] = prog_vals[prog.label]['impact'][par.label] * sim_settings['tvec_dt']
+            # Load coverage
+            net_cov = prog_vals[prog.label]['cov']
+            if not isinstance(net_cov, np.ndarray) or net_cov.size == 1:
+                net_cov = np.full(sim_settings['tvec'].shape, net_cov)
 
-	def update_pars(self,ti):
-		# This function takes in a timestep and updates the parameter value in place
-		contribs = defaultdict(list)
+            if prog.is_fraction:
+                prog.net_dt_cov = net_cov
+            else:
+                prog.net_dt_cov = net_cov * sim_settings['tvec_dt']
 
-		# STAGE 3.1 Accumulate contributions
-		for prog in progs:
-			for par_id,contrib in prog.get_contribution(ti).items():
-				contribs[par_id].append(contrib) # Append a (frac_cov,value) tuple
+            # Load impacts
+            prog.net_dt_impact = dict()
+            for par in prog.pars:
 
-		# STAGE 3+4 Normalize and set output value
-		for par_id,c in contribs.items():
-			net_cov = sum([x[0] for x in c])
-			impacts = np.array([x[1] for x in c])
+                impact = prog_vals[prog.label]['impact'][par.label]
+                if not isinstance(impact, np.ndarray) or impact.size == 1:
+                    impact = np.full(sim_settings['tvec'].shape, impact)
 
-			if net_cov > 1
-				impacts /= net_cov
+                if prog.is_fraction:
+                    prog.net_dt_impact[par.uid] = impact
+                else:
+                    prog.net_dt_impact[par.uid] = impact * sim_settings['tvec_dt']
 
-			self.pars[self.par_id_to_par[par_id]].vals[ti] = sum(impacts)
+    def update_pars(self,ti):
+        # This function takes in a timestep and updates the parameter value in place
+        contribs = defaultdict(list)
 
+        # STAGE 3.1 Accumulate contributions
+        for prog in self.programs:
+            for par_id,contrib in prog.get_contribution(ti).items():
+                contribs[par_id].append(contrib) # Append a (frac_cov,value) tuple
 
-class ModelProgram(Parameter)
+        # STAGE 3+4 Normalize and set output value
+        impacts = dict()
+        for par_id,c in contribs.items():
+            net_cov = sum([x[0] for x in c])
+            impacts[par_id] = np.array([x[1] for x in c])
 
-	def __init__(self,label,is_fraction,pars,impact_groups,net_dt_cov=None,net_dt_impact=None):
+            if net_cov > 1:
+                impacts[par_id] /= net_cov
 
-		self.uid = uuid.UUID4()
-		self.label = label
-		self.pars = pars # Parameters being reached
-		self.is_fraction = is_fraction # True if the coverage and impact are in units of number, assert all Pars have same units
-		self.impact_groups = impact_groups # For each impact group, list of parameter objects in that impact group
-
-		self.net_dt_cov = net_dt_cov # Same for all Parameters, precomputed. If not a transition parameter, then the dt value is the same as the annual value!
-		self.net_dt_impact = net_dt_impact # Dict mapping par_uid to impact array
-		
-		# Map parameter UID to impact group to identify which impact group to use for which each par reached
-		# NOTE - this implies a parameter can only belong to one impact group!
-		self.pars_to_groups = dict()
-		for grp in self.impact_groups:
-			for par in self.impact_groups[grp]:
-				self.pars_to_groups[par.uid] = grp 
+        # Write output
+        for par in self.pars:
+            par.vals[ti] = sum(impacts[par.uid])
 
 
-	def unlink(self):
-	    for i in xrange(0,len(self.pars)):
-	    	self.pars[i] = self.pars[i].uid
-	    for grp in self.impact_groups:
-	    	for i in xrange(0,len(self.impact_groups[grp])):
-	    		self.impact_groups[grp][i] = self.impact_groups[grp][i].uid
+class ModelProgram(object):
 
-	def relink(self,objs):
-	    for i in xrange(0,len(self.pars)):
-	    	self.pars[i] = objs[self.pars[i]]
-	    for grp in self.impact_groups:
-	    	for i in xrange(0,len(self.impact_groups[grp])):
-	    		self.impact_groups[grp][i] = objs[self.impact_groups[grp][i]]
+    def __init__(self,label,is_fraction,pars,impact_groups,cost=None,net_dt_cov=None,net_dt_impact=None):
 
-	def get_contribution(self,ti):
-		# Return fractional coverage and program value contribution for every Parameter
-		# reached by this Program
+        self.uid = uuid.uuid4()
+        self.label = label
+        self.pars = pars # Parameters being reached
+        self.is_fraction = is_fraction # True if the coverage and impact are in units of number, assert all Pars have same units
+        self.impact_groups = impact_groups # For each impact group, list of parameter objects in that impact group
 
-		# STAGE 2.0 Get number of people reached by each parameter
-		self.popsizes = {}
-		for par in self.pars:
-			source_element_size[par.uid] = par.source_popsize
-
-		# STAGE 2.1 Get impact group sizes
-		source_set_size = dict
-
-		for grp in self.impact_groups:
-			if self.is_fraction:
-				source_set_size[grp] = 1.0
-			else:
-				source_set_size[grp] = sum(self.source_element_size[par.uid] for par in self.impact_groups[grp]) # Number of people covered by this impact group
-
-		# STAGE 2.2
-		par_contribution = dict
-		for par in self.pars:
-
-			if len(par.links) == 0 # If not a transition parameter, return the value directly
-				par_contribution[par.uid] = (1.0,self.net_dt_impact[par.uid][ti])
+        self.cost = cost # Spending values at each time point - net_dt_cov and net_dt_impact is defined at same times
+        self.net_dt_cov = net_dt_cov # Same for all Parameters, precomputed. If not a transition parameter, then the dt value is the same as the annual value!
+        self.net_dt_impact = net_dt_impact # Dict mapping par_uid to impact array
+        
+        # Map parameter UID to impact group to identify which impact group to use for which each par reached
+        # NOTE - this implies a parameter can only belong to one impact group!
+        self.pars_to_groups = dict()
+        for grp in self.impact_groups:
+            for par in self.impact_groups[grp]:
+                self.pars_to_groups[par.uid] = grp
 
 
-			# Retrieve the fractional values for the parameter's impact group
-			frac_dt_cov = grp_frac_dt_cov[par.uid]
-			frac_dt_impact = grp_frac_dt_impact[par.uid]
+    def unlink(self):
+        for i in xrange(0,len(self.pars)):
+            self.pars[i] = self.pars[i].uid
+        for grp in self.impact_groups:
+            for i in xrange(0,len(self.impact_groups[grp])):
+                self.impact_groups[grp][i] = self.impact_groups[grp][i].uid
 
-			# Convert units
-			# If the *Program* has number units - note grp_size is 1.0 if self.is_fraction
-			grp_size = source_set_size[self.pars_to_groups[par.uid]]
-			frac_dt_cov =  self.net_dt_cov[ti] / grp_size
-			frac_dt_impact = self.net_dt_impact[par.uid][ti] / grp_size
+    def relink(self,objs):
+        for i in xrange(0,len(self.pars)):
+            self.pars[i] = objs[self.pars[i]]
+        for grp in self.impact_groups:
+            for i in xrange(0,len(self.impact_groups[grp])):
+                self.impact_groups[grp][i] = objs[self.impact_groups[grp][i]]
 
-			# If the *Parameter* has number units
-			if par.is_fraction:
-				eff_dt_cov = frac_dt_cov
-				eff_dt_impact = frac_dt_impact
-			else:
-				eff_dt_cov = frac_dt_cov*source_element_size[par.uid]
-				eff_dt_impact = frac_dt_cov*source_element_size[par.uid]
+    def get_contribution(self,ti):
+        # Return fractional coverage and program value contribution for every Parameter
+        # reached by this Program
 
-			par_contribution[par.uid] = (frac_dt_cov,eff_dt_cov*eff_dt_impact)
+        # STAGE 2.1 Get impact group sizes
+        source_set_size = defaultdict(float)
 
-		return par_contribution
+        for grp in self.impact_groups:
+            if self.is_fraction:
+                source_set_size[grp] = 1.0
+            else:
+                for par in self.impact_groups[grp]:
+                    source_set_size[grp] += par.source_popsize(ti)
+
+        # STAGE 2.2
+        par_contribution = dict()
+        for par in self.pars:
+
+            if len(par.links) == 0: # If not a transition parameter, return the value directly
+                par_contribution[par.uid] = (1.0,self.net_dt_impact[par.uid][ti])
+
+            # Convert units depending on the *Program* units
+            grp_size = source_set_size[self.pars_to_groups[par.uid]]
+            frac_dt_cov =  self.net_dt_cov[ti] / grp_size # Note grp_size is 1.0 if self.is_fraction is True
+            frac_dt_impact = self.net_dt_impact[par.uid][ti] / grp_size
+
+            # Convert units depending on the *Parameter* units
+            if par.is_fraction:
+                eff_dt_cov = frac_dt_cov
+                eff_dt_impact = frac_dt_impact
+            else:
+                eff_dt_cov = frac_dt_cov*par.source_popsize(ti)
+                eff_dt_impact = frac_dt_cov*par.source_popsize(ti)
+
+            par_contribution[par.uid] = (frac_dt_cov,eff_dt_cov*eff_dt_impact)
+
+        return par_contribution
 

@@ -5,7 +5,7 @@ from optima_tb.validation import checkTransitionFraction
 import optima_tb.settings as project_settings
 from optima_tb.results import ResultSet
 from optima_tb.parsing import FunctionParser
-
+from optima_tb.ModelPrograms import ModelProgramSet, ModelProgram
 
 import logging
 logger = logging.getLogger(__name__)
@@ -42,8 +42,9 @@ class Variable(object):
         else:
             self.vals = val
         self.vals_old = None                # An optional array that stores old values in the case of overwriting.
-        self.val_format = None # This will be set when values are loaded into the Variable i.e. parset.pars['cascade']
+        self.is_fraction = False # This will be set when values are loaded into the Variable i.e. parset.pars['cascade']
         # Or if it is a Characteristic, automatically determined based on the dependencies
+        # If this is true, then it means the value corresponds to a fraction rather than a number
 
 
     def update(self,ti=None):
@@ -77,6 +78,8 @@ class Variable(object):
                 if isinstance(obj,uuid.UUID):
                     self.__dict__[prop] = objs[obj]
 
+    def __repr__(self):
+        return '%s "%s" (%s)' % (self.__class__.__name__,self.label,self.uid)
 
 class Compartment(Variable):
     ''' A class to wrap up data for one compartment within a cascade network. '''
@@ -105,7 +108,7 @@ class Characteristic(Variable):
         # the denominator is another Characteristic that normalizes this one
         # All passed by reference so minimal performance impact
         Variable.__init__(self, label=label)
-        self.val_format = 'number' # By default, a characteristic has units of number of people
+        self.is_fraction = False # By default, a characteristic has units of number of people
         self.includes = []
         self.denominator = None
         self.dependency = False # This flag indicates whether another variable depends on this one, indicating the value needs to be computed during integration
@@ -121,7 +124,7 @@ class Characteristic(Variable):
         self.denominator = x
         if isinstance(x,Characteristic):
             x.dependency = True
-        self.val_format = 'fraction' # Once a denominator is assigned, the units are now a fraction e.g. prevalence
+        self.is_fraction = True # Once a denominator is assigned, the units are now a fraction e.g. prevalence
 
 
     def update(self,ti=None):
@@ -171,6 +174,7 @@ class Parameter(Variable):
         self.dependency = False 
         self.scale_factor = 1.0
         self.links = [] # References to links that derive from this parameter
+        self.source_cache = None # source_popsize returns this value if not None, otherwise computes
 
     def constrain(self,ti):
         # NB. Must be an array, so ti must must not be supplied
@@ -202,10 +206,14 @@ class Parameter(Variable):
         # derive from this program
         # If impact_labels is specified, it must be a list of link labels
         # Then only links whose label is in that list will be included
-        n = 0
-        for link in self.links:
-            n += link.source.vals[ti]
-        return n
+        if self.source_cache is not None:
+            return self.source_cache
+        else:
+            n = 0
+            for link in self.links:
+                n += link.source.vals[ti]
+            self.source_cache = n
+            return n
 
 class Link(Variable):
     '''
@@ -239,7 +247,6 @@ class Link(Variable):
         
     def __repr__(self, *args, **kwargs):
         return "Link %s - %s to %s" % (self.label, self.source.label, self.dest.label)
-
 
 # %% Cascade compartment and population classes
 class ModelPopulation(Node):
@@ -423,7 +430,6 @@ class ModelPopulation(Node):
             par.vals = np.ones(len(sim_settings['tvec'])) * np.nan
             par.vals_old = np.ones(len(sim_settings['tvec'])) * np.nan
 
-
 # %% Model class
 class Model(object):
     ''' A class to wrap up multiple populations within model and handle cross-population transitions. '''
@@ -432,15 +438,11 @@ class Model(object):
 
         self.pops = list()              # List of population groups that this model subdivides into.
         self.pop_ids = dict()           # Maps label of a population to its position index within populations list.
-
         self.contacts = dict()          # Maps interactions 'from' (i.e. a->b for [a][b]) and 'into' (i.e. a<-b for [a][b]) ModelPopulations, marking them with a weight.
-
         self.sim_settings = odict()
-
         self.t_index = 0                # Keeps track of array index for current timepoint data within all compartments.
-
-        self.prog_vals = dict()         # Stores coverage and impact values for programs, given budget info passed into model.
-                                        # Intended to avoid constant getImpact() calls during parameter value overwrites.
+        self.programs_active = None     # True or False depending on whether Programs will be used or not
+        self.pset = None                # Instance of ModelProgramSet
 
     def __getstate__(self):
         # Break cycles when deepcopying or pickling by swapping them for UIDs
@@ -451,6 +453,7 @@ class Model(object):
             for obj in pop.comps + pop.characs + pop.pars + pop.links:
                 obj.unlink()
 
+        d['pset'].unlink()
         del d['pars_by_pop']
 
         return d
@@ -480,6 +483,7 @@ class Model(object):
             # This might need to be reconsidered later (e.g. if it causes problems with pickling and should only be done when deepcopying)
             objs[i].uid = uuid.uuid4()
 
+        d['pset'].relink(objs)
         self.__dict__ = d
 
     def getPop(self, pop_label):
@@ -487,123 +491,16 @@ class Model(object):
         pop_index = self.pop_ids[pop_label]
         return self.pops[pop_index]
 
-
-    def preCalculateProgsetVals(self, settings, progset):
-        ''' Work out program coverages and impacts ahead of the model run. '''
-
-        try: start_year = self.sim_settings['progs_start']
-        except: raise OptimaException('ERROR: Pre-calculation of program set values has been initiated without specifying a start year.')
-
-        try: init_alloc = self.sim_settings['init_alloc']
-        except: raise OptimaException('ERROR: Pre-calculation of program set values has been initiated without specifying a starting allocation, empty or otherwise.')
-
-        try: alloc_is_coverage = self.sim_settings['alloc_is_coverage']
-        except: raise OptimaException('ERROR: Pre-calculation of program set values has been initiated without specifying whether starting allocation is in money or coverage.')
-
-        for prog in progset.progs:
-
-            # Store budgets/coverages for programs that are initially allocated.
-            if prog.label in init_alloc:
-                alloc = init_alloc[prog.label]
-
-                # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to timevec.
-                if 'constraints' in self.sim_settings and 'max_yearly_change' in self.sim_settings['constraints'] and prog.label in self.sim_settings['constraints']['max_yearly_change']:
-                    if alloc_is_coverage:
-                        default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
-                    else:
-                        default = prog.getDefaultBudget(year=start_year)
-                    default = prog.getDefaultBudget(year=start_year)
-                    if np.abs(alloc - default) > project_settings.TOLERANCE:
-                        # print 'Start it up...'
-                        alloc_def = self.sim_settings['tvec'] * 0.0 + default
-                        alloc_new = self.sim_settings['tvec'] * 0.0 + alloc
-                        try: eps = self.sim_settings['constraints']['max_yearly_change'][prog.label]['val']
-                        except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog.label)
-                        if 'rel' in self.sim_settings['constraints']['max_yearly_change'][prog.label] and self.sim_settings['constraints']['max_yearly_change'][prog.label]['rel'] is True:
-                            eps *= default
-                        if np.isnan(eps): eps = np.inf  # Eps likely becomes a nan if it was infinity multiplied by zero.
-                        if np.abs(eps * settings.tvec_dt) < np.abs(alloc - default):
-                            if np.abs(eps) < project_settings.TOLERANCE:
-                                raise OptimaException('ERROR: The change in budget for ramp-constrained "%s" is effectively zero. Model will not continue running; change in program funding would be negligible.' % prog.label)
-                            alloc_ramp = default + (self.sim_settings['tvec'] - start_year) * eps * np.sign(alloc - default)
-                            if alloc >= default: alloc_ramp = np.minimum(alloc_ramp, alloc_new)
-                            else: alloc_ramp = np.maximum(alloc_ramp, alloc_new)
-                            alloc = alloc_def * (self.sim_settings['tvec'] < start_year) + alloc_ramp * (self.sim_settings['tvec'] >= start_year)
-
-                if alloc_is_coverage:
-                    self.prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc), 'cov':alloc, 'impact':{}}
-                else:
-                    self.prog_vals[prog.label] = {'cost':alloc, 'cov':prog.getCoverage(budget=alloc), 'impact':{}}
-
-            # Store default budgets/coverages for all other programs if saturation is selected.
-            elif 'saturate_with_default_budgets' in self.sim_settings and self.sim_settings['saturate_with_default_budgets'] is True:
-                self.prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year)), 'impact':{}}
-
-            else:
-                logger.warn("Program '%s' was not contained in init_alloc and not saturated, therefore was not created." % prog.label)
-
-            # Convert coverage into impact for programs.
-            if prog.label in self.prog_vals:
-                if 'cov' in self.prog_vals[prog.label]:
-                    cov = self.prog_vals[prog.label]['cov']
-
-                    # Check if program attributes have multiple distinct values across time.
-                    do_full_tvec_check = {}
-                    for att_label in prog.attributes:
-                        att_vals = prog.attributes[att_label]
-                        if len(set(att_vals[~np.isnan(att_vals)])) <= 1:
-                            do_full_tvec_check[att_label] = False
-                        else:
-                            do_full_tvec_check[att_label] = True
-
-                    # If attributes change over time and coverage values are greater than zero, impact functions based on them need to be interpolated across all time.
-                    # Otherwise interpolating for the very last timestep alone should be sufficient.
-                    # This means impact values can be stored as full arrays, single-element arrays or scalars in the case that an impact function has no attributes.
-                    for par_label in prog.target_pars:
-                        do_full_tvec = False
-                        if 'attribs' in prog.target_pars[par_label] and np.sum(cov) > project_settings.TOLERANCE:
-                            for att_label in prog.target_pars[par_label]['attribs']:
-                                if att_label in do_full_tvec_check and do_full_tvec_check[att_label] is True:
-                                    do_full_tvec = True
-                        if do_full_tvec is True:
-                            years = self.sim_settings['tvec']
-                        else:
-                            years = [self.sim_settings['tvec'][-1]]
-                        self.prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=parser, years=years, budget_is_coverage=True)
-
-
     def build(self, settings, parset, progset=None, options=None):
         ''' Build the full model. '''
 
         if options is None: options = dict()
 
         self.sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt / 2, settings.tvec_dt)
+        self.sim_settings['tvec_dt'] = settings.tvec_dt
+
         self.sim_settings['impact_pars_not_func'] = []      # Program impact parameters that are not functions of other parameters and thus already marked for dynamic updating.
                                                             # This is only non-empty if a progset is being used in the model.
-        if 'progs_start' in options:
-            if progset is not None:
-                self.sim_settings['progs_start'] = options['progs_start']
-
-                if 'progs_end' in options:
-                    self.sim_settings['progs_end'] = options['progs_end']
-                if 'init_alloc' in options:
-                    self.sim_settings['init_alloc'] = options['init_alloc']
-                else: self.sim_settings['init_alloc'] = {}
-                if 'constraints' in options:
-                    self.sim_settings['constraints'] = options['constraints']
-                if 'alloc_is_coverage' in options:
-                    self.sim_settings['alloc_is_coverage'] = options['alloc_is_coverage']
-                else: self.sim_settings['alloc_is_coverage'] = False
-                if 'saturate_with_default_budgets' in options:
-                    self.sim_settings['saturate_with_default_budgets'] = options['saturate_with_default_budgets']
-                for impact_label in progset.impacts:
-                    if impact_label not in settings.par_funcs:
-                        self.sim_settings['impact_pars_not_func'].append(impact_label)
-
-                self.preCalculateProgsetVals(settings=settings, progset=progset)   # For performance.
-            else:
-                raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
-
         parser.debug = settings.parser_debug
 
         for k, pop_label in enumerate(parset.pop_labels):
@@ -707,7 +604,7 @@ class Model(object):
                 par = pop.pars[pop.par_ids[cascade_par.label]] # Find the parameter with the requested label
 
                 par.vals = cascade_par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
-                par.val_format = cascade_par.y_format[pop_label]
+                par.is_fraction = cascade_par.y_format[pop_label] == 'fraction'
                 par.scale_factor = cascade_par.y_factor[pop_label]
 
                 # Now that we constrain everything, can leave it out here
@@ -747,7 +644,7 @@ class Model(object):
                         val = transfer_parameter.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_target)
                         par = Parameter(label=par_label,val=val,f_stack = None, deps = None, limits = None)
                         par.scale_factor = transfer_parameter.y_factor[pop_target]
-                        par.val_format = transfer_parameter.y_format[pop_target]
+                        par.is_fraction = transfer_parameter.y_format[pop_target] == 'fraction'
                         par_id = len(pop.pars)
                         pop.pars.append(par)
                         pop.par_ids[par_label] = par_id
@@ -767,7 +664,7 @@ class Model(object):
                                 pop.links.append(link)
                                 pop.link_ids[link_tag] = link_id
 
-        # Make a lookup dict for programs
+        # # Make a lookup dict for programs
         self.pars_by_pop = {}
         for pop in self.pops:
             for par in pop.pars:
@@ -775,6 +672,36 @@ class Model(object):
                     self.pars_by_pop[par.label].append(par)
                 else:
                     self.pars_by_pop[par.label] = [par]
+
+        # Finally, prepare ModelProgramSet helper if programs are going to be used
+        if 'progs_start' in options:
+            if progset is not None:
+                self.programs_active = True
+                self.sim_settings['progs_start'] = options['progs_start']
+
+                if 'progs_end' in options:
+                    self.sim_settings['progs_end'] = options['progs_end']
+                if 'init_alloc' in options:
+                    self.sim_settings['init_alloc'] = options['init_alloc']
+                else: self.sim_settings['init_alloc'] = {}
+                if 'constraints' in options:
+                    self.sim_settings['constraints'] = options['constraints']
+                if 'alloc_is_coverage' in options:
+                    self.sim_settings['alloc_is_coverage'] = options['alloc_is_coverage']
+                else: self.sim_settings['alloc_is_coverage'] = False
+                if 'saturate_with_default_budgets' in options:
+                    self.sim_settings['saturate_with_default_budgets'] = options['saturate_with_default_budgets']
+                for impact_label in progset.impacts:
+                    if impact_label not in settings.par_funcs:
+                        self.sim_settings['impact_pars_not_func'].append(impact_label)
+
+                self.pset = ModelProgramSet(progset,self.pops) # Make a ModelProgramSet wrapper
+                self.pset.update_cache(self.sim_settings) # Perform precomputations
+
+            else:
+                raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
+        else:
+            self.programs_active = False
 
         # Make sure initially-filled junctions are processed and initial dependencies are calculated.
         self.updateValues(settings=settings, progset=progset, do_special=False)     # Done first just in case junctions are dependent on characteristics.
@@ -842,19 +769,17 @@ class Model(object):
                         if link.parameter.scale_factor is not None and link.parameter.scale_factor != project_settings.DO_NOT_SCALE:  # scale factor should be available to be used
                             transition *= link.parameter.scale_factor
 
-                        if link.parameter.val_format == 'fraction':
+                        if link.parameter.is_fraction:
                             # check if there are any violations, and if so, deal with them
                             if transition > 1.:
                                 transition = checkTransitionFraction(transition, settings.validation)
                             converted_frac = 1 - (1 - transition) ** dt  # A formula for converting from yearly fraction values to the dt equivalent.
                             converted_amt = comp_source.vals[ti] * converted_frac
-                        elif link.parameter.val_format == 'number':
+                        else:
                             converted_amt = transition * dt
                             if link.is_transfer:
                                 transfer_rescale = comp_source.vals[ti] / pop.getCharac(settings.charac_pop_count).vals[ti]
                                 converted_amt *= transfer_rescale
-                        else:
-                            raise OptimaException("Unknown link type: %s in model\nObserved for population %s, compartment %s" % (link.val_format, pop.label, comp.label))
 
                         outflow[i] = converted_amt
                         link.target_flow[ti] = converted_amt
@@ -887,6 +812,8 @@ class Model(object):
         for pop in self.pops:
             for comp in pop.comps:
                 comp.vals[ti+1] = max(0,comp.vals[ti+1])
+            for par in pop.pars:
+                par.source_cache = None # Reset the compartment size cache
 
         # Update timestep index.
         self.t_index += 1
@@ -968,7 +895,6 @@ class Model(object):
         # We resolve one parameter at a time, in dependency order
         for par_label in (settings.par_funcs.keys() + self.sim_settings['impact_pars_not_func']):
             pars = self.pars_by_pop[par_label] # All of the parameters with this label, across populations. There should be one for each population (these are Parameters, not Links)
-            assert len(pars) == len(self.pops) # TODO - take this check out later
 
             # First - update parameters that are dependencies, evaluating f_stack if required
             # Again, the correct order in the outer loop over par_label is ESSENTIAL
@@ -976,237 +902,19 @@ class Model(object):
                 if par.dependency:
                     par.update(ti)
 
-            # Next, handle programs
-            # Programs are disaggregated across populations and impact groups, NOT compartments
-            # although the compartments indirectly matter because they need to be summed to get
-            # the popsizes
-            if ('progs_start' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start']) and not ('progs_end' in self.sim_settings and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_end']):
-                # We need to iterate over all programs that reach the parameter we are currently operating on
+        # Next, handle programs
+        if self.programs_active:
+            self.pset.update_pars(ti) # Update parameter values with program overwrites in place
 
-                first_prog = True   # True if program in prog_label loop is the first one in the impact dict list.
-                impact_list = []    # Notes for each program what its impact would be before coverage limitations.
-                overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
-
-                for prog_label in progset.impacts[par_label]:
-
-                    prog = progset.getProg(prog_label)
-                    prog_type = prog.prog_type
-                    dt_impact = None    # Just to distinguish between dt-ly impact and non-transition program impacts that currently have no coverage.
-
-                    # Extract and rescale the net coverage and net impact. This will then be distributed across the Parameters
-                    try:
-                        net_cov = self.prog_vals[prog_label]['cov'][ti]
-                    except:
-                        net_cov = self.prog_vals[prog_label]['cov']
-                    try:
-                        net_impact = self.prog_vals[prog_label]['impact'][par_label][ti]
-                    except:
-                        net_impact = self.prog_vals[prog_label]['impact'][par_label]
-                    try:
-                        impact_factor = float(net_impact) / float(net_cov)
-                    except ZeroDivisionError:
-                        impact_factor = 0.
-                        if not float(net_impact) == 0.:
-                            raise OptimaException('Attempted to divide impact of {0} by coverage of {1} for program "{2}" with impact parameter "{3}".'.format(net_impact, net_cov, prog_label, par_label))
-
-                    # Assume all program coverage/impact that targets transition parameters is 'effective', not 'probabilistic'.
-                    # For number format coverages/impacts, this will be uniformly distributed across timesteps.
-                    # For fraction format coverages/impacts, a dt-ly rate is the same as the intended annual rate.
-                    # This means the two formats result in differing t-dependent distributions, but the total should be the same, assuming no coverage capping.
-                    if prog.cov_format == 'fraction':
-                        dt_cov = net_cov
-                        dt_impact = net_impact
-                    elif prog.cov_format == 'number':
-                        dt_cov = net_cov * settings.tvec_dt
-                        dt_impact = net_impact * settings.tvec_dt
-                    else: 
-                        raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
-
-                    # Some of these could be cached in the ProgramSet?
-
-                    # Now perform the disaggregation. First, get all of the ModelPopulations that are targeted by this program
-                    target_pops = []
-                    for pop in self.pops:
-                        if pop.label in prog.target_pops:
-                            target_pops.append(pop)
-                    
-                    # Next, retrieve the labels for all of the parameters in the impact group containing the current parameter
-                    if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
-                        group_label = settings.progtype_specs[prog_type]['impact_pars'][par_label]['group'] # The name of the impact group e.g. 'a'
-                        group_par_labels = settings.progtype_specs[prog_type]['impact_par_groups'][group_label] # A list of impact parameter labels with this group
-                    else:
-                        group_par_labels = prog_label # Otherwise the current parameter is the only one in in the 'impact group'
-                    impact_groups = []
-                    for pop in target_pops:
-                        impact_groups.append([par for par in pop.pars if par.label in group_par_labels])
-
-                    # Now target_pops is an array of pops, and impact_groups is a list the same length, with all of the Parameters in the impact group
-                    
-                    
-                    for i,pop in enumerate(self.pops):
-
-                        # Make sure the population in the loop is a target of this program and has an alloc - otherwise don't overwrite the parameter value
-                        if pop.label not in prog.target_pops:
-                            continue
-                        if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']):
-                            continue
-
-                        # For each population, we now want to get the source element size and pop size
-                        source_element_size = pars[i].source_popsize # This is the number of people covered by the Parameter in question in the current population
-                        source_set_size = None
-
-                        # Now we know the net coverage and impact in scaled dt units. This now needs to be scaled and distributed across the populations
-                        # As Links derive their values directly from Parameters, there cannot be any disaggregation across the Links, although there can 
-                        # be disaggregation over multiple 
-                        if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
-                            group_label = settings.progtype_specs[prog_type]['impact_pars'][par_label]['group'] # The name of the impact group e.g. 'a'
-                            group_par_labels = settings.progtype_specs[prog_type]['impact_par_groups'][group_label] # A list of impact parameter labels with this group
-                            for label in group_par_labels:
-
-
-                                for from_pop in prog.target_pops:
-                                    source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].vals[ti]
-
-
-
-
-                        # For each population, get the 
-                        source_set_size = [par.source_popsize for par in pars] # This is the number of people covered by the Parameter in question
-
-
-
-                    for pop in self.pops:
-                        if par_label in progset.impacts:
-                            first_prog = True   # True if program in prog_label loop is the first one in the impact dict list.
-                            impact_list = []    # Notes for each program what its impact would be before coverage limitations.
-                            overflow_list = []  # Notes for each program how much greater its funded coverage is than people available to be covered.
-                            for prog_label in progset.impacts[par_label]:
-                                prog = progset.getProg(prog_label)
-                                prog_type = prog.prog_type
-                                dt_impact = None    # Just to distinguish between dt-ly impact and non-transition program impacts that currently have no coverage.
-
-                                # Make sure the population in the loop is a target of this program.
-                                if pop.label not in prog.target_pops:
-                                    continue
-                                if not ('init_alloc' in self.sim_settings and prog_label in self.sim_settings['init_alloc']):
-                                    continue
-
-                                # If a program target is a transition parameter, its coverage must be distributed and format-converted.
-
-                                if 'tag' in settings.linkpar_specs[par_label]:
-                                    # Coverage is assumed to be across a compartment over a set of populations, not a single element, so scaling is required.
-                                    source_element_size = self.pops[pars[0].index_from[0]].comps[pars[0].index_from[1]].vals[ti]
-                                    source_set_size = 0
-                                    for from_pop in prog.target_pops:
-                                        source_set_size += self.getPop(from_pop).comps[pars[0].index_from[1]].vals[ti]
-
-                                    # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
-                                    # NOTE: This might be a place to improve performance.
-                                    if 'group' in settings.progtype_specs[prog_type]['impact_pars'][par_label]:
-                                        group_label = settings.progtype_specs[prog_type]['impact_pars'][par_label]['group']
-                                        for alt_par_label in settings.progtype_specs[prog_type]['impact_par_groups'][group_label]:
-                                            if not alt_par_label == par_label:
-                                                alt_pars = pop.getLinks(settings.linkpar_specs[alt_par_label]['tag'])
-                                                for from_pop in prog.target_pops:
-                                                    source_set_size += self.getPop(from_pop).comps[alt_pars[0].index_from[1]].vals[ti]
-
-                                    # Coverage and impact functions can be parsed/calculated as time-dependent arrays or time-independent scalars.
-                                    # Makes sure that the right value is selected.
-
-                                    # Convert dt-ly coverage/impact into a dt-ly fractonal coverage/impact, i.e. normalise for number available to transition.
-                                    if prog.cov_format == 'fraction':
-                                        frac_dt_cov = dt_cov
-                                        frac_dt_impact = dt_impact
-                                    elif prog.cov_format == 'number':
-                                        if source_set_size <= project_settings.TOLERANCE:
-                                            frac_dt_cov = 0.0
-                                            frac_dt_impact = 0.0
-                                        else:
-                                            frac_dt_cov = dt_cov / source_set_size
-                                            frac_dt_impact = dt_impact / source_set_size
-                                    else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
-
-                                    # Cap dt-ly coverage for each program.
-                                    # if pars[0].val_format == 'fraction':
-                                    #     if frac_dt_cov > 1.0:
-                                    #         frac_dt_cov = 1.0
-                                    #         frac_dt_impact = frac_dt_cov * impact_factor
-
-                                    # A fractional dt-ly coverage happens to be considered overflow.
-                                    # For instance, dt-ly impacts of [0.7,1] with corresponding dt-ly coverage of [1.2,1.3] will scale down so net dt-ly coverage is 1.
-                                    overflow_list.append(frac_dt_cov)
-
-                                    # Convert fraction-based program coverage/impact to parameter format, multiplying by the transition-source compartment size if needed.
-                                    if pars[0].val_format == 'fraction':
-                                        dt_cov = frac_dt_cov
-                                        dt_impact = frac_dt_impact
-                                    elif pars[0].val_format == 'number':
-                                        dt_cov = frac_dt_cov * source_element_size
-                                        dt_impact = frac_dt_impact * source_element_size
-
-                                # If a program target is any other parameter, the parameter value is directly overwritten by coverage.
-                                # TODO: Decide how to handle coverage distribution.
-                                else:
-                                    try: impact = self.prog_vals[prog_label]['impact'][par_label][ti]
-                                    except: impact = self.prog_vals[prog_label]['impact'][par_label]
-
-                                if first_prog:
-                                    new_val = 0  # Zero out the new impact parameter for the first program that targets it within an update, just to make sure the overwrite works.
-                                    first_prog = False
-
-                                if dt_impact is None:
-                                    impact_list.append(impact)  # This is for impact parameters without transition tags.
-                                else:   # Alternatively, if the parameter has a transition tag...
-                                    impact_list.append(dt_impact)
-
-
-                            # Checks to make sure that the net coverage of all programs targeting a parameters is capped by those that are available to be covered.
-                            # Otherwise renormalises impacts.
-                            # As a sidenote, only programs with coverage have overflow, which means that impact list is filled with dt-ly impacts.
-                            # TODO: Validate that program impact-factors are less than 1 so that the impact list is definitely less than overflow list.
-                            prev_dt_impacts = impact_list   # Just for debugging diagnostics.
-                            dt_impacts = []     # Just for debugging diagnostics.
-                            if len(overflow_list) > 0 and sum(overflow_list) > 1:
-                                impact_list = np.array(impact_list) / sum(overflow_list)
-
-                            # Transition tagged parameters involved dt-ly impacts.
-                            # They must be summed and converted back to annual parameter values at this step.
-                            if 'tag' in settings.linkpar_specs[par_label]:
-                                impact_list = np.array([np.sum(impact_list)])
-                                # Converting to annual impacts following normalisation and summation.
-                                if pars[0].val_format == 'number':
-                                    impact_list = impact_list * (1.0 / settings.tvec_dt)
-                                elif pars[0].val_format == 'fraction':
-                                    impact_list = 1.0 - (1.0 - impact_list) ** (1.0 / settings.tvec_dt)
-                                else: raise OptimaException('Program to parameter impact conversion has encountered a format that is not number or fraction.')
-
-
-                            # TODO: This is most likely where modality interactions should be developed.
-                            # At the moment, impacts are summed together but can potentially combined in nested ways, e.g. by taking a maximum.
-                            # More complicated program interactions will of course take more design thought.
-                            new_val += np.sum(impact_list)
-
-                            # Handle impact constraints.
-                            # Note: This applies to any parameter that is impacted by the progset, not just for programs that are in the allocation.
-                            if 'constraints' in self.sim_settings and 'impacts' in self.sim_settings['constraints'] and par_label in self.sim_settings['constraints']['impacts']:
-                                try: vals = self.sim_settings['constraints']['impacts'][par_label]['vals']
-                                except: raise OptimaException('ERROR: An impact constraint was passed to the model for "%s" but had no values associated with it.' % par_label)
-                                if not len(vals) == 2: raise OptimaException('ERROR: Constraints for impact "%s" must be provided as a list or tuple of two values, i.e. a lower and an upper constraint.' % par_label)
-                                if new_val < vals[0]: new_val = vals[0]
-                                if new_val > vals[1]: new_val = vals[1]
-
-                        # Perform the value overwrite if the program set a value for the parameter
-                        for par in pars:
-                            par.vals[ti] = new_val
-
-            # Backup the values of parameters that are tagged with special rules.
-            # Todo - clean up this workflow
-            if 'rules' in settings.linkpar_specs[par_label]:
-                for par in pars:
-                    par.vals_old[ti] = par.vals[ti]
+        for par_label in (settings.par_funcs.keys() + self.sim_settings['impact_pars_not_func']):
 
             # Handle parameters tagged with special rules. Overwrite vals if necessary.
             if do_special and 'rules' in settings.linkpar_specs[par_label]:
+                pars = self.pars_by_pop[par_label]  # All of the parameters with this label, across populations. There should be one for each population (these are Parameters, not Links)
+
+                for par in pars:
+                    par.vals_old[ti] = par.vals[ti]
+
                 rule = settings.linkpar_specs[par_label]['rules']
                 for pop in self.pops:
                     if rule == 'avg_contacts_in':
