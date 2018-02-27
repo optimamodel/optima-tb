@@ -1659,7 +1659,6 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
          
         
     """
-    logging.debug("Xlim = ", xlim)
     if len(ys) == 0:
         logging.error("No values supplied; cannot plot")
         raise OptimaException("No values supplied; cannot plot")
