@@ -454,7 +454,7 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
                             y_intercept
         
     Returns:
-        fig             fig handle
+        figs            fig handles for all output figures
         
     Replaces:
         plotCharacteristic
@@ -486,6 +486,7 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
         logging.error("No output label specified for plotting")
         return None
 
+    figs = []
     for out_label in output_labels:
         if isinstance(observed_data_labels,dict):
             observed_data_label = observed_data_labels[out_label]
@@ -499,7 +500,8 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
                              plot_ybounds=plot_ybounds,
                              colormappings=colormappings, colors=colors, linestyles=linestyles,
                              title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
-    return fig # return last fig handle
+        figs.append(fig)
+    return figs # return last fig handle
 
 def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
                        plot_total=False, plot_observed_data=True, observed_data_label=None,
@@ -557,6 +559,7 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
                     save_fig=save_results, fig_name=filename + '_TotalFor15-64', plot_total=True)
 
     """
+    figs = []
     for out_label in output_labels:
         if plot_total:
             fig = innerPlotTrend(proj, resultset, [out_label], compare_type=COMPARETYPE_RESULT, pop_labels=pop_labels, plot_total=True,
@@ -574,8 +577,8 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
                    plot_relative=plot_relative, y_intercept=y_intercept,
                    colormappings=colormappings, colors=colors, linestyles=linestyles,
                    title=title, save_fig=save_fig, fig_name=fig_name + '_%s' % pop, **kwargs)
-            logger.info("Created multiple plots for plotCompareResults for multiple populations. Returning last plot created")
-    return fig # return last
+                figs.append(fig)
+    return figs # return last
 
 
 def plotYearsBar(proj, result, output_labels, pop_labels=None, year_periods=None,
@@ -1382,7 +1385,7 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, xlabel="
     else:
         clabels = labels
 
-    _plotBars(values, clabels, colors=colors, linestyles=linestyles, hatches=hatches,
+    fig = _plotBars(values, clabels, colors=colors, linestyles=linestyles, hatches=hatches,
               xlabels=xlabels, # legendsettings=legendsettings,
               save_fig=save_fig, **plotdict)
 
@@ -1399,6 +1402,9 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, xlabel="
             separateLegend(labels=cat_labels, colors=cat_colors, linestyles=linestyles,
                            fig_name=fig_name, reverse_order=True,)
 
+    return fig
+
+    
 def getName(output_id, proj):
     """
     For a given output_id, returns the user-friendly version of the name. 
