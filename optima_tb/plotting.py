@@ -487,8 +487,10 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
         return None
 
     for out_label in output_labels:
-        if observed_data_labels is not None:
+        if isinstance(observed_data_labels,dict):
             observed_data_label = observed_data_labels[out_label]
+        elif isinstance(observed_data_labels,str):
+            observed_data_label = observed_data_labels
         else:
             observed_data_label = None
         fig = innerPlotTrend(proj, [result], [out_label], compare_type=COMPARETYPE_POP, pop_labels=pop_labels,
