@@ -642,6 +642,7 @@ def plotCascade(proj, result, output_labels, pop_labels=None, year_periods=None,
                        colormappings=colormappings, colors=colors, linestyles=linestyles,
                        plot_relative=plot_relative, y_intercept=y_intercept, xlim=(0, len(output_labels)),
                        title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
+    return fig
 
 
 def plotCompsBar(proj, result, output_labels, pop_labels=None, year_periods=None,
