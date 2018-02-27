@@ -174,7 +174,6 @@ class Parameter(Variable):
         self.dependency = False 
         self.scale_factor = 1.0
         self.links = [] # References to links that derive from this parameter
-        self.source_cache = None # source_popsize returns this value if not None, otherwise computes
 
     def constrain(self,ti):
         # NB. Must be an array, so ti must must not be supplied
@@ -206,14 +205,10 @@ class Parameter(Variable):
         # derive from this program
         # If impact_labels is specified, it must be a list of link labels
         # Then only links whose label is in that list will be included
-        if self.source_cache is not None:
-            return self.source_cache
-        else:
-            n = 0
-            for link in self.links:
-                n += link.source.vals[ti]
-            self.source_cache = n
-            return n
+        n = 0
+        for link in self.links:
+            n += link.source.vals[ti]
+        return n
 
 class Link(Variable):
     '''
@@ -816,8 +811,6 @@ class Model(object):
         for pop in self.pops:
             for comp in pop.comps:
                 comp.vals[ti+1] = max(0,comp.vals[ti+1])
-            for par in pop.pars:
-                par.source_cache = None # Reset the compartment size cache
 
         # Update timestep index.
         self.t_index += 1
