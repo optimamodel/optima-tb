@@ -416,7 +416,7 @@ def _turnOffBorder():
 
 def plotResult(proj, result, output_labels=None, pop_labels=None,
                plot_total=False, plot_type=None, plot_relative=None,
-               plot_observed_data=True, observed_data_labels=None,
+               plot_observed_data=True, observed_data_label=None,
                plot_ybounds=None,
                colormappings=None, colors=None, linestyles=None,
                title=None, save_fig=False, fig_name=None, **kwargs):
@@ -442,7 +442,7 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
                             ("year" : year value), calculated for each population or total population if plot_total=True
                             ("value": value), a numeric value
         plot_observed_data    add observed datapoints as scatter plot, if corresponding datapoints exist.
-        observed_data_labels   dict of mappings of what datapoints should be used for each output_label.
+        observed_data_label   dict of mappings of what datapoints should be used for each output_label.
         colormappings   colormappings that should be used to generate colors for populations. Supercedes colors. 
                         Format: odict with color / colormap as key, value = list of populations for corresponding key 
         colors          list of colors that should be used for population. Superceded by colormappings.
@@ -488,10 +488,10 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
 
     figs = []
     for out_label in output_labels:
-        if isinstance(observed_data_labels,dict):
-            observed_data_label = observed_data_labels[out_label]
-        elif isinstance(observed_data_labels,str):
-            observed_data_label = observed_data_labels
+        if isinstance(observed_data_label,dict):
+            observed_data_label = observed_data_label[out_label]
+        elif isinstance(observed_data_label,str):
+            observed_data_label = observed_data_label
         else:
             observed_data_label = None
         fig = innerPlotTrend(proj, [result], [out_label], compare_type=COMPARETYPE_POP, pop_labels=pop_labels,
