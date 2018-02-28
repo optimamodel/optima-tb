@@ -501,7 +501,7 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
                              colormappings=colormappings, colors=colors, linestyles=linestyles,
                              title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
         figs.append(fig)
-    return figs # return last fig handle
+    return figs 
 
 def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
                        plot_total=False, plot_observed_data=True, observed_data_label=None,
@@ -744,13 +744,13 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
 
     """
     sim_settings = results.sim_settings
-    # setup: determine compartment indices to be plotted
+
+    # setup: determine compartment indices to be plotted - by default, all compartments, otherwise, just plot requested
     if output_labels is None:
         output_labels = sorted(results.m_pops[0].comp_ids, key=results.m_pops[0].comp_ids.get)
+        output_labels = [comp_label for comp_label in output_labels if isPlottableComp(comp_label, sim_settings, results.comp_specs)]
 
     # select only compartments that are plottable
-    output_labels = [comp_label for comp_label in output_labels if isPlottableComp(comp_label, sim_settings, results.comp_specs)]
-
     if plot_total:
         fig = innerPlotTrend(proj, [results], output_labels=output_labels,
                    compare_type=COMPARETYPE_VALUE,
@@ -904,7 +904,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
     ys = []
     ts = []
     dataobs = ([], [])
-    unit_tag = ""
+    units = []
 
     for value_label in output_labels:
 
@@ -913,23 +913,26 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
             # we loop over results for a single population set
             for resultname in resultset.keys():
                 result = resultset[resultname]
-                y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
+                y, t, unit = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
                 y, unit_tag = _convertPercentage(y, value_label, charac_specs)
+                units.append('%' if unit_tag else unit)
                 ys.append(y)
                 ts.append(t)
 
         elif compare_type == COMPARETYPE_VALUE:
             result = resultset[0]
-            y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
+            y, t, unit = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop_labels, integrated=False)
             y, unit_tag = _convertPercentage(y, value_label, charac_specs)
+            units.append('%' if unit_tag else unit)
             ys.append(y)
             ts.append(t)
 
         elif compare_type == COMPARETYPE_POP:
             result = resultset[0]
             for pop in pop_labels:
-                y, t = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop, integrated=False)
+                y, t, unit = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop, integrated=False)
                 y, unit_tag = _convertPercentage(y, value_label, charac_specs)
+                units.append('%' if unit_tag else unit)
                 if plot_total:
                     if ts == []:
                         ys.append(y)
@@ -943,11 +946,14 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
                     ys.append(y)
                     ts.append(t)
 
+    assert units.count(units[0]) == len(units) # This is True if all of the units are the same - as they should be
 
     # get observed data points
     if plot_observed_data:
-        dataobs = _extractDatapoint(result, proj, observed_data_label, pop_labels, charac_specs, plot_total=plot_total)
+        dataobs,data_units = _extractDatapoint(result, proj, observed_data_label, pop_labels, charac_specs, plot_total=plot_total)
         dataobs, unit_tag = _convertPercentage(dataobs, value_label, charac_specs)
+        data_units = '%' if unit_tag else data_units
+        assert data_units == units[0] # Data should have the same units too
 
     fullname = getName(observed_data_label, proj)
     if plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
@@ -960,7 +966,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         ys = ys / plot_relative_values[:, None]
         ys *= 100
         fullname = fullname + relative_tag
-        unit_tag = ' (%)' # TODO get rid of magic variable
+        unit_tag = '%' # TODO get rid of magic variable
 
     if plot_ybounds is not None:
         # it should be a tuple with either (label_low, label_high) or [(data_years, data_low, data_high), (]
@@ -1528,6 +1534,11 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
         if value_label in data[data_loc].keys():
             break # we've likely identifed where it is
 
+    if data_loc == 'characs':
+        units = 'people'
+    else:
+        units = 'people/year'
+
     try:
         ys = [data[data_loc][value_label][poplabel]['y'] for poplabel in pop_labels]
         ts = [data[data_loc][value_label][poplabel]['t'] for poplabel in pop_labels]
@@ -1543,6 +1554,7 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
     try:
         if 'plot_percentage' in charac_specs[value_label].keys():
             ys *= 100
+            units = '%'
     except:
         pass
 
@@ -1556,7 +1568,7 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
             # could raise a ValueError if ys elements are different lengths
             ys, ts = [], []
 
-    dataobs = (ts, ys)
+    dataobs = (ts, ys, units)
     return dataobs
 
 def _convertPercentage(datapoints, output_label, charac_specs):

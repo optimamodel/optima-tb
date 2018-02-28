@@ -158,7 +158,7 @@ class ResultSet(object):
         #       Link tags are actually stored in link_labels, while link labels could be in char_labels if a transition is marked as a result output.
         if label in self.link_labels:
 
-            values, _, _ = self.getFlow(link_label=label, pop_labels=pop_labels)  # Does not return link values directly but calculates flows instead.
+            values, _, _, units = self.getFlow(link_label=label, pop_labels=pop_labels)  # Does not return link values directly but calculates flows instead.
             values = values[label]
 
             for pop in values.keys():
@@ -167,7 +167,7 @@ class ResultSet(object):
 
         elif label in self.char_labels:
 
-            values, _, _ = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)
+            values, _, _, units = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)
             values = values[label]
 
             for pop in values.keys():
@@ -176,7 +176,7 @@ class ResultSet(object):
 
         elif label in self.comp_label_names.keys():
 
-            values, _, _ = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)
+            values, _, _, units = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)
             for pop in values.keys():
                 popvalues = values[pop]
                 output += values[pop][label].popsize[idx]
@@ -188,7 +188,7 @@ class ResultSet(object):
         if integrated:
             output = output.sum() * dt
 
-        return output, tvals[idx]
+        return output, tvals[idx], units
 
 
     def getValueAt(self, label, year_init, year_end=None, pop_labels=None):
@@ -329,7 +329,9 @@ class ResultSet(object):
                     datapoints[pi][c_label] = comp
                 comp_labels.append(c_label)
 
-        return datapoints, pops, comps
+        units = 'people'
+
+        return datapoints, pops, comps, units
 
 
     def getCharacteristicDatapoints(self, pop_label=None, char_label=None, use_observed_times=False):
@@ -376,7 +378,10 @@ class ResultSet(object):
                     datapoints[cj][pi] = self.outputs[cj][pi][self.indices_observed_data]
                 else:
                     datapoints[cj][pi] = self.outputs[cj][pi]
-        return datapoints, chars, pops
+
+        units = 'people'
+
+        return datapoints, chars, pops, units
 
 
     def getFlow(self, link_label, pop_labels=None,target_flow=False,annualize=True):
@@ -445,7 +450,12 @@ class ResultSet(object):
                 if annualize:
                     datapoints[link_lab][pi] /= self.dt
 
-        return datapoints, link_label, pops
+        if annualize:
+            units = 'people/year'
+        else:
+            units = 'people/timestep'
+
+        return datapoints, link_label, pops, units
 
 
     def export(self, filestem=None, sep=',', writetofile=True, use_alltimesteps=True):
