@@ -737,18 +737,21 @@ def plotCompareCascade(proj, resultset, output_labels, pop_labels=None, year_per
 
 def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=None,
                plot_total=False, plot_type=None,
-               plot_observed_data=True, observed_data_label="alive",
+               plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, cat_labels=None,
                title=None, save_fig=False, fig_name=None, **kwargs):
     """
 
     """
+    figs = []
+
     sim_settings = results.sim_settings
 
     # setup: determine compartment indices to be plotted - by default, all compartments, otherwise, just plot requested
     if output_labels is None:
         output_labels = sorted(results.m_pops[0].comp_ids, key=results.m_pops[0].comp_ids.get)
         output_labels = [comp_label for comp_label in output_labels if isPlottableComp(comp_label, sim_settings, results.comp_specs)]
+        observed_data_label="alive"
 
     # select only compartments that are plottable
     if plot_total:
@@ -758,6 +761,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                    colormappings=colormappings, colors=colors, cat_labels=cat_labels,
                    save_fig=save_fig, fig_name=fig_name, **kwargs)
+        figs.append(fig)
     else:
         if pop_labels is None:
             pop_labels = getPops(results)
@@ -769,9 +773,9 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                    colormappings=colormappings, colors=colors, cat_labels=cat_labels,
                    save_fig=save_fig, fig_name="%s_%s" % (fig_name, pop), **kwargs)
-        logger.info("Created multiple plots for plotCompareResults for multiple populations. Returning last plot created")
+            figs.append(fig)
 
-    return True
+    return figs
 
 def plotPopulationCrossSectionBar(proj, results, output_labels, pop_labels=None, year_periods=None,
                        plot_total=False, plot_observed_data=True, observed_data_label=None,
@@ -946,14 +950,16 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
                     ys.append(y)
                     ts.append(t)
 
-    assert units.count(units[0]) == len(units) # This is True if all of the units are the same - as they should be
+    assert units.count(units[0]) == len(units), 'All requested outputs must have the same units as they are being plotted in the same figure' # This is True if all of the units are the same - as they should be
+    unit = units[0]
 
     # get observed data points
     if plot_observed_data:
         dataobs,data_units = _extractDatapoint(result, proj, observed_data_label, pop_labels, charac_specs, plot_total=plot_total)
         dataobs, unit_tag = _convertPercentage(dataobs, value_label, charac_specs)
         data_units = '%' if unit_tag else data_units
-        assert data_units == units[0] # Data should have the same units too
+        if data_units is not None:
+            assert data_units == unit # Data should have the same units too
 
     fullname = getName(observed_data_label, proj)
     if plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
@@ -966,7 +972,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         ys = ys / plot_relative_values[:, None]
         ys *= 100
         fullname = fullname + relative_tag
-        unit_tag = '%' # TODO get rid of magic variable
+        unit = '%' # TODO get rid of magic variable
 
     if plot_ybounds is not None:
         # it should be a tuple with either (label_low, label_high) or [(data_years, data_low, data_high), (]
@@ -990,7 +996,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
     # setup for plot:
     final_dict = {
               'xlabel':'Year',
-              'ylabel': fullname + unit_tag,
+              'ylabel': "%s (%s)" % (fullname,unit),
               'title': '%s' % title,
               'save_figname': '%s_%s' % (fig_name, name),
               'y_hat': dataobs[1],
@@ -1526,7 +1532,9 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
         
     TODO: make proj parameters, so that charac_specs and data are encapsulated
     """
-    dataobs = None
+    dataobs = ([[]], [[]]) # Default structure
+    units = None
+
     data = proj.data
 
     data_locations = ['characs', 'linkpars']
@@ -1534,22 +1542,17 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
         if value_label in data[data_loc].keys():
             break # we've likely identifed where it is
 
-    if data_loc == 'characs':
-        units = 'people'
-    else:
-        units = 'people/year'
 
-    try:
-        ys = [data[data_loc][value_label][poplabel]['y'] for poplabel in pop_labels]
-        ts = [data[data_loc][value_label][poplabel]['t'] for poplabel in pop_labels]
-    except:
-        """
-        ys = [list(proj.parsets[0].getPar(value_label).interpolate(tvec=t, pop_label=poplabel, extrapolate_nan=True)) for poplabel in pop_labels]
-        ts = [t for poplabel in pop_labels]
-        """
+    if value_label in data['characs'].keys():
+        units = 'people'
+    elif value_label in data['linkpars'].keys():
+        units = 'people/year'
+    else:
         logging.info("Could not find datapoints with label '%s'" % value_label)
-        ys = [[]]
-        ts = [[]]
+        return dataobs, units
+
+    ys = [data[data_loc][value_label][poplabel]['y'] for poplabel in pop_labels]
+    ts = [data[data_loc][value_label][poplabel]['t'] for poplabel in pop_labels]
 
     try:
         if 'plot_percentage' in charac_specs[value_label].keys():
@@ -1568,8 +1571,8 @@ def _extractDatapoint(results, proj, value_label, pop_labels, charac_specs, plot
             # could raise a ValueError if ys elements are different lengths
             ys, ts = [], []
 
-    dataobs = (ts, ys, units)
-    return dataobs
+    dataobs = (ts, ys)
+    return dataobs, units
 
 def _convertPercentage(datapoints, output_label, charac_specs):
     """
