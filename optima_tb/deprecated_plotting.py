@@ -93,7 +93,7 @@ def plotPopulation(results, data, pop_labels=None, title='', colormappings=None,
         start_year, end_year = tvec[0], tvec[1]
 
     yr_range = np.arange(start_year, end_year + 0.1, year_inc, dtype=int)
-    mpops = results.m_pops
+    mpops = results.model.pops
     sim_settings = results.sim_settings
     save_figname = None
     dataobs = None  # placeholder for observed data
@@ -218,7 +218,7 @@ def extractCompartment(results, data, pop_labels=None, comp_labels=None,
     yhat, that = [], []
 
     if use_full_labels:
-        labels = [comp.label for comp in results.m_pops[0].comps]
+        labels = [comp.label for comp in results.model.pops[0].comps]
     else:
         labels = comp_labels
 
@@ -337,7 +337,7 @@ def extractFlows(pop_labels, comp_label, results, settings, tvec, link_labels=No
 
     for (j, pid) in enumerate(pop_labels):
 
-        comp = results.m_pops[pid].getComp(comp_label)
+        comp = results.model.pops[pid].getComp(comp_label)
 
         all_labels = []
         pop_rates = []
@@ -347,7 +347,7 @@ def extractFlows(pop_labels, comp_label, results, settings, tvec, link_labels=No
                 comp_link_ids = [comp.inlink_ids, comp.outlink_ids][in_out]
                 label_tag = ['In: ', 'Out: '][in_out]
                 for link_tuple in comp_link_ids:
-                    link = results.m_pops[link_tuple[0]].links[link_tuple[1]]
+                    link = results.model.pops[link_tuple[0]].links[link_tuple[1]]
                     # print link.label, link_labels, include_link_not_exclude
                     if link_labels is None or (include_link_not_exclude and link.label in link_labels) or (not include_link_not_exclude and link.label not in link_labels):
                         try:
@@ -359,21 +359,21 @@ def extractFlows(pop_labels, comp_label, results, settings, tvec, link_labels=No
                             legend_label = link_legend[link.label]  # Overwrite legend for a label.
                         num_flow = dcp(link.vals)
                         if in_out == 0:
-                            comp_source = results.m_pops[link.index_from[0]].comps[link.index_from[1]]
+                            comp_source = results.model.pops[link.index_from[0]].comps[link.index_from[1]]
                         else:
                             comp_source = comp
                         was_proportion = False
                         if link.val_format == 'proportion':
-                            denom_val = sum(results.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
+                            denom_val = sum(results.model.pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
                             num_flow /= denom_val
                             was_proportion = True
                         if link.val_format == 'fraction' or was_proportion is True:
                             if was_proportion is True:
-                                num_flow *= comp_source.popsize_old
+                                num_flow *= comp_source.vals_old
                             else:
                                 num_flow[num_flow > 1.] = 1.
                                 num_flow = 1 - (1 - num_flow) ** results.dt  # Fractions must be converted to effective timestep rates.
-                                num_flow *= comp_source.popsize
+                                num_flow *= comp_source.vals
                             num_flow /= results.dt  # All timestep-based effective fractional rates must be annualised.
 
                         all_labels.append(legend_label)
@@ -433,8 +433,8 @@ def plotSingleCompartmentFlow(results, settings, comp_labels=None, comp_titles=N
     if plot_pops is not None:
         plot_pids = getPIDs(results, pop_labels)
     else:
-        plot_pids = range(len(results.m_pops))
-        plot_pops = [pop.label for pop in results.m_pops]
+        plot_pids = range(len(results.model.pops))
+        plot_pops = [pop.label for pop in results.model.pops]
 
     if comp_labels is None:
         logger.info("No compartments have been selected for flow-plots.")
@@ -453,7 +453,7 @@ def plotSingleCompartmentFlow(results, settings, comp_labels=None, comp_titles=N
 
             plot_label = plot_pops[j]
 
-            comp = results.m_pops[pid].getComp(comp_label)
+            comp = results.model.pops[pid].getComp(comp_label)
 
             all_rates, all_tvecs, all_labels = extractFlows(comp=comp,
                                                             results=results,
@@ -581,8 +581,8 @@ def plotPopulationFlows(results, settings, comp_labels=None, comp_titles=None, p
     if pop_labels is not None:
         plot_pids = getPIDs(results, pop_labels)
     else:
-        pop_labels = [pop.label for pop in results.m_pops]
-        plot_pids = range(len(results.m_pops))
+        pop_labels = [pop.label for pop in results.model.pops]
+        plot_pids = range(len(results.model.pops))
 
     if comp_labels is None:
         logger.error("No compartments have been selected for flow-plots.")
@@ -713,7 +713,7 @@ def plotCharacteristic(results, settings, data, title='', outputIDs=None, y_boun
 
 
     if pop_labels is None:
-        pop_labels = [pop.label for pop in results.m_pops]
+        pop_labels = [pop.label for pop in results.model.pops]
 #     print "-----2--", pop_labels
 
     if plotdict is None:
@@ -964,7 +964,7 @@ def getPIDs(results, poplabels):
 
     pids = []
     for poplabel in poplabels:
-        for i, pop in enumerate(results.m_pops):
+        for i, pop in enumerate(results.model.pops):
             if pop.label == poplabel:
                 pids.append(i)
     return pids
@@ -1330,7 +1330,7 @@ def _plotStackedCompartments(tvec, comps, labels=None, datapoints=None, title=''
     max_val = 0
 
     for (k, comp) in enumerate(comps):
-        top = bottom + comp.popsize
+        top = bottom + comp.vals
         lw = 0
         if save_fig:
             lw = 0.1
@@ -1399,7 +1399,7 @@ def plotAllOutflows(results, num_subplots=5):
     """
     
 
-    mpops = results.m_pops
+    mpops = results.model.pops
     sim_settings = results.sim_settings
 
     legendsettings = {'loc':'center left', 'bbox_to_anchor':(1.05, 0.5), 'ncol':2}
