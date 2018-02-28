@@ -961,7 +961,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         if data_units is not None:
             assert data_units == unit # Data should have the same units too
 
-    fullname = getName(observed_data_label, proj)
+    fullname = getName(name, proj)
     if plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
         name = fullname
 
