@@ -692,10 +692,23 @@ def createFormats(workbook):
 
     return workbook, formats
 
-def export_spreadsheet(settings, filename=DEFAULT_PATH, num_pops=4, verbose=2, pop_names=None):
+def write_countrybook(countrybook,start_year,end_year,num_pops,pop_names=None,filename='default_countrybook.xlsx', verbose=2):
     """
+    Write a countrybook dict to a spreadsheet
     
-    
+    INPUTS
+    - countrybook : dict e.g. obtained via new_countrybook()
+    - start_year, end year : integers, prompt user for data values between these years
+    - num_pops : Number of populations to include
+    - pop_names : List of population names that will be pre-filled
+    - filename : Output path and filename for file to write to
+    - verbose : Control level of terminal output
+
+    EXAMPLE
+
+        cb = new_countrybook()
+        write_countrybook(cb,2000,2016,3,['0-14','15-64','65+'])
+
     """
     workbook = xw.Workbook(filename)
     workbook, formats = createFormats(workbook)
@@ -703,42 +716,40 @@ def export_spreadsheet(settings, filename=DEFAULT_PATH, num_pops=4, verbose=2, p
     availfns = globals().copy()
     availfns.update(locals())
     # year range:
-    start_year = settings.tvec_start
-    end_year = settings.tvec_observed_end
 
-    for local_name in settings.countrybook['sheet_names']:
-        name = settings.countrybook['sheet_names'][local_name]
+    for local_name in countrybook['sheet_names']:
+        name = countrybook['sheet_names'][local_name]
         logging.debug("%s %s" % (local_name, name))
         logging.info("Creating sheet for %s" % name)
         ws = workbook.add_worksheet(name)
         # label for each data sheet
-        ws.write('A1', settings.countrybook['labels'][local_name])
+        ws.write('A1', countrybook['labels'][local_name])
         ws.set_row(0, None, formats['main_label'])
         # populate
         if local_name == 'populations':
-            poplabels = _create_populations(ws, name, num_pops, formats, settings.countrybook['headers']['populations'])
-            settings.countrybook['disaggregations']['populations'] = poplabels
+            poplabels = _create_populations(ws, name, num_pops, formats, countrybook['headers']['populations'])
+            countrybook['disaggregations']['populations'] = poplabels
             # # TODO: remove (as is just a debugging measure)
             if pop_names is not None:
                 for i, pop in enumerate(pop_names):
                     ws.write(i + 2, 1, pop)
 
         elif local_name == 'programs':
-            proglabels = _create_programs(ws, local_name, settings.countrybook['constants']['num_default_programs'], formats, settings.countrybook['headers']['programs'])
-            settings.countrybook['disaggregations']['programs'] = proglabels
+            proglabels = _create_programs(ws, local_name, countrybook['constants']['num_default_programs'], formats, countrybook['headers']['programs'])
+            countrybook['disaggregations']['programs'] = proglabels
 
-        elif local_name in settings.countrybook['sheet_classes']['univalue']:
-            _createUnivalueSheet(ws, local_name, settings.countrybook, formats, start_year, end_year, poplabels)
+        elif local_name in countrybook['sheet_classes']['univalue']:
+            _createUnivalueSheet(ws, local_name, countrybook, formats, start_year, end_year, poplabels)
         else:
             createSheet = availfns.get('_create_%s' % local_name)
             if not createSheet:
                 try:
-                    _create_multivalue_sheet(ws, local_name, settings.countrybook, formats, start_year, end_year, poplabels)
+                    _create_multivalue_sheet(ws, local_name, countrybook, formats, start_year, end_year, poplabels)
                 except:
                     raise NotImplementedError("No method associated in creating sheet '%s'" % name)
             else:
-                createSheet(ws, local_name, settings.countrybook, formats, start_year, end_year, poplabels)
-
+                createSheet(ws, local_name, countrybook, formats, start_year, end_year, poplabels)
+                    
 def _load_populations(ws, name, cb, num_cols):
     return _load_univalue_sheet(ws, name, cb, num_cols, col_index=1)
 
