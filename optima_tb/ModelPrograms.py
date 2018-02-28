@@ -109,7 +109,6 @@ class ModelProgramSet(object):
             # Store default budgets/coverages for all other programs if saturation is selected.
             elif 'saturate_with_default_budgets' in sim_settings and sim_settings['saturate_with_default_budgets'] is True:
                 prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year)), 'impact':{}}
-
             else:
                 logger.warn("Program '%s' was not contained in init_alloc and not saturated, therefore was not created." % prog.label)
 

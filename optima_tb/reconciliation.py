@@ -434,13 +434,13 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                     else:
                         prog_budget = prog_budget_alloc[prog_label]
 
-                    pop = results.m_pops[results.pop_label_index[popkey]]
+                    pop = results.model.pops[results.pop_label_index[popkey]]
                     tag = proj.settings.linkpar_specs[par_label]['tag']
                     par = pop.getLinks(tag)[0]
                     source_element_size = pop.comps[par.index_from[1]].popsize[-1]
                     source_set_size = 0
                     for from_pop_label in prog.target_pops:
-                        from_pop = results.m_pops[results.pop_label_index[from_pop_label]]
+                        from_pop = results.model.pops[results.pop_label_index[from_pop_label]]
                         alt_par = from_pop.getLinks(tag)[0]
                         source_set_size += from_pop.comps[alt_par.index_from[1]].popsize[-1]
                     # Coverage is also split across the source compartments of grouped impact parameters, as specified in the cascade sheet.
@@ -450,7 +450,7 @@ def reconciliationMetric(new_attributes, proj, parset, progset, parset_name, imp
                             if not alt_par_label == par_label:
                                 alt_pars = pop.getLinks(proj.settings.linkpar_specs[alt_par_label]['tag'])
                                 for from_pop_label in prog.target_pops:
-                                    from_pop = results.m_pops[results.pop_label_index[from_pop_label]]
+                                    from_pop = results.model.pops[results.pop_label_index[from_pop_label]]
                                     source_set_size += from_pop.comps[alt_pars[0].index_from[1]].popsize[-1]
                     # print('Program Label: %s, Parameter: %s, Source set size: %f, source_element_size: %f' % (prog_label, par_label, source_set_size, source_element_size))
 

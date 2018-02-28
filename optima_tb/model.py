@@ -446,51 +446,42 @@ class Model(object):
         self.programs_active = None     # True or False depending on whether Programs will be used or not
         self.pset = None                # Instance of ModelProgramSet
 
-    def __getstate__(self):
+    def unlink(self):
         # Break cycles when deepcopying or pickling by swapping them for UIDs
         # Primary storage is in the comps, links, and outputs properties
-        d = self.__dict__    # get attribute dictionary
+        for pop in self.pops:
+             for obj in pop.comps + pop.characs + pop.pars + pop.links:
+                 obj.unlink()
+        if self.pset is not None:
+            self.pset.unlink()
+        self.pars_by_pop = None
 
-        for pop in d['pops']:
-            for obj in pop.comps + pop.characs + pop.pars + pop.links:
-                obj.unlink()
-
-        if d['pset'] is not None:
-            d['pset'].unlink()
-
-        del d['pars_by_pop']
-
-        return d
-
-    def __setstate__(self, d):
-
-        # Build a dict of all objects in the model
-        # Also reconstruct program lookup dict
+    def relink(self):
         objs = {}
-
-        d['pars_by_pop'] = dict()
-        for pop in d['pops']:
+        self.pars_by_pop = dict()
+        for pop in self.pops:
             for obj in pop.comps + pop.characs + pop.pars + pop.links:
                 objs[obj.uid] = obj
                 if isinstance(obj,Parameter):
-                    if obj.label in d['pars_by_pop']:
-                        d['pars_by_pop'][obj.label].append(obj)
+                    if obj.label in self.pars_by_pop:
+                        self.pars_by_pop[obj.label].append(obj)
                     else:
-                        d['pars_by_pop'][obj.label] = [obj]
+                        self.pars_by_pop[obj.label] = [obj]
 
-        for pop in d['pops']:
+        for pop in self.pops:
             for obj in pop.comps + pop.characs + pop.pars + pop.links:
                 obj.relink(objs)
 
-        for i in objs:
-            # These are brand new instances, so they get new UUIDs too
-            # This might need to be reconsidered later (e.g. if it causes problems with pickling and should only be done when deepcopying)
-            objs[i].uid = uuid.uuid4()
+        if self.pset is not None:
+            self.pset.relink(objs)
 
-        if d['pset'] is not None:
-            d['pset'].relink(objs)
+    def __getstate__(self):
+        self.unlink()
+        return self.__dict__  
 
+    def __setstate__(self, d):
         self.__dict__ = d
+        self.relink()
 
     def getPop(self, pop_label):
         ''' Allow model populations to be retrieved by label rather than index. '''
