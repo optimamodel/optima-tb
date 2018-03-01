@@ -1430,6 +1430,10 @@ def getName(output_id, proj):
     Specifying output_id = None will return the default ylabel as specified in settings.plot_settings dict 
     """
     settings = proj.settings
+    name = "Unknown_%s" % output_id
+    if not output_id: # If the output name is empty, then just return the unknown label without checking anything
+        return name
+
     if isinstance(output_id, list):
         name = "List_(%s,%s)" % (output_id[0], output_id[-1])
     elif output_id in settings.charac_specs: # characteristic
@@ -1450,7 +1454,6 @@ def getName(output_id, proj):
             tmp_id = tags[output_id]
             name = settings.linkpar_specs[tmp_id]['name'] + " (%s)" % settings.plot_settings['effective_rate']
         except:
-            name = "Unknown_%s" % output_id
             logging.warn('ERROR: Attempting to plot characteristic "%s" but cannot locate it in either characteristic or parameter specs.' % output_id)
     return name
 
