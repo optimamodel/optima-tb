@@ -21,6 +21,9 @@ class ProgramSet:
 
         logging.info("Created ProgramSet: %s" % self.name)
 
+    def __repr__(self):
+        return 'ProgramSet "%s" (%s)' % (self.name,self.uid)
+
     def makeProgs(self, data, settings):
         self.progtype_specs = dcp(settings.progtype_specs)
         
@@ -134,7 +137,10 @@ class Program:
         self.target_pars = target_pars
 
         self.func_specs = dict()
-        
+    
+    def __repr__(self):
+        return 'Program "%s" (%s)' % (self.label,self.uid)
+
     def insertValuePair(self, t, y, attribute, rescale_after_year=False):
         '''
         Check if the inserted t value already exists for the attribute type.
