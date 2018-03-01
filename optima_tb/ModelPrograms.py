@@ -61,22 +61,26 @@ class ModelProgramSet(object):
         for prog in self.programs:
             prog.relink(objs)
 
-    def update_cache(self,sim_settings): # Do the stuff in precalculateprogsetvals
-        # sim_settings is the dict initialized in Model.build()
+    def get_alloc(self,sim_settings):
+        # Extract the allocation (spending value at each point in time for all active programs)
+        # based on sim_settings
+        #
+        # This returns alloc (dict with prog_label:[spending vals]) and alloc_is_coverage flag
+        # And corresponding time points
         
         # Take in a set of times and 
         start_year = sim_settings['progs_start']
         init_alloc = sim_settings['init_alloc']
         alloc_is_coverage = sim_settings['alloc_is_coverage']
-        self.dt = sim_settings['tvec_dt']
+        dt = sim_settings['tvec_dt']
 
-        prog_vals = dict()
+        alloc = dict()
 
         for prog in self.progset.progs: # Iterate over classic Programs, not ModelPrograms
 
             # Store budgets/coverages for programs that are initially allocated.
             if prog.label in init_alloc:
-                alloc = init_alloc[prog.label]
+                spending = init_alloc[prog.label]
 
                 # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to time points.
                 if 'constraints' in sim_settings and 'max_yearly_change' in sim_settings['constraints'] and prog.label in sim_settings['constraints']['max_yearly_change']:
@@ -85,93 +89,85 @@ class ModelProgramSet(object):
                     else:
                         default = prog.getDefaultBudget(year=start_year)
                     default = prog.getDefaultBudget(year=start_year)
-                    if np.abs(alloc - default) > project_settings.TOLERANCE:
-                        alloc_def = sim_settings['tvec'] * 0.0 + default
-                        alloc_new = sim_settings['tvec'] * 0.0 + alloc
+                    if np.abs(spending - default) > project_settings.TOLERANCE:
+                        spending_def = sim_settings['tvec'] * 0.0 + default
+                        spending_new = sim_settings['tvec'] * 0.0 + spending
                         try: eps = sim_settings['constraints']['max_yearly_change'][prog.label]['val']
                         except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog.label)
                         if 'rel' in sim_settings['constraints']['max_yearly_change'][prog.label] and sim_settings['constraints']['max_yearly_change'][prog.label]['rel'] is True:
                             eps *= default
                         if np.isnan(eps): eps = np.inf  # Eps likely becomes a nan if it was infinity multiplied by zero.
-                        if np.abs(eps * self.dt) < np.abs(alloc - default):
+                        if np.abs(eps * dt) < np.abs(spending - default):
                             if np.abs(eps) < project_settings.TOLERANCE:
                                 raise OptimaException('ERROR: The change in budget for ramp-constrained "%s" is effectively zero. Model will not continue running; change in program funding would be negligible.' % prog.label)
-                            alloc_ramp = default + (sim_settings['tvec'] - start_year) * eps * np.sign(alloc - default)
-                            if alloc >= default: alloc_ramp = np.minimum(alloc_ramp, alloc_new)
-                            else: alloc_ramp = np.maximum(alloc_ramp, alloc_new)
-                            alloc = alloc_def * (sim_settings['tvec'] < start_year) + alloc_ramp * (sim_settings['tvec'] >= start_year)
+                            spending_ramp = default + (sim_settings['tvec'] - start_year) * eps * np.sign(spending - default)
+                            if spending >= default: spending_ramp = np.minimum(spending_ramp, spending_new)
+                            else: spending_ramp = np.maximum(spending_ramp, spending_new)
+                            spending = spending_def * (sim_settings['tvec'] < start_year) + spending_ramp * (sim_settings['tvec'] >= start_year)
 
                 if alloc_is_coverage:
-                    prog_vals[prog.label] = {'cost':prog.getBudget(coverage=alloc), 'cov':alloc, 'impact':{}}
+                    alloc[prog.label] = prog.getBudget(coverage=spending)
                 else:
-                    prog_vals[prog.label] = {'cost':alloc, 'cov':prog.getCoverage(budget=alloc), 'impact':{}}
+                    alloc[prog.label] = spending
 
             # Store default budgets/coverages for all other programs if saturation is selected.
             elif 'saturate_with_default_budgets' in sim_settings and sim_settings['saturate_with_default_budgets'] is True:
-                prog_vals[prog.label] = {'cost':prog.getDefaultBudget(year=start_year), 'cov':prog.getCoverage(budget=prog.getDefaultBudget(year=start_year)), 'impact':{}}
+                alloc[prog.label] = prog.getDefaultBudget(year=start_year) # Use default budget
             else:
-                logger.warn("Program '%s' was not contained in init_alloc and not saturated, therefore was not created." % prog.label)
+                logger.warn("Program '%s' will not be used because no initial allocation was provided, 'saturate_with_default_budgets' not enabled." % prog.label)
 
-            # Convert coverage into impact for programs.
-            if prog.label in prog_vals:
-                if 'cov' in prog_vals[prog.label]:
-                    cov = prog_vals[prog.label]['cov']
+        return alloc, sim_settings['tvec'],dt
 
-                    # Check if program attributes have multiple distinct values across time.
-                    do_full_tvec_check = {}
-                    for att_label in prog.attributes:
-                        att_vals = prog.attributes[att_label]
-                        if len(set(att_vals[~np.isnan(att_vals)])) <= 1:
-                            do_full_tvec_check[att_label] = False
-                        else:
-                            do_full_tvec_check[att_label] = True
+    def update_cache(self,alloc,tvals,dt): # Do the stuff in precalculateprogsetvals
+        # alloc must be a spending value - note that if the settings originally had alloc_is_coverage then the alloc would have been
+        # passed though getBudget which means that it would go back through getCoverage at this step
+        
+        self.dt = dt
 
-                    # If attributes change over time and coverage values are greater than zero, impact functions based on them need to be interpolated across all time.
-                    # Otherwise interpolating for the very last timestep alone should be sufficient.
-                    # This means impact values can be stored as full arrays, single-element arrays or scalars in the case that an impact function has no attributes.
-                    for par_label in prog.target_pars:
-                        do_full_tvec = False
-                        if 'attribs' in prog.target_pars[par_label] and np.sum(cov) > project_settings.TOLERANCE:
-                            for att_label in prog.target_pars[par_label]['attribs']:
-                                if att_label in do_full_tvec_check and do_full_tvec_check[att_label] is True:
-                                    do_full_tvec = True
-                        if do_full_tvec is True:
-                            years = sim_settings['tvec']
-                        else:
-                            years = [sim_settings['tvec'][-1]]
-                        prog_vals[prog.label]['impact'][par_label] = prog.getImpact(cov, impact_label=par_label, parser=parser, years=years, budget_is_coverage=True)
+        prog_vals = dict()
 
+        for prog in self.progset.progs: # Iterate over classic Programs, not ModelPrograms
+            if prog.label in alloc:
+                prog.is_active = True
+                prog_vals[prog.label] = {'cost':alloc[prog.label], 'cov':prog.getCoverage(budget=alloc[prog.label]), 'impact':{}}
+                for par_label in prog.target_pars:
+                    prog_vals[prog.label]['impact'][par_label] = prog.getImpact(prog_vals[prog.label]['cov'], impact_label=par_label, parser=parser, years=tvals, budget_is_coverage=True)
+            else:
+                prog.is_active = False
+           
         # Finally, load the coverage and impact into the ModelPrograms
         # Also expand out any scalars
         for prog in self.programs:
+            if prog.is_active:
 
-            # Load cost
-            prog.cost = prog_vals[prog.label]['cost']
-            if not isinstance(prog.cost, np.ndarray) or prog.cost.size == 1:
-                prog.cost = np.full(sim_settings['tvec'].shape, prog.cost)
+                # Load cost
+                prog.cost = prog_vals[prog.label]['cost']
+                if not isinstance(prog.cost, np.ndarray) or prog.cost.size == 1:
+                    prog.cost = np.full(tvals.shape, prog.cost)
 
-            # Load coverage
-            net_cov = prog_vals[prog.label]['cov']
-            if not isinstance(net_cov, np.ndarray) or net_cov.size == 1:
-                net_cov = np.full(sim_settings['tvec'].shape, net_cov)
-
-            if prog.is_fraction:
-                prog.net_dt_cov = net_cov
-            else:
-                prog.net_dt_cov = net_cov * self.dt
-
-            # Load impacts
-            prog.net_dt_impact = dict()
-            for par in prog.pars:
-
-                impact = prog_vals[prog.label]['impact'][par.label]
-                if not isinstance(impact, np.ndarray) or impact.size == 1:
-                    impact = np.full(sim_settings['tvec'].shape, impact)
+                # Load coverage
+                net_cov = prog_vals[prog.label]['cov']
+                if not isinstance(net_cov, np.ndarray) or net_cov.size == 1:
+                    net_cov = np.full(tvals.shape, net_cov)
 
                 if prog.is_fraction:
-                    prog.net_dt_impact[par.uid] = impact
+                    prog.net_dt_cov = net_cov
                 else:
-                    prog.net_dt_impact[par.uid] = impact * self.dt
+                    prog.net_dt_cov = net_cov * self.dt
+
+                # Load impacts
+                prog.net_dt_impact = dict()
+                for par in prog.pars:
+
+                    impact = prog_vals[prog.label]['impact'][par.label]
+                    # Todo - this might be possible to remove now that we use all years above
+                    if not isinstance(impact, np.ndarray) or impact.size == 1:
+                        impact = np.full(tvals.shape, impact)
+
+                    if prog.is_fraction:
+                        prog.net_dt_impact[par.uid] = impact
+                    else:
+                        prog.net_dt_impact[par.uid] = impact * self.dt
 
     def compute_pars(self,ti):
         # This function takes in a timestep and updates the parameter value in place
@@ -179,8 +175,9 @@ class ModelProgramSet(object):
 
         # STAGE 3.1 Accumulate contributions
         for prog in self.programs:
-            for par_id,contrib in prog.get_contribution(ti).items():
-                contribs[par_id].append(contrib) # Append a (frac_cov,value) tuple
+            if prog.is_active:
+                for par_id,contrib in prog.get_contribution(ti).items():
+                    contribs[par_id].append(contrib) # Append a (frac_cov,value) tuple
 
         # STAGE 3+4 Normalize and set output value
         impacts = dict()
@@ -227,6 +224,7 @@ class ModelProgram(object):
             for par in self.impact_groups[grp]:
                 self.pars_to_groups[par.uid] = grp
 
+        self.is_active = True # Only programs that are active will be used in ModelProgramSet.compute_pars()
 
     def unlink(self):
         for i in xrange(0,len(self.pars)):

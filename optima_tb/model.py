@@ -695,7 +695,8 @@ class Model(object):
                         self.sim_settings['impact_pars_not_func'].append(impact_label)
 
                 self.pset = ModelProgramSet(progset,self.pops) # Make a ModelProgramSet wrapper
-                self.pset.update_cache(self.sim_settings) # Perform precomputations
+                alloc = self.pset.get_alloc(self.sim_settings)[0]
+                self.pset.update_cache(alloc,self.sim_settings['tvec'],self.sim_settings['tvec_dt']) # Perform precomputations
 
             else:
                 raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
