@@ -886,7 +886,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
     if len(output_labels) == 1:
         name = output_labels[0]
     else:
-        name = "Combined_%s_%s" % (output_labels[0], output_labels[-1])
+        name = "" # Only show units, the legend should indicate what is being plotted
 
     # -------------------------------------------------------
     # generic setup for colors, line and hatches
@@ -899,7 +899,14 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
             legend_labels = ['Total']
             #TODO? add in something for legend_cols as otherwise "Total" will be the color of the first population that is part of total
         else:
-            legend_labels = series_labels
+            legend_labels = []
+            for label in series_labels:
+                if plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
+                    full_label = getName(label, proj)
+                    legend_labels.append(full_label if not full_label.startswith('Unknown') else label)
+                else:
+                    legend_labels.append(label)
+
         legend_cols = None # technically, it is colors, but if legend_cols => None, then the legend plots to
 
     # -------------------------------------------------------
@@ -962,7 +969,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
             assert data_units == unit # Data should have the same units too
 
     fullname = getName(name, proj)
-    if plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
+    if not fullname.startswith('Unknown') and plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
         name = fullname
 
     # if plotting relative, get relative values for 100%
