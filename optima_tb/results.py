@@ -152,6 +152,7 @@ class ResultSet(object):
 
         # Initialise output as appropriate array of zeros.
         output = np.zeros(len(tvals[idx]))
+        units = ""
 
         # Find values in results and add them to the output array per relevant population group.
         # TODO: Semantics need to be cleaned during design review phase.
