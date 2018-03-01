@@ -41,26 +41,43 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
         progset = proj.progsets[progset_name]
 
         parset_results = proj.runSim(parset=parset, store_results=False) # parset values we want to match
-        progset_results = proj.runSim(parset=parset, progset=progset, store_results=False) # Default results - also, instantiates a ModelProgramSet for use in next steps
+
+        from optima_tb.defaults import defaultOptimOptions
+        options = defaultOptimOptions(settings=proj.settings, progset=proj.progsets[0])
+        progset_results = proj.runSim(parset=parset, progset=progset, store_results=False,options=options) # Default results - also, instantiates a ModelProgramSet for use in next steps
 
         # Next, get the list of all program UIDs that are being handled by the ProgramSet and are also being targeted as impact_pars
         if impact_pars is not None:
             par_uids = [par.uid for par in progset_results.model.pset.pars if par.label in impact_pars]
         else:
             par_uids = [par.uid for par in progset_results.model.pset.pars]
+            impact_pars = [par.label for par in progset_results.model.pset.pars]
 
         # So, whenever we want to compute the objective, we map the relevant parameters onto this array of UIDs.
         target_vals = dict() # This is a dict mapping par_uid:par_value for the reconciliation year
-        for pop in results.model.pops:
+        for pop in parset_results.model.pops:
             for par in pop.pars:
-                if par.label in par_labels:
+                if par.label in impact_pars:
                     target_vals[par.uid] = par.vals[-1] # Final timepoint is at reconcile_for_year
         
         # Then, we need to come up with the attribute dictionary
 
         #target_vals = [vals[uid] for uid in par_uids] # Extract the list of parameter values from the parset - these are the values we want to match using the program
 
-        d = createAttributeDict(proj.settings, progset)
+        # d = createAttributeDict(proj.settings, progset)
+
+        # # Get the default alloc
+        # self.sim_settings = odict()
+
+
+        pset = progset_results.model.pset
+        original_alloc,tval,dt = pset.get_alloc({'progs_start':reconcile_for_year,'init_alloc':{},'tvec':[reconcile_for_year],'tvec_dt':progset_results.model.sim_settings['tvec_dt'],'alloc_is_coverage':False,'saturate_with_default_budgets':True})
+        
+        pset.update_cache(original_alloc,tval,dt)
+        proposed_vals = pset.compute_pars(0) # As there is only one timepoint, that is the one we are using
+
+
+
 
 
 
