@@ -996,7 +996,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
     # setup for plot:
     final_dict = {
               'xlabel':'Year',
-              'ylabel': "%s (%s)" % (fullname,unit),
+              'ylabel': "%s (%s)" % (name,unit) if name else unit.title(),
               'title': '%s' % title,
               'save_figname': '%s_%s' % (fig_name, name),
               'y_hat': dataobs[1],
