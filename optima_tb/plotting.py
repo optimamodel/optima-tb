@@ -739,9 +739,22 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
                plot_total=False, plot_type=None,
                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, cat_labels=None,
-               title='', save_fig=False, fig_name=None, **kwargs):
+               title=None, ylabel=None, save_fig=False, fig_name=None, **kwargs):
     """
+    Title options
+    - If plot_total == True
+        - If title is None, then there will be no title displayed (equivalent to setting title to '')
+        - Otherwise, the title provided in the argument will be used
+    - If plot_total == False
+        - If title is None, then the automatic title will be the population label
+        - If title is set to '', then no title will be displayed
+        - Otherwise, the population label will be appended to the title provided
+    Essentially, if you do not want a title, set title='', otherwise, the population label will be automatically added as required
 
+    Ylabel options
+    - If ylabel is None, then a y-label will be automatically computed. If there is more than one output label, then only the units
+      will be shown, otherwise, the output label will be shown. If the plotdict specifies use_full_labels, then the full output label will be shown.
+      If ylabel is not None, then it will be used directly and no units will be added
     """
     figs = []
 
@@ -759,20 +772,27 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
                    compare_type=COMPARETYPE_VALUE,
                    pop_labels=pop_labels, plot_total=plot_total, plot_type='stacked',
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
-                   colormappings=colormappings, colors=colors, cat_labels=cat_labels,title=title,
-                   save_fig=save_fig, fig_name=fig_name, **kwargs)
+                   colormappings=colormappings, colors=colors, cat_labels=cat_labels,title=title if title is not None else '',
+                   ylabel=ylabel,save_fig=save_fig, fig_name=fig_name, **kwargs)
         figs.append(fig)
     else:
         if pop_labels is None:
             pop_labels = getPops(results)
             # plot for each population
         for pop in pop_labels:
+            if title is None:
+                pop_title = pop
+            elif title == '':
+                pop_title = ''
+            else:
+                pop_title = '%s (%s)' % (title, pop)
+
             fig = innerPlotTrend(proj, [results], output_labels=output_labels,
                    compare_type=COMPARETYPE_VALUE,
                    pop_labels=[pop], plot_total=plot_total, plot_type='stacked',
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
-                   colormappings=colormappings, colors=colors, cat_labels=cat_labels,title='%s (%s)' % (title,pop) if title else pop,
-                   save_fig=save_fig, fig_name="%s_%s" % (fig_name, pop), **kwargs)
+                   colormappings=colormappings, colors=colors, cat_labels=cat_labels,title=pop_title,
+                   ylabel=ylabel,save_fig=save_fig, fig_name="%s_%s" % (fig_name, pop), **kwargs)
             figs.append(fig)
 
     return figs
@@ -802,7 +822,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
                    plot_observed_data=True, observed_data_label=None,
                    plot_relative=None, plot_ybounds=None,
                    colormappings=None, colors=None, linestyles=None, cat_labels=None,
-                   title=None, save_fig=False, fig_name=None, **kwargs):
+                   ylabel=None,title=None, save_fig=False, fig_name=None, **kwargs):
     """
     Common functionality, used by plotResult and plotCompareResults
     
@@ -833,7 +853,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         title           title for plot
         save_fig        boolean flag, whether to save plot
         fig_name        if plot is saved, filename
-
+        ylabel          If None, automatically selected (output_label + units if one output label, units if more than one output label)
         
     """
     # -------------------------------------------------------
@@ -1003,7 +1023,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
     # setup for plot:
     final_dict = {
               'xlabel':'Year',
-              'ylabel': "%s (%s)" % (name,unit) if name else unit.title(),
+              'ylabel': ylabel if ylabel is not None else ("%s (%s)" % (name,unit) if name else unit.title()),
               'title': '%s' % title,
               'save_figname': '%s_%s' % (fig_name, name),
               'y_hat': dataobs[1],
