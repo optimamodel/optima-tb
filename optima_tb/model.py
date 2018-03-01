@@ -894,7 +894,7 @@ class Model(object):
         # We resolve one parameter at a time, in dependency order
         do_program_overwrite = self.programs_active and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start'] and self.sim_settings['tvec'][ti] <= self.sim_settings['progs_end']
         if do_program_overwrite:
-            prog_vals = self.pset.compute_pars(ti)
+            prog_vals = self.pset.compute_pars(ti)[0]
 
         for par_label in (settings.par_funcs.keys() + self.sim_settings['impact_pars_not_func']):
             pars = self.pars_by_pop[par_label] # All of the parameters with this label, across populations. There should be one for each population (these are Parameters, not Links)

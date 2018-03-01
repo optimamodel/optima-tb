@@ -184,12 +184,14 @@ class ModelProgramSet(object):
 
         # STAGE 3+4 Normalize and set output value
         impacts = dict()
+        net_cov = dict()
+
         for par_id,c in contribs.items():
-            net_cov = sum([x[0] for x in c])
+            net_cov[par_id] = sum([x[0] for x in c])
             impacts[par_id] = np.array([x[1] for x in c])
 
-            if net_cov > 1:
-                impacts[par_id] /= net_cov
+            if net_cov[par_id] > 1:
+                impacts[par_id] /= net_cov[par_id]
 
             par = self.par_by_id[par_id]
 
@@ -201,7 +203,7 @@ class ModelProgramSet(object):
 
             impacts[par_id] = sum(impacts[par_id])
 
-        return impacts
+        return impacts,net_cov
 
 
 class ModelProgram(object):
