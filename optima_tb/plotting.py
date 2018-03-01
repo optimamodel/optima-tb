@@ -739,7 +739,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
                plot_total=False, plot_type=None,
                plot_observed_data=True, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, cat_labels=None,
-               title=None, save_fig=False, fig_name=None, **kwargs):
+               title='', save_fig=False, fig_name=None, **kwargs):
     """
 
     """
@@ -759,7 +759,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
                    compare_type=COMPARETYPE_VALUE,
                    pop_labels=pop_labels, plot_total=plot_total, plot_type='stacked',
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
-                   colormappings=colormappings, colors=colors, cat_labels=cat_labels,
+                   colormappings=colormappings, colors=colors, cat_labels=cat_labels,title=title,
                    save_fig=save_fig, fig_name=fig_name, **kwargs)
         figs.append(fig)
     else:
@@ -771,7 +771,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
                    compare_type=COMPARETYPE_VALUE,
                    pop_labels=[pop], plot_total=plot_total, plot_type='stacked',
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
-                   colormappings=colormappings, colors=colors, cat_labels=cat_labels,
+                   colormappings=colormappings, colors=colors, cat_labels=cat_labels,title='%s (%s)' % (title,pop) if title else pop,
                    save_fig=save_fig, fig_name="%s_%s" % (fig_name, pop), **kwargs)
             figs.append(fig)
 
