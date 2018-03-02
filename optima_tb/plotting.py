@@ -490,14 +490,14 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
     figs = []
     for out_label in output_labels:
         if isinstance(observed_data_label,dict):
-            observed_data_label = observed_data_label[out_label]
+            obs_data_label = observed_data_label[out_label]
         elif isinstance(observed_data_label,str):
-            observed_data_label = observed_data_label
+            obs_data_label = observed_data_label
         else:
-            observed_data_label = None
+            obs_data_label = None
         fig = innerPlotTrend(proj, [result], [out_label], compare_type=COMPARETYPE_POP, pop_labels=pop_labels,
                              plot_total=plot_total, plot_type=plot_type, plot_relative=plot_relative,
-                             plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
+                             plot_observed_data=plot_observed_data, observed_data_label=obs_data_label,
                              plot_ybounds=plot_ybounds,
                              colormappings=colormappings, colors=colors, linestyles=linestyles,
                              title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
