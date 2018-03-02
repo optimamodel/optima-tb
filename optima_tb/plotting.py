@@ -15,6 +15,7 @@ import matplotlib.cm as cmx
 import matplotlib.colors as colors
 from random import shuffle
 import numbers
+import textwrap
 
 """
 Plotting library for Optima TB. 
@@ -977,7 +978,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
                     ys.append(y)
                     ts.append(t)
 
-    assert units.count(units[0]) == len(units), 'All requested outputs must have the same units as they are being plotted in the same figure' # This is True if all of the units are the same - as they should be
+    # assert units.count(units[0]) == len(units), 'All requested outputs must have the same units as they are being plotted in the same figure' # This is True if all of the units are the same - as they should be
     unit = units[0]
 
     # get observed data points
@@ -985,8 +986,8 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         dataobs,data_units = _extractDatapoint(result, proj, observed_data_label, pop_labels, charac_specs, plot_total=plot_total)
         dataobs, unit_tag = _convertPercentage(dataobs, value_label, charac_specs)
         data_units = '%' if unit_tag else data_units
-        if data_units is not None:
-            assert data_units == unit # Data should have the same units too
+        # if data_units is not None:
+        #     assert data_units == unit # Data should have the same units too
 
     fullname = getName(name, proj)
     if not fullname.startswith('Unknown') and plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
@@ -1023,7 +1024,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
     # setup for plot:
     final_dict = {
               'xlabel':'Year',
-              'ylabel': ylabel if ylabel is not None else ("%s (%s)" % (name,unit) if name else unit.title()),
+              'ylabel': ylabel if ylabel is not None else name, # ("%s (%s)" % (name,unit) if name else unit.title()),
               'title': '%s' % title,
               'save_figname': '%s_%s' % (fig_name, name),
               'y_hat': dataobs[1],
@@ -1031,6 +1032,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
 
     tmp_plotdict.update(final_dict)
     # plot values
+    legend_labels = [textwrap.fill(label,17) for label in legend_labels] # Stop legend from going outside the figure
     fig = _plotTrends(ys, ts, legend_labels, plot_type=plot_type,
             save_fig=save_fig, colors=colors, cat_colors=legend_cols,
             linestyles=linestyles, hatches=hatches, **tmp_plotdict)
