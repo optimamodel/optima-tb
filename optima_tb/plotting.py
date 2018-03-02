@@ -1007,8 +1007,8 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         if len(plot_ybounds) == 3:
             tmp_plotdict['y_bounds'] = plot_ybounds
         elif len(plot_ybounds) == 2:
-            dataobs_yrs, dataobs_low = _extractDatapoint(result, proj, plot_ybounds[0], pop_labels, charac_specs, plot_total=plot_total)
-            _, dataobs_high = _extractDatapoint(result, proj, plot_ybounds[1], pop_labels, charac_specs, plot_total=plot_total)
+            dataobs_yrs, dataobs_low = _extractDatapoint(result, proj, plot_ybounds[0], pop_labels, charac_specs, plot_total=plot_total)[0]
+            _, dataobs_high = _extractDatapoint(result, proj, plot_ybounds[1], pop_labels, charac_specs, plot_total=plot_total)[0]
             # Cleaning data structures ...
             dataobs_low = dataobs_low
             dataobs_high = dataobs_high
@@ -1298,7 +1298,7 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
         for time_period in year_periods:
             ys = []
             for value_label in output_labels: # TODO extend so that it returns per pop_labels
-                y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=pop_labels, integrated=False)
+                y, _, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=pop_labels, integrated=False)
                 y = y[0]
                 y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 ys.append(y)
@@ -1310,7 +1310,7 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
         for time_period in year_periods:
             ys = []
             for pop in pop_labels:
-                y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=[pop], integrated=False)
+                y, _, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=[pop], integrated=False)
                 y = y[0]
                 y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 ys.append(y)
@@ -1361,9 +1361,9 @@ def getValueHandler(proj, result, value_label, year_period, pop_labels):
     """
     charac_specs = proj.settings.charac_specs
     if len(year_period) >= 2:
-        y, _ = result.getValuesAt(value_label, year_init=year_period[0], year_end=year_period[-1], pop_labels=pop_labels, integrated=True)
+        y, _, _ = result.getValuesAt(value_label, year_init=year_period[0], year_end=year_period[-1], pop_labels=pop_labels, integrated=True)
     else:
-        y, _ = result.getValuesAt(value_label, year_init=year_period[0], pop_labels=pop_labels, integrated=False)
+        y, _, _ = result.getValuesAt(value_label, year_init=year_period[0], pop_labels=pop_labels, integrated=False)
         y = y[0]
     y, unit_tag = _convertPercentage(y, value_label, charac_specs)
     return y
