@@ -44,6 +44,9 @@ def updateProgset(pset, attribute_dict, year):
     '''
     progset = pset.progset # Access the traditional values
 
+    for attribute in attribute_dict:
+        prog = progset.getProg(attribute[0])
+        switch
     for prog_label in progset.prog_ids.keys():
         if prog_label not in new_pars_dict.keys(): continue
         else:
