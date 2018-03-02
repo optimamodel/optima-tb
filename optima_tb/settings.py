@@ -455,7 +455,7 @@ class PlottingSettings():
                                             'bbox_to_anchor':(1.05, 0.5),
                                             'ncol':1},
                          # labels
-                         'use_full_labels' : False,
+                         'use_full_labels' : True,
                          'effective_rate': "Effective number",
                          'default_ylabel' : "Number of cases",
                          'default_pops' : "All populations",
