@@ -1032,8 +1032,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
 
     tmp_plotdict.update(final_dict)
     # plot values
-    legend_labels = [textwrap.fill(label,16) for label in legend_labels] # Stop legend from going outside the figure
-    fig = _plotTrends(ys, ts, legend_labels, plot_type=plot_type,
+    fig = _plotTrends(ys, ts, [textwrap.fill(label,16) for label in legend_labels], plot_type=plot_type,
             save_fig=save_fig, colors=colors, cat_colors=legend_cols,
             linestyles=linestyles, hatches=hatches, **tmp_plotdict)
 
