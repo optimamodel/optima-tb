@@ -126,14 +126,10 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
         pset = progset_results.model.pset
         original_alloc,_,_ = pset.get_alloc({'progs_start':reconcile_for_year,'init_alloc':{},'tvec':np.array([reconcile_for_year]),'tvec_dt':progset_results.model.sim_settings['tvec_dt'],'alloc_is_coverage':False,'saturate_with_default_budgets':True})
 
-        # Truncate the simulation popsizes so that indexing is correct
-        ti = progset_results.sim_settings['tvec'].size - 1
-        for par in pset.pars:
-            for link in par.links:
-                if link.source.vals.size > 1:
-                    link.source.vals = link.source.vals[ti:ti+1]
-
-
+        # Copy over the popsizes from the original simulation
+        for pop in progset_results.model.pops:
+            for comp in pop.comps:
+                comp.vals = parset_results.model.getPop(pop.label).getComp(comp.label).vals[-1:]
 
         args = {
             'pset': progset_results.model.pset,
