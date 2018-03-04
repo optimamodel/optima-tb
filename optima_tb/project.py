@@ -205,6 +205,7 @@ class Project(object):
         if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
         self.parsets[name] = ParameterSet(name=name)
         self.parsets[name].makePars(self.data)
+        return self.parsets[name]
 
     def makeProgset(self, name='default'):
         ''' Transform project data into a set of programs that can be used in budget scenarios and optimisations. '''
@@ -212,6 +213,7 @@ class Project(object):
         if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
         self.progsets[name] = ProgramSet(name=name)
         self.progsets[name].makeProgs(data=self.data, settings=self.settings)
+        return self.progsets[name]
 
     def reconcile(self, parset_name=None, progset=None, progset_name=None, reconcile_for_year=2017, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, budget_allocation=None, constrain_budget=True, overwrite=True, max_time=None, save_progset=True):
         '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible
