@@ -35,7 +35,7 @@ def _extract_target_vals(parset_results, progset_results, impact_pars):
 
     return target_vals
 
-def update_programs(progset, attribute_dict, original_alloc, year):
+def _update_programs(progset, attribute_dict, original_alloc, year):
     '''Update the progset with the new values as obtained from reconciliation process, but only for the reconciled year
        Params:
             pset  - ModelProgramSet instance
@@ -46,12 +46,12 @@ def update_programs(progset, attribute_dict, original_alloc, year):
     for attribute,val in attribute_dict.items():
         prog = progset.getProg(attribute[0])
         if attribute[1] == 'budget':
-            prog.insertValuePair(t=year, y=val, attribute='cost', rescale_after_year=True)
+            prog.insertValuePair(t=year[0], y=val, attribute='cost', rescale_after_year=True)
             alloc[prog.label] = val
         elif attribute[1] == 'unit_cost':
             prog.func_specs['pars']['unit_cost'] = val
         else:
-            prog.insertValuePair(t=year, y=val, attribute=attribute[1], rescale_after_year=True)
+            prog.insertValuePair(t=year[0], y=val, attribute=attribute[1], rescale_after_year=True)
     return alloc
 
 def objective(attribute_list, pset, tval, dt, target_vals, attribute_dict, constrain_budget, original_budget,original_alloc):
@@ -70,7 +70,7 @@ def objective(attribute_list, pset, tval, dt, target_vals, attribute_dict, const
                 attribute_dict[attrib] *= normalization
 
     # Update the programs and update the new allocation
-    alloc = update_programs(pset.progset, attribute_dict, original_alloc, tval)
+    alloc = _update_programs(pset.progset, attribute_dict, original_alloc, tval)
 
     # Compute the new program values
     pset.update_cache(alloc, tval, dt)
@@ -80,15 +80,14 @@ def objective(attribute_list, pset, tval, dt, target_vals, attribute_dict, const
     obj = 0
     for par_uid in target_vals:
         obj += (target_vals[par_uid] - proposed_vals[par_uid]) ** 2  # Add squared difference in parameter value
-        obj += proposed_coverage[par_uid] if proposed_coverage[
-                                                 par_uid] > 1 else 0.0  # Add extra penalty for excess coverage
+        obj += proposed_coverage[par_uid] if proposed_coverage[par_uid] > 1 else 0.0  # Add extra penalty for excess coverage
     return obj
 
 
 # ASD takes in a list of values. So we need to map all of the things we are optimizing onto 
 def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, constrain_budget=True, budget_allocation=None, orig_tvec_end=None, max_time=None):
         """
-        Recodnciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standar deviation sigma
+        Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standar deviation sigma
         
         Params:
             proj                    Project object to run simulations for reconciliation process (type: Python object)
@@ -127,6 +126,14 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
         pset = progset_results.model.pset
         original_alloc,_,_ = pset.get_alloc({'progs_start':reconcile_for_year,'init_alloc':{},'tvec':np.array([reconcile_for_year]),'tvec_dt':progset_results.model.sim_settings['tvec_dt'],'alloc_is_coverage':False,'saturate_with_default_budgets':True})
 
+        # Truncate the simulation popsizes so that indexing is correct
+        ti = progset_results.sim_settings['tvec'].size - 1
+        for par in pset.pars:
+            for link in par.links:
+                if link.source.vals.size > 1:
+                    link.source.vals = link.source.vals[ti:ti+1]
+
+
 
         args = {
             'pset': progset_results.model.pset,
@@ -135,7 +142,7 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
             'target_vals': target_vals,
             'attribute_dict': dcp(attribute_dict),
             'constrain_budget': constrain_budget,
-            'original_budget': sum([val for attrib,val in attribute_dict if attrib[1]=='budget']), # Original budget is sum all all program budget values
+            'original_budget': sum([val for attrib,val in attribute_dict.items() if attrib[1]=='budget']), # Original budget is sum all all program budget values
             'original_alloc':original_alloc
             }
 
@@ -156,48 +163,7 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
         pset = progset_results.model.pset
         original_alloc,tval,_ = pset.get_alloc({'progs_start':reconcile_for_year,'init_alloc':{},'tvec':np.array([reconcile_for_year]),'tvec_dt':progset_results.model.sim_settings['tvec_dt'],'alloc_is_coverage':False,'saturate_with_default_budgets':True})
 
-        impact = {}
-        logger.info('Reconciling for year: %i' % reconcile_for_year)
-        if impact_pars is None:
-            logger.info('No impact pars defined for reconciliation, using all impact parameters')
-            impact_pars = progset.impacts.keys()
-        else:
-            new_pars = [z for z in impact_pars if z in progset.impacts.keys()]
-            impact_pars = dcp(new_pars)
 
-        results = proj.runSim(parset_name=parset_name, store_results=False)
-
-        # Get original comparison between progset and parset
-        impact['original'] = compareOutcomesFunc(proj=proj, parset_name=parset_name, progset_name=progset_name, year=reconcile_for_year, compareoutcome=True, display=False)
-
-
-        # Run optimisation
-        args = {'proj': proj, 'parset': parset.pars['cascade'], 'progset': progset, 'parset_name': parset_name,
-                'impact_pars': impact_pars, 'results': results, 'attribute_dict': attribute_dict,
-                'reconcile_for_year': reconcile_for_year, 'compareoutcome': False, 'prog_budget_alloc': budget_allocation, 'constrain_budget': constrain_budget}
-
-        optim_args = {
-                     'stepsize': proj.settings.autofit_params['stepsize'],
-                     'maxiters': proj.settings.autofit_params['maxiters'],
-                     'maxtime': proj.settings.autofit_params['maxtime'],
-                     'sinc': proj.settings.autofit_params['sinc'],
-                     'sdec': proj.settings.autofit_params['sdec'],
-                     'fulloutput': False,
-                     'reltol': None
-                     }
-        if not max_time is None:
-            optim_args['maxtime'] = max_time
-
-#         print reconciliationMetric
-#         print "att list", attribute_list
-#         print "args", args
-#         print "xmin", xmin,
-#         print "xmax", xmax
-#         print "optim args", optim_args
-        logging.info("About to use ASD during reconciliation")
-        best_attribute_list, _, _ = asd(reconciliationMetric, attribute_list, args, xmin=xmin, xmax=xmax, **optim_args)
-        logging.info("Regenerating attributes dictionary")
-        best_attribute_dict = regenerateAttributesDict(attribute_list=best_attribute_list, orig_attribute_dict=attribute_dict)
         if constrain_budget:
             best_attribute_dict, _, _, _ = rescaleAllocation(best_attribute_dict, attribute_dict)
         print best_attribute_dict
