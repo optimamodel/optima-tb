@@ -15,7 +15,7 @@ from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from optima_tb.optimization import optimizeFunc, parallelOptimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
 from optima_tb.scenarios import ParameterScenario, BudgetScenario, CoverageScenario
-from optima_tb.reconciliation import reconcileFunc, compareOutcomesFunc
+from optima_tb.reconciliation import reconcile
 
 from uuid import uuid4 as uuid
 import numpy as np
@@ -215,7 +215,7 @@ class Project(object):
         self.progsets[name].makeProgs(data=self.data, settings=self.settings)
         return self.progsets[name]
 
-    def reconcile(self, parset_name=None, progset=None, progset_name=None, reconcile_for_year=2017, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, budget_allocation=None, constrain_budget=True, overwrite=True, max_time=None, save_progset=True):
+    def reconcile(self, parset_name=None, progset=None, progset_name=None, reconcile_for_year=2017, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, constrain_budget=True, overwrite=True, max_time=None, save_progset=True):
         '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible
            Default behaviour is to overwrite existing progset
         '''
@@ -262,11 +262,10 @@ class Project(object):
         logger.info('Reconciling progset "%s" as overwrite is set as "%s"' % (progset_name, overwrite))
 
         # Run reconcile functionality
-        reconciled_progset, reconciled_output = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
+        reconciled_progset = reconcile(proj=self, reconcile_for_year=reconcile_for_year,
                                                                 parset_name=parset_name, progset_name=progset_name, sigma_dict=sigma_dict,
                                                                 unitcost_sigma=unitcost_sigma, budget_sigma=budget_sigma, attribute_sigma=attribute_sigma,
-                                                                impact_pars=impact_pars, orig_tvec_end=orig_tvec_end,
-                                                                budget_allocation=budget_allocation, constrain_budget=constrain_budget, max_time=max_time)
+                                                                impact_pars=impact_pars, constrain_budget=constrain_budget, max_time=max_time)
 
         if save_progset:
             self.progsets[progset_name] = reconciled_progset
