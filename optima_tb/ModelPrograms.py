@@ -55,6 +55,7 @@ class ModelProgramSet(object):
             prog.unlink()
 
     def relink(self,objs):
+        self.pars = list(self.pars)
         for i in xrange(0,len(self.pars)):
             self.pars[i] = objs[self.pars[i]]
         self.pars = set(self.pars)

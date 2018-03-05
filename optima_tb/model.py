@@ -479,7 +479,9 @@ class Model(object):
 
     def __getstate__(self):
         self.unlink()
-        return self.__dict__  
+        d = dcp(self.__dict__) # Deepcopy so that relinking doesn't modify the originals
+        self.relink() # Relink, otherwise the original object gets unlinked
+        return d
 
     def __setstate__(self, d):
         self.__dict__ = d
