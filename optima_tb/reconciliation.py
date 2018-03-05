@@ -45,7 +45,7 @@ def _update_progset(progset, attribute_list, attribute_dict, constrain_budget, o
         attribute_dict[idx] = val
 
     # Constrain the budget if required
-    if constrain_budget:
+    if constrain_budget and original_budget:
         normalization = original_budget / sum([val for attrib, val in attribute_dict.items() if attrib[1] == 'budget'])
         for attrib in attribute_dict:
             if attrib[1] == 'budget':
@@ -91,26 +91,38 @@ def _createAttributeDict(progset, reconcile_for_year):
                     attributes_dict[(prog.label, key)] = val[0]
     return attributes_dict
 
-
-def _compute_limits(attribute_dict, sigma_dict, unitcost_sigma, attribute_sigma, budget_sigma):
-    xmin = odict()
-    xmax = odict()
+def _prepare_arrays(attribute_dict, sigma_dict, unitcost_sigma, attribute_sigma, budget_sigma):
+    xmin_d = odict()
+    xmax_d = odict()
+    attribute_dict = dcp(attribute_dict)
 
     for attribute, val in attribute_dict.items():
         # Attribute is e.g. ('HF DS-TB', 'budget')
         if sigma_dict is not None and attribute in sigma_dict:
-            xmin[attribute] = val * (1 - sigma_dict[attribute])
-            xmax[attribute] = val * (1 + sigma_dict[attribute])
+            xmin_d[attribute] = val * (1 - sigma_dict[attribute])
+            xmax_d[attribute] = val * (1 + sigma_dict[attribute])
         elif attribute[1] == 'unit_cost':
-            xmin[attribute] = val * (1 - unitcost_sigma)
-            xmax[attribute] = val * (1 + unitcost_sigma)
+            xmin_d[attribute] = val * (1 - unitcost_sigma)
+            xmax_d[attribute] = val * (1 + unitcost_sigma)
         elif attribute[1] == 'budget':
-            xmin[attribute] = val * (1 - budget_sigma)
-            xmax[attribute] = val * (1 + budget_sigma)
+            xmin_d[attribute] = val * (1 - budget_sigma)
+            xmax_d[attribute] = val * (1 + budget_sigma)
         else:
-            xmin[attribute] = val * (1 - attribute_sigma)
-            xmax[attribute] = val * (1 + attribute_sigma)
-    return xmin, xmax
+            xmin_d[attribute] = val * (1 - attribute_sigma)
+            xmax_d[attribute] = val * (1 + attribute_sigma)
+
+    for attribute in attribute_dict.keys():
+        if xmin_d[attribute] == xmax_d[attribute]: # No allowed change means cannot optimize this quantity
+            attribute_dict.pop(attribute)
+            xmin_d.pop(attribute)
+            xmax_d.pop(attribute)
+
+
+    x0 = [x for _,x in attribute_dict.items()]
+    xmin = np.array([x for _, x in xmin_d.items()])
+    xmax = np.array([x for _, x in xmax_d.items()])
+
+    return x0, xmin, xmax, attribute_dict
 
 
 def _objective(attribute_list, pset, tval, dt, target_vals, attribute_dict, constrain_budget, original_budget,original_alloc):
@@ -127,7 +139,7 @@ def _objective(attribute_list, pset, tval, dt, target_vals, attribute_dict, cons
     return obj
 
 # ASD takes in a list of values. So we need to map all of the things we are optimizing onto 
-def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, constrain_budget=True, budget_allocation=None, orig_tvec_end=None, max_time=5):
+def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, constrain_budget=False, max_time=30):
         """
         Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standar deviation sigma
         
@@ -144,8 +156,7 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
             budget_sigma            Standard deviation allowable for budget for program (type: float)
             impact_pars             Impact pars to be reconciled (type: list or None)
             constrain_budget        Flag to inform algorithm whether to constrain total budget or not (type: bool)
-            budget_allocation       Dictionary of programs with new budget allocations (type: dict)
-            
+
         Returns:
             progset                 Updated progset with reconciled values
             outcome                 String denoting original and reconciled parset/progset impact comparison
@@ -166,7 +177,7 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
         # Extract the target values, make an attribute dict, etc.
         target_vals, initial_prog_vals = _extract_target_vals(parset_results,progset_results,impact_pars)
         attribute_dict = _createAttributeDict(progset_results.model.pset.progset,reconcile_for_year)
-        xmin,xmax = _compute_limits(attribute_dict,sigma_dict,unitcost_sigma,attribute_sigma,budget_sigma)
+        x0,xmin,xmax,attribute_dict = _prepare_arrays(attribute_dict,sigma_dict,unitcost_sigma,attribute_sigma,budget_sigma)
 
         # Now, make the original attribute dict
         pset = progset_results.model.pset
@@ -196,14 +207,14 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
                      'sdec': proj.settings.autofit_params['sdec'],
                      'fulloutput': False,
                      'reltol': None,
-                     'xmin': np.array([x for _, x in xmin.items()]),
-                     'xmax': np.array([x for _, x in xmax.items()]),
+                     'xmin': xmin,
+                     'xmax': xmax,
                      }
 
         if not max_time is None:
             optim_args['maxtime'] = max_time
 
-        best_attribute_list, _, _ = asd(_objective, [x for _,x in attribute_dict.items()], args, **optim_args)
+        best_attribute_list, _, _ = asd(_objective, x0, args, **optim_args)
 
         # Now, make the original attribute dict
         alloc = _update_progset(pset.progset, best_attribute_list, args['attribute_dict'], args['constrain_budget'], args['original_budget'], original_alloc, args['tval'], args['dt'])
