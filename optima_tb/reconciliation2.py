@@ -77,12 +77,13 @@ def objective(attribute_list, pset, tval, dt, target_vals, attribute_dict, const
     proposed_vals, proposed_coverage = pset.compute_pars(0)  # As there is only one timepoint, that is the one we are using
 
     # Compare them to the target values and compute objective
+    x = 0.0
     for par_label in set([p.label for p in pset.pars]):
         print par_label
         for par in pset.pars:
             if par.label == par_label:
                 print (target_vals[par.uid] - proposed_vals[par.uid]) ** 2
-
+                x += (target_vals[par.uid] - proposed_vals[par.uid]) ** 2
 
 
 
