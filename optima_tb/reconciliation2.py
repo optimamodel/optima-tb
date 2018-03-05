@@ -30,53 +30,93 @@ def _extract_target_vals(parset_results, progset_results, impact_pars):
     # Finally, extract the values from the parset_results for the corresponding labels and store them in a dict
     # using the UIDs of the progset_results run
     target_vals = dict()  # This is a dict mapping par_uid:par_value for the reconciliation year in the Parset - the UIDs correspond to the progset run though
+    initial_prog_vals = dict()
     for pop_label, par_label, par_uid in mapping:
         target_vals[par_uid] = parset_results.model.getPop(pop_label).getPar(par_label).vals[-1]
+        initial_prog_vals[par_uid] = progset_results.model.getPop(pop_label).getPar(par_label).vals[-1]
 
-    return target_vals
+    return target_vals,initial_prog_vals
 
-def _update_programs(progset, attribute_dict, original_alloc, year):
-    '''Update the progset with the new values as obtained from reconciliation process, but only for the reconciled year
-       Params:
-            pset  - ModelProgramSet instance
-            new_pars_dict          Dictionary form of the optimized list which is used to update progset
-            year    - Year at which to apply the input values
-    '''
+def _update_progset(progset, attribute_list, attribute_dict, constrain_budget, original_budget, original_alloc, tval, dt):
+    # Update the ModelProgramSet/ProgramSet in place and update the cache ready for parameter computation
+
+    # Load the attribute list into the attribute dict
+    for idx, val in enumerate(attribute_list):
+        attribute_dict[idx] = val
+
+    # Constrain the budget if required
+    if constrain_budget:
+        normalization = original_budget / sum([val for attrib, val in attribute_dict.items() if attrib[1] == 'budget'])
+        for attrib in attribute_dict:
+            if attrib[1] == 'budget':
+                attribute_dict[attrib] *= normalization
+
+    # Update the programs and update the new allocation
     alloc = dcp(original_alloc)
-    for attribute,val in attribute_dict.items():
+    for attribute, val in attribute_dict.items():
         prog = progset.getProg(attribute[0])
         if attribute[1] == 'budget':
-            prog.insertValuePair(t=year[0], y=val, attribute='cost', rescale_after_year=True)
+            prog.insertValuePair(t=tval[0], y=val, attribute='cost', rescale_after_year=True)
             alloc[prog.label] = val
         elif attribute[1] == 'unit_cost':
             prog.func_specs['pars']['unit_cost'] = val
         else:
-            prog.insertValuePair(t=year[0], y=val, attribute=attribute[1], rescale_after_year=True)
+            prog.insertValuePair(t=tval[0], y=val, attribute=attribute[1], rescale_after_year=True)
     return alloc
 
-def objective(attribute_list, pset, tval, dt, target_vals, attribute_dict, constrain_budget, original_budget,original_alloc):
-    # tval - is the year we are reconciling at
+def _createAttributeDict(progset, reconcile_for_year):
+    '''Creates an attribute dictionary on a per program basis from the identified progset
+       for all parameters/impact labels that can be reconciled
 
-    # Load the values into the attribute dict
-    new_attributes = dcp(attribute_dict)
-    for idx,val in enumerate(attribute_list):
-        new_attributes[idx] = val
-        # if attribute_dict[idx] != new_attributes[idx]:
-        #     print '%s: Old=%.4f New=%.4f' % (attribute_dict.keys()[idx],attribute_dict[idx],new_attributes[idx])
+       Params:
+            settings                Project settings to identify year range for interpolation of progset
+            progset                 progset on which interpolation needs to be conducted
 
-    # Constrain the budget if required - such that total spending on programs we are allowed to modify is unchanged
-    # This implies total spending is unchanged, but means we cannot modify spending of programs that are not being reconciled
-    if constrain_budget:
-        normalization = original_budget / sum([val for attrib, val in new_attributes.items() if attrib[1] == 'budget'])
-        for attrib in new_attributes:
-            if attrib[1] == 'budget':
-                new_attributes[attrib] *= normalization
+        Returns:
+            attributes_dict         dict mapping (prog_label,attribute):value
 
-    # Update the programs and update the new allocation
-    alloc = _update_programs(pset.progset, new_attributes, original_alloc, tval)
+    '''
 
-    # Compute the new program values
+    attributes_dict = odict()
+    tval = np.array([reconcile_for_year])
+    for prog in progset.progs:
+        if 'unit_cost' in prog.func_specs['pars'].keys() and prog.getDefaultBudget(year=tval) > 0.:
+            attributes_dict[(prog.label, 'unit_cost')] = prog.func_specs['pars']['unit_cost']
+            attributes_dict[(prog.label, 'budget')] = prog.getDefaultBudget(year=tval)
+            interpolated_attributes = prog.interpolate(tvec=tval)
+            for key, val in interpolated_attributes.items():
+                if key in ['cov', 'dur', 'time', 'cost']:
+                    continue
+                else:
+                    attributes_dict[(prog.label, key)] = val[0]
+    return attributes_dict
+
+
+def _compute_limits(attribute_dict, sigma_dict, unitcost_sigma, attribute_sigma, budget_sigma):
+    xmin = odict()
+    xmax = odict()
+
+    for attribute, val in attribute_dict.items():
+        # Attribute is e.g. ('HF DS-TB', 'budget')
+        if sigma_dict is not None and attribute in sigma_dict:
+            xmin[attribute] = val * (1 - sigma_dict[attribute])
+            xmax[attribute] = val * (1 + sigma_dict[attribute])
+        elif attribute[1] == 'unit_cost':
+            xmin[attribute] = val * (1 - unitcost_sigma)
+            xmax[attribute] = val * (1 + unitcost_sigma)
+        elif attribute[1] == 'budget':
+            xmin[attribute] = val * (1 - budget_sigma)
+            xmax[attribute] = val * (1 + budget_sigma)
+        else:
+            xmin[attribute] = val * (1 - attribute_sigma)
+            xmax[attribute] = val * (1 + attribute_sigma)
+    return xmin, xmax
+
+
+def _objective(attribute_list, pset, tval, dt, target_vals, attribute_dict, constrain_budget, original_budget,original_alloc):
+    alloc = _update_progset(pset.progset, attribute_list, attribute_dict, constrain_budget, original_budget, original_alloc, tval, dt)
     pset.update_cache(alloc, tval, dt)
+
     proposed_vals, proposed_coverage = pset.compute_pars(0)  # As there is only one timepoint, that is the one we are using
 
     obj = 0.0
@@ -86,9 +126,8 @@ def objective(attribute_list, pset, tval, dt, target_vals, attribute_dict, const
 
     return obj
 
-
 # ASD takes in a list of values. So we need to map all of the things we are optimizing onto 
-def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, constrain_budget=True, budget_allocation=None, orig_tvec_end=None, max_time=None):
+def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, constrain_budget=True, budget_allocation=None, orig_tvec_end=None, max_time=5):
         """
         Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standar deviation sigma
         
@@ -114,14 +153,18 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
         """
 
         # First, get baseline values
+        orig_tvec_end = proj.settings.tvec_end
         proj.setYear([2000, reconcile_for_year], False) # This is the easiest way to evaluate the dependent parameter values
         options = defaultOptimOptions(settings=proj.settings, progset=proj.progsets[0])
+        if reconcile_for_year != options['progs_start']:
+            logging.warn('Reconciling for %.2f, but programs start in %.2f' % (reconcile_for_year,options['progs_start']))
         parset = proj.parsets[parset_name]
-        progset = proj.progsets[progset_name]
         parset_results = proj.runSim(parset=parset, store_results=False) # parset values we want to match
-        progset_results = proj.runSim(parset=parset, progset=progset, store_results=False,options=options) # Default results - also, instantiates a ModelProgramSet for use in next steps
+        progset_results = proj.runSim(parset=parset, progset_name=progset_name, store_results=False,options=options) # Default results - also, instantiates a ModelProgramSet for use in next steps
+        proj.setYear([2000, orig_tvec_end], False) # Reset the project end year
 
-        target_vals = _extract_target_vals(parset_results,progset_results,impact_pars)
+        # Extract the target values, make an attribute dict, etc.
+        target_vals, initial_prog_vals = _extract_target_vals(parset_results,progset_results,impact_pars)
         attribute_dict = _createAttributeDict(progset_results.model.pset.progset,reconcile_for_year)
         xmin,xmax = _compute_limits(attribute_dict,sigma_dict,unitcost_sigma,attribute_sigma,budget_sigma)
 
@@ -156,167 +199,23 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
                      'xmin': np.array([x for _, x in xmin.items()]),
                      'xmax': np.array([x for _, x in xmax.items()]),
                      }
+
         if not max_time is None:
             optim_args['maxtime'] = max_time
 
-        #
-        # optim_args['sinitial'] = 0.2*(optim_args['xmax']-optim_args['xmin'])
-        # optim_args['sinitial'] = np.concatenate((optim_args['sinitial'], optim_args['sinitial']))
+        best_attribute_list, _, _ = asd(_objective, [x for _,x in attribute_dict.items()], args, **optim_args)
 
-        best_attribute_list, _, _ = asd(objective, [x for _,x in attribute_dict.items()], args, **optim_args)
+        # Now, make the original attribute dict
+        alloc = _update_progset(pset.progset, best_attribute_list, args['attribute_dict'], args['constrain_budget'], args['original_budget'], original_alloc, args['tval'], args['dt'])
+        pset.update_cache(alloc, args['tval'], args['dt'])
+        proposed_vals, proposed_coverage = pset.compute_pars(0)
 
-        pset = progset_results.model.pset
-        original_alloc,tval,_ = pset.get_alloc({'progs_start':reconcile_for_year,'init_alloc':{},'tvec':np.array([reconcile_for_year]),'tvec_dt':progset_results.model.sim_settings['tvec_dt'],'alloc_is_coverage':False,'saturate_with_default_budgets':True})
+        print '%s %s\t\t%s\t\t%s\t\t%s' % ('Population'.ljust(15),'Parameter'.ljust(15),'Parset', 'Initial'.ljust(16),'Reconciled'.ljust(16))
+        for pop in progset_results.model.pops:
+            for par in pop.pars:
+                if par.uid in target_vals:
+                    print '%s %s\t\t%.4f\t\t%.4f (%+.4f) \t\t%.4f (%+.4f)' % (pop.label.ljust(15),par.label.ljust(15),target_vals[par.uid],initial_prog_vals[par.uid],initial_prog_vals[par.uid]-target_vals[par.uid],proposed_vals[par.uid],proposed_vals[par.uid]-target_vals[par.uid])
 
+        return pset.progset
 
-        if constrain_budget:
-            best_attribute_dict, _, _, _ = rescaleAllocation(best_attribute_dict, attribute_dict)
-        print best_attribute_dict
-        logging.info("Updating progset")
-        progset = updateProgset(new_pars_dict=best_attribute_dict, progset=progset, year=reconcile_for_year)
-        impact['reconciled'] = compareOutcomesFunc(proj=proj, parset_name=parset_name, progset_name=progset_name, year=reconcile_for_year, compareoutcome=True, display=False)
-#        print impact['original']['snmno_rate']
-#        print impact['reconciled'].keys()
-        # Display comparison between old progset and new reconciled progset
-        parset_value = 'Parset Impact'
-        origprogset_value = 'Original Impact'
-        reconcileprogset_value = 'Reconciled Impact'
-        print('Comparing outcomes for year: %i' % reconcile_for_year)
-        outcome = '\n\t\t\t%s\t\t%s\t\t%s\n' % (parset_value, origprogset_value, reconcileprogset_value)
-        for par_label in impact['original'].keys():
-            if par_label == 'net_difference': continue
-            else:
-                outcome += '%s\n' % (par_label)
-                for popkey in impact['original'][par_label]:
-                    # print('Pop key: %s, Par_label: %s\nType(original parset value): %s\nType(original progset value): %s\nType(reconciled parset value): %s\nType(reconciled progset value): %s\n' %(popkey, par_label, impact['original'][par_label][popkey]['parset_impact_value'], impact['original'][par_label][popkey]['progset_impact_value'], impact['reconciled'][par_label][popkey]['parset_impact_value'], impact['reconciled'][par_label][popkey]['progset_impact_value']))
-#                    print impact['original'][par_label][popkey].keys()
-#                    print impact['reconciled'][par_label][popkey].keys()
-                    outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\n'.format(popkey, impact['original'][par_label][popkey]['parset_impact_value'], impact['original'][par_label][popkey]['progset_impact_capped'], impact['reconciled'][par_label][popkey]['progset_impact_capped'])
-                outcome += '\n'
-#        print outcome
-        # Reset back to original runSim durations
-        proj.setYear([2000, orig_tvec_end], False)
-        return progset, outcome
-
-def compareOutcomesFunc(proj, year, parset_name=None, progset_name=None, budget_allocation=None, compareoutcome=None, display=True, constrain_budget=True):
-    """
-    Compares impact parameters as informed by progset to identified parset, and display the comparison
-    
-    Params:
-        proj                    Project object to run simulations for reconciliation process (type: Python object)
-        year                    Year for which compaarison needs to be displayed/established (type: int)
-        parset_name             Parameter set name to compare  (type: string)
-        progset_name            Program set name to compare  (type: string)
-        budget_allocation       Dictionary of programs with new budget allocations (type: dict)
-        compareoutcome          Flag to pass into reconciliationMetric() to inform that this is not an optimization (type: bool)
-        display                 Flag to indicate whether to print out comparison results (type: bool)
-        
-        
-    Returns:
-        impact                  dictionary of original and reconciled parset/progset impact comparison
-        
-    """
-    # Make a copy of the original simulation end date
-    orig_tvec_end = proj.settings.tvec_end
-    # Checks and settings for reconcile
-    if parset_name is None:
-        try:
-            parset_name = proj.parsets.keys()[0]
-            logger.info('Parameter set was not identified for impact parameter comparison, using parameter set: "%s"' % parset_name)
-        except: raise OptimaException('No valid parameter sets exist within the project')
-
-    if progset_name is None:
-        try:
-            progset_name = proj.progsets.keys()[0]
-            logger.info('Program set was not identified for impact parameter comparison, using program set: "%s"' % progset_name)
-        except: raise OptimaException('No valid program sets exist within the project')
-
-    if not parset_name in proj.parsets.keys(): raise OptimaException("ERROR: No parameter set '%s' found" % parset_name)
-    if not progset_name in proj.progsets.keys(): raise OptimaException("ERROR: No program set '%s' found" % progset_name)
-
-    # Set years for Simulation runs
-    proj.setYear([2000, year], False)
-    # Setup compareOutcomes kwargs
-    parset = proj.parsets[parset_name].pars['cascade']
-    progset = proj.progsets[progset_name]
-    results = proj.runSim(parset_name=parset_name, store_results=False)
-    # Declare impact parameters to use for display (use all)
-    impact_pars = progset.impacts.keys()
-    # use reconcilemetric to get desired result
-    impact = reconciliationMetric(new_attributes=[], proj=proj, parset=parset, progset=progset,
-                                  parset_name=parset_name, impact_pars=impact_pars,
-                                  results=results, attribute_dict={}, reconcile_for_year=year,
-                                  compareoutcome=compareoutcome, prog_budget_alloc=budget_allocation, constrain_budget=constrain_budget)
-    # display output
-    if display:
-        print('Comparing outcomes for year: %i' % year)
-        parset_value = 'parset_impact_value'
-        progset_value_uncapped = 'progset_impact_uncapped'
-        progset_value_capped = 'progset_impact_capped'
-        progset_overflow = 'overflow_list'
-        outcome = '\n\t\t\t%s\t%s\t%s\t%s\n' % (parset_value, progset_value_uncapped, progset_value_capped, progset_overflow)
-        for par_label in impact.keys():
-            if par_label == 'net_difference': continue
-            else:
-                outcome += '%s\n' % (par_label)
-                for popkey in impact[par_label]:
-                    try: outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\t\t{:<10}\n'.format(popkey, impact[par_label][popkey][parset_value], impact[par_label][popkey][progset_value_uncapped], impact[par_label][popkey][progset_value_capped], impact[par_label][popkey][progset_overflow])
-                    except:
-                        try: outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\t\t{:<10}\n'.format(popkey, impact[par_label][popkey][parset_value], impact[par_label][popkey][progset_value_uncapped][0], impact[par_label][popkey][progset_value_capped][0], impact[par_label][popkey][progset_overflow])
-                        except:
-                            try: outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\t\t{:<10}\n'.format(popkey, impact[par_label][popkey][parset_value], impact[par_label][popkey][progset_value_uncapped][0], impact[par_label][popkey][progset_value_capped], impact[par_label][popkey][progset_overflow])
-                            except:
-                                outcome += '\t{:<10}\t{:10.2f}\t\t{:10.2f}\t\t{:10.2f}\t\t{:<10}\n'.format(popkey, impact[par_label][popkey][parset_value], impact[par_label][popkey][progset_value_uncapped], impact[par_label][popkey][progset_value_capped][0], impact[par_label][popkey][progset_overflow])
-                outcome += '\n'
-        print outcome
-    # Reset back to original runSim durations
-    proj.setYear([2000, orig_tvec_end], False)
-    return impact
-
-def _createAttributeDict(progset,reconcile_for_year):
-    '''Creates an attribute dictionary on a per program basis from the identified progset 
-       for all parameters/impact labels that can be reconciled
-       
-       Params:
-            settings                Project settings to identify year range for interpolation of progset
-            progset                 progset on which interpolation needs to be conducted
-            
-        Returns:
-            attributes_dict         dict mapping (prog_label,attribute):value
-            
-    '''
-
-    attributes_dict = odict()
-    tval = np.array([reconcile_for_year])
-    for prog in progset.progs:
-        if 'unit_cost' in prog.func_specs['pars'].keys() and prog.getDefaultBudget(year=tval) > 0.:
-            attributes_dict[(prog.label,'unit_cost')] = prog.func_specs['pars']['unit_cost']
-            attributes_dict[(prog.label,'budget')] = prog.getDefaultBudget(year=tval)
-            interpolated_attributes = prog.interpolate(tvec=tval)
-            for key,val in interpolated_attributes.items():
-                if key in ['cov' , 'dur' , 'time', 'cost']:
-                    continue
-                else:
-                    attributes_dict[(prog.label,key)] = val[0]
-    return attributes_dict
-
-def _compute_limits(attribute_dict, sigma_dict, unitcost_sigma, attribute_sigma, budget_sigma):
-    xmin = odict()
-    xmax = odict()
-
-    for attribute, val in attribute_dict.items():
-        # Attribute is e.g. ('HF DS-TB', 'budget')
-        if sigma_dict is not None and attribute in sigma_dict:
-            xmin[attribute] = val*(1 - sigma_dict[attribute])
-            xmax[attribute] = val*(1 + sigma_dict[attribute])
-        elif attribute[1] == 'unit_cost':
-            xmin[attribute] = val*(1 - unitcost_sigma)
-            xmax[attribute] = val*(1 + unitcost_sigma)
-        elif attribute[1] == 'budget':
-            xmin[attribute] = val*(1 - budget_sigma)
-            xmax[attribute] = val*(1 + budget_sigma)
-        else:
-            xmin[attribute] = val*(1 - attribute_sigma)
-            xmax[attribute] = val*(1 + attribute_sigma)
-    return xmin, xmax
 

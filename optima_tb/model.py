@@ -69,7 +69,9 @@ class Variable(object):
         # Given a dictionary of objects, restore the internal references
         # based on the UUID
         for prop in self.__dict__.keys():
-            if isinstance(self.__dict__[prop],list):
+            if prop == 'uid':
+                continue
+            elif isinstance(self.__dict__[prop],list):
                 for i,obj in enumerate(self.__dict__[prop]):
                     if isinstance(obj,uuid.UUID):
                         self.__dict__[prop][i] = objs[obj]

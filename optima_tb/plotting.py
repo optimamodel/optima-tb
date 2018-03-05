@@ -519,7 +519,7 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
     
     Params:
         proj            project object, containing plotting settings and observed data points
-        resultset       resultset object 
+        resultset       odict of resultset objects
         output_labels   list of compartment labels, flow rate labels, characteristics
         pop_labels      populations to be plotted. Default (None) plots all populations.
         plot_total      plot total across populations
