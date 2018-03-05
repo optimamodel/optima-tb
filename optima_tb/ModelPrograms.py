@@ -193,13 +193,16 @@ class ModelProgramSet(object):
             par = self.par_by_id[par_id]
 
             if par.links:
-                if par.is_fraction: # This is if the parameter is a fraction - it's the same for all entries because they all point to the same parameter, so just check the first one
+                impacts[par_id] = sum(impacts[par_id]) # Note - sum the rates before doing the conversion
+
+                if par.is_fraction:
                     impacts[par_id] = 1.0 - (1.0 - impacts[par_id]) ** (1.0 / self.dt)
                 else:
                     impacts[par_id] = impacts[par_id] * (1.0 / self.dt)
+            else:
+                impacts[par_id] = sum(impacts[par_id])
 
-            impacts[par_id] = sum(impacts[par_id])
-
+        # TODO - Constraints here
         return impacts,net_cov
 
 
