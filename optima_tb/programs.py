@@ -153,7 +153,7 @@ class Program:
         for val_type in self.attributes.keys():
             val_dict[val_type] = self.attributes[val_type]
         
-        orig_y = self.interpolate(tvec=[t], attributes=[attribute])[attribute][-1]
+        orig_y = self.interpolate(tvec=np.array([t]), attributes=[attribute])[attribute][-1]
         try: scaling_factor = float(y)/orig_y
         except: raise OptimaException('ERROR: Unable to insert value "%f" at year "%f" for attribute "%s" of program "%s"' % (y, t, attribute, self.label))
             
@@ -192,49 +192,47 @@ class Program:
         ''' Takes attribute values and constructs a dictionary of interpolated array corresponding to the input time vector. Ignores np.nan. '''
 
         # Validate input.
-        if tvec is None: raise OptimaException('ERROR: Cannot interpolate attributes of program "%s" without providing a time vector.' % self.label)
-        if not len(self.t) > 0: raise OptimaException('ERROR: There are no timepoint values for program "%s".' % self.label)
-        if not len(self.t) == len(self.cost): raise OptimaException('ERROR: Program "%s" does not have corresponding time and cost values.' % self.label)
-        if not len(self.t) == len(self.cov): raise OptimaException('ERROR: Program "%s" does not have corresponding time and coverage values.' % self.label)
+        if tvec is None:
+            raise OptimaException('ERROR: Cannot interpolate attributes of program "%s" without providing a time vector.' % self.label)
+        if not len(self.t) > 0:
+            raise OptimaException('ERROR: There are no timepoint values for program "%s".' % self.label)
+        if not len(self.t) == len(self.cost):
+            raise OptimaException('ERROR: Program "%s" does not have corresponding time and cost values.' % self.label)
+        if not len(self.t) == len(self.cov):
+            raise OptimaException('ERROR: Program "%s" does not have corresponding time and coverage values.' % self.label)
 
         output = dict()
 
-        input_cost = dcp(self.cost)
-        input_cov = dcp(self.cov)
         val_types = ['cost', 'cov'] + [x for x in self.attributes.keys()]
-        val_arrays = [input_cost, input_cov] + [y for y in self.attributes.values()]
+        val_arrays = [self.cost, self.cov] + [y for y in self.attributes.values()] # Note - references to cost and cov here, so cannot write directly to val_arrays
 
         for k in xrange(len(val_types)):
             val_type = val_types[k]
             val_array = val_arrays[k]
             if attributes is not None and val_type not in attributes: continue
 
-            t_array = dcp(self.t)  # Need to refresh this during each attribute interpolation loop.
-
             # Eliminate np.nan from value array before interpolation. Makes sure timepoints are appropriately constrained.
-            t_temp = dcp(t_array)
-            val_temp = dcp(val_array)
-            t_array = dcp(t_temp[~np.isnan(val_temp)])
-            val_array = dcp(val_temp[~np.isnan(val_temp)])
+            cleaned_times = self.t[~np.isnan(val_array)] # NB. numpy advanced indexing here results in a copy
+            cleaned_vals = val_array[~np.isnan(val_array)]
 
-            if len(t_array) == 1:  # If there is only one timepoint, corresponding cost and cov values should be real valued after loading databook. But can double-validate later.
-                output[val_type] = np.ones(len(tvec)) * (val_array)[0]  # Don't bother running interpolation loops if constant. Good for performance.
+            if len(cleaned_times) == 1:  # If there is only one timepoint, corresponding cost and cov values should be real valued after loading databook. But can double-validate later.
+                output[val_type] = np.ones(len(tvec)) * (cleaned_vals)[0]  # Don't bother running interpolation loops if constant. Good for performance.
             else:
                 # Pad the input vectors for interpolation with minimum and maximum timepoint values, to avoid extrapolated values blowing up.
-                ind_min, t_min = min(enumerate(t_array), key=lambda p: p[1])
-                ind_max, t_max = max(enumerate(t_array), key=lambda p: p[1])
-                val_at_t_min = val_array[ind_min]
-                val_at_t_max = val_array[ind_max]
+                ind_min, t_min = min(enumerate(cleaned_times), key=lambda p: p[1])
+                ind_max, t_max = max(enumerate(cleaned_times), key=lambda p: p[1])
+                val_at_t_min = cleaned_vals[ind_min]
+                val_at_t_max = cleaned_vals[ind_max]
 
                 # This padding effectively keeps edge values constant for desired time ranges larger than data-provided time ranges.
                 if tvec[0] < t_min:
-                    t_array = np.append(tvec[0], t_array)
-                    val_array = np.append(val_at_t_min, val_array)
+                    cleaned_times = np.append(tvec[0], cleaned_times)
+                    cleaned_vals = np.append(val_at_t_min, cleaned_vals)
                 if tvec[-1] > t_max:
-                    t_array = np.append(t_array, tvec[-1])
-                    val_array = np.append(val_array, val_at_t_max)
+                    cleaned_times = np.append(cleaned_times, tvec[-1])
+                    cleaned_vals = np.append(cleaned_vals, val_at_t_max)
 
-                output[val_type] = interpolateFunc(t_array, val_array, tvec)
+                output[val_type] = interpolateFunc(cleaned_times, cleaned_vals, tvec)
 
         return output
 
@@ -255,7 +253,7 @@ class Program:
         '''
 
         if year is None: year = max(self.t)
-        output = self.interpolate(tvec=[year], attributes=['cost'])
+        output = self.interpolate(tvec=np.array([year]), attributes=['cost'])
         budget = output['cost'][-1]
         return budget
 
@@ -292,8 +290,11 @@ class Program:
         '''
 
         # If budget is a scalar, make it a float. If it is a list or array, make it an array of floats.
-        try: budget = float(budget)
-        except: budget = dcp(np.array(budget, 'float'))
+        # Todo - consider simplifying this by first checking if budget is an ndarray and if not, make it so
+        try:
+            budget = float(budget) # NB. Using the float() constructor will instantiate a new object
+        except:
+            budget = np.array(budget, 'float') # NB. using np.array() constructor will instantiate a new object
 
         if self.cov_format is None:
             cov = np.nan  # Fixed cost programs have no coverage.
@@ -302,20 +303,24 @@ class Program:
                 cov = budget * 0.01 / self.func_specs['pars']['unit_cost']     # Unit cost is per percentage when format is a fraction.
             else:
                 cov = budget / self.func_specs['pars']['unit_cost']
-        return cov
+        return cov # NOTE - this value might be modified in-place later on, so ensure it is a standalone new object
 
     def getImpact(self, budget, impact_label=None, parser=None, years=None, budget_is_coverage=False):
 
         if self.func_specs['type'] == 'cost_only':
             return 0.0
 
-        budget = dcp(budget)    # Just in case.
-
         # Baseline impact is just coverage.
         if budget_is_coverage:
-            imp = budget
+            if isinstance(budget,np.ndarray):
+                imp = budget.copy() # NB. imp is modified in place later
+            elif isinstance(budget,list):
+                logger.warn('Pass in the budget as an ndarray for better performance')
+                imp = dcp(budget)
+            else:
+                imp = budget # Otherwise,
         else:
-            imp = self.getCoverage(budget)
+            imp = self.getCoverage(budget) # getCoverage will always return a new object
 
         # If impact parameter has an impact function, this is what coverage is scaled by.
         if not impact_label is None:
