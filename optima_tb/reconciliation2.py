@@ -76,21 +76,11 @@ def objective(attribute_list, pset, tval, dt, target_vals, attribute_dict, const
     pset.update_cache(alloc, tval, dt)
     proposed_vals, proposed_coverage = pset.compute_pars(0)  # As there is only one timepoint, that is the one we are using
 
-    # Compare them to the target values and compute objective
-    x = 0.0
-    for par_label in set([p.label for p in pset.pars]):
-        print par_label
-        for par in pset.pars:
-            if par.label == par_label:
-                print (target_vals[par.uid] - proposed_vals[par.uid]) ** 2
-                x += (target_vals[par.uid] - proposed_vals[par.uid]) ** 2
-
-
-
-    obj = 0
+    obj = 0.0
     for par_uid in target_vals:
         obj += (target_vals[par_uid] - proposed_vals[par_uid]) ** 2  # Add squared difference in parameter value
-        obj += proposed_coverage[par_uid] if proposed_coverage[par_uid] > 1 else 0.0  # Add extra penalty for excess coverage
+        obj += sum([x for x in proposed_coverage[par_uid] if x > 1])  # Add extra penalty for excess coverage
+
     return obj
 
 
