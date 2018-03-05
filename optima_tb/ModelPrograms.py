@@ -264,17 +264,19 @@ class ModelProgram(object):
 
             if not par.links: # If not a transition parameter, return the value directly
                 par_contribution[par.uid] = (1.0,self.net_dt_impact[par.uid][ti])
-            # elif par.source_popsize(ti) <= project_settings.TOLERANCE:
-            #     par_contribution[par.uid] = (0.0,0.0)
             else:
                 # Convert units depending on the *Program* units
-                grp_size = source_set_size[self.pars_to_groups[par.uid]]
-                if grp_size <= project_settings.TOLERANCE:
-                    frac_dt_cov = 0.0
-                    frac_dt_impact = 0.0
+                if self.is_fraction:
+                    frac_dt_cov = self.net_dt_cov[ti]
+                    frac_dt_impact = self.net_dt_impact[par.uid][ti]
                 else:
-                    frac_dt_cov =  self.net_dt_cov[ti] / grp_size # Note grp_size is 1.0 if self.is_fraction is True
-                    frac_dt_impact = self.net_dt_impact[par.uid][ti] / grp_size
+                    grp_size = source_set_size[self.pars_to_groups[par.uid]]
+                    if grp_size <= project_settings.TOLERANCE:
+                        frac_dt_cov = 0.0
+                        frac_dt_impact = 0.0
+                    else:
+                        frac_dt_cov =  self.net_dt_cov[ti] / grp_size # Note grp_size is 1.0 if self.is_fraction is True
+                        frac_dt_impact = self.net_dt_impact[par.uid][ti] / grp_size
 
                 # Convert units depending on the *Parameter* units
                 if par.is_fraction:
