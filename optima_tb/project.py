@@ -106,7 +106,7 @@ class Project(object):
                         k = 0
             self.results[result_name] = dcp(results)
 
-        return results
+        return self.results[result_name]
 
 
     def optimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None, max_iter=None, max_time=None):
