@@ -58,19 +58,22 @@ def objective(attribute_list, pset, tval, dt, target_vals, attribute_dict, const
     # tval - is the year we are reconciling at
 
     # Load the values into the attribute dict
+    new_attributes = dcp(attribute_dict)
     for idx,val in enumerate(attribute_list):
-        attribute_dict[idx] = val
+        new_attributes[idx] = val
+        # if attribute_dict[idx] != new_attributes[idx]:
+        #     print '%s: Old=%.4f New=%.4f' % (attribute_dict.keys()[idx],attribute_dict[idx],new_attributes[idx])
 
     # Constrain the budget if required - such that total spending on programs we are allowed to modify is unchanged
     # This implies total spending is unchanged, but means we cannot modify spending of programs that are not being reconciled
     if constrain_budget:
-        normalization = original_budget / sum([val for attrib, val in attribute_dict.items() if attrib[1] == 'budget'])
-        for attrib in attribute_dict:
+        normalization = original_budget / sum([val for attrib, val in new_attributes.items() if attrib[1] == 'budget'])
+        for attrib in new_attributes:
             if attrib[1] == 'budget':
-                attribute_dict[attrib] *= normalization
+                new_attributes[attrib] *= normalization
 
     # Update the programs and update the new allocation
-    alloc = _update_programs(pset.progset, attribute_dict, original_alloc, tval)
+    alloc = _update_programs(pset.progset, new_attributes, original_alloc, tval)
 
     # Compute the new program values
     pset.update_cache(alloc, tval, dt)
@@ -149,12 +152,18 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
                      'sinc': proj.settings.autofit_params['sinc'],
                      'sdec': proj.settings.autofit_params['sdec'],
                      'fulloutput': False,
-                     'reltol': None
+                     'reltol': None,
+                     'xmin': np.array([x for _, x in xmin.items()]),
+                     'xmax': np.array([x for _, x in xmax.items()]),
                      }
         if not max_time is None:
             optim_args['maxtime'] = max_time
 
-        best_attribute_list, _, _ = asd(objective, [x for _,x in attribute_dict.items()], args, xmin=[x for _, x in xmin.items()], xmax=[x for _, x in xmax.items()], **optim_args)
+        #
+        # optim_args['sinitial'] = 0.2*(optim_args['xmax']-optim_args['xmin'])
+        # optim_args['sinitial'] = np.concatenate((optim_args['sinitial'], optim_args['sinitial']))
+
+        best_attribute_list, _, _ = asd(objective, [x for _,x in attribute_dict.items()], args, **optim_args)
 
         pset = progset_results.model.pset
         original_alloc,tval,_ = pset.get_alloc({'progs_start':reconcile_for_year,'init_alloc':{},'tvec':np.array([reconcile_for_year]),'tvec_dt':progset_results.model.sim_settings['tvec_dt'],'alloc_is_coverage':False,'saturate_with_default_budgets':True})
