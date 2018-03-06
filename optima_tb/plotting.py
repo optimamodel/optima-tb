@@ -1748,6 +1748,10 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
         order_ys = order_ys[::-1]  # surely there are more elegant ways to do this ...
         labels = labels[::-1]
         legend_cat_colors = legend_cat_colors[::-1] # NB. non-separate legends use these colours...
+        if cat_colors is not None:
+            cat_colors = cat_colors[::-1]
+        if hatches is not None:
+            hatches = hatches[::-1]
 
     for k in order_ys:
 
