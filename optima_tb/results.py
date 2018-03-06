@@ -488,15 +488,16 @@ class ResultSet(object):
             output += '\n' # Add a line break between different indicators
             popkeys = self.pop_labels
             for pk, popkey in enumerate(popkeys):
-                output += '\n'
-                if use_alltimesteps:
-                    data = self.outputs[key][popkey]
-                else:
-                    data = self.outputs[key][popkey][self.indices_observed_data]
+                if popkey in self.outputs[key]:
+                    output += '\n'
+                    if use_alltimesteps:
+                        data = self.outputs[key][popkey]
+                    else:
+                        data = self.outputs[key][popkey][self.indices_observed_data]
 
-                output += key + sep + popkey + sep
-                for t in range(npts):
-                    output += ('%g' + sep) % data[t]
+                    output += key + sep + popkey + sep
+                    for t in range(npts):
+                        output += ('%g' + sep) % data[t]
 
         if writetofile:
             with open(filename, 'w') as f: f.write(output)
