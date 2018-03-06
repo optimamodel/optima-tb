@@ -376,20 +376,15 @@ def setupStylings(colormappings, colors, linestyles, series_labels, plotdict):
 
 
 
-def separateLegend(labels, colors, fig_name, reverse_order=False, linestyles=None, **legendsettings):
+def separateLegend(labels, colors, fig_name, linestyles=None, **legendsettings):
     """
-    
+    Plot the legend in a figure of its own
     
     """
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
 
     hatches = getHatchmapping(linestyles, labels)
-
-    if reverse_order:
-        labels = labels[::-1]
-        colors = colors[::-1]
-
 
     fig = plt.figure() # figsize=(5, 5))  # silly big
     patches = [  mpatches.Patch(color=color, label=label, ec='white', hatch=hatches[label]) for label, color in zip(labels, colors)]
@@ -483,6 +478,8 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
                     save_fig=save_results, fig_name=filename + '_TotalFor15-64', plot_total=True)
            
     """
+    assert plot_type == PLOTTYPE_LINE or plot_type == PLOTTYPE_STACKED, 'plotResult() only supports line and stacked plot types'
+
     if output_labels is None:
         logging.error("No output label specified for plotting")
         return None
@@ -1041,8 +1038,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         # Note that color list may be different to colors, as it represents
         # classes of compartments i.e. ['Latent disease states','Active disease states']
         legendsettings = plotdict['legendsettings']
-        reverse_legend_order = plotdict['reverse_legend_order'] if 'reverse_legend_order' in plotdict else False
-        separateLegend(labels=legend_labels, colors=cat_colors, reverse_order=reverse_legend_order, fig_name=fig_name, linestyles=linestyles, **legendsettings)
+        separateLegend(labels=legend_labels, colors=cat_colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
 
     return fig
 
@@ -1331,9 +1327,6 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
     final_dict = {'ylabel': ylabel,
                   'plot_stacked': plot_stacked,
                   'save_figname': fig_name}
-#    print "\n"*5
-#    print tmp_plotdict
-#    print "\n"*5
 
     tmp_plotdict.update(final_dict)
     # separately update the title, to allow if the plot settings would allow for plots
@@ -1350,9 +1343,7 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
         # classes of compartments i.e. ['Latent disease states','Active disease states']
         legendsettings = plotdict['legendsettings']
         # TODO: fix usage when legend should use colors rather than cat_colors
-        reverse_legend_order = plotdict['reverse_legend_order'] if 'reverse_legend_order' in plotdict else False
-
-        separateLegend(labels=legend_labels, colors=cat_colors,reverse_order=reverse_legend_order, fig_name=fig_name, linestyles=linestyles, **legendsettings)
+        separateLegend(labels=legend_labels, colors=cat_colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
 
     return fig
 
@@ -1439,11 +1430,11 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, xlabel="
         # reverse legend order so that it matches top<->bottom of stacked bars
         if use_full_labels:
             # legendsettings = {'ncol':2}
-            separateLegend(labels=full_labels, colors=colors, linestyles=linestyles,
-                           fig_name=fig_name, reverse_order=True, **legendsettings)
+            separateLegend(labels=full_labels[::-1], colors=colors[::-1], linestyles=linestyles,
+                           fig_name=fig_name, **legendsettings)
         else:
-            separateLegend(labels=cat_labels, colors=cat_colors, linestyles=linestyles,
-                           fig_name=fig_name, reverse_order=True,)
+            separateLegend(labels=cat_labels[::-1], colors=cat_colors[::-1], linestyles=linestyles,
+                           fig_name=fig_name,**legendsettings)
 
     return fig
 
@@ -1754,6 +1745,9 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
 
     # plot ys, but reversed - and also reverse the labels (useful for scenarios, and optimizations):
     order_ys = range(len(ys))
+    if plot_type == PLOTTYPE_STACKED:
+        reverse_order = not reverse_order # Stacked plots are internally reversed to start with
+
     if reverse_order:
         logger.info("Reversing order of plot lines")
         order_ys = order_ys[::-1]  # surely there are more elegant ways to do this ...
@@ -1833,11 +1827,19 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
 
     if not legend_off:
         if cat_colors is not None:
+            if plot_type == PLOTTYPE_STACKED:
+                labels = labels[::-1]
+                cat_colors = cat_colors[::-1]
+                hatches = hatches[::-1]
             import matplotlib.patches as mpatches
             patches = [  mpatches.Patch(color=color, label=label, ec='white', hatch=hatch) for label, color, hatch in zip(labels, cat_colors, hatches)]
             ax.legend(patches, labels, **legendsettings)
         else:
-            ax.legend(labels, **legendsettings)
+            handles = ax.get_lines() # Since this is _plotTrend, these must be lines
+            if plot_type == PLOTTYPE_STACKED:
+                handles = handles[::-1]
+                labels = labels[::-1]
+            ax.legend(handles=handles, labels=labels, **legendsettings)
 
     # automatic choices for setting ylim bounds
     ax.set_ylim(ymin=0)
