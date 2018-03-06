@@ -563,7 +563,7 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
             fig = innerPlotTrend(proj, resultset, [out_label], compare_type=COMPARETYPE_RESULT, pop_labels=pop_labels, plot_total=True,
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                    colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=plot_relative, y_intercept=y_intercept,
-                   title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
+                   title=title, save_fig=save_fig, fig_name=fig_name,plot_type=PLOTTYPE_LINE, **kwargs)
         else:
             logger.info("Plotting result set per population group")
             if pop_labels is None:
@@ -574,7 +574,7 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                    plot_relative=plot_relative, y_intercept=y_intercept,
                    colormappings=colormappings, colors=colors, linestyles=linestyles,
-                   title=title, save_fig=save_fig, fig_name=fig_name + '_%s' % pop, **kwargs)
+                   title=title, save_fig=save_fig,plot_type=PLOTTYPE_LINE, fig_name=fig_name + '_%s' % pop, **kwargs)
                 figs.append(fig)
     return figs # return last
 
