@@ -699,6 +699,7 @@ class Model(object):
                         self.sim_settings['impact_pars_not_func'].append(impact_label)
 
                 self.pset = ModelProgramSet(progset,self.pops) # Make a ModelProgramSet wrapper
+                self.pset.load_constraints(self.sim_settings['constraints'])
                 alloc = self.pset.get_alloc(self.sim_settings)[0]
                 self.pset.update_cache(alloc,self.sim_settings['tvec'],self.sim_settings['tvec_dt']) # Perform precomputations
 

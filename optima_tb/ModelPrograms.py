@@ -46,6 +46,15 @@ class ModelProgramSet(object):
                 par.program_overwrite = True # Mark the program as being overwritten by a program
 
         self.par_by_id = {x.uid:x for x in self.pars} # Map parameter ID to parameter object
+        self.constraints = dict() # par_uid:(lower,upper)
+
+    def load_constraints(self,constraints):
+        self.constraints = dict()
+        for par_label,d in constraints['impacts'].items():
+            for par in self.pars:
+                if par.label == par_label:
+                    self.constraints[par.uid] = d['vals']
+        return
 
     def unlink(self):
         self.pars = list(self.pars)
@@ -187,24 +196,28 @@ class ModelProgramSet(object):
         for par_id,c in contribs.items():
             frac_dt_cov[par_id] = [x[0] for x in c]
             total_cov = sum(frac_dt_cov[par_id] )
-            impacts[par_id] = np.array([x[1] for x in c])
+            impact = np.array([x[1] for x in c])
 
             if total_cov > 1:
-                impacts[par_id] /= total_cov
+                impact /= total_cov
 
             par = self.par_by_id[par_id]
 
             if par.links:
-                impacts[par_id] = sum(impacts[par_id]) # Note - sum the rates before doing the conversion
+                impact = np.sum(impact) # Note - sum the rates before doing the conversion
 
                 if par.is_fraction:
-                    impacts[par_id] = 1.0 - (1.0 - impacts[par_id]) ** (1.0 / self.dt)
+                    impact = 1.0 - (1.0 - impact) ** (1.0 / self.dt)
                 else:
-                    impacts[par_id] = impacts[par_id] * (1.0 / self.dt)
+                    impact = impact * (1.0 / self.dt)
             else:
-                impacts[par_id] = sum(impacts[par_id])
+                impact = np.sum(impact)
 
-        # TODO - Constraints here
+            if par_id in self.constraints:
+                impact = np.clip(impact,self.constraints[par_id][0],self.constraints[par_id][1])
+
+            impacts[par_id] = impact
+
         return impacts,frac_dt_cov
 
 
