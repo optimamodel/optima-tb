@@ -1041,7 +1041,8 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         # Note that color list may be different to colors, as it represents
         # classes of compartments i.e. ['Latent disease states','Active disease states']
         legendsettings = plotdict['legendsettings']
-        separateLegend(labels=legend_labels, colors=cat_colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
+        reverse_legend_order = plotdict['reverse_legend_order'] if 'reverse_legend_order' in plotdict else False
+        separateLegend(labels=legend_labels, colors=cat_colors, reverse_order=reverse_legend_order, fig_name=fig_name, linestyles=linestyles, **legendsettings)
 
     return fig
 
@@ -1349,7 +1350,9 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
         # classes of compartments i.e. ['Latent disease states','Active disease states']
         legendsettings = plotdict['legendsettings']
         # TODO: fix usage when legend should use colors rather than cat_colors
-        separateLegend(labels=legend_labels, colors=cat_colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
+        reverse_legend_order = plotdict['reverse_legend_order'] if 'reverse_legend_order' in plotdict else False
+
+        separateLegend(labels=legend_labels, colors=cat_colors,reverse_order=reverse_legend_order, fig_name=fig_name, linestyles=linestyles, **legendsettings)
 
     return fig
 
