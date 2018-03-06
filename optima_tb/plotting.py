@@ -1740,9 +1740,6 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
 
     # plot ys, but reversed - and also reverse the labels (useful for scenarios, and optimizations):
     order_ys = range(len(ys))
-    if plot_type == PLOTTYPE_STACKED:
-        reverse_order = not reverse_order # Stacked plots are internally reversed to start with
-
     if reverse_order:
         logger.info("Reversing order of plot lines")
         order_ys = order_ys[::-1]  # surely there are more elegant ways to do this ...
