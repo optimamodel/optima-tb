@@ -139,7 +139,7 @@ def _objective(attribute_list, pset, tval, dt, target_vals, attribute_dict, cons
     return obj
 
 # ASD takes in a list of values. So we need to map all of the things we are optimizing onto 
-def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, constrain_budget=False, max_time=30):
+def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, constrain_budget=False, max_time=15):
         """
         Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standar deviation sigma
         
@@ -169,6 +169,8 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
         options = defaultOptimOptions(settings=proj.settings, progset=proj.progsets[0])
         if reconcile_for_year != options['progs_start']:
             logging.warn('Reconciling for %.2f, but programs start in %.2f' % (reconcile_for_year,options['progs_start']))
+        if budget_sigma > 0:
+            logging.warn('Budget reconciliation is not recommended - adjusting unit cost is preferred')
         parset = proj.parsets[parset_name]
         parset_results = proj.runSim(parset=parset, store_results=False) # parset values we want to match
         progset_results = proj.runSim(parset=parset, progset_name=progset_name, store_results=False,options=options) # Default results - also, instantiates a ModelProgramSet for use in next steps

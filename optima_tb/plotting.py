@@ -572,7 +572,7 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
                 pop_labels = getPops(resultset[0])
             # plot for each population
             for pop in pop_labels:
-                fig = innerPlotTrend(proj, resultset, [out_label], compare_type=COMPARETYPE_RESULT, pop_labels=[pop], plot_total=True,
+                fig = innerPlotTrend(proj, resultset, [out_label], compare_type=COMPARETYPE_RESULT, pop_labels=[pop], plot_total=False,
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                    plot_relative=plot_relative, y_intercept=y_intercept,
                    colormappings=colormappings, colors=colors, linestyles=linestyles,

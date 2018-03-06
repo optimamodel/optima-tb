@@ -104,9 +104,9 @@ class Project(object):
                     if result_name_attempt not in self.results.keys():
                         result_name = result_name_attempt
                         k = 0
-            self.results[result_name] = dcp(results)
+            self.results[result_name] = results
 
-        return self.results[result_name]
+        return results
 
 
     def optimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None, max_iter=None, max_time=None):
