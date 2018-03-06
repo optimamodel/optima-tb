@@ -376,20 +376,15 @@ def setupStylings(colormappings, colors, linestyles, series_labels, plotdict):
 
 
 
-def separateLegend(labels, colors, fig_name, reverse_order=False, linestyles=None, **legendsettings):
+def separateLegend(labels, colors, fig_name, linestyles=None, **legendsettings):
     """
-    
+    Plot the legend in a figure of its own
     
     """
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
 
     hatches = getHatchmapping(linestyles, labels)
-
-    if reverse_order:
-        labels = labels[::-1]
-        colors = colors[::-1]
-
 
     fig = plt.figure() # figsize=(5, 5))  # silly big
     patches = [  mpatches.Patch(color=color, label=label, ec='white', hatch=hatches[label]) for label, color in zip(labels, colors)]
@@ -416,7 +411,7 @@ def _turnOffBorder():
 
 
 def plotResult(proj, result, output_labels=None, pop_labels=None,
-               plot_total=False, plot_type=None, plot_relative=None,
+               plot_total=False, plot_type=PLOTTYPE_LINE, plot_relative=None,
                plot_observed_data=True, observed_data_label=None,
                plot_ybounds=None,
                colormappings=None, colors=None, linestyles=None,
@@ -483,6 +478,8 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
                     save_fig=save_results, fig_name=filename + '_TotalFor15-64', plot_total=True)
            
     """
+    assert plot_type == PLOTTYPE_LINE or plot_type == PLOTTYPE_STACKED, 'plotResult() only supports line and stacked plot types'
+
     if output_labels is None:
         logging.error("No output label specified for plotting")
         return None
@@ -566,18 +563,18 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
             fig = innerPlotTrend(proj, resultset, [out_label], compare_type=COMPARETYPE_RESULT, pop_labels=pop_labels, plot_total=True,
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                    colormappings=colormappings, colors=colors, linestyles=linestyles, plot_relative=plot_relative, y_intercept=y_intercept,
-                   title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
+                   title=title, save_fig=save_fig, fig_name=fig_name,plot_type=PLOTTYPE_LINE, **kwargs)
         else:
             logger.info("Plotting result set per population group")
             if pop_labels is None:
                 pop_labels = getPops(resultset[0])
             # plot for each population
             for pop in pop_labels:
-                fig = innerPlotTrend(proj, resultset, [out_label], compare_type=COMPARETYPE_RESULT, pop_labels=[pop], plot_total=True,
+                fig = innerPlotTrend(proj, resultset, [out_label], compare_type=COMPARETYPE_RESULT, pop_labels=[pop], plot_total=False,
                    plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
                    plot_relative=plot_relative, y_intercept=y_intercept,
                    colormappings=colormappings, colors=colors, linestyles=linestyles,
-                   title=title, save_fig=save_fig, fig_name=fig_name + '_%s' % pop, **kwargs)
+                   title=title, save_fig=save_fig,plot_type=PLOTTYPE_LINE, fig_name=fig_name + '_%s' % pop, **kwargs)
                 figs.append(fig)
     return figs # return last
 
@@ -1028,20 +1025,15 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
               'title': '%s' % title,
               'save_figname': '%s_%s' % (fig_name, name),
               'y_hat': dataobs[1],
-              't_hat': dataobs[0]}
+              't_hat': dataobs[0],
+              'fig_name': fig_name,
+              }
 
     tmp_plotdict.update(final_dict)
     # plot values
     fig = _plotTrends(ys, ts, [textwrap.fill(label,16) for label in legend_labels], plot_type=plot_type,
-            save_fig=save_fig, colors=colors, cat_colors=legend_cols,
+            save_fig=save_fig, colors=colors, cat_colors=legend_cols,legend_cat_colors=cat_colors,
             linestyles=linestyles, hatches=hatches, **tmp_plotdict)
-
-    # plot separate legend
-    if plotdict.has_key('legend_off') and plotdict['legend_off']:
-        # Note that color list may be different to colors, as it represents
-        # classes of compartments i.e. ['Latent disease states','Active disease states']
-        legendsettings = plotdict['legendsettings']
-        separateLegend(labels=legend_labels, colors=cat_colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
 
     return fig
 
@@ -1330,9 +1322,6 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
     final_dict = {'ylabel': ylabel,
                   'plot_stacked': plot_stacked,
                   'save_figname': fig_name}
-#    print "\n"*5
-#    print tmp_plotdict
-#    print "\n"*5
 
     tmp_plotdict.update(final_dict)
     # separately update the title, to allow if the plot settings would allow for plots
@@ -1436,11 +1425,11 @@ def plotBudgets(budgets, settings, title="", labels=None, xlabels=None, xlabel="
         # reverse legend order so that it matches top<->bottom of stacked bars
         if use_full_labels:
             # legendsettings = {'ncol':2}
-            separateLegend(labels=full_labels, colors=colors, linestyles=linestyles,
-                           fig_name=fig_name, reverse_order=True, **legendsettings)
+            separateLegend(labels=full_labels[::-1], colors=colors[::-1], linestyles=linestyles,
+                           fig_name=fig_name, **legendsettings)
         else:
-            separateLegend(labels=cat_labels, colors=cat_colors, linestyles=linestyles,
-                           fig_name=fig_name, reverse_order=True,)
+            separateLegend(labels=cat_labels[::-1], colors=cat_colors[::-1], linestyles=linestyles,
+                           fig_name=fig_name,**legendsettings)
 
     return fig
 
@@ -1660,8 +1649,8 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
              y_intercept=None, reverse_order=False, y_bounds=None, linestyles=None, hatches=None,
              smooth=False, symmetric=False, repeats=5,
              alpha=0.3, marker='o', s=40, facecolors='none', linewidth=3, zorder=10,
-             save_fig=False, save_figname=None, legend_off=False,
-             box_width=0.9, box_offset=0.0, formatter=None, **kwargs):
+             save_fig=False, save_figname=None, legend_off=False,legend_cat_colors=None,
+             box_width=0.9, box_offset=0.0, formatter=None,fig_name='', **kwargs):
     """
     Plots multiple lines, with additional option of overlaying observed datapoints
     
@@ -1755,6 +1744,11 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
         logger.info("Reversing order of plot lines")
         order_ys = order_ys[::-1]  # surely there are more elegant ways to do this ...
         labels = labels[::-1]
+        legend_cat_colors = legend_cat_colors[::-1] # NB. non-separate legends use these colours...
+        if cat_colors is not None:
+            cat_colors = cat_colors[::-1]
+        if hatches is not None:
+            hatches = hatches[::-1]
 
     for k in order_ys:
 
@@ -1828,14 +1822,6 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
     else:
         ax.get_yaxis().get_major_formatter().set_scientific(False)
 
-    if not legend_off:
-        if cat_colors is not None:
-            import matplotlib.patches as mpatches
-            patches = [  mpatches.Patch(color=color, label=label, ec='white', hatch=hatch) for label, color, hatch in zip(labels, cat_colors, hatches)]
-            ax.legend(patches, labels, **legendsettings)
-        else:
-            ax.legend(labels, **legendsettings)
-
     # automatic choices for setting ylim bounds
     ax.set_ylim(ymin=0)
     ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
@@ -1854,6 +1840,28 @@ def _plotTrends(ys, ts, labels, colors=None, y_hat=[], t_hat=[], plot_type=None,
         ax.set_yticklabels(y_ticks[1])
 
     _turnOffBorder()
+
+    if not legend_off:
+        if cat_colors is not None:
+            if plot_type == PLOTTYPE_STACKED:
+                labels = labels[::-1]
+                cat_colors = cat_colors[::-1]
+                hatches = hatches[::-1]
+            import matplotlib.patches as mpatches
+            patches = [  mpatches.Patch(color=color, label=label, ec='white', hatch=hatch) for label, color, hatch in zip(labels, cat_colors, hatches)]
+            ax.legend(patches, labels, **legendsettings)
+        else:
+            handles = ax.get_lines() # Since this is _plotTrend, these must be lines
+            if plot_type == PLOTTYPE_STACKED:
+                handles = handles[::-1]
+                labels = labels[::-1]
+            ax.legend(handles=handles, labels=labels, **legendsettings)
+    else:
+        if plot_type == PLOTTYPE_STACKED:
+            labels = labels[::-1]
+            legend_cat_colors = legend_cat_colors[::-1]
+        separateLegend(labels=labels, colors=legend_cat_colors, fig_name=fig_name, linestyles=linestyles,**legendsettings)
+
     if save_fig:
         fig.savefig('%s' % (save_figname))
         logger.info("Saved figure: '%s'" % save_figname)
