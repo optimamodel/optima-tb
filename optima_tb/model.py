@@ -976,6 +976,9 @@ class Model(object):
                     continue # Load in links instead of this parameter
                 if output.label not in outputs:
                     outputs[output.label] = odict()
+                if pop.label in outputs[output.label]:
+                    assert isinstance(output,Link), 'There is a duplicate output label that is NOT a link - this is not supposed to happen'
+                    outputs[output.label][pop.label] += output.vals
                 outputs[output.label][pop.label] = output.vals
                 
         return outputs
