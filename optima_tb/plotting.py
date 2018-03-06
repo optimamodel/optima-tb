@@ -15,6 +15,7 @@ import matplotlib.cm as cmx
 import matplotlib.colors as colors
 from random import shuffle
 import numbers
+import textwrap
 
 """
 Plotting library for Optima TB. 
@@ -489,14 +490,14 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
     figs = []
     for out_label in output_labels:
         if isinstance(observed_data_label,dict):
-            observed_data_label = observed_data_label[out_label]
+            obs_data_label = observed_data_label[out_label]
         elif isinstance(observed_data_label,str):
-            observed_data_label = observed_data_label
+            obs_data_label = observed_data_label
         else:
-            observed_data_label = None
+            obs_data_label = None
         fig = innerPlotTrend(proj, [result], [out_label], compare_type=COMPARETYPE_POP, pop_labels=pop_labels,
                              plot_total=plot_total, plot_type=plot_type, plot_relative=plot_relative,
-                             plot_observed_data=plot_observed_data, observed_data_label=observed_data_label,
+                             plot_observed_data=plot_observed_data, observed_data_label=obs_data_label,
                              plot_ybounds=plot_ybounds,
                              colormappings=colormappings, colors=colors, linestyles=linestyles,
                              title=title, save_fig=save_fig, fig_name=fig_name, **kwargs)
@@ -977,7 +978,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
                     ys.append(y)
                     ts.append(t)
 
-    assert units.count(units[0]) == len(units), 'All requested outputs must have the same units as they are being plotted in the same figure' # This is True if all of the units are the same - as they should be
+    # assert units.count(units[0]) == len(units), 'All requested outputs must have the same units as they are being plotted in the same figure' # This is True if all of the units are the same - as they should be
     unit = units[0]
 
     # get observed data points
@@ -985,8 +986,8 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         dataobs,data_units = _extractDatapoint(result, proj, observed_data_label, pop_labels, charac_specs, plot_total=plot_total)
         dataobs, unit_tag = _convertPercentage(dataobs, value_label, charac_specs)
         data_units = '%' if unit_tag else data_units
-        if data_units is not None:
-            assert data_units == unit # Data should have the same units too
+        # if data_units is not None:
+        #     assert data_units == unit # Data should have the same units too
 
     fullname = getName(name, proj)
     if not fullname.startswith('Unknown') and plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
@@ -1006,8 +1007,8 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         if len(plot_ybounds) == 3:
             tmp_plotdict['y_bounds'] = plot_ybounds
         elif len(plot_ybounds) == 2:
-            dataobs_yrs, dataobs_low = _extractDatapoint(result, proj, plot_ybounds[0], pop_labels, charac_specs, plot_total=plot_total)
-            _, dataobs_high = _extractDatapoint(result, proj, plot_ybounds[1], pop_labels, charac_specs, plot_total=plot_total)
+            dataobs_yrs, dataobs_low = _extractDatapoint(result, proj, plot_ybounds[0], pop_labels, charac_specs, plot_total=plot_total)[0]
+            _, dataobs_high = _extractDatapoint(result, proj, plot_ybounds[1], pop_labels, charac_specs, plot_total=plot_total)[0]
             # Cleaning data structures ...
             dataobs_low = dataobs_low
             dataobs_high = dataobs_high
@@ -1023,7 +1024,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
     # setup for plot:
     final_dict = {
               'xlabel':'Year',
-              'ylabel': ylabel if ylabel is not None else ("%s (%s)" % (name,unit) if name else unit.title()),
+              'ylabel': ylabel if ylabel is not None else name, # ("%s (%s)" % (name,unit) if name else unit.title()),
               'title': '%s' % title,
               'save_figname': '%s_%s' % (fig_name, name),
               'y_hat': dataobs[1],
@@ -1031,7 +1032,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
 
     tmp_plotdict.update(final_dict)
     # plot values
-    fig = _plotTrends(ys, ts, legend_labels, plot_type=plot_type,
+    fig = _plotTrends(ys, ts, [textwrap.fill(label,16) for label in legend_labels], plot_type=plot_type,
             save_fig=save_fig, colors=colors, cat_colors=legend_cols,
             linestyles=linestyles, hatches=hatches, **tmp_plotdict)
 
@@ -1296,7 +1297,7 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
         for time_period in year_periods:
             ys = []
             for value_label in output_labels: # TODO extend so that it returns per pop_labels
-                y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=pop_labels, integrated=False)
+                y, _, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=pop_labels, integrated=False)
                 y = y[0]
                 y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 ys.append(y)
@@ -1308,7 +1309,7 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
         for time_period in year_periods:
             ys = []
             for pop in pop_labels:
-                y, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=[pop], integrated=False)
+                y, _, _ = result.getValuesAt(value_label, year_init=time_period, pop_labels=[pop], integrated=False)
                 y = y[0]
                 y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 ys.append(y)
@@ -1359,9 +1360,9 @@ def getValueHandler(proj, result, value_label, year_period, pop_labels):
     """
     charac_specs = proj.settings.charac_specs
     if len(year_period) >= 2:
-        y, _ = result.getValuesAt(value_label, year_init=year_period[0], year_end=year_period[-1], pop_labels=pop_labels, integrated=True)
+        y, _, _ = result.getValuesAt(value_label, year_init=year_period[0], year_end=year_period[-1], pop_labels=pop_labels, integrated=True)
     else:
-        y, _ = result.getValuesAt(value_label, year_init=year_period[0], pop_labels=pop_labels, integrated=False)
+        y, _, _ = result.getValuesAt(value_label, year_init=year_period[0], pop_labels=pop_labels, integrated=False)
         y = y[0]
     y, unit_tag = _convertPercentage(y, value_label, charac_specs)
     return y
