@@ -478,7 +478,7 @@ def plotResult(proj, result, output_labels=None, pop_labels=None,
                     save_fig=save_results, fig_name=filename + '_TotalFor15-64', plot_total=True)
            
     """
-    assert plot_type == PLOTTYPE_LINE or plot_type == PLOTTYPE_STACKED, 'plotResult() only supports line and stacked plot types'
+    assert plot_type is None or plot_type == PLOTTYPE_LINE or plot_type == PLOTTYPE_STACKED, 'plotResult() only supports line and stacked plot types'
 
     if output_labels is None:
         logging.error("No output label specified for plotting")
