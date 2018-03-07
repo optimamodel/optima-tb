@@ -5,9 +5,7 @@ from optima_tb.defaults import defaultOptimOptions
 import optima_tb.settings as project_settings
 
 import logging
-import logging.config
-logging.config.fileConfig('logging.ini', disable_existing_loggers=False)
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 import numpy as np
 from copy import deepcopy as dcp
