@@ -706,11 +706,11 @@ class Model(object):
             self.programs_active = False
 
         # Make sure initially-filled junctions are processed and initial dependencies are calculated.
-        self.updateValues(settings=settings, progset=progset, do_special=False)     # Done first just in case junctions are dependent on characteristics.
+        self.updateValues(settings=settings, do_special=False)     # Done first just in case junctions are dependent on characteristics.
                                                                                                 # No special rules are applied at this stage, otherwise calculations would be iterated twice before the first step forward.
                                                                                                 # NOTE: If junction outflows were to be tagged by special rules, initial calculations may be off. Return to this later and consider logic rigorously.
         self.processJunctions(settings=settings)
-        self.updateValues(settings=settings, progset=progset)
+        self.updateValues(settings=settings)
 
 
         # set up sim_settings for later use wrt population tags
@@ -731,7 +731,7 @@ class Model(object):
         for t in self.sim_settings['tvec'][1:]:
             self.stepForward(settings=settings, dt=settings.tvec_dt)
             self.processJunctions(settings=settings)
-            self.updateValues(settings=settings, progset=progset)
+            self.updateValues(settings=settings)
 
         for pop in self.pops:
             [par.update() for par in pop.pars if not par.dependency]
@@ -866,7 +866,7 @@ class Model(object):
                             if link.dest.is_junction:
                                 review_required = True # Need to review if a junction received an inflow at this step
 
-    def updateValues(self, settings, progset=None, do_special=True):
+    def updateValues(self, settings, do_special=True):
         '''
         Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
         These dependencies must be calculated in the same order as defined in settings, characteristics before parameters, otherwise references may break.
