@@ -18,6 +18,10 @@ import uuid
 # np.seterr(all='raise')
 # %% Abstract classes used in model
 
+class ModelCompartment(object):
+    pass
+
+
 class Node(object):
     ''' Lightweight abstract class to represent one object within a network. '''
     def __init__(self, label='default'):
