@@ -979,7 +979,8 @@ class Model(object):
                 if pop.label in outputs[output.label]:
                     assert isinstance(output,Link), 'There is a duplicate output label that is NOT a link - this is not supposed to happen'
                     outputs[output.label][pop.label] += output.vals
-                outputs[output.label][pop.label] = output.vals
+                else:
+                    outputs[output.label][pop.label] = output.vals
                 
         return outputs
 
