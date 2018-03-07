@@ -575,7 +575,7 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
                    plot_relative=plot_relative, y_intercept=y_intercept,
                    colormappings=colormappings, colors=colors, linestyles=linestyles,
                    title=title, save_fig=save_fig,plot_type=PLOTTYPE_LINE, fig_name=fig_name + '_%s' % pop, **kwargs)
-                figs.append(fig)
+        figs.append(fig)
     return figs # return last
 
 
