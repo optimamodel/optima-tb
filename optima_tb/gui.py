@@ -912,7 +912,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                 else: self.status = ('Status: Attempt to edit item in parameter set failed, only numbers allowed')
                 self.refreshStatus()
                 self.guard_status = True
-                self.table_calibration.item(row, col).setText(str(par.interpolate(tvec=[year], pop_label=pop_label)[0]))
+                self.table_calibration.item(row, col).setText(str(par.interpolate(tvec=np.array([year]), pop_label=pop_label)[0]))
                 self.guard_status = False
                 return
             par.insertValuePair(t=year, y=new_val, pop_label=pop_label)
@@ -1244,7 +1244,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                         temp.setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
                         temp.setFlags(qtc.Qt.ItemIsEnabled)
                     elif col_id == 5:
-                        temp.setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=['cov'])['cov'][-1]))
+                        temp.setText(str(prog.interpolate(tvec=np.array([self.options['progs_start']]), attributes=['cov'])['cov'][-1]))
                         temp.setFlags(qtc.Qt.ItemIsEnabled)
                 self.table_reconciliation.setItem(row_id, col_id, temp)
             for attribute_id in xrange(len(self.attribute_labels)):
@@ -1255,7 +1255,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                 temp.setFlags(qtc.Qt.ItemIsEnabled)
                 if attribute_label in prog.attributes:
                     temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)
-                    temp.setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=[attribute_label])[attribute_label][-1]))
+                    temp.setText(str(prog.interpolate(tvec=np.array([self.options['progs_start']]), attributes=[attribute_label])[attribute_label][-1]))
                 self.table_reconciliation.setItem(row_id, col_id, temp)
             row_id += 1
         self.table_reconciliation.setVerticalHeaderLabels(custom_ids)
@@ -1320,7 +1320,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                     self.table_reconciliation.item(row, col).setText(str(prog.getDefaultBudget(year=self.options['progs_start'])))
                 else:
                     attribute_label = self.attribute_labels[col-7]
-                    self.table_reconciliation.item(row, col).setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=[attribute_label])[attribute_label][-1]))
+                    self.table_reconciliation.item(row, col).setText(str(prog.interpolate(tvec=np.array([self.options['progs_start']]), attributes=[attribute_label])[attribute_label][-1]))
                 self.guard_status = False
                 return
         
