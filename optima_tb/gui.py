@@ -500,7 +500,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
                                        plot_observed_data=plot_observed,
                                        plot_total=True,
                                        colors=colors,
-                                       save_fig=False)
+                                       save_fig=False)[-1]
 
             canvas = FigureCanvasQTAgg(figure)
 
