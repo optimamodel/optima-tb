@@ -271,9 +271,6 @@ class ModelPopulation(Node):
         self.link_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
         self.par_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
 
-        self.output_ids = dict()    # Maps label of a relevant characteristic/parameter to its position index within dependencies list.
-        self.t_index = 0            # Keeps track of array index for current timepoint data within all compartments.
-
         self.genCascade(settings=settings)    # Convert compartmental cascade into lists of compartment and link objects.
 
     def __repr__(self, *args, **kwargs):
@@ -732,7 +729,6 @@ class Model(object):
         '''
 
         for t in self.sim_settings['tvec'][1:]:
-            # self.printModelState(self.t_index)
             self.stepForward(settings=settings, dt=settings.tvec_dt)
             self.processJunctions(settings=settings)
             self.updateValues(settings=settings, progset=progset)
@@ -820,8 +816,6 @@ class Model(object):
 
         # Update timestep index.
         self.t_index += 1
-        for pop in self.pops:
-            pop.t_index = self.t_index       # Keeps ModelPopulations synchronised with Model object.
 
     def processJunctions(self, settings):
         '''
