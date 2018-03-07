@@ -1,17 +1,43 @@
 # %% Imports
 import logging
+import os.path
+
+# NOTE - To configure logging in individual scripts, use the commands below to reset the
+# logger settings
 import logging.config
+logging_conf = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '%(asctime)-20s %(levelname)-8s %(message)s',
+            'datefmt': '%d-%m-%y %H:%M:%S'
+        },
+    },
+    'handlers': {
+        'default': {
+            'level': 'INFO',
+            'formatter': 'standard',
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        '': {
+            'handlers': ['default'],
+            'level': 'INFO',
+        },
+    }
+}
+logging.config.dictConfig(logging_conf)
 
-logging.config.fileConfig('logging.ini', disable_existing_loggers=False)
-logger = logging.getLogger()
 
+logger = logging.getLogger(__name__)
 
 from optima_tb.utils import tic, toc, odict, OptimaException
 from optima_tb.model import runModel
 from optima_tb.settings import Settings
 from optima_tb.parameters import ParameterSet, export_paramset, load_paramset
 from optima_tb.programs import ProgramSet
-from optima_tb.plotting import plotProjectResults
 from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from optima_tb.optimization import optimizeFunc, parallelOptimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
@@ -180,16 +206,6 @@ class Project(object):
                                        randseed=randseed, doplot=doplot, **parallel_optimization_params)
 
         return results
-
-
-    def plotResults(self, results, colormappings=None, colorlabels=None, debug=False, pop_labels=None, plot_observed_data=True, savePlot=False, figName=None, pop_colormappings=None):
-        ''' Plot all available results '''
-
-        plotProjectResults(results, settings=self.settings, data=self.data, title=self.name.title(),
-                           colormappings=colormappings, colorlabels=colorlabels, pop_colormappings=pop_colormappings,
-                           pop_labels=pop_labels, debug=debug, plot_observed_data=plot_observed_data, save_fig=savePlot, fig_name=figName)
-
-
 
 
     def makeSpreadsheet(self, databook_path=None, num_pops=5, num_migrations=2, num_progs=0):

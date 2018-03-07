@@ -70,9 +70,6 @@ class Settings(object):
         self.parallel_optimization_params = self.resetOptimizationParameters()
         # Settings for databooks / spreadsheets / workbooks / cascades:
         self.loadCascadeSettings(cascade_path)
-        self.initCustomDatabookFramework()  # Creates self.countrybook.
-                                                        # NOTE: Databook will hopefully one day be capable of replicating countrybook, making the two different
-                                                        # unnecessary.
 
         logging.info("Created settings based on cascade: %s" % cascade_path)
 
@@ -180,117 +177,6 @@ class Settings(object):
     def plotCascade(self,code_labels=True):
         ''' Plots cascade network. '''
         plotCascadeFunc(settings=self,code_labels=code_labels)
-
-
-
-    def initCustomDatabookFramework(self):
-        """
-        Settings for country data book
-        """
-
-        self.countrybook = odict()
-        self.countrybook['sheet_names'] = odict()
-        self.countrybook['sheet_names']['populations'] = 'Populations'
-        self.countrybook['sheet_names']['demographics'] = 'Demographics'
-        self.countrybook['sheet_names']['prevalence'] = 'TB incidence & prevalence'
-        self.countrybook['sheet_names']['notifications'] = 'Notifications'
-        self.countrybook['sheet_names']['smear'] = 'Smear status'
-        self.countrybook['sheet_names']['comorbidity'] = 'Comorbidities'
-        self.countrybook['sheet_names']['morbidity'] = 'TB morbidity'
-        self.countrybook['sheet_names']['testing_treatment_latent'] = 'Outcomes - Latent TB'
-        self.countrybook['sheet_names']['testing_treatment_active'] = 'Outcomes - Active TB'
-        # self.countrybook['sheet_names']['programs'] = 'Programs'
-        # self.countrybook['sheet_names']['cost_coverage'] = 'Cost and coverage'
-        # self.countrybook['sheet_names']['unitcost'] = 'Unit costs'
-        # self.countrybook['sheet_names']['poptransitions'] = 'Population transitions'
-
-        # headers for special sheets (i.e. headers aren't years)
-        self.countrybook['headers'] = odict()
-        self.countrybook['headers']['populations'] = ['Name', 'Minimum Age', 'Maximum Age']
-        # self.countrybook['headers']['programs'] = ['Name', 'Short name', 'Intervention class', 'Coverage indicator (annual)', 'Duration of treatment (days per person on average)', 'Frequency of intervention (in years)']
-
-        # labels for each sheet
-        self.countrybook['labels'] = {'populations': '',
-                                      'demographics':'',
-                                      'prevalence'     : 'Estimated incidence and prevalence of TB',
-                                      'notifications'  : 'TB notifications: please enter the number of notifications of active TB per population and drug-resistant strain per year',
-                                      'smear'          : '',
-                                      'comorbidity':'Comorbidities',
-                                      'morbidity' : 'Number of TB-related deaths per year',
-                                      'testing_treatment_latent': 'Testing and treatment outcomes for latent TB',
-                                      'testing_treatment_active'        : 'Testing and treatment outcomes for latent TB'
-                                      }
-
-        # info
-        self.countrybook['disaggregations'] = odict()
-        # other values
-        self.countrybook['disaggregations']['strains'] = ['DS-TB', 'MDR-TB', 'XDR-TB']
-        self.countrybook['disaggregations']['smears'] = ['Smear-', 'Smear+']  # also potentially 'Extrapulmonary'
-        # disagg for non-total smear and strain
-        self.countrybook['disaggregations']['nt_strains'] = ['DS-TB', 'MDR-TB', 'XDR-TB']
-        self.countrybook['disaggregations']['nt_smears'] = ['Smear-', 'Smear+']  # also potentially 'Extrapulmonary'
-        self.countrybook['disaggregations']['populations'] = []  # determined dynamically at runtime
-        self.countrybook['disaggregations']['regimens'] = ['DS-TB regimen', 'MDR-TB regimen', 'XDR-TB regimen']
-        self.countrybook['disaggregations']['programs'] = []  # determined dynamically at runtime
-        self.countrybook['disaggregations']['total_pop'] = ['Total population']
-        self.countrybook['disaggregations']['total_birth'] = ['Total number of births']
-
-        # for univalue sheets, includes information on how data should be disaggregated
-        self.countrybook['sheet_classes'] = odict()
-        self.countrybook['sheet_classes']['univalue'] = odict()
-#         self.countrybook['sheet_classes']['univalue']['population_sizes'] = ['populations']
-#         self.countrybook['sheet_classes']['univalue']['total_cases'] = ['populations', 'smears', 'strains']
-        self.countrybook['sheet_classes']['univalue']['notifications'] = ['populations', 'smears', 'strains']
-        self.countrybook['sheet_classes']['univalue']['morbidity'] = ['populations', 'strains']
-
-        # sheet specific values
-        self.countrybook['sheet_values'] = odict()
-
-        self.countrybook['sheet_values']['demographics'] = odict()
-        self.countrybook['sheet_values']['demographics']['Population size per year'] = ['populations']
-        self.countrybook['sheet_values']['demographics']['Number of births per year'] = ['total_birth']
-        self.countrybook['sheet_values']['demographics']['Percentage of people vaccinated per year'] = ['populations']
-        self.countrybook['sheet_values']['demographics']['Percentage of people who die from non-TB related causes per year'] = ['populations']
-
-        self.countrybook['sheet_values']['prevalence'] = odict()
-        self.countrybook['sheet_values']['prevalence']['Estimated TB incidence (per 100,000)'] = ['populations']
-        self.countrybook['sheet_values']['prevalence']['Estimated active TB prevalence'] = ['populations']
-        self.countrybook['sheet_values']['prevalence']['Estimated MDR TB prevalence'] = ['populations']
-        self.countrybook['sheet_values']['prevalence']['Estimated XDR TB prevalence'] = ['populations']
-        self.countrybook['sheet_values']['prevalence']['Estimated latent TB prevalence'] = ['populations']
-
-        self.countrybook['sheet_values']['smear'] = odict()
-        self.countrybook['sheet_values']['smear']['Smear status by drug-resistant strain'] = ['nt_smears', 'nt_strains']
-        self.countrybook['sheet_values']['smear']['Smear status by population'] = ['nt_smears', 'populations']
-
-
-        self.countrybook['sheet_values']['comorbidity'] = odict()
-#         self.countrybook['sheet_values']['comorbidity']['HIV prevalence'] = ['populations', 'smears', 'strains']
-#         self.countrybook['sheet_values']['comorbidity']['Diabetes prevalence'] = ['populations', 'smears', 'strains']
-
-        self.countrybook['sheet_values']['testing_treatment_latent'] = odict()
-        self.countrybook['sheet_values']['testing_treatment_latent']['Percentage of population tested for latent TB per year'] = ['populations']
-        self.countrybook['sheet_values']['testing_treatment_latent']['Number of people initiating treatment for latent TB per year'] = ['populations']
-        self.countrybook['sheet_values']['testing_treatment_latent']['Number of people lost to follow up for latent TB per year'] = ['populations']
-        self.countrybook['sheet_values']['testing_treatment_latent']['Number of people who succesfully completed treatment for latent TB'] = ['populations']
-
-        self.countrybook['sheet_values']['testing_treatment_active'] = odict()
-        self.countrybook['sheet_values']['testing_treatment_active']['Percentage of population tested for active TB per year'] = ['populations']
-        self.countrybook['sheet_values']['testing_treatment_active']['Number of people initiating treatment for active TB per year'] = ['regimens', 'populations']
-        self.countrybook['sheet_values']['testing_treatment_active']['Number of people lost to follow up for active TB per year'] = ['regimens', 'populations']
-        self.countrybook['sheet_values']['testing_treatment_active']['Number of people who failed treatment for active TB'] = ['regimens', 'populations']
-        self.countrybook['sheet_values']['testing_treatment_active']['Number of people who successfully completed treatment for active TB'] = ['regimens', 'populations']
-
-
-        self.countrybook['constants'] = {'spacing_interpopulation':2,
-                                         'spacing_intrapopulation':1,
-                                         'spacing_interproperty'  :4,
-                                         'spacing_multivalue_label':2,
-                                         'total_strains': 'Total',  # All strains',
-                                         'total_smears' : 'Total',
-                                         'num_default_programs':28,
-                                         'row_index_start':2,  # for when there are no disaggregations, etc.
-                                         'col_index_start':1}  #
 
 class ValidationSettings():
     """
@@ -455,7 +341,7 @@ class PlottingSettings():
                                             'bbox_to_anchor':(1.05, 0.5),
                                             'ncol':1},
                          # labels
-                         'use_full_labels' : False,
+                         'use_full_labels' : True,
                          'effective_rate': "Effective number",
                          'default_ylabel' : "Number of cases",
                          'default_pops' : "All populations",
