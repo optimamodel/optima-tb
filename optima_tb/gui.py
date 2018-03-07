@@ -14,7 +14,7 @@ import itertools as it
 pp.ioff()   # Turn off interactive mode.
 
 from optima_tb.project import Project
-from optima_tb.plotting import plotScenarios, plotCompareResults # _plotLine
+from optima_tb.plotting import plotCompareResults # _plotLine
 from optima_tb.dataio import saveObject, loadObject
 from optima_tb.defaults import defaultOptimOptions
 from optima_tb.utils import odict
