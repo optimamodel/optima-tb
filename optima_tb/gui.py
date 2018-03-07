@@ -1,10 +1,3 @@
-# %% Imports
-import logging
-import logging.config
-
-logging.config.fileConfig('logging.ini', disable_existing_loggers=False)
-logger = logging.getLogger()
-
 import sys
 import numpy as np
 from copy import deepcopy as dcp
@@ -14,11 +7,14 @@ import itertools as it
 pp.ioff()   # Turn off interactive mode.
 
 from optima_tb.project import Project
-from optima_tb.plotting import plotScenarios, plotCompareResults # _plotLine
+from optima_tb.plotting import plotCompareResults # _plotLine
 from optima_tb.dataio import saveObject, loadObject
 from optima_tb.defaults import defaultOptimOptions
 from optima_tb.utils import odict
 from optima_tb.settings import PlottingSettings, DO_NOT_SCALE, DEFAULT_YFACTOR
+
+import logging
+logger = logging.getLogger(__name__)
 
 ##### TODO remove hardcoded from Belarus:
 colors = ['#8C8984',
@@ -504,7 +500,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
                                        plot_observed_data=plot_observed,
                                        plot_total=True,
                                        colors=colors,
-                                       save_fig=False)
+                                       save_fig=False)[-1]
 
             canvas = FigureCanvasQTAgg(figure)
 

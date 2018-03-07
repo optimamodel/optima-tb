@@ -1,10 +1,37 @@
 # %% Imports
 import logging
+import os.path
+
+# NOTE - To configure logging in individual scripts, use the commands below to reset the
+# logger settings
 import logging.config
+logging_conf = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '%(asctime)-20s %(levelname)-8s %(message)s',
+            'datefmt': '%d-%m-%y %H:%M:%S'
+        },
+    },
+    'handlers': {
+        'default': {
+            'level': 'INFO',
+            'formatter': 'standard',
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        '': {
+            'handlers': ['default'],
+            'level': 'INFO',
+        },
+    }
+}
+logging.config.dictConfig(logging_conf)
 
-logging.config.fileConfig('logging.ini', disable_existing_loggers=False)
-logger = logging.getLogger()
 
+logger = logging.getLogger(__name__)
 
 from optima_tb.utils import tic, toc, odict, OptimaException
 from optima_tb.model import runModel
