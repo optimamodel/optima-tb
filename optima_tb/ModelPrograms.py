@@ -94,7 +94,7 @@ class ModelProgramSet(object):
                 spending = init_alloc[prog.label]
 
                 # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to time points.
-                if 'constraints' in sim_settings and 'max_yearly_change' in sim_settings['constraints'] and prog.label in sim_settings['constraints']['max_yearly_change']:
+                if not isinstance(spending,np.ndarray) and 'constraints' in sim_settings and 'max_yearly_change' in sim_settings['constraints'] and prog.label in sim_settings['constraints']['max_yearly_change']:
                     if alloc_is_coverage:
                         default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
                     else:

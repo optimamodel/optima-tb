@@ -498,7 +498,7 @@ class Model(object):
 
         if options is None: options = dict()
 
-        self.sim_settings['tvec'] = np.arange(settings.tvec_start, settings.tvec_end + settings.tvec_dt / 2, settings.tvec_dt)
+        self.sim_settings['tvec'] = settings.tvec
         self.sim_settings['tvec_dt'] = settings.tvec_dt
 
         self.sim_settings['impact_pars_not_func'] = []      # Program impact parameters that are not functions of other parameters and thus already marked for dynamic updating.
