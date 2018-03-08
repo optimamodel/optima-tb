@@ -260,7 +260,7 @@ def extractCharacteristic(results, data, charac_specs, charac_labels=None, pop_l
     """
     
 
-    datapoints, _, _ = results.getCharacteristicDatapoints(pop_label=pop_labels, char_label=charac_labels, use_observed_times=False)
+    datapoints = results.getCharacteristicDatapoints(pop_label=pop_labels, char_label=charac_labels, use_observed_times=False)[0]
 
     unit_tags = []
     dataobs = None

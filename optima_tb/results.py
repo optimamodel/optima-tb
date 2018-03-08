@@ -8,6 +8,7 @@ import numpy as np
 from math import ceil, floor
 from uuid import uuid4 as uuid
 from copy import deepcopy as dcp
+from collections import defaultdict
 
 # %% Resultset class that contains one set of results
 class ResultSet(object):
@@ -170,7 +171,7 @@ class ResultSet(object):
 
         elif label in self.char_labels:
 
-            values, _, _, units = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)
+            values = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)[0]
             values = values[label]
 
             for pop in values.keys():
@@ -232,7 +233,7 @@ class ResultSet(object):
         if label in self.char_labels:
 #             print "is Char"
 
-            values, _, _ = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)
+            values = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)[0]
             values = values[label]
 
             for pop in values.keys():
@@ -357,34 +358,32 @@ class ResultSet(object):
         """
         if pop_label is not None:
             if isinstance(pop_label, list):
-                pops = pop_label
+                pop_label = pop_label
             else:
-                pops = [pop_label]
+                pop_label = [pop_label]
         else:
-            pops = self.pop_labels
+            pop_label = self.pop_labels
 
         if char_label is not None:
             if isinstance(char_label, list):
-                chars = char_label
+                char_label = char_label
             else:
-                chars = [char_label]
+                char_label = [char_label]
         else:
-            chars = self.char_labels
+            char_label = self.char_labels
 
+        datapoints = defaultdict(dict)
+        for pop in self.model.pops:
+            for charac in pop.characs:
+                if pop.label in pop_label and charac.label in char_label:
+                    if use_observed_times:
+                        datapoints[charac.label][pop.label] = charac.vals[self.indices_observed_data]
+                    else:
+                        datapoints[charac.label][pop.label] = charac.vals
 
-        # this currently uses odict for the output ...
-        datapoints = odict()
-        for cj in chars:
-            datapoints[cj] = odict()
-            for pi in pops:
-                if use_observed_times:
-                    datapoints[cj][pi] = self.outputs[cj][pi][self.indices_observed_data]
-                else:
-                    datapoints[cj][pi] = self.outputs[cj][pi]
+        units = 'people' # TODO - this is not correct, as a characteristic could be a prevalence 
 
-        units = 'people'
-
-        return datapoints, chars, pops, units
+        return datapoints, char_label, pop_label, units
 
 
     def getFlow(self, link_label, pop_labels=None,target_flow=False,annualize=True):

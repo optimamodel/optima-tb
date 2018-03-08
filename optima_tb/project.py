@@ -289,7 +289,7 @@ class Project(object):
         logger.info('Reconciling progset "%s" as overwrite is set as "%s"' % (progset_name, overwrite))
 
         # Run reconcile functionality
-        reconciled_progset = reconcile(proj=self, reconcile_for_year=reconcile_for_year,
+        reconciled_progset, reconciled_output = reconcile(proj=self, reconcile_for_year=reconcile_for_year,
                                                                 parset_name=parset_name, progset_name=progset_name, sigma_dict=sigma_dict,
                                                                 unitcost_sigma=unitcost_sigma, budget_sigma=budget_sigma, attribute_sigma=attribute_sigma,
                                                                 impact_pars=impact_pars, constrain_budget=constrain_budget, max_time=max_time)

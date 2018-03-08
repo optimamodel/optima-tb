@@ -215,6 +215,10 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         import_path = sanitizedFileDialog(self, 'open', 'Import project from file')
         try:
             self.project = loadObject(filename=import_path)
+            for key in self.project.results.keys():
+                if not hasattr(self.project.results[key],'model'):
+                    logger.info('Result "%s" is in the old format and will not be loaded' % (key))
+                    self.project.results.pop(key)
             self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_end + 1.0 / 2)
             PlottingSettings("gui") # updates rcParams for this instance
             self.acknowledgeProject()

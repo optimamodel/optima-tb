@@ -517,7 +517,7 @@ def plotCompareResults(proj, resultset, output_labels, pop_labels=None,
     
     Params:
         proj            project object, containing plotting settings and observed data points
-        resultset       odict of resultset objects
+        resultset       resultset object 
         output_labels   list of compartment labels, flow rate labels, characteristics
         pop_labels      populations to be plotted. Default (None) plots all populations.
         plot_total      plot total across populations
@@ -760,7 +760,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
 
     # setup: determine compartment indices to be plotted - by default, all compartments, otherwise, just plot requested
     if output_labels is None:
-        output_labels = sorted(results.model.pops[0].comp_ids, key=results.model.pops[0].comp_ids.get)
+        output_labels = sorted(results.m_pops[0].comp_ids, key=results.m_pops[0].comp_ids.get)
         output_labels = [comp_label for comp_label in output_labels if isPlottableComp(comp_label, sim_settings, results.comp_specs)]
         observed_data_label="alive"
 

@@ -223,12 +223,12 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
         pset.update_cache(alloc, args['tval'], args['dt'])
         proposed_vals, proposed_coverage = pset.compute_pars(0)
 
-        print '%s %s\t\t%s\t\t%s\t\t%s' % ('Population'.ljust(15),'Parameter'.ljust(15),'Parset', 'Initial'.ljust(16),'Reconciled'.ljust(16))
+        outcome = '%s %s %s %s %s' % ('Population'.ljust(15),'Parameter'.ljust(15),'Parset'.rjust(10), '    Initial'.ljust(21),'      Reconciled'.ljust(21))
         for pop in progset_results.model.pops:
             for par in pop.pars:
                 if par.uid in target_vals:
-                    print '%s %s\t\t%.4f\t\t%.4f (%+.4f) \t\t%.4f (%+.4f)' % (pop.label.ljust(15),par.label.ljust(15),target_vals[par.uid],initial_prog_vals[par.uid],initial_prog_vals[par.uid]-target_vals[par.uid],proposed_vals[par.uid],proposed_vals[par.uid]-target_vals[par.uid])
+                    outcome += '\n%s %s %10.4f %10.4f (%+10.4f) %10.4f (%+10.4f)' % (pop.label.ljust(15),par.label.ljust(15),target_vals[par.uid],initial_prog_vals[par.uid],initial_prog_vals[par.uid]-target_vals[par.uid],proposed_vals[par.uid],proposed_vals[par.uid]-target_vals[par.uid])
 
-        return pset.progset
+        return pset.progset, outcome
 
 
