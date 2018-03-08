@@ -20,6 +20,7 @@ class ModelProgramSet(object):
         self.progset = progset # A complete ProgramSet instance
         self.pars = set()
         self.dt = 0 # Timestep set when calling update_cache and same timestep used for scaling in compute_pars
+        self.tval_cache = None # Time values are cached and passed to ModelPrograms for program-specific activation/deactivation
 
         # Construct the ModelProgram objects
         for prog in progset.progs: # For each Program, instantiate a ModelProgram
@@ -40,8 +41,8 @@ class ModelProgramSet(object):
 
             is_fraction = prog.cov_format != 'number' # programs leave this as None otherwise (because it's a fraction and not probability?)
 
-            self.programs.append(ModelProgram(prog.label,is_fraction,impact_pars,impact_groups))
-            self.pars.update(impact_pars) # Update the set of all Parameter objects being reached
+            self.programs.append(ModelProgram(prog.label,is_fraction,impact_pars,impact_groups,prog.active_times))
+            self.pars.update(impact_pars) # Update the set of all Parameter objects being reached by adding any Parameters that aren't present
             for par in self.pars:
                 par.program_overwrite = True # Mark the program as being overwritten by a program
 
@@ -133,6 +134,7 @@ class ModelProgramSet(object):
         # passed though getBudget which means that it would go back through getCoverage at this step
         
         self.dt = dt
+        self.tval_cache = tvals
 
         prog_vals = dict()
 
@@ -186,7 +188,7 @@ class ModelProgramSet(object):
         # STAGE 3.1 Accumulate contributions
         for prog in self.programs:
             if prog.is_active:
-                for par_id,contrib in prog.get_contribution(ti).items():
+                for par_id,contrib in prog.get_contribution(self.tval_cache[ti],ti).items():
                     contribs[par_id].append(contrib) # Append a (frac_cov,value) tuple
 
         # STAGE 3+4 Normalize and set output value
@@ -223,7 +225,7 @@ class ModelProgramSet(object):
 
 class ModelProgram(object):
 
-    def __init__(self,label,is_fraction,pars,impact_groups,cost=None,net_dt_cov=None,net_dt_impact=None):
+    def __init__(self,label,is_fraction,pars,impact_groups,active_times,cost=None,net_dt_cov=None,net_dt_impact=None):
 
         self.uid = uuid.uuid4()
         self.label = label
@@ -243,6 +245,7 @@ class ModelProgram(object):
                 self.pars_to_groups[par.uid] = grp
 
         self.is_active = True # Only programs that are active will be used in ModelProgramSet.compute_pars()
+        self.active_times = active_times
 
     def unlink(self):
         for i in xrange(0,len(self.pars)):
@@ -258,9 +261,18 @@ class ModelProgram(object):
             for i in xrange(0,len(self.impact_groups[grp])):
                 self.impact_groups[grp][i] = objs[self.impact_groups[grp][i]]
 
-    def get_contribution(self,ti):
+    def get_contribution(self,t,ti):
         # Return fractional coverage and program value contribution for every Parameter
         # reached by this Program
+        # INPUTS
+        # t - current simulation time (e.g. 2017.25), for activating/deactivating program
+        # ti - current simulation time index (for looking up popsizes etc.)
+
+        par_contribution = dict()
+
+        # Return early if program is not active in this time
+        if self.active_times is not None and (t < self.active_times[0] or t >= self.active_times[1]):
+            return par_contribution
 
         # STAGE 2.1 Get impact group sizes
         source_set_size = defaultdict(float)
@@ -273,7 +285,6 @@ class ModelProgram(object):
                     source_set_size[grp] += par.source_popsize(ti)
 
         # STAGE 2.2
-        par_contribution = dict()
         for par in self.pars:
 
             if not par.links: # If not a transition parameter, return the value directly

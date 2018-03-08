@@ -130,6 +130,8 @@ class Program:
         self.cov_format = cov_format
         self.attributes = attributes
 
+        self.active_times = None # Optionally a tuple with (start year, stop year)
+
         if target_pops is None: target_pops = []
         self.target_pops = target_pops
 
