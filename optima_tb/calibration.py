@@ -29,31 +29,23 @@ def calculateFitFunc(sim_data,sim_tvec,obs_data,metric):
     """
     score = []
     char_labels = sim_data.keys()
-    pop_labels = sim_data[0].keys()
-    
-    for char in char_labels:
-        if char not in obs_data.keys():
+
+    for char,sim_char in sim_data.items():
+        if char not in obs_data:
             logger.debug("Results: could not extract characteristic datapoint values for characteristic '%s' as this does not appear in databook"%char)
             continue
-        #logger.debug("calculating fit for char=%s"%char)
-        for pop in pop_labels:
-            y_obs = obs_data[char][pop]['y']
-            t_obs = obs_data[char][pop]['t']
-            # only grab sim_data and sim_tvec where there are corresponding values of obs_data
-            t_indices = np.nonzero(np.in1d(sim_tvec, t_obs))[0]
-            y_fit = sim_data[char][pop][t_indices]
-            # calc and add to scores
-            s = _calculateFitscore(y_obs, y_fit, metric)
-            #logger.debug("---- for values obs = "+' '.join("%.2f"%ii for ii in y_obs)+" and yfit = "+' '.join("%.2f"%ii for ii in y_fit))
-            #logger.debug("-------- calc fit score = %s"%' '.join("%.2f"%ii for ii in s))
-            if 'pops_to_fit' in obs_data[char] and not pop in obs_data[char]['pops_to_fit']:
-                score.append(s*0.0)     # TODO: There must be an easier way to avoid fit calculations for deselected populations.
-            else:
-#                print y_obs
-#                print y_fit
+
+        for pop in sim_char:
+            if pop in obs_data[char] and ('pops_to_fit' not in obs_data[char] or pop in obs_data[char]['pops_to_fit']):
+                y_obs = obs_data[char][pop]['y']
+                t_obs = obs_data[char][pop]['t']
+                # only grab sim_data and sim_tvec where there are corresponding values of obs_data
+                t_indices = np.nonzero(np.in1d(sim_tvec, t_obs))[0]
+                y_fit = sim_char[pop][t_indices]
+                # calc and add to scores
+                s = _calculateFitscore(y_obs, y_fit, metric)
                 score.append(s)
-#        print obs_data[char]['pops_to_fit']
-#    print score
+
     return np.concatenate(score).ravel()
     
 def _getFitscoreFunc(metric):
@@ -217,7 +209,7 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
         except:
             logger.warning("Autocalibration tested a parameter set that was invalid. Skipping iteration.")
             return np.inf
-        datapoints, _, _ = results.getCharacteristicDatapoints()
+        datapoints = results.getCharacteristicDatapoints()[0]
         score = calculateFitFunc(datapoints,results.t_step,target_data_characs,metric)
         try: 
             score = sum(score)
