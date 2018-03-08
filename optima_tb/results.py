@@ -82,13 +82,12 @@ class ResultSet(object):
             self.pop_label_index[pop.label] = i
 
         self.sim_settings = model.sim_settings
-        self.pop_labels = self.outputs[0].keys()
+        self.pop_labels = [pop.label for pop in model.pops]
         self.comp_labels = settings.node_names
         self.comp_specs = settings.node_specs
         self.comp_label_names = self.__generateLabelNames(self.comp_specs.keys(), self.comp_labels)
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
         self.link_labels = [link.label for link in model.pops[0].links]
-        self.link_label_ids = {label:[i for i, link in enumerate(model.pops[0].links) if link.label == label] for label in self.link_labels} # For each link label, the index of the link list that had it
 
         self.budgets = {} # placeholders
         self.coverages = {}
@@ -162,7 +161,7 @@ class ResultSet(object):
         #       Link tags are actually stored in link_labels, while link labels could be in char_labels if a transition is marked as a result output.
         if label in self.link_labels:
 
-            values, _, _, units = self.getFlow(link_label=label, pop_labels=pop_labels)  # Does not return link values directly but calculates flows instead.
+            values, _, _, units = self.getFlow(par_labels=label, pop_labels=pop_labels)  # Does not return link values directly but calculates flows instead.
             values = values[label]
 
             for pop in values.keys():
@@ -386,17 +385,17 @@ class ResultSet(object):
         return datapoints, char_label, pop_label, units
 
 
-    def getFlow(self, link_label, pop_labels=None,target_flow=False,annualize=True):
+    def getFlow(self, par_labels, pop_labels=None,target_flow=False,annualize=True):
         """
         Return the flow at each time point in the simulation
 
         INPUTS
-        - link_label : A string or list of strings of link labels to get flows for. If None, use all links
+        - par_label : A string or list of strings of parameter labels to get flows for. If None, use all parameters that have links
         - pop_label : A list or list of strings of population labels. If None, use all populations
         - target_flow : By default, the actual flow rates accounting for compartment sizes during integration will be used. If target_flow=True, then the target flow rate will be returned
         - annualize : Boolean which specifies if the number of moved people should be annualized or not. If True, an annual average is computed; if False, the number of people per time step is computed
         
-        For each link label, the flow will be summed within requested populations. Thus if there are multiple links
+        For each parameter label, the flow from all links deriving from the parameter will be summed within requested populations. Thus if there are multiple links
         with the same link_label (e.g. a 'doth' link for death by other causes, for which there may be one for every compartment)
         then these will be aggregated
 
@@ -414,50 +413,40 @@ class ResultSet(object):
 
         if pop_labels is not None:
             if isinstance(pop_labels, list):
-                pops = pop_labels
+                pop_labels = pop_labels
             else:
-                pops = [pop_labels]
+                pop_labels = [pop_labels]
         else:
-            pops = self.pop_labels
+            pop_labels = self.pop_labels
 
-        if link_label is not None:
-            if isinstance(link_label, list):
+        if par_labels is not None:
+            if isinstance(par_labels, list):
                 pass
             else:
-                link_label = [link_label]
-        else:
-            link_label = self.link_label
-
-        datapoints = odict()
-
-        for link_lab in link_label:
-
-            datapoints[link_lab] = odict()
-            for pi in pops:
-
-                datapoints[link_lab] [pi] = odict()
-
-                p_index = self.pop_label_index[pi]
-
-                flows = []
-                for link_index in self.link_label_ids[link_lab]:
-                    link = self.model.pops[p_index].links[link_index]
-                    if target_flow:
-                        flows.append(link.target_flow)
-                    else:
-                        flows.append(link.vals)
-
-                datapoints[link_lab][pi] = sum(flows)
-
-                if annualize:
-                    datapoints[link_lab][pi] /= self.dt
+                par_labels = [par_labels]
 
         if annualize:
+            scale_factor = 1.0/self.dt
             units = 'people/year'
         else:
+            scale_factor = 1.0
             units = 'people/timestep'
 
-        return datapoints, link_label, pops, units
+        # This is compact but potentially confusing as attempting to access a field in datapoints will create it
+        # Should generally behave as expected, and output is sensible (because it will be zero) but regardless, important
+        # to test 'x in datapoints' rather than 'try: datapoints[x]'
+        datapoints = defaultdict(lambda: defaultdict(float))
+        for pop in self.model.pops: # For each population
+            if pop.label in pop_labels:
+                for par in pop.pars:
+                    if par.label in par_labels:
+                        for link in par.links:
+                            if target_flow:
+                                datapoints[par.label][pop.label] += link.target_flow*scale_factor
+                            else:
+                                datapoints[par.label][pop.label] += link.vals*scale_factor
+
+        return datapoints, par_labels, pop_labels, units
 
 
     def export(self, filestem=None, sep=',', writetofile=True, use_alltimesteps=True):
