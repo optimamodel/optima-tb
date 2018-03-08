@@ -223,8 +223,7 @@ def performAutofit(project,paramset,new_parset_name,target_characs=None,useYFact
         return score
     
     calibration_settings['fulloutput'] = True
-    try: parvecnew, fval, details = asd.asd(calculateObjective, paramvec+compartment_init, args={}, xmin=mins, xmax=maxs, **calibration_settings)
-    except Exception as e: print repr(e)
+    parvecnew, fval, details = asd.asd(calculateObjective, paramvec+compartment_init, args={}, xmin=mins, xmax=maxs, **calibration_settings)
     
 #    # Compare old and new values 
 #    print paramvec
