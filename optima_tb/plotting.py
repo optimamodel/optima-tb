@@ -919,7 +919,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         else:
             legend_labels = []
             for label in series_labels:
-                if plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
+                if plotdict.has_key('use_full_labels') and plotdict['use_full_labels'] and not compare_type == COMPARETYPE_RESULT:
                     full_label = getName(label, proj)
                     legend_labels.append(full_label if not full_label.startswith('Unknown') else label)
                 else:
