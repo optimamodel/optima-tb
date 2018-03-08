@@ -352,7 +352,7 @@ class ParameterSet(object):
 #                # finally, update index count
 #                index += 1
                 
-        logger.info("Updated ParameterSet %s with new values." % self.name)
+        logger.info('Updated ParameterSet "%s" with new values.' % self.name)
     
 #    def updateEntryPoints(self,proj_settings,compartment_t0,charac_labels):
 #        """

@@ -16,7 +16,7 @@ logging_conf = {
     },
     'handlers': {
         'default': {
-            'level': 'DEBUG',
+            'level': 'INFO',
             'formatter': 'standard',
             'class': 'logging.StreamHandler',
         },
@@ -24,14 +24,14 @@ logging_conf = {
     'loggers': {
         '': {
             'handlers': ['default'],
-            'level': 'DEBUG',
+            'level': 'INFO',
         },
     }
 }
 logging.config.dictConfig(logging_conf)
 
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 from optima_tb.utils import tic, toc, odict, OptimaException
 from optima_tb.model import runModel
