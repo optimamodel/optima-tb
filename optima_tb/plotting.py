@@ -5,7 +5,7 @@ from matplotlib.pyplot import plot
 logger = logging.getLogger(__name__)
 
 from optima_tb.utils import odict, OptimaException
-
+from optima_tb.results import ResultSet
 import numpy as np
 
 import pylab as pl
@@ -913,7 +913,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         legend_labels = cat_labels
         legend_cols = cat_colors
     else:
-        if plot_total:
+        if plot_total and not isinstance(resultset,odict):
             legend_labels = ['Total']
             #TODO? add in something for legend_cols as otherwise "Total" will be the color of the first population that is part of total
         else:

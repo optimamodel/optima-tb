@@ -481,21 +481,16 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
             result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
 
-            try:
+            if self.charac_plot_name in self.project.settings.charac_name_labels: # If a characteristic was selected
                 plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
                 logger.info("GUI plot characteristic: %s" % plot_label)
-            except:
-                try:
-                    plot_label = self.project.settings.linkpar_name_labels[self.charac_plot_name]
-                    try:
-                        # Convert the parameter label to a transition tag if possible, so as to derive effective flow rate.
-                        # TODO: Sort out getValuesAt() structure at some point to avoid potential label/tag confusion.
-                        plot_label = self.project.settings.linkpar_specs[plot_label]['tag']
-                        logger.info("GUI plot effective flow: %s" % plot_label)
-                    except:
-                        logger.info("GUI plot 'output' parameter: %s" % plot_label)
-                except:
-                    logger.info('Unable to plot for "%s"' % self.charac_plot_name)
+            elif self.charac_plot_name in self.project.settings.linkpar_name_labels:
+                plot_label = self.project.settings.linkpar_name_labels[self.charac_plot_name]
+                logger.info("GUI plot 'output' parameter: %s" % plot_label)
+                if 'tag' in self.project.settings.linkpar_specs[plot_label]:
+                    logger.info("This is a transition parameter - displaying effective flow" )
+            else:
+                logger.info('Unable to plot for "%s"' % self.charac_plot_name)
 
             figure = plotCompareResults(self.project,
                                        result_set,
