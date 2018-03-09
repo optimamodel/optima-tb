@@ -301,7 +301,7 @@ class ResultSet(object):
         return datapoints, char_label, pop_label, units
 
 
-    def getFlow(self, par_label, pop_labels=None,target_flow=False,annualize=True,as_fraction=None):
+    def getFlow(self, par_label, pop_labels=None,target_flow=False,annualize=True,as_fraction=False):
         """
         Return the flow at each time point in the simulation for a single parameter
 
