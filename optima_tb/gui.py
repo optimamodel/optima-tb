@@ -215,6 +215,8 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         import_path = sanitizedFileDialog(self, 'open', 'Import project from file')
         try:
             self.project = loadObject(filename=import_path)
+            if 'legendsettings' in self.project.settings.plot_settings and 'reverse_order' in self.project.settings.plot_settings['legendsettings']:
+                self.project.settings.plot_settings['legendsettings'].pop('reverse_order')
             self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_end + 1.0 / 2)
             PlottingSettings("gui") # updates rcParams for this instance
             self.acknowledgeProject()
