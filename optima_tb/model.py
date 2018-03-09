@@ -687,10 +687,15 @@ class Model(object):
                         for lid_tuple in comp.outlink_ids:
                             lid = lid_tuple[-1]
                             link = pop.links[lid]
-
-                            comp.popsize[ti] -= popsize * link.vals[ti_link] / denom_val
-                            pop.getComp(link.label_to).popsize[ti] += popsize * link.vals[ti_link] / denom_val
-
+                            if review_count == 0:
+                                link.flow[ti_link] = 0
+                                link.target_flow[ti_link] = 0
+                            
+                            flow = popsize * link.vals[ti_link] / denom_val
+                            comp.popsize[ti] -= flow
+                            pop.getComp(link.label_to).popsize[ti] += flow
+                            link.flow[ti_link] += flow
+                            link.target_flow[ti_link] += flow
 
 
             review_count += 1
