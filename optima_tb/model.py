@@ -870,10 +870,14 @@ class Model(object):
                         if denom_val == 0:
                             raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
                         for link in junc.outlinks:
+                            if review_count == 1:
+                                link.vals[ti] = 0
+                                link.target_flow[ti] = 0
                             flow = current_size * link.parameter.vals[ti_link] / denom_val
                             link.source.vals[ti] -= flow
                             link.dest.vals[ti]   += flow
-                            link.vals[ti] = flow
+                            link.vals[ti] += flow
+                            link.target_flow[ti] += flow
                             if link.dest.is_junction:
                                 review_required = True # Need to review if a junction received an inflow at this step
 
