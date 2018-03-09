@@ -469,11 +469,14 @@ class ModelPopulation(Node):
                 A[i,comp_indices[inc.label]] = 1.0
 
         x = np.linalg.lstsq(A,b,rcond=None)[0]
-        if np.any(x < -project_settings.TOLERANCE):
-            raise OptimaException('Negative initial popsizes')
 
         for i,c in enumerate(comps):
+            if x[i] < -project_settings.TOLERANCE:
+                logger.error('Negative initial popsize obtained for "%s" in pop "%s" : %f' % (c.label,self.label,x[i]))
             c.vals[0] = max(0.0,x[i])
+
+        if np.any(x < -project_settings.TOLERANCE):
+            raise OptimaException('Negative initial popsizes')
 
 # %% Model class
 class Model(object):
