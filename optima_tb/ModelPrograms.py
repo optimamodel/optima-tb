@@ -208,10 +208,15 @@ class ModelProgramSet(object):
             if par.links:
                 impact = np.sum(impact) # Note - sum the rates before doing the conversion
 
-                if par.is_fraction:
+                if par.units == 'fraction':
                     impact = 1.0 - (1.0 - impact) ** (1.0 / self.dt)
-                else:
+                elif par.units == 'number':
                     impact = impact * (1.0 / self.dt)
+                elif par.units == 'proportion':
+                    impact = impact
+                else:
+                    raise OptimaException('Unknown units')
+
             else:
                 impact = np.sum(impact)
 
@@ -304,10 +309,12 @@ class ModelProgram(object):
                         frac_dt_impact = self.net_dt_impact[par.uid][ti] / grp_size
 
                 # Convert units depending on the *Parameter* units
-                if par.is_fraction:
+                if par.units == 'number':
+                    eff_dt_impact = frac_dt_cov*par.source_popsize(ti)
+                elif par.units == 'fraction' or par.units == 'proportion':
                     eff_dt_impact = frac_dt_impact
                 else:
-                    eff_dt_impact = frac_dt_cov*par.source_popsize(ti)
+                    raise OptimaException('Unknown units!')
 
                 par_contribution[par.uid] = (frac_dt_cov,eff_dt_impact) # Return whether or not the par is a fraction here to avoid having to look it up later
 

@@ -15,6 +15,8 @@ import numpy as np
 from copy import deepcopy as dcp
 import uuid
 
+import matplotlib.pyplot as plt
+
 # np.seterr(all='raise')
 # %% Abstract classes used in model
 
@@ -38,18 +40,28 @@ class Variable(object):
 
     Examples include characteristics and dependent parameters (NB. all non-dependents parameter correspond to links)
     '''
-    def __init__(self, label='default', val=0.0):
+    def __init__(self, label='default'):
         self.uid = uuid.uuid4()
         self.label = label
-        if not isinstance(val,np.ndarray):
-            self.vals = np.array([float(val)])  # An abstract array of values.
-        else:
-            self.vals = val
+        self.t = None
+        self.vals = None
         self.vals_old = None                # An optional array that stores old values in the case of overwriting.
-        self.is_fraction = False # This will be set when values are loaded into the Variable i.e. parset.pars['cascade']
-        # Or if it is a Characteristic, automatically determined based on the dependencies
-        # If this is true, then it means the value corresponds to a fraction rather than a number
+        self.units = ''
 
+    def preallocate(self,tvec):
+        self.t = tvec
+        self.vals = np.ones(tvec.shape) * np.nan
+        self.vals_old = np.ones(tvec.shape) * np.nan
+
+    def plot(self):
+        plt.figure()
+        d = self.__dict__
+        for label,val in d.items():
+            if isinstance(val,np.ndarray) and val is not self.t and val.size == self.t.size:
+                plt.plot(self.t,val,label=label)
+        plt.legend()
+        plt.xlabel('Year')
+        plt.ylabel("%s (%s)" % (self.label,self.units))
 
     def update(self,ti=None):
         # A Variable can have a function to update its value at a given time, which is
@@ -90,8 +102,9 @@ class Variable(object):
 class Compartment(Variable):
     ''' A class to wrap up data for one compartment within a cascade network. '''
 
-    def __init__(self, label='default', val=0.0):
-        Variable.__init__(self, label=label, val=val)
+    def __init__(self, label='default'):
+        Variable.__init__(self, label=label)
+        self.units = 'people'
         self.tag_birth = False                      # Tag for whether this compartment contains unborn people.
         self.tag_dead = False                       # Tag for whether this compartment contains dead people.
         self.is_junction = False
@@ -114,7 +127,7 @@ class Characteristic(Variable):
         # the denominator is another Characteristic that normalizes this one
         # All passed by reference so minimal performance impact
         Variable.__init__(self, label=label)
-        self.is_fraction = False # By default, a characteristic has units of number of people
+        self.units = 'people'
         self.includes = []
         self.denominator = None
         self.dependency = False # This flag indicates whether another variable depends on this one, indicating the value needs to be computed during integration
@@ -130,7 +143,7 @@ class Characteristic(Variable):
         self.denominator = x
         if isinstance(x,Characteristic):
             x.dependency = True
-        self.is_fraction = True # Once a denominator is assigned, the units are now a fraction e.g. prevalence
+        self.units = 'proportion'
 
 
     def update(self,ti=None):
@@ -165,8 +178,8 @@ class Parameter(Variable):
     # This is a Parameter in the cascade.xlsx sense - there is one Parameter object for every item in the 
     # Parameters sheet. A parameter that maps to multiple transitions (e.g. doth_rate) will have one parameter
     # and multiple Link instances that depend on the same Parameter instance
-    def __init__(self, label='default', val=0.0,f_stack = None, deps = None, limits = None):
-        Variable.__init__(self, label=label, val=val)
+    def __init__(self, label='default',f_stack = None, deps = None, limits = None):
+        Variable.__init__(self, label=label)
         if deps is not None:
             for dep in deps:
                 if hasattr(dep,'dependency'):
@@ -234,6 +247,7 @@ class Link(Variable):
     '''
     def __init__(self, parameter, object_from, object_to, is_transfer=False):
         Variable.__init__(self, label=parameter.label) # A link should be labelled with the Parameter's label so it can be associated with that parameter later
+        self.units = 'people/timestep'
 
         self.parameter = parameter # Source parameter where the unscaled link value is drawn from (a single parameter may have multiple links)
         self.parameter.dependency = True # A transition parameter must be updated during integration
@@ -256,6 +270,16 @@ class Link(Variable):
     def __repr__(self, *args, **kwargs):
         return "Link %s - %s to %s" % (self.label, self.source.label, self.dest.label)
 
+    def preallocate(self,tvec):
+        Variable.preallocate(self, tvec)
+        self.target_flow = np.ones(tvec.shape) * np.nan
+
+    def plot(self):
+        Variable.plot(self)
+        plt.title('Link %s to %s' % (self.source.label,self.dest.label))
+
+
+
 # %% Cascade compartment and population classes
 class ModelPopulation(Node):
     '''
@@ -272,13 +296,12 @@ class ModelPopulation(Node):
         
         self.comp_ids = dict()      # Maps label of a compartment to its position index within compartments list.
         self.charac_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
-        self.link_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
         self.par_ids = dict()      # Maps cascade transition tag to indices for all relevant transitions within links list.
 
         self.genCascade(settings=settings)    # Convert compartmental cascade into lists of compartment and link objects.
 
-    def __repr__(self, *args, **kwargs):
-        return "".join("%s" % self.comps)
+    def __repr__(self):
+        return '%s "%s" (%s)' % (self.__class__.__name__,self.label,self.uid)
 
     def popsize(self,ti):
         # A population's popsize is the sum of all of the people in its compartments, excluding
@@ -288,7 +311,6 @@ class ModelPopulation(Node):
             if not comp.tag_birth and not comp.tag_dead:
                 n += comp.vals[ti]
         return n
-
 
     def getModelState(self, ti):
         states = [c.getValue(ti) for c in self.comps]
@@ -300,12 +322,9 @@ class ModelPopulation(Node):
         return self.comps[comp_index]
 
     def getLinks(self, link_tag):
-        ''' Allow links to be retrieved by tag rather than index. Returns a list of Links. '''
-        link_index_list = self.link_ids[link_tag]
-        link_list = []
-        for link_index in link_index_list:
-            link_list.append(self.links[link_index])
-        return link_list
+        ''' Retrieve Links associated with a Parameter tag '''
+        par = self.getPar(link_tag)
+        return par.links
 
     def getCharac(self, charac_label):
         ''' Allow dependencies to be retrieved by label rather than index. Returns a Variable. '''
@@ -325,6 +344,8 @@ class ModelPopulation(Node):
         '''
 
         # First, make a Compartment for every compartment in the cascade
+        tvec = settings.tvec
+
         for comp_id, label in enumerate(settings.node_specs.keys()):
             self.comps.append(Compartment(label=label))
             if 'tag_birth' in settings.node_specs[label]:
@@ -399,7 +420,6 @@ class ModelPopulation(Node):
             self.par_ids[label] = par_id
 
         # Finally, create links between compartments
-        link_id = 0 # Need to use a counter here because we don't know yet how many links will be added in total
         for label,spec in settings.linkpar_specs.items():
             par = self.pars[self.par_ids[label]]
             if 'tag' in settings.linkpar_specs[label]:
@@ -410,30 +430,15 @@ class ModelPopulation(Node):
                     new_link = Link(par,src,dst) # The link needs to be labelled with the Parameter it derives from so that Results can find it later
                     self.links.append(new_link)
 
-                    if not tag in self.link_ids:
-                        self.link_ids[tag] = []
-                    self.link_ids[tag].append(link_id)
-                    link_id += 1
-
     def preAllocate(self, sim_settings):
         '''
         Pre-allocate variable arrays in compartments, links and dependent variables for faster processing.
         Array maintains initial value but pre-fills everything else with NaNs.
         Thus errors due to incorrect parset value saturation should be obvious from results.
         '''
-        for comp in self.comps:
-            init_popsize = comp.vals[0]
-            comp.vals = np.ones(len(sim_settings['tvec'])) * np.nan
-            comp.vals_old = np.ones(len(sim_settings['tvec'])) * np.nan
-            comp.vals[0] = init_popsize
-        for charac in self.characs:
-            charac.vals = np.ones(len(sim_settings['tvec'])) * np.nan
-        for link in self.links:
-            link.vals = np.ones(len(sim_settings['tvec'])) * np.nan
-            link.target_flow = np.ones(len(sim_settings['tvec'])) * np.nan
-        for par in self.pars:
-            par.vals = np.ones(len(sim_settings['tvec'])) * np.nan
-            par.vals_old = np.ones(len(sim_settings['tvec'])) * np.nan
+        tvec = sim_settings['tvec']
+        for obj in self.comps + self.characs + self.links + self.pars:
+            obj.preallocate(tvec)
 
 # %% Model class
 class Model(object):
@@ -498,7 +503,7 @@ class Model(object):
 
         if options is None: options = dict()
 
-        self.sim_settings['tvec'] = settings.tvec
+        self.sim_settings['tvec'] = settings.tvec # NB. returning a mutable variable in a class @property method returns a new object each time
         self.sim_settings['tvec_dt'] = settings.tvec_dt
 
         self.sim_settings['impact_pars_not_func'] = []      # Program impact parameters that are not functions of other parameters and thus already marked for dynamic updating.
@@ -606,7 +611,7 @@ class Model(object):
                 par = pop.pars[pop.par_ids[cascade_par.label]] # Find the parameter with the requested label
 
                 par.vals = cascade_par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
-                par.is_fraction = cascade_par.y_format[pop_label] == 'fraction'
+                par.units = cascade_par.y_format[pop_label]
                 par.scale_factor = cascade_par.y_factor[pop_label]
 
                 # Now that we constrain everything, can leave it out here
@@ -643,10 +648,12 @@ class Model(object):
 
                         # Create the parameter object for this link (shared across all compartments)
                         par_label = trans_type + '_' + pop_source + '_to_' + pop_target # e.g. 'aging_0-4_to_15-64'
+                        par = Parameter(label=par_label,f_stack = None, deps = None, limits = None)
+                        par.preallocate(self.sim_settings['tvec'])
                         val = transfer_parameter.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_target)
-                        par = Parameter(label=par_label,val=val,f_stack = None, deps = None, limits = None)
+                        par.vals = val
                         par.scale_factor = transfer_parameter.y_factor[pop_target]
-                        par.is_fraction = transfer_parameter.y_format[pop_target] == 'fraction'
+                        par.units = transfer_parameter.y_format[pop_target]
                         par_id = len(pop.pars)
                         pop.pars.append(par)
                         pop.par_ids[par_label] = par_id
@@ -659,12 +666,9 @@ class Model(object):
                                 dest = target_pop_obj.getComp(source.label) # Get the corresponding compartment
                                 link_tag = par_label + source.label # e.g. 'aging_0-4_to_15-64_sus' - this is probably never used?
                                 link = Link(par, source, dest, is_transfer=True)
-                                # Todo - unify preallocation (should only be done once, in one place)
-                                link.vals = np.ones(len(self.sim_settings['tvec'])) * np.nan
-                                link.target_flow = np.ones(len(self.sim_settings['tvec'])) * np.nan
+                                link.preallocate(self.sim_settings['tvec'])
                                 link_id = len(pop.links)
                                 pop.links.append(link)
-                                pop.link_ids[link_tag] = link_id
 
         # # Make a lookup dict for programs
         self.pars_by_pop = {}
@@ -774,17 +778,21 @@ class Model(object):
                         if link.parameter.scale_factor is not None and link.parameter.scale_factor != project_settings.DO_NOT_SCALE:  # scale factor should be available to be used
                             transition *= link.parameter.scale_factor
 
-                        if link.parameter.is_fraction:
+                        if link.parameter.units == 'fraction':
                             # check if there are any violations, and if so, deal with them
                             if transition > 1.:
                                 transition = checkTransitionFraction(transition, settings.validation)
                             converted_frac = 1 - (1 - transition) ** dt  # A formula for converting from yearly fraction values to the dt equivalent.
                             converted_amt = comp_source.vals[ti] * converted_frac
-                        else:
+                        elif link.parameter.units == 'proportion':
+                            converted_amt = comp_source.vals[ti] * transition # Use the value directly - NB. in theory this branch should only run for Junction links, which aren't here (i.e. it should never be used at the moment)
+                        elif link.parameter.units == 'number':
                             converted_amt = transition * dt
                             if link.is_transfer:
                                 transfer_rescale = comp_source.vals[ti] / pop.getCharac(settings.charac_pop_count).vals[ti]
                                 converted_amt *= transfer_rescale
+                        else:
+                            raise OptimaException('Unknown parameter units!')
 
                         outflow[i] = converted_amt
                         link.target_flow[ti] = converted_amt
@@ -845,9 +853,8 @@ class Model(object):
 
                 for junc in junctions:
 
-                    # Stores junction popsize values before emptying.
-                    # Todo - check if this is purely for output
-                    if review_count == 0:
+                    # Stores junction popsize values before emptying - so vals_old stores the total number of people that transitioned out of this junction while vals = 0
+                    if review_count == 1:
                         junc.vals_old[ti] = junc.vals[ti] # Back up the old value (should have been preallocated)
                     else:
                         # If a junction is being reviewed again, it means that it received inflow before emptying.

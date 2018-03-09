@@ -87,7 +87,7 @@ class ResultSet(object):
         self.comp_specs = settings.node_specs
         self.comp_label_names = self.__generateLabelNames(self.comp_specs.keys(), self.comp_labels)
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
-        self.link_labels = [link.label for link in model.pops[0].links]
+        self.link_labels = [par.label for par in model.pops[0].pars if len(par.links) > 0]
 
         self.budgets = {} # placeholders
         self.coverages = {}
@@ -161,8 +161,7 @@ class ResultSet(object):
         #       Link tags are actually stored in link_labels, while link labels could be in char_labels if a transition is marked as a result output.
         if label in self.link_labels:
 
-            values, _, _, units = self.getFlow(par_labels=label, pop_labels=pop_labels)  # Does not return link values directly but calculates flows instead.
-            values = values[label]
+            values = self.getFlow(label, pop_labels=pop_labels)[0]
 
             for pop in values.keys():
                 popvalues = values[pop]
@@ -243,8 +242,7 @@ class ResultSet(object):
         elif label in self.link_labels:
 #             print "is Link"
 
-            values, _, _ = self.getFlow(link_label=label, pop_labels=pop_labels)
-            values = values[label]
+            values = self.getFlow(label, pop_labels=pop_labels)[0]
 
             for pop in values.keys():
                 popvalues = values[pop]
@@ -385,24 +383,25 @@ class ResultSet(object):
         return datapoints, char_label, pop_label, units
 
 
-    def getFlow(self, par_labels, pop_labels=None,target_flow=False,annualize=True):
+    def getFlow(self, par_label, pop_labels=None,target_flow=False,annualize=True,as_fraction=None):
         """
-        Return the flow at each time point in the simulation
+        Return the flow at each time point in the simulation for a single parameter
 
         INPUTS
-        - par_label : A string or list of strings of parameter labels to get flows for. If None, use all parameters that have links
+        - par_label : A string specifying a single Parameter to retrieve flow rates for
         - pop_label : A list or list of strings of population labels. If None, use all populations
         - target_flow : By default, the actual flow rates accounting for compartment sizes during integration will be used. If target_flow=True, then the target flow rate will be returned
         - annualize : Boolean which specifies if the number of moved people should be annualized or not. If True, an annual average is computed; if False, the number of people per time step is computed
-        
+        - as_fraction : Boolean which specifies if the flow rate should be expressed as a fraction of the source compartment size.
+            - If True, the fractional flow rate for each link will be computed by dividing the net flow by the sum of source compartment sizes
+            - If None, it will be set to the same value as par.is_fraction for each parameter requested
         For each parameter label, the flow from all links deriving from the parameter will be summed within requested populations. Thus if there are multiple links
         with the same link_label (e.g. a 'doth' link for death by other causes, for which there may be one for every compartment)
         then these will be aggregated
 
         OUTPUT
-        - datapoints : dictionary `datapoints[link_label][pop_label]` has an array of number of people moved at each point in time
-        - link_label : links that were used
-        - pops : Populations that were used
+        - datapoints : dictionary `datapoints[pop_label]` has an array of flow rate in requested units
+        - units : the units of the returned data
         
         Note that the flow rate is linked to the time step by
 
@@ -416,37 +415,43 @@ class ResultSet(object):
                 pop_labels = pop_labels
             else:
                 pop_labels = [pop_labels]
+
+        datapoints = defaultdict(float)
+        source_size = defaultdict(float)
+
+        for pop in self.model.pops:
+            if pop_labels is None or pop.label in pop_labels:
+                if par_label in pop.par_ids:
+                    par = pop.getPar(par_label)
+                    for link in par.links:
+                        if target_flow:
+                            datapoints[pop.label] += link.target_flow
+                        else:
+                            datapoints[pop.label] += link.vals
+                        source_size[pop.label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
+
+        # If as_fraction is None, use the same units as the Parameter. All Parameters should have the same units
+        # in all populations so can use whichever one is left after the loop above
+        if as_fraction is None and (par.units == 'fraction' or par.units == 'proportion'):
+            as_fraction = True
+
+        if as_fraction:
+            units = 'proportion'
+            for pop_label in datapoints:
+                datapoints[pop_label] /=  source_size[pop_label]
         else:
-            pop_labels = self.pop_labels
+            units = 'people'
 
-        if par_labels is not None:
-            if isinstance(par_labels, list):
-                pass
-            else:
-                par_labels = [par_labels]
+        # If we need to convert from dt units to annualized units
+        # If as_fraction is true, then the quantity is a proportion and no further time units are required
+        if annualize and not as_fraction:
+            units += '/year'
+            for pop_label in datapoints:
+                datapoints[pop_label] = datapoints[pop_label] * (1.0 / self.dt)
+        elif not as_fraction:
+            units += '/timestep'
 
-        if annualize:
-            scale_factor = 1.0/self.dt
-            units = 'people/year'
-        else:
-            scale_factor = 1.0
-            units = 'people/timestep'
-
-        # This is compact but potentially confusing as attempting to access a field in datapoints will create it
-        # Should generally behave as expected, and output is sensible (because it will be zero) but regardless, important
-        # to test 'x in datapoints' rather than 'try: datapoints[x]'
-        datapoints = defaultdict(lambda: defaultdict(float))
-        for pop in self.model.pops: # For each population
-            if pop.label in pop_labels:
-                for par in pop.pars:
-                    if par.label in par_labels:
-                        for link in par.links:
-                            if target_flow:
-                                datapoints[par.label][pop.label] += link.target_flow*scale_factor
-                            else:
-                                datapoints[par.label][pop.label] += link.vals*scale_factor
-
-        return datapoints, par_labels, pop_labels, units
+        return datapoints, units
 
 
     def export(self, filestem=None, sep=',', writetofile=True, use_alltimesteps=True):
