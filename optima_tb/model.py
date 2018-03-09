@@ -468,12 +468,18 @@ class ModelPopulation(Node):
             for inc in extract_includes(c):
                 A[i,comp_indices[inc.label]] = 1.0
 
-        x = np.linalg.lstsq(A,b,rcond=None)[0]
+        x, residual, rank, _ = np.linalg.lstsq(A,b,rcond=None)
 
         for i,c in enumerate(comps):
             if x[i] < -project_settings.TOLERANCE:
                 logger.error('Negative initial popsize obtained for "%s" in pop "%s" : %f' % (c.label,self.label,x[i]))
             c.vals[0] = max(0.0,x[i])
+
+        if rank < A.shape[1]:
+            raise OptimaException('Characteristics are not full rank, cannot determine a unique initialization')
+
+        if residual > project_settings.TOLERANCE:
+            raise OptimaException('Residual was %f which is unacceptably large (should be < %f) - this points to a probable inconsistency in the initial values' % (residual,project_settings.TOLERANCE))
 
         if np.any(x < -project_settings.TOLERANCE):
             raise OptimaException('Negative initial popsizes')
