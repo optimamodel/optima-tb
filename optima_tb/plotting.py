@@ -735,7 +735,7 @@ def plotCompareCascade(proj, resultset, output_labels, pop_labels=None, year_per
 
 def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=None,
                plot_total=False, plot_type=None,
-               plot_observed_data=True, observed_data_label=None,
+               plot_observed_data=False, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, cat_labels=None,
                title=None, ylabel=None, save_fig=False, fig_name=None, **kwargs):
     """
