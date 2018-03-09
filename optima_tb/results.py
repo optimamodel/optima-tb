@@ -87,7 +87,11 @@ class ResultSet(object):
         self.comp_specs = settings.node_specs
         self.comp_label_names = self.__generateLabelNames(self.comp_specs.keys(), self.comp_labels)
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
-        self.link_labels = [par.label for par in model.pops[0].pars if len(par.links) > 0]
+        self.link_labels = []
+        for pop in model.pops:
+            for par in pop.pars:
+                if par.label not in self.link_labels and len(par.links) > 0:
+                    self.link_labels.append(par.label)
 
         self.budgets = {} # placeholders
         self.coverages = {}
