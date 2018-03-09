@@ -737,7 +737,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
                plot_total=False, plot_type=None,
                plot_observed_data=False, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, cat_labels=None,
-               title=None, ylabel=None, save_fig=False, fig_name=None, **kwargs):
+               title=None, ylabel=None, save_fig=False, fig_name=None, flow_as_fraction = None, **kwargs):
     """
     Title options
     - If plot_total == True

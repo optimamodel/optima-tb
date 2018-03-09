@@ -1480,7 +1480,7 @@ def plotScenarioBar (scen_results, scen_labels, settings, data, output_list=None
         for olabel in output_list:
             colors.append(colors_dict[olabel])
 
-    values = [ [scen_results[rname].getValueAt(output, year) for output in output_list] for rname in scen_results.keys()]
+    values = [ [scen_results[rname].getValuesAt(output, year)[0] for output in output_list] for rname in scen_results.keys()]
     print values, '\n' * 10
     final_dict = plotdict
 
@@ -1535,7 +1535,7 @@ def plotStackedBarOutputs(results, settings, year_list, output_list, output_labe
         output_labels = output_list
 
     # unfortunately we have to do it this way to ensure that the programs are all extracted in the same order
-    values = [[results.getValueAt(output_label, year, pop_labels=pop_labels)  for output_label in output_list ]  for year in year_list]
+    values = [[results.getValuesAt(output_label, year, pop_labels=pop_labels)[0]  for output_label in output_list ]  for year in year_list]
 
 #     print plotdict
 #     final_dict = dcp(plotdict)

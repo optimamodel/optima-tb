@@ -23,7 +23,7 @@ settings = proj.settings
 results = proj.runSim()
 
 
-print results.getValueAt('alive',2017)
-print results.getValueAt('spdu',2017)
-print results.getValueAt('nddiag',2017)
+print results.getValuesAt('alive',2017)[0]
+print results.getValuesAt('spdu',2017)[0]
+print results.getValuesAt('nddiag',2017)[0]
 
