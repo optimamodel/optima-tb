@@ -439,9 +439,9 @@ class ModelPopulation(Node):
             obj.preallocate(tvec)
 
     def initialize_compartments(self,parset,settings,t_init):
+        # Given a set of characteristics and their initial values, compute the initial
+        # values for the compartments by solving the set of characteristics simultaneously
 
-        # Every Characteristic has an initial value - those that have a denominator neeed to be multiplied
-        # by the denominator, which is taken from the parset
         characs = [c for c in self.characs if settings.charac_specs[c.label]['databook_order']!=-1]
         comps = [c for c in self.comps if not (c.tag_birth or c.tag_dead)]
         comp_indices = {c.label:i for i,c in enumerate(comps)} # Make lookup dict for compartment indices
@@ -458,6 +458,7 @@ class ModelPopulation(Node):
                     includes.append(inc)
             return includes
 
+        # Construct the characteristic value vector (b) and the includes matrix (A)
         for i,c in enumerate(characs):
             # Look up the characteristic value
             par = parset.pars['characs'][parset.par_ids['characs'][c.label]]
@@ -468,21 +469,33 @@ class ModelPopulation(Node):
             for inc in extract_includes(c):
                 A[i,comp_indices[inc.label]] = 1.0
 
+        # Solve the linear system
         x, residual, rank, _ = np.linalg.lstsq(A,b,rcond=None)
 
-        for i,c in enumerate(comps):
-            if x[i] < -project_settings.TOLERANCE:
-                logger.error('Negative initial popsize obtained for "%s" in pop "%s" : %f' % (c.label,self.label,x[i]))
-            c.vals[0] = max(0.0,x[i])
-
+        # Halt if the solution is not unique (could relax this check later)
         if rank < A.shape[1]:
             raise OptimaException('Characteristics are not full rank, cannot determine a unique initialization')
 
+        proposed = np.matmul(A,x)
+        for i in xrange(0,len(characs)):
+            if abs(proposed[i]-b[i]) > project_settings.TOLERANCE:
+                logger.warn('Characteristic %s %s - Requested %f, Calculated %f' % (self.label,characs[i].label,b[i],proposed[i]))
+        for i in xrange(0, len(comps)):
+            if x[i] < -project_settings.TOLERANCE:
+                logger.warn('Compartment %s %s - Calculated %f' % (self.label, comps[i].label, x[i]))
+
+
+        # Halt for an unsatisfactory overall solution (could relax this check later)
         if residual > project_settings.TOLERANCE:
             raise OptimaException('Residual was %f which is unacceptably large (should be < %f) - this points to a probable inconsistency in the initial values' % (residual,project_settings.TOLERANCE))
 
+        # Halt for any negative popsizes
         if np.any(x < -project_settings.TOLERANCE):
             raise OptimaException('Negative initial popsizes')
+
+        # Otherwise, insert the values
+        for i,c in enumerate(comps):
+            c.vals[0] = max(0.0,x[i])
 
 # %% Model class
 class Model(object):
