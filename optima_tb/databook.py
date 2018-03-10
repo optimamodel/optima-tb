@@ -31,6 +31,7 @@ WB_FORMATS = {
               }
 
 
+WB_COMMENT_TAG = '#ignore'
 
 # %% Utility functions to generate sub-blocks of the project databook
 
@@ -539,19 +540,22 @@ def loadSpreadsheetFunc(settings, databook_path):
     data['pops']['name_labels'] = odict()
     data['pops']['label_names'] = odict()  # A reverse of the previous dictionary.
     data['pops']['ages'] = odict()
-    for row_id in xrange(ws_pops.nrows):
-        if row_id > 0:
-            if ws_pops.cell_value(row_id, 0) not in ['']:
-                if ws_pops.cell_value(row_id, 1) not in ['']:
-                    pop_label = str(ws_pops.cell_value(row_id, 1))
-                else:
-                    pop_label = 'pop' + str(row_id)
-                data['pops']['name_labels'][str(ws_pops.cell_value(row_id, 0))] = pop_label
-                data['pops']['label_names'][pop_label] = str(ws_pops.cell_value(row_id, 0))
-                age_min = ws_pops.cell_value(row_id, 2)
-                age_max = ws_pops.cell_value(row_id, 3)
-                if isinstance(age_min, Number) and isinstance(age_max, Number):
-                    data['pops']['ages'][pop_label] = {'min':float(age_min), 'max':float(age_max), 'range':1 + float(age_max) - float(age_min)}
+    for row_id in xrange(1, ws_pops.nrows):
+        
+        if ws_pops.cell_value(row_id, 0) == WB_COMMENT_TAG:
+            continue
+        
+        if ws_pops.cell_value(row_id, 0) not in ['']:
+            if ws_pops.cell_value(row_id, 1) not in ['']:
+                pop_label = str(ws_pops.cell_value(row_id, 1))
+            else:
+                pop_label = 'pop' + str(row_id)
+            data['pops']['name_labels'][str(ws_pops.cell_value(row_id, 0))] = pop_label
+            data['pops']['label_names'][pop_label] = str(ws_pops.cell_value(row_id, 0))
+            age_min = ws_pops.cell_value(row_id, 2)
+            age_max = ws_pops.cell_value(row_id, 3)
+            if isinstance(age_min, Number) and isinstance(age_max, Number):
+                data['pops']['ages'][pop_label] = {'min':float(age_min), 'max':float(age_max), 'range':1 + float(age_max) - float(age_min)}
 
     # %% Population contacts sheet.
     data['contacts'] = dict()
@@ -561,15 +565,18 @@ def loadSpreadsheetFunc(settings, databook_path):
         data['contacts']['into'][pop] = dict()
         data['contacts']['from'][pop] = dict()
     if ws_contact_exists:
-        for row_id in xrange(ws_contact.nrows):
-            for col_id in xrange(ws_contact.ncols):
-                if row_id > 0 and col_id > 0:
-                    source = str(ws_contact.cell_value(row_id, 0))
-                    target = str(ws_contact.cell_value(0, col_id))
-                    val = ws_contact.cell_value(row_id, col_id)
-                    if val != '' and float(val) != 0:
-                        data['contacts']['into'][target][source] = float(val)
-                        data['contacts']['from'][source][target] = float(val)
+        for row_id in xrange(1, ws_contact.nrows):
+            
+            if ws_contact.cell_value(row_id, 0) == WB_COMMENT_TAG:
+                continue
+
+            for col_id in xrange(1, ws_contact.ncols):
+                source = str(ws_contact.cell_value(row_id, 0))
+                target = str(ws_contact.cell_value(0, col_id))
+                val = ws_contact.cell_value(row_id, col_id)
+                if val != '' and float(val) != 0:
+                    data['contacts']['into'][target][source] = float(val)
+                    data['contacts']['from'][source][target] = float(val)
     else:
         # Self-connections are the default if there is no contact worksheet. These can be turned off in an actual contacts sheet.
         for pop in data['pops']['label_names'].keys():
@@ -585,6 +592,10 @@ def loadSpreadsheetFunc(settings, databook_path):
     mig_specified = False
     mig_type = None
     for row_id in xrange(ws_transmat.nrows):
+
+        if ws_transmat.cell_value(row_id, 0) == WB_COMMENT_TAG:
+            continue
+
         zero_col = ws_transmat.cell_value(row_id, 0)
 
         # If parser finds an empty row (technically empty first cell) migration-parsing resets, ready for the next custom type.
@@ -594,17 +605,16 @@ def loadSpreadsheetFunc(settings, databook_path):
         # Parse through migration matrix.
         if mig_specified:
             pop_source = str(zero_col)
-            for col_id in xrange(ws_transmat.ncols):
-                if col_id > 0:
-                    val = ws_transmat.cell_value(row_id, col_id)
-                    if val in ['y']:
-                        pop_target = str(ws_transmat.cell_value(0, col_id))
-                        if pop_source not in data['transfers'][mig_type].keys():
-                            data['transfers'][mig_type][pop_source] = odict()
-                        data['transfers'][mig_type][pop_source][pop_target] = odict()
-                        if mig_type == 'aging':
-                            if len(data['transfers'][mig_type][pop_source].keys()) > 1:
-                                raise OptimaException('ERROR: There are too many outgoing "%s" transitions listed for population "%s".' % (mig_type, pop_source))
+            for col_id in xrange(1, ws_transmat.ncols):
+                val = ws_transmat.cell_value(row_id, col_id)
+                if val in ['y']:
+                    pop_target = str(ws_transmat.cell_value(0, col_id))
+                    if pop_source not in data['transfers'][mig_type].keys():
+                        data['transfers'][mig_type][pop_source] = odict()
+                    data['transfers'][mig_type][pop_source][pop_target] = odict()
+                    if mig_type == 'aging':
+                        if len(data['transfers'][mig_type][pop_source].keys()) > 1:
+                            raise OptimaException('ERROR: There are too many outgoing "%s" transitions listed for population "%s".' % (mig_type, pop_source))
 
         # First row after a blank one must contain the new migration type as its first element. Parser re-activated.
         if not mig_specified and zero_col not in ['']:
@@ -617,6 +627,10 @@ def loadSpreadsheetFunc(settings, databook_path):
     mig_type = None
     array_id = 0
     for row_id in xrange(ws_transval.nrows):
+
+        if ws_transval.cell_value(row_id, 0) == WB_COMMENT_TAG:
+            continue
+
         zero_col = ws_transval.cell_value(row_id, 0)
 
         # If parser finds an empty row (technically empty first cell) migration-parsing resets, ready for the next custom type.
@@ -664,22 +678,24 @@ def loadSpreadsheetFunc(settings, databook_path):
     data['meta']['progs']['label_names'] = odict()  # A reverse of the previous dictionary.
     data['progs'] = odict()
     if ws_prog_exists:
-        for row_id in xrange(ws_progmat.nrows):
-            if row_id > 0:
-                if ws_progmat.cell_value(row_id, 0) not in ['']:
-                    if ws_progmat.cell_value(row_id, 1) not in ['']:
-                        prog_label = str(ws_progmat.cell_value(row_id, 1))
-                    else:
-                        prog_label = 'prog' + str(row_id)
-                    data['meta']['progs']['name_labels'][str(ws_progmat.cell_value(row_id, 0))] = prog_label
-                    data['meta']['progs']['label_names'][prog_label] = str(ws_progmat.cell_value(row_id, 0))
-                    data['progs'][prog_label] = dict()
-                    data['progs'][prog_label]['name'] = str(ws_progmat.cell_value(row_id, 0))  # Label name linkage is also in metadata, but redundancy here is ok for now.
-                    data['progs'][prog_label]['target_pops'] = []
-                    for col_id in xrange(ws_progmat.ncols):
-                        if col_id > 1:
-                            if str(ws_progmat.cell_value(row_id, col_id)) == 'y':
-                                data['progs'][prog_label]['target_pops'].append(str(ws_progmat.cell_value(0, col_id)))
+        for row_id in xrange(1, ws_progmat.nrows):
+
+            if ws_progmat.cell_value(row_id, 0) == WB_COMMENT_TAG:
+                continue
+
+            if ws_progmat.cell_value(row_id, 0) not in ['']:
+                if ws_progmat.cell_value(row_id, 1) not in ['']:
+                    prog_label = str(ws_progmat.cell_value(row_id, 1))
+                else:
+                    prog_label = 'prog' + str(row_id)
+                data['meta']['progs']['name_labels'][str(ws_progmat.cell_value(row_id, 0))] = prog_label
+                data['meta']['progs']['label_names'][prog_label] = str(ws_progmat.cell_value(row_id, 0))
+                data['progs'][prog_label] = dict()
+                data['progs'][prog_label]['name'] = str(ws_progmat.cell_value(row_id, 0))  # Label name linkage is also in metadata, but redundancy here is ok for now.
+                data['progs'][prog_label]['target_pops'] = []
+                for col_id in xrange(2, ws_progmat.ncols):
+                    if str(ws_progmat.cell_value(row_id, col_id)) == 'y':
+                        data['progs'][prog_label]['target_pops'].append(str(ws_progmat.cell_value(0, col_id)))
 
     # %% Program details sheet.
     if ws_prog_exists:
@@ -691,6 +707,10 @@ def loadSpreadsheetFunc(settings, databook_path):
         prog_row_id = 0
         temp = odict()
         for row_id in xrange(ws_progval.nrows):
+
+            if ws_progval.cell_value(row_id, 0) == WB_COMMENT_TAG:
+                continue
+
             zero_col = ws_progval.cell_value(row_id, 0)
 
             # If parser finds an empty row (technically empty first cell) program-parsing resets, ready for the next custom program.
@@ -832,6 +852,10 @@ def loadSpreadsheetFunc(settings, databook_path):
         data_label = None
         pop_id = 0
         for row_id in xrange(ws.nrows):
+
+            if ws.cell_value(row_id, 0) == WB_COMMENT_TAG:
+                continue
+                
             val = str(ws.cell_value(row_id, 0))
             if val in ['']:
                 current_def_name = None
