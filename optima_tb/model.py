@@ -444,6 +444,7 @@ class ModelPopulation(Node):
 
         characs = [c for c in self.characs if settings.charac_specs[c.label]['databook_order']!=-1]
         comps = [c for c in self.comps if not (c.tag_birth or c.tag_dead)]
+        charac_indices = {c.label:i for i,c in enumerate(characs)} # Make lookup dict for characteristic indices
         comp_indices = {c.label:i for i,c in enumerate(comps)} # Make lookup dict for compartment indices
 
         b = np.zeros((len(characs),1))
@@ -476,13 +477,32 @@ class ModelPopulation(Node):
         if rank < A.shape[1]:
             raise OptimaException('Characteristics are not full rank, cannot determine a unique initialization')
 
+        # Print warning for characteristics that are not well matched by the compartment size solution
         proposed = np.matmul(A,x)
         for i in xrange(0,len(characs)):
             if abs(proposed[i]-b[i]) > project_settings.TOLERANCE:
                 logger.warn('Characteristic %s %s - Requested %f, Calculated %f' % (self.label,characs[i].label,b[i],proposed[i]))
+        
+        # Print diagnostic output for compartments that were assigned a negative value
+        def report_characteristic(charac,n_indent=0):
+            if charac.label in charac_indices:
+                logger.warn(n_indent * '\t' + 'Characteristic %s: Target value = %f' % (charac.label,b[charac_indices[charac.label]]))
+            else:
+                logger.warn(n_indent * '\t' + 'Characteristic %s not in databook: Target value = N/A (0.0)' % (charac.label))
+
+            n_indent += 1
+            for inc in charac.includes:
+                if isinstance(inc,Characteristic):
+                    report_characteristic(inc,n_indent)
+                else:
+                    logger.warn(n_indent * '\t' + 'Compartment %s: Computed value = %f' % (inc.label,x[comp_indices[inc.label]]))
+
         for i in xrange(0, len(comps)):
             if x[i] < -project_settings.TOLERANCE:
                 logger.warn('Compartment %s %s - Calculated %f' % (self.label, comps[i].label, x[i]))
+                for charac in characs:
+                    if comps[i] in extract_includes(charac):
+                        report_characteristic(charac)
 
 
         # Halt for an unsatisfactory overall solution (could relax this check later)
