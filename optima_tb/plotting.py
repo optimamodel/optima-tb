@@ -913,7 +913,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         legend_labels = cat_labels
         legend_cols = cat_colors
     else:
-        if plot_total:
+        if plot_total and compare_type == COMPARETYPE_POP:
             legend_labels = ['Total']
             #TODO? add in something for legend_cols as otherwise "Total" will be the color of the first population that is part of total
         else:

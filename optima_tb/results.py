@@ -230,7 +230,7 @@ class ResultSet(object):
         if label in self.char_labels:
 #             print "is Char"
 
-            values, _, _ = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)
+            values = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)[0]
             values = values[label]
 
             for pop in values.keys():
@@ -241,7 +241,7 @@ class ResultSet(object):
         elif label in self.link_labels:
 #             print "is Link"
 
-            values, _, _ = self.getFlow(link_label=label, pop_labels=pop_labels)
+            values = self.getFlow(link_label=label, pop_labels=pop_labels)[0]
             values = values[label]
 
             for pop in values.keys():
@@ -258,7 +258,7 @@ class ResultSet(object):
         elif label in self.comp_label_names.keys():
 #             print "is Comp"
 
-            values, _, _ = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)
+            values = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)[0]
             for pop in values.keys():
                 popvalues = values[pop]
                 pp = popvalues[label]
