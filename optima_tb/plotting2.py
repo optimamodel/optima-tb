@@ -19,8 +19,9 @@ import textwrap
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import matplotlib
+import textwrap
 
-def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True):
+def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True,separate_legend=False):
     # This function plots a time series for a model output quantities
     #
     # INPUTS
@@ -55,7 +56,6 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
     # - use_full_labels - Attempt to convert population and result labels into
     #   full names. If no matches are found, the provided name will be used
     #   directly
-
 
     if isinstance(results,ResultSet):
         results = {results.name:results}
@@ -179,56 +179,85 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
             for output in final_output_labels:
                 figs.append(plt.figure())
                 plt.xlabel('Year')
-                plt.autoscale(enable=True, axis='x', tight=True)
                 plt.ylabel(name(output,proj))
-                plt.title('%s-%s' % (pop,output))
+                plt.title('%s' % (pop))
                 if plot_type == 'stacked':
                     y = [final_outputs[result][pop][output] for result in final_result_labels]
                     labels = [name(result,proj) for result in final_result_labels]
                     plt.stackplot(tvecs[result],y,labels=labels)
-                    plt.legend(labelspacing=-matplotlib.rcParams["legend.labelspacing"]-2)
                 else:
                     for result in final_result_labels:
                         plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(result,proj))
-                    plt.legend()
+                apply_formatting()
+                render_legend(plot_type,separate_legend)
 
     elif axis == 'pops':
         for result in final_result_labels:
             for output in final_output_labels:
                 figs.append(plt.figure())
                 plt.xlabel('Year')
-                plt.autoscale(enable=True, axis='x', tight=True)
                 plt.ylabel(name(output,proj))
-                plt.title('%s-%s' % (result,output))
+                plt.title('%s' % (result))
                 if plot_type == 'stacked':
                     y = [final_outputs[result][pop][output] for pop in final_pop_labels]
                     labels = [name(pop,proj) for pop in final_pop_labels]
                     plt.stackplot(tvecs[result],y,labels=labels)
-                    plt.legend(labelspacing=-matplotlib.rcParams["legend.labelspacing"]-2)
                 else:
                     for pop in final_pop_labels:
                         plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(pop,proj))
-                    plt.legend()
+                apply_formatting()
+                render_legend(plot_type, separate_legend)
 
     elif axis == 'outputs':
         for result in final_result_labels:
             for pop in final_pop_labels:
                 figs.append(plt.figure())
                 plt.xlabel('Year')
-                plt.autoscale(enable=True, axis='x', tight=True)
                 plt.ylabel('Mixed')
-                plt.title('%s-%s' % (result,pop))
+                plt.title('%s-%s' % (result,name(pop,proj)))
                 if plot_type == 'stacked':
                     y = [final_outputs[result][pop][output] for output in final_output_labels]
                     labels = [name(output,proj) for output in final_output_labels]
                     plt.stackplot(tvecs[result],y,labels=labels)
-                    plt.legend(labelspacing=-matplotlib.rcParams["legend.labelspacing"]-2)
                 else:
                     for output in final_output_labels:
                         plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(output,proj))
-                    plt.legend()
-
+                apply_formatting()
+                render_legend(plot_type,separate_legend)
     return figs
+
+def apply_formatting():
+    ax = plt.gca()
+    plt.autoscale(enable=True, axis='x', tight=True)
+    ax.set_ylim(ymin=0)
+    ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
+    ax.get_yaxis().get_major_formatter().set_scientific(False)
+    box = ax.get_position()
+
+def render_legend(plot_type,separate_legend):
+    ax = plt.gca()
+    handles, labels_leg = ax.get_legend_handles_labels()
+
+    if separate_legend:
+        fig = plt.figure()
+        legendsettings = {'loc': 'center', 'bbox_to_anchor': None,'frameon':False}
+        from copy import copy
+        handles = [copy(x) for x in handles]
+        for h in handles:
+            h.figure = None
+        if plot_type == 'stacked':
+            fig.legend(handles=handles[::-1], labels=labels_leg[::-1], **legendsettings)
+        else:
+            fig.legend(handles=handles, labels=labels_leg, **legendsettings)
+    else:
+        legendsettings = {'loc': 'center left', 'bbox_to_anchor': (1.05, 0.5), 'ncol': 1}
+        labels_leg = [textwrap.fill(label, 16) for label in labels_leg]
+        if plot_type == 'stacked':
+            ax.legend(handles=handles[::-1], labels=labels_leg[::-1], **legendsettings)
+        else:
+            ax.legend(**legendsettings)
+        plt.tight_layout()
+
 
 
 def getFullName(output_id, proj):
