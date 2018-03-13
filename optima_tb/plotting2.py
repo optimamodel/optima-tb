@@ -178,10 +178,16 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
             for output in final_output_labels:
                 figs.append(plt.figure())
                 plt.xlabel('Year')
+                plt.autoscale(enable=True, axis='x', tight=True)
                 plt.ylabel(name(output,proj))
                 plt.title('%s-%s' % (pop,output))
-                for result in final_result_labels:
-                    plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(result,proj))
+                if plot_type == 'stacked':
+                    y = [final_outputs[result][pop][output] for result in final_result_labels]
+                    labels = [name(result,proj) for result in final_result_labels]
+                    plt.stackplot(tvecs[result],y,labels=labels)
+                else:
+                    for result in final_result_labels:
+                        plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(result,proj))
                 plt.legend()
 
     elif axis == 'pops':
@@ -189,10 +195,16 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
             for output in final_output_labels:
                 figs.append(plt.figure())
                 plt.xlabel('Year')
+                plt.autoscale(enable=True, axis='x', tight=True)
                 plt.ylabel(name(output,proj))
                 plt.title('%s-%s' % (result,output))
-                for pop in final_pop_labels:
-                    plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(pop,proj))
+                if plot_type == 'stacked':
+                    y = [final_outputs[result][pop][output] for pop in final_pop_labels]
+                    labels = [name(pop,proj) for pop in final_pop_labels]
+                    plt.stackplot(tvecs[result],y,labels=labels)
+                else:
+                    for pop in final_pop_labels:
+                        plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(pop,proj))
                 plt.legend()
 
     elif axis == 'outputs':
@@ -200,10 +212,16 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
             for pop in final_pop_labels:
                 figs.append(plt.figure())
                 plt.xlabel('Year')
+                plt.autoscale(enable=True, axis='x', tight=True)
                 plt.ylabel('Mixed')
                 plt.title('%s-%s' % (result,pop))
-                for output in final_output_labels:
-                    plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(output,proj))
+                if plot_type == 'stacked':
+                    y = [final_outputs[result][pop][output] for output in final_output_labels]
+                    labels = [name(output,proj) for output in final_output_labels]
+                    plt.stackplot(tvecs[result],y,labels=labels)
+                else:
+                    for output in final_output_labels:
+                        plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(output,proj))
                 plt.legend()
 
     return figs
