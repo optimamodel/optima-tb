@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import textwrap
 
-def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True,separate_legend=False):
+def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True,separate_legend=False,plot_observed_data=True):
     # This function plots a time series for a model output quantities
     #
     # INPUTS
@@ -188,6 +188,8 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
                 else:
                     for result in final_result_labels:
                         plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(result,proj))
+                        if plot_observed_data:
+                            plot_data(proj, pop, output)
                 apply_formatting()
                 render_legend(plot_type,separate_legend)
 
@@ -205,6 +207,8 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
                 else:
                     for pop in final_pop_labels:
                         plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(pop,proj))
+                        if plot_observed_data:
+                            plot_data(proj, pop, output)
                 apply_formatting()
                 render_legend(plot_type, separate_legend)
 
@@ -222,9 +226,33 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
                 else:
                     for output in final_output_labels:
                         plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(output,proj))
+                        if plot_observed_data:
+                            plot_data(proj, pop, output)
                 apply_formatting()
                 render_legend(plot_type,separate_legend)
     return figs
+
+def plot_data(proj,pop,output):
+    data = proj.data
+
+    if output in data['characs'].keys():
+        d = data['characs'][output]
+    elif output in data['linkpars'].keys():
+        d = data['linkpars'][output]
+    else:
+        return
+
+    print d.keys()
+    if pop in d:
+        y = d[pop]['y']
+        t = d[pop]['t']
+    else:
+        return
+
+    plt.scatter(t,y, label='data')
+
+
+
 
 def apply_formatting():
     ax = plt.gca()
