@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 from optima_tb.utils import odict, OptimaException
 from optima_tb.results import ResultSet
 import numpy as np
-
+from optima_tb.project import Project
 import pylab as pl
 from copy import deepcopy as dcp
 from copy import copy as ndcp
@@ -21,8 +21,9 @@ import matplotlib.pyplot as plt
 import matplotlib
 import textwrap
 from optima_tb.plotting import gridColorMap
+from matplotlib.ticker import FuncFormatter
 
-def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True,separate_legend=False,plot_observed_data=True,colors=None):
+def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True,separate_legend=False,plot_observed_data=True,colors=None):
     # This function plots a time series for a model output quantities
     #
     # INPUTS
@@ -58,13 +59,15 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
     #   full names. If no matches are found, the provided name will be used
     #   directly
     # - colors should be the same length as whichever quantity is being plotted
-
+    assert isinstance(proj,Project)
     if isinstance(results,ResultSet):
         results = {results.name:results}
-
     if pops is None:
         pops = [pop.label for pop in results[results.keys()[0]].model.pops]
-
+    if outputs is None:
+        outputs = [comp.label for comp in results[results.keys()[0]].model.pops[0].comps if not (comp.tag_birth or comp.tag_dead or comp.is_junction)]
+    if isinstance(pops,str):
+        pops = [pops]
     if isinstance(outputs,str):
         outputs = [outputs]
 
@@ -237,7 +240,7 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
             for pop in final_pop_labels:
                 figs.append(plt.figure())
                 plt.xlabel('Year')
-                plt.ylabel('Mixed')
+                # plt.ylabel('Mixed')
                 plt.title('%s-%s' % (result,name(pop,proj)))
                 if plot_type == 'stacked':
                     y = [final_outputs[result][pop][output] for output in final_output_labels]
@@ -270,13 +273,21 @@ def plot_data(proj,pop,output,name,color):
 
     plt.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
 
+def KMSuffixFormatter(x, pos):
+    'The two args are the value and tick position'
+    if x >= 1e6:
+        return '%1.1fM' % (x * 1e-6)
+    # elif x >= 1e3:
+    #     return '%1.1fK' % (x * 1e-3)
+    else:
+        return '%g' % x
 
 def apply_formatting():
     ax = plt.gca()
     plt.autoscale(enable=True, axis='x', tight=True)
     ax.set_ylim(ymin=0)
     ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
-    ax.get_yaxis().get_major_formatter().set_scientific(False)
+    ax.yaxis.set_major_formatter(FuncFormatter(KMSuffixFormatter))
     box = ax.get_position()
 
 def render_legend(plot_type,separate_legend):
@@ -301,8 +312,8 @@ def render_legend(plot_type,separate_legend):
             ax.legend(handles=handles[::-1], labels=labels_leg[::-1], **legendsettings)
         else:
             ax.legend(handles=handles, labels=labels_leg,**legendsettings)
-        plt.tight_layout()
-
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 
 
 def getFullName(output_id, proj):
