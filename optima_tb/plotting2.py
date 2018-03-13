@@ -19,7 +19,7 @@ import textwrap
 from collections import defaultdict
 import matplotlib.pyplot as plt
 
-def plotSeries(results,outputs,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum'):
+def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True):
 
     # For each result, assemble a 3D array that is time x output x pop
     # We can also assemble augmentated matrices for compartment size and pop size for
@@ -155,38 +155,56 @@ def plotSeries(results,outputs,pops=None,axis='outputs',output_aggregation='sum'
     final_pop_labels = final_outputs[final_result_labels[0]].keys()
     final_output_labels = final_outputs[final_result_labels[0]][final_pop_labels[0]].keys()
 
+    figs = []
+
+    if use_full_labels:
+        name = getFullName
+    else:
+        name = lambda x,y: x
+    
     if axis == 'results':
         for pop in final_pop_labels:
             for output in final_output_labels:
-                plt.figure()
+                figs.append(plt.figure())
                 plt.title('%s-%s' % (pop,output))
                 for result in final_result_labels:
-                    plt.plot(tvecs[result],final_outputs[result][pop][output],label=result)
+                    plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(result,proj))
                 plt.legend()
 
     elif axis == 'pops':
         for result in final_result_labels:
             for output in final_output_labels:
-                plt.figure()
+                figs.append(plt.figure())
                 plt.title('%s-%s' % (result,output))
-
                 for pop in final_pop_labels:
-                    plt.plot(tvecs[result],final_outputs[result][pop][output],label=pop)
+                    plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(pop,proj))
                 plt.legend()
 
     elif axis == 'outputs':
         for result in final_result_labels:
             for pop in final_pop_labels:
-                plt.figure()
+                figs.append(plt.figure())
                 plt.title('%s-%s' % (result,pop))
-
                 for output in final_output_labels:
-                    plt.plot(tvecs[result],final_outputs[result][pop][output],label=output)
+                    plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(output,proj))
                 plt.legend()
 
+    return figs
 
 
-
+def getFullName(output_id, proj):
+    """
+    For a given output_id, returns the user-friendly version of the name. 
+    """
+    if output_id in proj.settings.charac_specs: # characteristic
+        output_id = proj.settings.charac_specs[output_id]['name']
+    elif output_id in proj.settings.linkpar_specs: # parameter
+        output_id = proj.settings.linkpar_specs[output_id]['name']
+    elif output_id in proj.settings.node_specs: # compartment
+        output_id = proj.settings.node_specs[output_id]['name']
+    elif output_id in proj.data['pops']['label_names'].keys(): # population label
+        output_id = proj.data['pops']['label_names'][output_id]
+    return output_id
 
 
 
