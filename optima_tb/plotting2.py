@@ -20,8 +20,9 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 import matplotlib
 import textwrap
+from optima_tb.plotting import gridColorMap
 
-def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True,separate_legend=False,plot_observed_data=True):
+def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True,separate_legend=False,plot_observed_data=True,colors=None):
     # This function plots a time series for a model output quantities
     #
     # INPUTS
@@ -56,15 +57,34 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
     # - use_full_labels - Attempt to convert population and result labels into
     #   full names. If no matches are found, the provided name will be used
     #   directly
+    # - colors should be the same length as whichever quantity is being plotted
 
     if isinstance(results,ResultSet):
         results = {results.name:results}
 
     if pops is None:
-        pops = results[results.keys()[0]].pop_labels
+        pops = [pop.label for pop in results[results.keys()[0]].model.pops]
 
     if isinstance(outputs,str):
         outputs = [outputs]
+
+    assert axis in ['outputs','results','pops']
+
+    if axis == 'outputs':
+        if colors is not None:
+            assert len(colors) == len(outputs)
+        else:
+            colors = gridColorMap(len(outputs))
+    elif axis == 'results':
+        if colors is not None:
+            assert len(colors) == len(results)
+        else:
+            colors = gridColorMap(len(results))
+    elif axis == 'pops':
+        if colors is not None:
+            assert len(colors) == len(pops)
+        else:
+            colors = gridColorMap(len(pops))
 
     assert isinstance(pops, list), 'Populations need to be specified as a list'
     assert isinstance(outputs,list), 'Outputs need to be specified as a list or a string'
@@ -87,7 +107,7 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
     pops_required = extract_labels(pops)
     outputs_required = extract_labels(outputs)
 
-    final_outputs = dict() 
+    final_outputs = dict()
     tvecs = dict()
 
     for result_label,result in results.items(): # For each result
@@ -164,8 +184,8 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
 
     # Now, we have completed all aggregations. The final_outputs dict is now ready to be plotted across the required axis
     final_result_labels = results.keys()
-    final_pop_labels = final_outputs[final_result_labels[0]].keys()
-    final_output_labels = final_outputs[final_result_labels[0]][final_pop_labels[0]].keys()
+    final_pop_labels = [x.keys()[0] if isinstance(x,dict) else x for x in pops]
+    final_output_labels = [x.keys()[0] if isinstance(x,dict) else x for x in outputs]
 
     figs = []
 
@@ -184,12 +204,12 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
                 if plot_type == 'stacked':
                     y = [final_outputs[result][pop][output] for result in final_result_labels]
                     labels = [name(result,proj) for result in final_result_labels]
-                    plt.stackplot(tvecs[result],y,labels=labels)
+                    plt.stackplot(tvecs[result],y,labels=labels,colors=colors)
                 else:
-                    for result in final_result_labels:
-                        plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(result,proj))
+                    for result,color in zip(final_result_labels,colors):
+                        plt.plot(tvecs[result],final_outputs[result][pop][output],color=color,label=name(result,proj))
                         if plot_observed_data:
-                            plot_data(proj, pop, output)
+                            plot_data(proj, pop, output,name,color)
                 apply_formatting()
                 render_legend(plot_type,separate_legend)
 
@@ -203,12 +223,12 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
                 if plot_type == 'stacked':
                     y = [final_outputs[result][pop][output] for pop in final_pop_labels]
                     labels = [name(pop,proj) for pop in final_pop_labels]
-                    plt.stackplot(tvecs[result],y,labels=labels)
+                    plt.stackplot(tvecs[result],y,labels=labels,colors=colors)
                 else:
-                    for pop in final_pop_labels:
-                        plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(pop,proj))
+                    for pop,color in zip(final_pop_labels,colors):
+                        plt.plot(tvecs[result],final_outputs[result][pop][output],color=color,label=name(pop,proj))
                         if plot_observed_data:
-                            plot_data(proj, pop, output)
+                            plot_data(proj, pop, output,name,color)
                 apply_formatting()
                 render_legend(plot_type, separate_legend)
 
@@ -222,17 +242,17 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
                 if plot_type == 'stacked':
                     y = [final_outputs[result][pop][output] for output in final_output_labels]
                     labels = [name(output,proj) for output in final_output_labels]
-                    plt.stackplot(tvecs[result],y,labels=labels)
+                    plt.stackplot(tvecs[result],y,labels=labels,colors=colors)
                 else:
-                    for output in final_output_labels:
-                        plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(output,proj))
+                    for output,color in zip(final_output_labels,colors):
+                        plt.plot(tvecs[result],final_outputs[result][pop][output],color=color,label=name(output,proj))
                         if plot_observed_data:
-                            plot_data(proj, pop, output)
+                            plot_data(proj, pop, output,name,color)
                 apply_formatting()
                 render_legend(plot_type,separate_legend)
     return figs
 
-def plot_data(proj,pop,output):
+def plot_data(proj,pop,output,name,color):
     data = proj.data
 
     if output in data['characs'].keys():
@@ -242,16 +262,13 @@ def plot_data(proj,pop,output):
     else:
         return
 
-    print d.keys()
     if pop in d:
         y = d[pop]['y']
         t = d[pop]['t']
     else:
         return
 
-    plt.scatter(t,y, label='data')
-
-
+    plt.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
 
 
 def apply_formatting():
@@ -283,7 +300,7 @@ def render_legend(plot_type,separate_legend):
         if plot_type == 'stacked':
             ax.legend(handles=handles[::-1], labels=labels_leg[::-1], **legendsettings)
         else:
-            ax.legend(**legendsettings)
+            ax.legend(handles=handles, labels=labels_leg,**legendsettings)
         plt.tight_layout()
 
 
