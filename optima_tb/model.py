@@ -301,7 +301,7 @@ class ModelPopulation(Node):
     def __repr__(self):
         return '%s "%s" (%s)' % (self.__class__.__name__,self.label,self.uid)
 
-    def popsize(self,ti):
+    def popsize(self,ti=None):
         # A population's popsize is the sum of all of the people in its compartments, excluding
         # birth and death compartments
         n = 0
