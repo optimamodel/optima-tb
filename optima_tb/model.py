@@ -308,7 +308,7 @@ class ModelPopulation(Node):
         for comp in self.comps:
             if not comp.tag_birth and not comp.tag_dead:
                 n += comp.vals[ti]
-        return n
+        return n.ravel()
 
     def getModelState(self, ti):
         states = [c.getValue(ti) for c in self.comps]

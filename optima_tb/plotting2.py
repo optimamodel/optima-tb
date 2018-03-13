@@ -54,6 +54,9 @@ def plotSeries(results,outputs,pops=None,axis='outputs',output_aggregation='sum'
     if isinstance(outputs,str):
         outputs = [outputs]
 
+    assert isinstance(pops, list), 'Populations need to be specified as a list'
+    assert isinstance(outputs,list), 'Outputs need to be specified as a list or a string'
+
     def extract_labels(l):
         # Flatten the input arrays to extract all requested pops and outputs
         # e.g. ['vac',{'a':['vac','sus']}] -> ['vac','vac','sus'] -> set(['vac','sus'])
@@ -140,7 +143,7 @@ def plotSeries(results,outputs,pops=None,axis='outputs',output_aggregation='sum'
                         final_outputs[result_label][pop_name][output_name] /= len(labels)
                     elif pop_aggregation == 'weighted':
                         final_outputs[result_label][pop_name][output_name] = sum(aggregated_outputs[x][output_name]*popsize[x] for x in pop_labels) # Add together all the outputs
-                        final_outputs[result_label][pop_name][output_name] /= sum([popsize[x] for x in labels])
+                        final_outputs[result_label][pop_name][output_name] /= sum([popsize[x] for x in pop_labels])
                     else:
                         raise OptimaException('Unknown output aggregation type')
                 else:
