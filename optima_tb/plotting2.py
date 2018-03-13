@@ -18,6 +18,7 @@ import numbers
 import textwrap
 from collections import defaultdict
 import matplotlib.pyplot as plt
+import matplotlib
 
 def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True):
     # This function plots a time series for a model output quantities
@@ -185,10 +186,11 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
                     y = [final_outputs[result][pop][output] for result in final_result_labels]
                     labels = [name(result,proj) for result in final_result_labels]
                     plt.stackplot(tvecs[result],y,labels=labels)
+                    plt.legend(labelspacing=-matplotlib.rcParams["legend.labelspacing"]-2)
                 else:
                     for result in final_result_labels:
                         plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(result,proj))
-                plt.legend()
+                    plt.legend()
 
     elif axis == 'pops':
         for result in final_result_labels:
@@ -202,10 +204,11 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
                     y = [final_outputs[result][pop][output] for pop in final_pop_labels]
                     labels = [name(pop,proj) for pop in final_pop_labels]
                     plt.stackplot(tvecs[result],y,labels=labels)
+                    plt.legend(labelspacing=-matplotlib.rcParams["legend.labelspacing"]-2)
                 else:
                     for pop in final_pop_labels:
                         plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(pop,proj))
-                plt.legend()
+                    plt.legend()
 
     elif axis == 'outputs':
         for result in final_result_labels:
@@ -219,10 +222,11 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
                     y = [final_outputs[result][pop][output] for output in final_output_labels]
                     labels = [name(output,proj) for output in final_output_labels]
                     plt.stackplot(tvecs[result],y,labels=labels)
+                    plt.legend(labelspacing=-matplotlib.rcParams["legend.labelspacing"]-2)
                 else:
                     for output in final_output_labels:
                         plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(output,proj))
-                plt.legend()
+                    plt.legend()
 
     return figs
 
