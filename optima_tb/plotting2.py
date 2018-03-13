@@ -20,31 +20,42 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 
 def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True):
-
-    # For each result, assemble a 3D array that is time x output x pop
-    # We can also assemble augmentated matrices for compartment size and pop size for
-    # use in reductions. However, an aggregation over compartment size is only possible if
-    # the requested output has an associated within-population size. Quantities like 
-    # characteristics and transitions do, while quantities like parameters do not
+    # This function plots a time series for a model output quantities
     #
-    # pops and outputs are taken in as nested lists. The first level of the list specifies all of
-    # the series that will be plotted. The second level of the list specifies any aggregations. Thus
-    # there are as many series as there are len(pops) or len(outputs). For instance, could do
-    # outputs = ['vac',['sus','vac']] which would correspond to two series, the first one is the 'vac'
-    # compartment and the second is an aggregation computed on 'sus' and 'vac' together. Aggregations are
-    # specified on a output-dimension or pop-dimension basis so different methods could be used for each
+    # INPUTS
+    # - proj - project object
+    # - results - A ResultSet or a dict of ResultSets with key corresponding
+    #   to name
+    # - outputs - The name of an output compartment, characteristic, or
+    #   parameter, or list of names. Inside a list, a dict can be given to
+    #   specify an aggregation e.g. outputs=['sus',{'total':['sus','vac']}]
+    #   where the key is the new name
+    # - pops - The name of an output population, or list of names. Like
+    #   outputs, can specify a dict with a list of pops to aggregate over them
+    # - axis - Display one of results, outputs, or pops as different coloured
+    #   lines on the plot. A new figure will be generated for all other
+    #   combinations of the remaining quantities
+    # - output_aggregation - If an output aggregation is requested, combine
+    #   the outputs listed using one of
+    #       - 'sum' - just add values together
+    #       - 'average' - unweighted average of quantities
+    #       - 'weighted' - weighted average where the weight is the
+    #         compartment size, characteristic value, or link source
+    #         compartment size (summed over duplicate links). 'weighted'
+    #         method cannot be used with non-transition parameters and a
+    #         KeyError will result in that case
+    # - pop_aggregation - Same as output_aggregation, except that 'weighted'
+    #   uses population sizes. Note that output aggregation is performed
+    #   before population aggregation. This also means that population
+    #   aggregation can be used to combine already aggregated outputs (e.g.
+    #   can first sum 'sus'+'vac' within populations, and then take weighted
+    #   average across populations)
+    # - plot_type - 'line' or 'stacked'
+    # - use_full_labels - Attempt to convert population and result labels into
+    #   full names. If no matches are found, the provided name will be used
+    #   directly
 
-    # If different labels are specified, they should have the same length as the fundamental quantities.
-    # That is, len(output_labels) == len(outputs). This allows custom labels to be defined for aggregations
 
-    # Don't want to be able to do reductions over results because we cannot guarantee that all results
-    # have the same time axis
-
-    # Data can automatically be plotted for any Output where the name of the Output (either user-provided
-    # or otherwise) matches the name of a data quantity. So the default would be that data is not plotted
-    # for aggregations
-
-    # Full name conversion can be performed for any pop_label or output_label 
     if isinstance(results,ResultSet):
         results = {results.name:results}
 
@@ -166,6 +177,8 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
         for pop in final_pop_labels:
             for output in final_output_labels:
                 figs.append(plt.figure())
+                plt.xlabel('Year')
+                plt.ylabel(name(output,proj))
                 plt.title('%s-%s' % (pop,output))
                 for result in final_result_labels:
                     plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(result,proj))
@@ -175,6 +188,8 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
         for result in final_result_labels:
             for output in final_output_labels:
                 figs.append(plt.figure())
+                plt.xlabel('Year')
+                plt.ylabel(name(output,proj))
                 plt.title('%s-%s' % (result,output))
                 for pop in final_pop_labels:
                     plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(pop,proj))
@@ -184,6 +199,8 @@ def plotSeries(proj,results,outputs,pops=None,axis='outputs',output_aggregation=
         for result in final_result_labels:
             for pop in final_pop_labels:
                 figs.append(plt.figure())
+                plt.xlabel('Year')
+                plt.ylabel('Mixed')
                 plt.title('%s-%s' % (result,pop))
                 for output in final_output_labels:
                     plt.plot(tvecs[result],final_outputs[result][pop][output],label=name(output,proj))
