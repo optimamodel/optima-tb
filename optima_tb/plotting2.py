@@ -186,6 +186,8 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
         results = {results.name:results}
     if pops is None:
         pops = [pop.label for pop in results[results.keys()[0]].model.pops]
+    elif pops == 'All':
+        pops = [{'All':[pop.label for pop in results[results.keys()[0]].model.pops]}]
     if outputs is None:
         outputs = [comp.label for comp in results[results.keys()[0]].model.pops[0].comps if not (comp.tag_birth or comp.tag_dead or comp.is_junction)]
     if isinstance(pops,str):
@@ -197,17 +199,17 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
 
     if axis == 'outputs':
         if colors is not None:
-            assert len(colors) == len(outputs)
+            assert len(colors) == len(outputs), 'Number of colors does not match number of outputs'
         else:
             colors = gridColorMap(len(outputs))
     elif axis == 'results':
         if colors is not None:
-            assert len(colors) == len(results)
+            assert len(colors) == len(results), 'Number of colors does not match number of results'
         else:
             colors = gridColorMap(len(results))
     elif axis == 'pops':
         if colors is not None:
-            assert len(colors) == len(pops)
+            assert len(colors) == len(pops), 'Number of colors does not match number of pops'
         else:
             colors = gridColorMap(len(pops))
 
