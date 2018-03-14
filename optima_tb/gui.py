@@ -483,28 +483,18 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
             result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
 
-<<<<<<< HEAD
             if self.charac_plot_name in self.project.settings.charac_name_labels: # If a characteristic was selected
-=======
-            if self.charac_plot_name in self.project.settings.charac_name_labels:
->>>>>>> legacy
                 plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
                 logger.info("GUI plot characteristic: %s" % plot_label)
             elif self.charac_plot_name in self.project.settings.linkpar_name_labels:
                 plot_label = self.project.settings.linkpar_name_labels[self.charac_plot_name]
-<<<<<<< HEAD
                 logger.info("GUI plot 'output' parameter: %s" % plot_label)
                 if 'tag' in self.project.settings.linkpar_specs[plot_label]:
                     logger.info("This is a transition parameter - displaying effective flow" )
             else:
-                logger.info('Unable to plot for "%s"' % self.charac_plot_name)
-=======
-                logger.info("GUI plot parameter: %s" % plot_label)
-            else:
                 logger.error('Unable to plot "%s" as label was not found' % self.charac_plot_name)
                 self.status = ('Status: Unable to plot "%s" as label was not found' % self.charac_plot_name)
                 return
->>>>>>> legacy
 
             figure = plotCompareResults(self.project,
                                        result_set,
