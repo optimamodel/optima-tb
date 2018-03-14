@@ -73,7 +73,9 @@ class Settings(object):
 
         logging.info("Created settings based on cascade: %s" % cascade_path)
 
-
+    @property
+    def tvec(self):
+        return np.arange(self.tvec_start, self.tvec_end + self.tvec_dt / 2, self.tvec_dt)
 
     def resetCascade(self):
         ''' Resets all cascade contents and settings that are fundamental to how a project is structured. '''

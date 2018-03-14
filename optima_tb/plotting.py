@@ -5,7 +5,7 @@ from matplotlib.pyplot import plot
 logger = logging.getLogger(__name__)
 
 from optima_tb.utils import odict, OptimaException
-
+from optima_tb.results import ResultSet
 import numpy as np
 
 import pylab as pl
@@ -735,9 +735,9 @@ def plotCompareCascade(proj, resultset, output_labels, pop_labels=None, year_per
 
 def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=None,
                plot_total=False, plot_type=None,
-               plot_observed_data=True, observed_data_label=None,
+               plot_observed_data=False, observed_data_label=None,
                colormappings=None, colors=None, linestyles=None, cat_labels=None,
-               title=None, ylabel=None, save_fig=False, fig_name=None, **kwargs):
+               title=None, ylabel=None, save_fig=False, fig_name=None, flow_as_fraction = None, **kwargs):
     """
     Title options
     - If plot_total == True
@@ -760,8 +760,7 @@ def plotPopulationCrossSection(proj, results, output_labels=None, pop_labels=Non
 
     # setup: determine compartment indices to be plotted - by default, all compartments, otherwise, just plot requested
     if output_labels is None:
-        output_labels = sorted(results.m_pops[0].comp_ids, key=results.m_pops[0].comp_ids.get)
-        output_labels = [comp_label for comp_label in output_labels if isPlottableComp(comp_label, sim_settings, results.comp_specs)]
+        output_labels = [comp.label for comp in results.model.pops[0].comps if isPlottableComp(comp.label, sim_settings, results.comp_specs)]
         observed_data_label="alive"
 
     # select only compartments that are plottable
@@ -919,7 +918,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         else:
             legend_labels = []
             for label in series_labels:
-                if plotdict.has_key('use_full_labels') and plotdict['use_full_labels']:
+                if plotdict.has_key('use_full_labels') and plotdict['use_full_labels'] and not compare_type == COMPARETYPE_RESULT:
                     full_label = getName(label, proj)
                     legend_labels.append(full_label if not full_label.startswith('Unknown') else label)
                 else:
@@ -1478,7 +1477,7 @@ def getPops(result):
     """
     Returns the full list of populations
     """
-    return [pop.label for pop in result.m_pops]
+    return [pop.label for pop in result.model.pops]
 
 def _calcRelativeDatapoint(plot_relative, ys, ts=None):
     """

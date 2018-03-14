@@ -215,6 +215,10 @@ class GUIProjectManagerBase(qtw.QMainWindow):
         import_path = sanitizedFileDialog(self, 'open', 'Import project from file')
         try:
             self.project = loadObject(filename=import_path)
+            for key in self.project.results.keys():
+                if not hasattr(self.project.results[key],'model'):
+                    logger.info('Result "%s" is in the old format and will not be loaded' % (key))
+                    self.project.results.pop(key)
             if 'legendsettings' in self.project.settings.plot_settings and 'reverse_order' in self.project.settings.plot_settings['legendsettings']:
                 self.project.settings.plot_settings['legendsettings'].pop('reverse_order')
             self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_end + 1.0 / 2)
@@ -479,12 +483,14 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
             result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
 
-            if self.charac_plot_name in self.project.settings.charac_name_labels:
+            if self.charac_plot_name in self.project.settings.charac_name_labels: # If a characteristic was selected
                 plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
                 logger.info("GUI plot characteristic: %s" % plot_label)
             elif self.charac_plot_name in self.project.settings.linkpar_name_labels:
                 plot_label = self.project.settings.linkpar_name_labels[self.charac_plot_name]
-                logger.info("GUI plot parameter: %s" % plot_label)
+                logger.info("GUI plot 'output' parameter: %s" % plot_label)
+                if 'tag' in self.project.settings.linkpar_specs[plot_label]:
+                    logger.info("This is a transition parameter - displaying effective flow" )
             else:
                 logger.error('Unable to plot "%s" as label was not found' % self.charac_plot_name)
                 self.status = ('Status: Unable to plot "%s" as label was not found' % self.charac_plot_name)
@@ -909,7 +915,7 @@ class GUICalibration(GUIResultPlotterIntermediate):
                 else: self.status = ('Status: Attempt to edit item in parameter set failed, only numbers allowed')
                 self.refreshStatus()
                 self.guard_status = True
-                self.table_calibration.item(row, col).setText(str(par.interpolate(tvec=[year], pop_label=pop_label)[0]))
+                self.table_calibration.item(row, col).setText(str(par.interpolate(tvec=np.array([year]), pop_label=pop_label)[0]))
                 self.guard_status = False
                 return
             par.insertValuePair(t=year, y=new_val, pop_label=pop_label)
@@ -1241,7 +1247,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                         temp.setText(str(prog.getCoverage(prog.getDefaultBudget(year=self.options['progs_start']))))
                         temp.setFlags(qtc.Qt.ItemIsEnabled)
                     elif col_id == 5:
-                        temp.setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=['cov'])['cov'][-1]))
+                        temp.setText(str(prog.interpolate(tvec=np.array([self.options['progs_start']]), attributes=['cov'])['cov'][-1]))
                         temp.setFlags(qtc.Qt.ItemIsEnabled)
                 self.table_reconciliation.setItem(row_id, col_id, temp)
             for attribute_id in xrange(len(self.attribute_labels)):
@@ -1252,7 +1258,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                 temp.setFlags(qtc.Qt.ItemIsEnabled)
                 if attribute_label in prog.attributes:
                     temp.setFlags(qtc.Qt.ItemIsEnabled | qtc.Qt.ItemIsSelectable | qtc.Qt.ItemIsEditable)
-                    temp.setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=[attribute_label])[attribute_label][-1]))
+                    temp.setText(str(prog.interpolate(tvec=np.array([self.options['progs_start']]), attributes=[attribute_label])[attribute_label][-1]))
                 self.table_reconciliation.setItem(row_id, col_id, temp)
             row_id += 1
         self.table_reconciliation.setVerticalHeaderLabels(custom_ids)
@@ -1317,7 +1323,7 @@ class GUIReconciliation(GUIResultPlotterIntermediate):
                     self.table_reconciliation.item(row, col).setText(str(prog.getDefaultBudget(year=self.options['progs_start'])))
                 else:
                     attribute_label = self.attribute_labels[col-7]
-                    self.table_reconciliation.item(row, col).setText(str(prog.interpolate(tvec=[self.options['progs_start']], attributes=[attribute_label])[attribute_label][-1]))
+                    self.table_reconciliation.item(row, col).setText(str(prog.interpolate(tvec=np.array([self.options['progs_start']]), attributes=[attribute_label])[attribute_label][-1]))
                 self.guard_status = False
                 return
         

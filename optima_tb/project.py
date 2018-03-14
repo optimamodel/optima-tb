@@ -2,35 +2,6 @@
 import logging
 import os.path
 
-# NOTE - To configure logging in individual scripts, use the commands below to reset the
-# logger settings
-import logging.config
-logging_conf = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'standard': {
-            'format': '%(asctime)-20s %(levelname)-8s %(message)s',
-            'datefmt': '%d-%m-%y %H:%M:%S'
-        },
-    },
-    'handlers': {
-        'default': {
-            'level': 'INFO',
-            'formatter': 'standard',
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'loggers': {
-        '': {
-            'handlers': ['default'],
-            'level': 'INFO',
-        },
-    }
-}
-logging.config.dictConfig(logging_conf)
-
-
 logger = logging.getLogger(__name__)
 
 from optima_tb.utils import tic, toc, odict, OptimaException
@@ -42,7 +13,7 @@ from optima_tb.databook import makeSpreadsheetFunc, loadSpreadsheetFunc
 from optima_tb.optimization import optimizeFunc, parallelOptimizeFunc
 from optima_tb.calibration import makeManualCalibration, calculateFitFunc, performAutofit
 from optima_tb.scenarios import ParameterScenario, BudgetScenario, CoverageScenario
-from optima_tb.reconciliation import reconcileFunc, compareOutcomesFunc
+from optima_tb.reconciliation import reconcile
 
 from uuid import uuid4 as uuid
 import numpy as np
@@ -131,7 +102,7 @@ class Project(object):
                     if result_name_attempt not in self.results.keys():
                         result_name = result_name_attempt
                         k = 0
-            self.results[result_name] = dcp(results)
+            self.results[result_name] = results
 
         return results
 
@@ -232,6 +203,7 @@ class Project(object):
         if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
         self.parsets[name] = ParameterSet(name=name)
         self.parsets[name].makePars(self.data)
+        return self.parsets[name]
 
     def makeProgset(self, name='default'):
         ''' Transform project data into a set of programs that can be used in budget scenarios and optimisations. '''
@@ -239,8 +211,9 @@ class Project(object):
         if not self.data: raise OptimaException('ERROR: No data exists for project "%s".' % self.name)
         self.progsets[name] = ProgramSet(name=name)
         self.progsets[name].makeProgs(data=self.data, settings=self.settings)
+        return self.progsets[name]
 
-    def reconcile(self, parset_name=None, progset=None, progset_name=None, reconcile_for_year=2017, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, budget_allocation=None, constrain_budget=True, overwrite=True, max_time=None, save_progset=True):
+    def reconcile(self, parset_name=None, progset=None, progset_name=None, reconcile_for_year=2017, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, constrain_budget=True, overwrite=True, max_time=None, save_progset=True):
         '''Reconcile identified progset with identified parset such that impact parameters are as closely matched as possible
            Default behaviour is to overwrite existing progset
         '''
@@ -287,11 +260,10 @@ class Project(object):
         logger.info('Reconciling progset "%s" as overwrite is set as "%s"' % (progset_name, overwrite))
 
         # Run reconcile functionality
-        reconciled_progset, reconciled_output = reconcileFunc(proj=self, reconcile_for_year=reconcile_for_year,
+        reconciled_progset, reconciled_output = reconcile(proj=self, reconcile_for_year=reconcile_for_year,
                                                                 parset_name=parset_name, progset_name=progset_name, sigma_dict=sigma_dict,
                                                                 unitcost_sigma=unitcost_sigma, budget_sigma=budget_sigma, attribute_sigma=attribute_sigma,
-                                                                impact_pars=impact_pars, orig_tvec_end=orig_tvec_end,
-                                                                budget_allocation=budget_allocation, constrain_budget=constrain_budget, max_time=max_time)
+                                                                impact_pars=impact_pars, constrain_budget=constrain_budget, max_time=max_time)
 
         if save_progset:
             self.progsets[progset_name] = reconciled_progset

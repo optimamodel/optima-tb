@@ -19,9 +19,10 @@ def interpolateFunc(x, y, xnew, method = 'pchip', extrapolate_nan = False):
     '''
     
     try:
-        x = np.array(dcp(x)).astype(float)
-        y = np.array(dcp(y)).astype(float)
-        xnew = np.array(dcp(xnew)).astype(float)
+        # Note np.ndarray.astype() returns a copy
+        x = x.astype(float)
+        y = y.astype(float)
+        xnew = xnew.astype(float)
     except:
         raise OptimaException('ERROR: Interpolation received values that cannot be converted into numpy float arrays.')
     
@@ -30,13 +31,11 @@ def interpolateFunc(x, y, xnew, method = 'pchip', extrapolate_nan = False):
     if len(set(x)) != len(x): raise OptimaException('ERROR: Interpolation failure due to repeated x values.')
     
     # Sorts all input vectors.
-    sortzip = dcp(sorted(zip(x,y)))
-    xs = [a for a,b in sortzip]
-    ys = [b for a,b in sortzip]
-    x = np.array(dcp(xs)).astype(float)
-    y = np.array(dcp(ys)).astype(float)
-    xnew = np.array(dcp(sorted(xnew))).astype(float)   
-    
+    idx = np.argsort(x) # Index order to sort arrays
+    x = x[idx]
+    y = y[idx]
+    xnew = np.sort(xnew) # np.sort() returns a copy
+
     if method == 'pchip':
         m = pchipSlopes(x, y)                           # Compute slopes used by piecewise cubic Hermite interpolator.
         ynew = pchipEval(x, y, m, xnew, deriv = False)  # Use these slopes (along with the Hermite basis function) to interpolate.

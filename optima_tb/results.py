@@ -8,6 +8,7 @@ import numpy as np
 from math import ceil, floor
 from uuid import uuid4 as uuid
 from copy import deepcopy as dcp
+from collections import defaultdict
 
 # %% Resultset class that contains one set of results
 class ResultSet(object):
@@ -28,7 +29,7 @@ class ResultSet(object):
             t_step             t_steps in real time 
             dt                 dt used to create this resultset
             outputs            simulated characteristic data points (format: ?)
-            m_pops             totals per pop per compartment
+            model              simulated model object
             
         Optional: ------------------------------------------------------
             data_observed      datapoints supplied (format: dataset)
@@ -41,6 +42,8 @@ class ResultSet(object):
                 indices_observed_data = [0,4,8,..]. This can be determined directly from dt
                 t_observed_data       = [2000.,2001.,2002., ...]
     """
+
+    # TODO - remove self.outputs() because everything should be accessible via the model directly?
 
     def __init__(self, model, parset, settings, progset=None, budget_options=None, name=None):
 
@@ -72,20 +75,23 @@ class ResultSet(object):
 
         # work-in-progress: in time, these sections should be removed and only the data
         # points we are interested should be listed
-        self.m_pops = model.pops
+        self.model = dcp(model)
 
         self.pop_label_index = {}
-        for i, pop in enumerate(self.m_pops):
+        for i, pop in enumerate(self.model.pops):
             self.pop_label_index[pop.label] = i
 
         self.sim_settings = model.sim_settings
-        self.pop_labels = self.outputs[0].keys()
+        self.pop_labels = [pop.label for pop in model.pops]
         self.comp_labels = settings.node_names
         self.comp_specs = settings.node_specs
         self.comp_label_names = self.__generateLabelNames(self.comp_specs.keys(), self.comp_labels)
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
-        self.link_labels = [link.label for link in model.pops[0].links]
-        self.link_label_ids = {label:[i for i, link in enumerate(model.pops[0].links) if link.label == label] for label in self.link_labels} # For each link label, the index of the link list that had it
+        self.link_labels = []
+        for pop in model.pops:
+            for par in pop.pars:
+                if par.label not in self.link_labels and len(par.links) > 0:
+                    self.link_labels.append(par.label)
 
         self.budgets = {} # placeholders
         self.coverages = {}
@@ -159,8 +165,7 @@ class ResultSet(object):
         #       Link tags are actually stored in link_labels, while link labels could be in char_labels if a transition is marked as a result output.
         if label in self.link_labels:
 
-            values, _, _, units = self.getFlow(link_label=label, pop_labels=pop_labels)  # Does not return link values directly but calculates flows instead.
-            values = values[label]
+            values = self.getFlow(label, pop_labels=pop_labels)[0]
 
             for pop in values.keys():
                 popvalues = values[pop]
@@ -168,7 +173,7 @@ class ResultSet(object):
 
         elif label in self.char_labels:
 
-            values, _, _, units = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)
+            values = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)[0]
             values = values[label]
 
             for pop in values.keys():
@@ -180,7 +185,7 @@ class ResultSet(object):
             values, _, _, units = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)
             for pop in values.keys():
                 popvalues = values[pop]
-                output += values[pop][label].popsize[idx]
+                output += values[pop][label].vals[idx]
 
         else:
             logger.warn('Unable to find values for label="%s", with no corresponding characteristic, transition or compartment found.' % label)
@@ -190,89 +195,6 @@ class ResultSet(object):
             output = output.sum() * dt
 
         return output, tvals[idx], units
-
-
-    def getValueAt(self, label, year_init, year_end=None, pop_labels=None):
-        """
-        Returns scalar at or over a specific period for the value of a label corresponding to either a:
-            * characteristic
-            * flow
-            * compartment
-        If over a time period, the values are summed to form the cumulative. The scalar of this value is 
-        then returned.
-        
-        Params:
-            label        string value of label
-            year_init    time period at which to return the value, or if year_end is specified, the beginning of the time period
-            year_end     (optional) 
-            pop_labels   (optional) list of populations to evaluate over. Default: None, which evaluates over all
-        
-        Return:
-            value        a scalar
-        """
-        logging.warn("Method deprecated. Please use result.getValuesAt() instead")
-        dt = self.dt
-
-        if pop_labels is None:
-            pop_labels = self.pop_labels
-
-        values = []
-
-        tvals = np.array(self.sim_settings['tvec'])
-        if year_end is not None: # including the dt/2 window to guard against float comparison
-            idx = (tvals >= year_init - dt / 2) * (tvals <= year_end + dt / 2)
-        else:
-            idx = (tvals >= year_init - dt / 2) * (tvals <= year_init + dt / 2)
-
-        val = 0
-
-
-        if label in self.char_labels:
-#             print "is Char"
-
-            values = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)[0]
-            values = values[label]
-
-            for pop in values.keys():
-                popvalues = values[pop]
-                val += popvalues[idx].sum()
-
-
-        elif label in self.link_labels:
-#             print "is Link"
-
-            values = self.getFlow(link_label=label, pop_labels=pop_labels)[0]
-            values = values[label]
-
-            for pop in values.keys():
-                popvalues = values[pop]
-                val += popvalues[idx].sum()
-
-            if year_end is not None:
-                # getFlow returns an annualised rate, which is correct if we're looking at a  value
-                # for a point in time. If we're looking at the value over a range, then we should multiply by
-                # dt in order to give the correct value over that period.
-                val *= dt
-
-
-        elif label in self.comp_label_names.keys():
-#             print "is Comp"
-
-            values = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)[0]
-            for pop in values.keys():
-                popvalues = values[pop]
-                pp = popvalues[label]
-                val += values[pop][label].popsize[idx].sum()
-
-        else:
-            logger.warn("Unable to find value for label='%s': no corresponding characteristic, link, or compartment found." % label)
-
-        return val
-
-
-
-
-
 
     def getCompartmentSizes(self, pop_labels=None, comp_label=None, use_observed_times=False):
         """
@@ -323,7 +245,7 @@ class ResultSet(object):
 
             for ci, c_label in enumerate(comps):
 
-                comp = self.m_pops[p_index].getComp(c_label)
+                comp = self.model.pops[p_index].getComp(c_label)
                 if use_observed_times:
                     datapoints[pi][c_label] = comp[self.indices_observed_data]
                 else:
@@ -355,54 +277,53 @@ class ResultSet(object):
         """
         if pop_label is not None:
             if isinstance(pop_label, list):
-                pops = pop_label
+                pop_label = pop_label
             else:
-                pops = [pop_label]
+                pop_label = [pop_label]
         else:
-            pops = self.pop_labels
+            pop_label = self.pop_labels
 
         if char_label is not None:
             if isinstance(char_label, list):
-                chars = char_label
+                char_label = char_label
             else:
-                chars = [char_label]
+                char_label = [char_label]
         else:
-            chars = self.char_labels
+            char_label = self.char_labels
+
+        datapoints = defaultdict(dict)
+        for pop in self.model.pops:
+            for charac in pop.characs:
+                if pop.label in pop_label and charac.label in char_label:
+                    if use_observed_times:
+                        datapoints[charac.label][pop.label] = charac.vals[self.indices_observed_data]
+                    else:
+                        datapoints[charac.label][pop.label] = charac.vals
+
+        units = 'people' # TODO - this is not correct, as a characteristic could be a prevalence 
+
+        return datapoints, char_label, pop_label, units
 
 
-        # this currently uses odict for the output ...
-        datapoints = odict()
-        for cj in chars:
-            datapoints[cj] = odict()
-            for pi in pops:
-                if use_observed_times:
-                    datapoints[cj][pi] = self.outputs[cj][pi][self.indices_observed_data]
-                else:
-                    datapoints[cj][pi] = self.outputs[cj][pi]
-
-        units = 'people'
-
-        return datapoints, chars, pops, units
-
-
-    def getFlow(self, link_label, pop_labels=None,target_flow=False,annualize=True):
+    def getFlow(self, par_label, pop_labels=None,target_flow=False,annualize=True,as_fraction=False):
         """
-        Return the flow at each time point in the simulation
+        Return the flow at each time point in the simulation for a single parameter
 
         INPUTS
-        - link_label : A string or list of strings of link labels to get flows for. If None, use all links
+        - par_label : A string specifying a single Parameter to retrieve flow rates for
         - pop_label : A list or list of strings of population labels. If None, use all populations
         - target_flow : By default, the actual flow rates accounting for compartment sizes during integration will be used. If target_flow=True, then the target flow rate will be returned
         - annualize : Boolean which specifies if the number of moved people should be annualized or not. If True, an annual average is computed; if False, the number of people per time step is computed
-        
-        For each link label, the flow will be summed within requested populations. Thus if there are multiple links
+        - as_fraction : Boolean which specifies if the flow rate should be expressed as a fraction of the source compartment size.
+            - If True, the fractional flow rate for each link will be computed by dividing the net flow by the sum of source compartment sizes
+            - If None, it will be set to the same value as par.is_fraction for each parameter requested
+        For each parameter label, the flow from all links deriving from the parameter will be summed within requested populations. Thus if there are multiple links
         with the same link_label (e.g. a 'doth' link for death by other causes, for which there may be one for every compartment)
         then these will be aggregated
 
         OUTPUT
-        - datapoints : dictionary `datapoints[link_label][pop_label]` has an array of number of people moved at each point in time
-        - link_label : links that were used
-        - pops : Populations that were used
+        - datapoints : dictionary `datapoints[pop_label]` has an array of flow rate in requested units
+        - units : the units of the returned data
         
         Note that the flow rate is linked to the time step by
 
@@ -413,50 +334,46 @@ class ResultSet(object):
 
         if pop_labels is not None:
             if isinstance(pop_labels, list):
-                pops = pop_labels
+                pop_labels = pop_labels
             else:
-                pops = [pop_labels]
+                pop_labels = [pop_labels]
+
+        datapoints = defaultdict(float)
+        source_size = defaultdict(float)
+
+        for pop in self.model.pops:
+            if pop_labels is None or pop.label in pop_labels:
+                if par_label in pop.par_ids:
+                    par = pop.getPar(par_label)
+                    for link in par.links:
+                        if target_flow:
+                            datapoints[pop.label] += link.target_flow
+                        else:
+                            datapoints[pop.label] += link.vals
+                        source_size[pop.label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
+
+        # If as_fraction is None, use the same units as the Parameter. All Parameters should have the same units
+        # in all populations so can use whichever one is left after the loop above
+        if as_fraction is None and (par.units == 'fraction' or par.units == 'proportion'):
+            as_fraction = True
+
+        if as_fraction:
+            units = 'proportion'
+            for pop_label in datapoints:
+                datapoints[pop_label] /=  source_size[pop_label]
         else:
-            pops = self.pop_labels
+            units = 'people'
 
-        if link_label is not None:
-            if isinstance(link_label, list):
-                pass
-            else:
-                link_label = [link_label]
-        else:
-            link_label = self.link_label
+        # If we need to convert from dt units to annualized units
+        # If as_fraction is true, then the quantity is a proportion and no further time units are required
+        if annualize and not as_fraction:
+            units += '/year'
+            for pop_label in datapoints:
+                datapoints[pop_label] = datapoints[pop_label] * (1.0 / self.dt)
+        elif not as_fraction:
+            units += '/timestep'
 
-        datapoints = odict()
-
-        for link_lab in link_label:
-
-            datapoints[link_lab] = odict()
-            for pi in pops:
-
-                datapoints[link_lab] [pi] = odict()
-
-                p_index = self.pop_label_index[pi]
-
-                flows = []
-                for link_index in self.link_label_ids[link_lab]:
-                    link = self.m_pops[p_index].links[link_index]
-                    if target_flow:
-                        flows.append(link.target_flow)
-                    else:
-                        flows.append(link.flow)
-
-                datapoints[link_lab][pi] = sum(flows)
-
-                if annualize:
-                    datapoints[link_lab][pi] /= self.dt
-
-        if annualize:
-            units = 'people/year'
-        else:
-            units = 'people/timestep'
-
-        return datapoints, link_label, pops, units
+        return datapoints, units
 
 
     def export(self, filestem=None, sep=',', writetofile=True, use_alltimesteps=True):
@@ -486,15 +403,16 @@ class ResultSet(object):
             output += '\n' # Add a line break between different indicators
             popkeys = self.pop_labels
             for pk, popkey in enumerate(popkeys):
-                output += '\n'
-                if use_alltimesteps:
-                    data = self.outputs[key][popkey]
-                else:
-                    data = self.outputs[key][popkey][self.indices_observed_data]
+                if popkey in self.outputs[key]:
+                    output += '\n'
+                    if use_alltimesteps:
+                        data = self.outputs[key][popkey]
+                    else:
+                        data = self.outputs[key][popkey][self.indices_observed_data]
 
-                output += key + sep + popkey + sep
-                for t in range(npts):
-                    output += ('%g' + sep) % data[t]
+                    output += key + sep + popkey + sep
+                    for t in range(npts):
+                        output += ('%g' + sep) % data[t]
 
         if writetofile:
             with open(filename, 'w') as f: f.write(output)

@@ -51,8 +51,7 @@ def checkTransitionFraction(transition,validationSettings):
             raise OptimaException(warning)
         elif validation_level == settings.VALIDATION_WARN:
             logger.warn(warning)
-        elif validation_level == settings.VALIDATION_AVERT: 
-            return 1. 
+        transition = 1.
     return transition
 
 
