@@ -701,6 +701,8 @@ class Model(object):
                 else: self.sim_settings['init_alloc'] = {}
                 if 'constraints' in options:
                     self.sim_settings['constraints'] = options['constraints']
+                else:
+                    self.sim_settings['constraints'] = None
                 if 'alloc_is_coverage' in options:
                     self.sim_settings['alloc_is_coverage'] = options['alloc_is_coverage']
                 else: self.sim_settings['alloc_is_coverage'] = False
