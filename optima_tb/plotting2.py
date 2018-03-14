@@ -23,6 +23,117 @@ import textwrap
 from optima_tb.plotting import gridColorMap
 from matplotlib.ticker import FuncFormatter
 
+def compute_aggregations(results,outputs,pops,output_aggregation,pop_aggregation):
+    # Return a nested dict
+    # final_outputs[result][pop][output] = vals
+    # where the keys are the aggregated labels (if specified)
+    # Aggregation computation is performed here
+    # Input must be a list either containing a list of raw output labels or a dict with a single
+    # key where the value is a list of raw output labels e.g.
+    # outputs = ['vac',{'total':['vac','sus']}]
+
+    assert isinstance(pops, list), 'Populations need to be specified as a list'
+    assert isinstance(outputs,list), 'Outputs need to be specified as a list or a string'
+
+    assert output_aggregation in ['sum','average','weighted']
+    assert pop_aggregation in ['sum','average','weighted']
+
+    def extract_labels(l):
+        # Flatten the input arrays to extract all requested pops and outputs
+        # e.g. ['vac',{'a':['vac','sus']}] -> ['vac','vac','sus'] -> set(['vac','sus'])
+        # Also returns the labels for legends etc. i.e. ['vac','a']
+        out = []
+        for x in l:
+            if isinstance(x,dict):
+                k = x.keys()
+                assert len(k) == 1, 'Aggregation dict can only have one key'
+                out += x[k[0]]
+            else:
+                out.append(x)
+        return set(out)
+
+    # First, get all of the pops and outputs requested by flattening the lists
+    pops_required = extract_labels(pops)
+    outputs_required = extract_labels(outputs)
+
+    final_outputs = dict()
+    final_tvecs = dict()
+
+    for result_label,result in results.items(): # For each result
+
+        final_outputs[result_label] = defaultdict(dict) # This final_outputs[result_label][agg_pop_label][agg_output_label] - i.e. the final data for plotting
+        final_tvecs[result_label] = result.model.sim_settings['tvec']
+        dt = result.model.sim_settings['tvec_dt']
+
+        aggregated_outputs = defaultdict(dict) # Dict with aggregated_outputs[pop_label][aggregated_output_label]
+        compsize = dict()
+        popsize = dict()
+
+        # Assemble the final output dicts for each population
+        for pop_label in pops_required:
+            pop = result.model.getPop(pop_label)
+            popsize[pop_label] = pop.popsize()
+            data_dict = dict()  # Temporary storage for raw outputs
+
+            # First pass, extract the original output quantities
+            for output_label in outputs_required:
+                if output_label in pop.comp_ids:
+                    data_dict[output_label] = pop.getComp(output_label).vals
+                    compsize[output_label] = data_dict[output_label]
+                elif output_label in pop.charac_ids:
+                    data_dict[output_label] = pop.getCharac(output_label).vals
+                    compsize[output_label] = data_dict[output_label]
+                elif output_label in pop.par_ids:
+                    par = pop.getPar(output_label)
+                    if par.links: # If this is a transition parameter, use getFlow to get the flow rate
+                        data_dict[output_label] = np.zeros(final_tvecs[result_label].shape)
+                        compsize[output_label] = np.zeros(final_tvecs[result_label].shape)
+                        for link in par.links:
+                            data_dict[output_label] += link.vals/dt
+                            compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
+
+            # Second pass, aggregate them according to any aggregations present
+            for output in outputs: # For each final output
+                if isinstance(output,dict):
+                    output_name = output.keys()[0]
+                    labels = output[output_name]
+                    if output_aggregation == 'sum': 
+                        aggregated_outputs[pop_label][output_name] = sum(data_dict[x] for x in labels) # Add together all the outputs
+                    elif output_aggregation == 'average': 
+                        aggregated_outputs[pop_label][output_name] = sum(data_dict[x] for x in labels) # Add together all the outputs
+                        aggregated_outputs[pop_label][output_name] /= len(labels)
+                    elif output_aggregation == 'weighted':
+                        aggregated_outputs[pop_label][output_name] = sum(data_dict[x]*compsize[x] for x in labels) # Add together all the outputs
+                        aggregated_outputs[pop_label][output_name] /= sum([compsize[x] for x in labels])
+                else:
+                    aggregated_outputs[pop_label][output] = data_dict[output]
+
+        # Now aggregate over populations
+        # If we have requested a reduction over populations, this is done for every output present
+        for pop in pops: # This is looping over the population entries
+            for output_name in aggregated_outputs[aggregated_outputs.keys()[0]].keys():
+                if isinstance(pop,dict):
+                    pop_name = pop.keys()[0]
+                    pop_labels = pop[pop_name]
+                    if pop_aggregation == 'sum': 
+                        final_outputs[result_label][pop_name][output_name] = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
+                    elif pop_aggregation == 'average': 
+                        final_outputs[result_label][pop_name][output_name] = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
+                        final_outputs[result_label][pop_name][output_name] /= len(labels)
+                    elif pop_aggregation == 'weighted':
+                        final_outputs[result_label][pop_name][output_name] = sum(aggregated_outputs[x][output_name]*popsize[x] for x in pop_labels) # Add together all the outputs
+                        final_outputs[result_label][pop_name][output_name] /= sum([popsize[x] for x in pop_labels])
+                else:
+                    final_outputs[result_label][pop][output_name] = aggregated_outputs[pop][output_name]
+
+    # Now, we have completed all aggregations. The final_outputs dict is now ready to be plotted across the required axis
+    final_labels = dict()
+    final_labels['results'] = results.keys()
+    final_labels['pops'] = [x.keys()[0] if isinstance(x,dict) else x for x in pops]
+    final_labels['outputs'] = [x.keys()[0] if isinstance(x,dict) else x for x in outputs]
+
+    return final_outputs, final_tvecs, final_labels
+
 def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True,separate_legend=False,plot_observed_data=True,colors=None):
     # This function plots a time series for a model output quantities
     #
@@ -89,107 +200,7 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
         else:
             colors = gridColorMap(len(pops))
 
-    assert isinstance(pops, list), 'Populations need to be specified as a list'
-    assert isinstance(outputs,list), 'Outputs need to be specified as a list or a string'
-
-    def extract_labels(l):
-        # Flatten the input arrays to extract all requested pops and outputs
-        # e.g. ['vac',{'a':['vac','sus']}] -> ['vac','vac','sus'] -> set(['vac','sus'])
-        # Also returns the labels for legends etc. i.e. ['vac','a']
-        out = []
-        for x in l:
-            if isinstance(x,dict):
-                k = x.keys()
-                assert len(k) == 1, 'Aggregation dict can only have one key'
-                out += x[k[0]]
-            else:
-                out.append(x)
-        return set(out)
-
-    # First, get all of the pops and outputs requested by flattening the lists
-    pops_required = extract_labels(pops)
-    outputs_required = extract_labels(outputs)
-
-    final_outputs = dict()
-    tvecs = dict()
-
-    for result_label,result in results.items(): # For each result
-
-        final_outputs[result_label] = defaultdict(dict) # This final_outputs[result_label][agg_pop_label][agg_output_label] - i.e. the final data for plotting
-        tvecs[result_label] = result.model.sim_settings['tvec']
-        dt = result.model.sim_settings['tvec_dt']
-
-        aggregated_outputs = defaultdict(dict) # Dict with aggregated_outputs[pop_label][aggregated_output_label]
-        compsize = dict()
-        popsize = dict()
-
-        # Assemble the final output dicts for each population
-        for pop_label in pops_required:
-            pop = result.model.getPop(pop_label)
-            popsize[pop_label] = pop.popsize()
-            data_dict = dict()  # Temporary storage for raw outputs
-
-            # First pass, extract the original output quantities
-            for output_label in outputs_required:
-                if output_label in pop.comp_ids:
-                    data_dict[output_label] = pop.getComp(output_label).vals
-                    compsize[output_label] = data_dict[output_label]
-                elif output_label in pop.charac_ids:
-                    data_dict[output_label] = pop.getCharac(output_label).vals
-                    compsize[output_label] = data_dict[output_label]
-                elif output_label in pop.par_ids:
-                    par = pop.getPar(output_label)
-                    if par.links: # If this is a transition parameter, use getFlow to get the flow rate
-                        data_dict[output_label] = np.zeros(tvecs[result_label].shape)
-                        compsize[output_label] = np.zeros(tvecs[result_label].shape)
-                        for link in par.links:
-                            data_dict[output_label] += link.vals/dt
-                            compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
-
-            # Second pass, aggregate them according to any aggregations present
-            for output in outputs: # For each final output
-                if isinstance(output,dict):
-                    output_name = output.keys()[0]
-                    labels = output[output_name]
-                    if output_aggregation == 'sum': 
-                        aggregated_outputs[pop_label][output_name] = sum(data_dict[x] for x in labels) # Add together all the outputs
-                    elif output_aggregation == 'average': 
-                        aggregated_outputs[pop_label][output_name] = sum(data_dict[x] for x in labels) # Add together all the outputs
-                        aggregated_outputs[pop_label][output_name] /= len(labels)
-                    elif output_aggregation == 'weighted':
-                        aggregated_outputs[pop_label][output_name] = sum(data_dict[x]*compsize[x] for x in labels) # Add together all the outputs
-                        aggregated_outputs[pop_label][output_name] /= sum([compsize[x] for x in labels])
-                    else:
-                        raise OptimaException('Unknown output aggregation type')
-                else:
-                    aggregated_outputs[pop_label][output] = data_dict[output]
-
-        # Now aggregate over populations
-        # If we have requested a reduction over populations, this is done for every output present
-        for pop in pops: # This is looping over the population entries
-            for output_name in aggregated_outputs[aggregated_outputs.keys()[0]].keys():
-                if isinstance(pop,dict):
-                    pop_name = pop.keys()[0]
-                    pop_labels = pop[pop_name]
-                    if pop_aggregation == 'sum': 
-                        final_outputs[result_label][pop_name][output_name] = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
-                    elif pop_aggregation == 'average': 
-                        final_outputs[result_label][pop_name][output_name] = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
-                        final_outputs[result_label][pop_name][output_name] /= len(labels)
-                    elif pop_aggregation == 'weighted':
-                        final_outputs[result_label][pop_name][output_name] = sum(aggregated_outputs[x][output_name]*popsize[x] for x in pop_labels) # Add together all the outputs
-                        final_outputs[result_label][pop_name][output_name] /= sum([popsize[x] for x in pop_labels])
-                    else:
-                        raise OptimaException('Unknown output aggregation type')
-                else:
-                    final_outputs[result_label][pop][output_name] = aggregated_outputs[pop][output_name]
-
-
-    # Now, we have completed all aggregations. The final_outputs dict is now ready to be plotted across the required axis
-    final_result_labels = results.keys()
-    final_pop_labels = [x.keys()[0] if isinstance(x,dict) else x for x in pops]
-    final_output_labels = [x.keys()[0] if isinstance(x,dict) else x for x in outputs]
-
+    final_outputs,final_tvecs,final_labels = compute_aggregations(results,outputs,pops,output_aggregation,pop_aggregation)
     figs = []
 
     if use_full_labels:
@@ -198,57 +209,57 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
         name = lambda x,y: x
     
     if axis == 'results':
-        for pop in final_pop_labels:
-            for output in final_output_labels:
+        for pop in final_labels['pops']:
+            for output in final_labels['outputs']:
                 figs.append(plt.figure())
                 plt.xlabel('Year')
                 plt.ylabel(name(output,proj))
                 plt.title('%s' % (pop))
                 if plot_type == 'stacked':
-                    y = [final_outputs[result][pop][output] for result in final_result_labels]
-                    labels = [name(result,proj) for result in final_result_labels]
-                    plt.stackplot(tvecs[result],y,labels=labels,colors=colors)
+                    y = [final_outputs[result][pop][output] for result in final_labels['results']]
+                    labels = [name(result,proj) for result in final_labels['results']]
+                    plt.stackplot(final_tvecs[result],y,labels=labels,colors=colors)
                 else:
-                    for result,color in zip(final_result_labels,colors):
-                        plt.plot(tvecs[result],final_outputs[result][pop][output],color=color,label=name(result,proj))
+                    for result,color in zip(final_labels['results'],colors):
+                        plt.plot(final_tvecs[result],final_outputs[result][pop][output],color=color,label=name(result,proj))
                         if plot_observed_data:
                             plot_data(proj, pop, output,name,color)
                 apply_formatting()
                 render_legend(plot_type,separate_legend)
 
     elif axis == 'pops':
-        for result in final_result_labels:
-            for output in final_output_labels:
+        for result in final_labels['results']:
+            for output in final_labels['outputs']:
                 figs.append(plt.figure())
                 plt.xlabel('Year')
                 plt.ylabel(name(output,proj))
                 plt.title('%s' % (result))
                 if plot_type == 'stacked':
-                    y = [final_outputs[result][pop][output] for pop in final_pop_labels]
-                    labels = [name(pop,proj) for pop in final_pop_labels]
-                    plt.stackplot(tvecs[result],y,labels=labels,colors=colors)
+                    y = [final_outputs[result][pop][output] for pop in final_labels['pops']]
+                    labels = [name(pop,proj) for pop in final_labels['pops']]
+                    plt.stackplot(final_tvecs[result],y,labels=labels,colors=colors)
                 else:
-                    for pop,color in zip(final_pop_labels,colors):
-                        plt.plot(tvecs[result],final_outputs[result][pop][output],color=color,label=name(pop,proj))
+                    for pop,color in zip(final_labels['pops'],colors):
+                        plt.plot(final_tvecs[result],final_outputs[result][pop][output],color=color,label=name(pop,proj))
                         if plot_observed_data:
                             plot_data(proj, pop, output,name,color)
                 apply_formatting()
                 render_legend(plot_type, separate_legend)
 
     elif axis == 'outputs':
-        for result in final_result_labels:
-            for pop in final_pop_labels:
+        for result in final_labels['results']:
+            for pop in final_labels['pops']:
                 figs.append(plt.figure())
                 plt.xlabel('Year')
                 # plt.ylabel('Mixed')
                 plt.title('%s-%s' % (result,name(pop,proj)))
                 if plot_type == 'stacked':
-                    y = [final_outputs[result][pop][output] for output in final_output_labels]
-                    labels = [name(output,proj) for output in final_output_labels]
-                    plt.stackplot(tvecs[result],y,labels=labels,colors=colors)
+                    y = [final_outputs[result][pop][output] for output in final_labels['outputs']]
+                    labels = [name(output,proj) for output in final_labels['outputs']]
+                    plt.stackplot(final_tvecs[result],y,labels=labels,colors=colors)
                 else:
-                    for output,color in zip(final_output_labels,colors):
-                        plt.plot(tvecs[result],final_outputs[result][pop][output],color=color,label=name(output,proj))
+                    for output,color in zip(final_labels['outputs'],colors):
+                        plt.plot(final_tvecs[result],final_outputs[result][pop][output],color=color,label=name(output,proj))
                         if plot_observed_data:
                             plot_data(proj, pop, output,name,color)
                 apply_formatting()
