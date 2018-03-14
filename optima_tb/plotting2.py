@@ -66,6 +66,7 @@ def compute_aggregations(results,outputs,pops,output_aggregation,pop_aggregation
         dt = result.model.sim_settings['tvec_dt']
 
         aggregated_outputs = defaultdict(dict) # Dict with aggregated_outputs[pop_label][aggregated_output_label]
+        output_units = dict()
         compsize = dict()
         popsize = dict()
 
@@ -80,9 +81,11 @@ def compute_aggregations(results,outputs,pops,output_aggregation,pop_aggregation
                 if output_label in pop.comp_ids:
                     data_dict[output_label] = pop.getComp(output_label).vals
                     compsize[output_label] = data_dict[output_label]
+                    output_units[output_label] = pop.getComp(output_label).units
                 elif output_label in pop.charac_ids:
                     data_dict[output_label] = pop.getCharac(output_label).vals
                     compsize[output_label] = data_dict[output_label]
+                    output_units[output_label] = pop.getComp(output_label).units
                 elif output_label in pop.par_ids:
                     par = pop.getPar(output_label)
                     if par.links: # If this is a transition parameter, use getFlow to get the flow rate
@@ -91,12 +94,20 @@ def compute_aggregations(results,outputs,pops,output_aggregation,pop_aggregation
                         for link in par.links:
                             data_dict[output_label] += link.vals/dt
                             compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
+                        output_units[output_label] = link.units
+                    else:
+                        data_dict[output_label] = pop.getPar(output_label).vals
+                        output_units[output_label] = pop.getPar(output_label).units
+                else:
+                    raise OptimaException('Output "%s" not found in pop "%s"' % (output_label,pop_label))
 
             # Second pass, aggregate them according to any aggregations present
             for output in outputs: # For each final output
                 if isinstance(output,dict):
                     output_name = output.keys()[0]
                     labels = output[output_name]
+                    if len(set([output_units[x] for x in labels])) > 1:
+                        logger.warn('Warning - aggregation for output "%s" is mixing units, this is almost certainly not desired' % (output_name))
                     if output_aggregation == 'sum': 
                         aggregated_outputs[pop_label][output_name] = sum(data_dict[x] for x in labels) # Add together all the outputs
                     elif output_aggregation == 'average': 
@@ -340,8 +351,3 @@ def getFullName(output_id, proj):
     elif output_id in proj.data['pops']['label_names'].keys(): # population label
         output_id = proj.data['pops']['label_names'][output_id]
     return output_id
-
-
-
-
-
