@@ -49,7 +49,7 @@ class ResultSet(object):
 
         self.uuid = uuid()
         if name is None:
-            self.name = 'results:' + parset.name
+            self.name = parset.name
         else:
             self.name = name
         self.parset_name = parset.name
