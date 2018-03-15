@@ -194,10 +194,13 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
     #   aggregation can be used to combine already aggregated outputs (e.g.
     #   can first sum 'sus'+'vac' within populations, and then take weighted
     #   average across populations)
-    # - plot_type - 'line' or 'stacked'
+    # - plot_type - 'line', 'stacked', or 'proportion' (stacked, normalized to 1)
     # - use_full_labels - Attempt to convert population and result labels into
     #   full names. If no matches are found, the provided name will be used
     #   directly
+    # - separate_legend - Show the legend in a separate figure,
+    # - plot_observed_data - Draw scatter points for data wherever the output label matches
+    #   a data label. Only draws data if the plot_type is 'line'
     # - colors should be the same length as whichever quantity is being plotted
     assert isinstance(proj,Project)
     if isinstance(results,ResultSet):
@@ -258,8 +261,9 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
                         plt.plot(final_tvecs[result],final_outputs[result][pop][output],color=color,label=name(result,proj))
                         if plot_observed_data:
                             plot_data(proj, pop, output,name,color)
-                apply_formatting(plot_type)
-                render_legend(plot_type,separate_legend)
+                apply_series_formatting(plot_type)
+                if not separate_legend:
+                    render_legend(plot_type)
 
     elif axis == 'pops':
         for result in final_labels['results']:
@@ -278,8 +282,9 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
                         plt.plot(final_tvecs[result],final_outputs[result][pop][output],color=color,label=name(pop,proj))
                         if plot_observed_data:
                             plot_data(proj, pop, output,name,color)
-                apply_formatting(plot_type)
-                render_legend(plot_type, separate_legend)
+                apply_series_formatting(plot_type)
+                if not separate_legend:
+                    render_legend(plot_type,)
 
     elif axis == 'outputs':
         for result in final_labels['results']:
@@ -298,11 +303,24 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
                         plt.plot(final_tvecs[result],final_outputs[result][pop][output],color=color,label=name(output,proj))
                         if plot_observed_data:
                             plot_data(proj, pop, output,name,color)
-                apply_formatting(plot_type)
-                render_legend(plot_type,separate_legend)
+                apply_series_formatting(plot_type)
+                if not separate_legend:
+                    render_legend(plot_type)
+
+    if separate_legend:
+        render_separate_legend(plot_type)
+
     return figs
 
 def plot_data(proj,pop,output,name,color):
+    # This function renders a scatter plot for a single variable (in a single population)
+    # The scatter plot is drawn in the current axis
+    # INPUTS
+    # proj - Project object
+    # pop - name of a population (str)
+    # output - name of an output (str)
+    # name - The name-formatting function to retrieve full names (currently unused)
+    # color - The color of the data points to use
     data = proj.data
 
     if output in data['characs'].keys():
@@ -321,6 +339,8 @@ def plot_data(proj,pop,output,name,color):
     plt.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
 
 def KMSuffixFormatter(x, pos):
+    # This function specifies the formatting for the Y-axis labels
+
     'The two args are the value and tick position'
     if x >= 1e6:
         return '%1.1fM' % (x * 1e-6)
@@ -329,7 +349,9 @@ def KMSuffixFormatter(x, pos):
     else:
         return '%g' % x
 
-def apply_formatting(plot_type):
+def apply_series_formatting(plot_type):
+    # This function applies formatting that is common to all Series plots
+    # (irrespective of the 'axis' setting)
     ax = plt.gca()
     plt.autoscale(enable=True, axis='x', tight=True)
     plt.xlabel('Year')
@@ -341,31 +363,47 @@ def apply_formatting(plot_type):
         ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
     ax.yaxis.set_major_formatter(FuncFormatter(KMSuffixFormatter))
 
-
-def render_legend(plot_type,separate_legend):
+def render_separate_legend(plot_type):
     ax = plt.gca()
     handles, labels_leg = ax.get_legend_handles_labels()
 
-    if separate_legend:
-        fig = plt.figure()
-        legendsettings = {'loc': 'center', 'bbox_to_anchor': None,'frameon':False}
-        from copy import copy
-        handles = [copy(x) for x in handles]
-        for h in handles:
-            h.figure = None
-        if plot_type == 'stacked':
-            fig.legend(handles=handles[::-1], labels=labels_leg[::-1], **legendsettings)
-        else:
-            fig.legend(handles=handles, labels=labels_leg, **legendsettings)
+    fig = plt.figure()
+    legendsettings = {'loc': 'center', 'bbox_to_anchor': None,'frameon':False}
+
+    # A legend renders the line/patch based on the object handle. However, an object
+    # can only appear in one figure. Thus, if the legend is in a different figure, the
+    # object cannot be shown in both the original figure and in the legend. Thus we need
+    # to copy the handles, and use the copies to render the legend
+    from copy import copy
+    handles = [copy(x) for x in handles]
+
+    # Stop the figures from being rendered in the original figure, which will allow them to
+    # then be rendered in the legend figure
+    for h in handles:
+        h.figure = None
+
+    if plot_type in ['stacked', 'proportion']:
+        fig.legend(handles=handles[::-1], labels=labels_leg[::-1], **legendsettings)
     else:
-        legendsettings = {'loc': 'center left', 'bbox_to_anchor': (1.05, 0.5), 'ncol': 1}
-        labels_leg = [textwrap.fill(label, 16) for label in labels_leg]
-        if plot_type == 'stacked':
-            ax.legend(handles=handles[::-1], labels=labels_leg[::-1], **legendsettings)
-        else:
-            ax.legend(handles=handles, labels=labels_leg,**legendsettings)
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        fig.legend(handles=handles, labels=labels_leg, **legendsettings)
+
+def render_legend(plot_type):
+    # This function renders a legend
+    # INPUTS
+    # - plot_type - Used to decide whether to reverse the legend order for stackplots
+
+    ax = plt.gca()
+    handles, labels_leg = ax.get_legend_handles_labels()
+
+    legendsettings = {'loc': 'center left', 'bbox_to_anchor': (1.05, 0.5), 'ncol': 1}
+    labels_leg = [textwrap.fill(label, 16) for label in labels_leg]
+
+    if plot_type in ['stacked', 'proportion']:
+        ax.legend(handles=handles[::-1], labels=labels_leg[::-1], **legendsettings)
+    else:
+        ax.legend(handles=handles, labels=labels_leg,**legendsettings)
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 
 
 def getFullName(output_id, proj):
