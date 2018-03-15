@@ -25,6 +25,7 @@ from matplotlib.ticker import FuncFormatter
 import os
 
 def save_figs(figs,path = '.',prefix = '',fnames=None):
+    #
     if not isinstance(figs,list):
         figs = [figs]
     if fnames is not None:
@@ -36,6 +37,8 @@ def save_figs(figs,path = '.',prefix = '',fnames=None):
         if fnames is not None:
             fname = prefix+fnames[i] + '.png'
         else:
+            if fig.get_label() == '':
+                continue
             fname = prefix+fig.get_label() + '.png'
         fig.savefig(os.path.join(path,fname))
         logger.info('Saved figure "%s"' % fname)
@@ -308,7 +311,7 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
                     render_legend(plot_type)
 
     if separate_legend:
-        render_separate_legend(plot_type)
+        figs.append(render_separate_legend(plot_type))
 
     return figs
 
@@ -386,6 +389,8 @@ def render_separate_legend(plot_type):
         fig.legend(handles=handles[::-1], labels=labels_leg[::-1], **legendsettings)
     else:
         fig.legend(handles=handles, labels=labels_leg, **legendsettings)
+
+    return fig
 
 def render_legend(plot_type):
     # This function renders a legend
