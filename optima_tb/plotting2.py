@@ -22,6 +22,24 @@ import matplotlib
 import textwrap
 from optima_tb.plotting import gridColorMap
 from matplotlib.ticker import FuncFormatter
+import os
+
+def save_figs(figs,path = '.',prefix = '',fnames=None):
+    if not isinstance(figs,list):
+        figs = [figs]
+    if fnames is not None:
+        if not isinstance(fnames,list):
+            fnames = [fnames]
+        assert len(fnames) == len(figs), 'Number of figures must match number of specified filenames'
+
+    for i,fig in enumerate(figs):
+        if fnames is not None:
+            fname = prefix+fnames[i] + '.png'
+        else:
+            fname = prefix+fig.get_label() + '.png'
+        fig.savefig(os.path.join(path,fname))
+        logger.info('Saved figure "%s"' % fname)
+
 
 def compute_aggregations(results,outputs,pops,output_aggregation,pop_aggregation):
     # Return a nested dict
@@ -184,6 +202,8 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
     assert isinstance(proj,Project)
     if isinstance(results,ResultSet):
         results = {results.name:results}
+    elif isinstance(results,list):
+        results = {x.name:x for x in results}
     if pops is None:
         pops = [pop.label for pop in results[results.keys()[0]].model.pops]
     elif pops == 'All':
@@ -220,11 +240,12 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
         name = getFullName
     else:
         name = lambda x,y: x
-    
+
     if axis == 'results':
         for pop in final_labels['pops']:
             for output in final_labels['outputs']:
                 figs.append(plt.figure())
+                figs[-1].set_label('%s_%s' % (pop,output))
                 plt.ylabel(name(output,proj))
                 plt.title('%s' % (pop))
                 if plot_type in ['stacked','proportion']:
@@ -244,6 +265,7 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
         for result in final_labels['results']:
             for output in final_labels['outputs']:
                 figs.append(plt.figure())
+                figs[-1].set_label('%s_%s' % (result,output))
                 plt.ylabel(name(output,proj))
                 plt.title('%s' % (result))
                 if plot_type in ['stacked','proportion']:
@@ -263,6 +285,7 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
         for result in final_labels['results']:
             for pop in final_labels['pops']:
                 figs.append(plt.figure())
+                figs[-1].set_label('%s_%s' % (result,pop))
                 # plt.ylabel('Mixed')
                 plt.title('%s-%s' % (result,name(pop,proj)))
                 if plot_type in ['stacked','proportion']:
