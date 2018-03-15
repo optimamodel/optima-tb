@@ -1006,8 +1006,9 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
             dataobs_yrs, dataobs_low = _extractDatapoint(result, proj, plot_ybounds[0], pop_labels, charac_specs, plot_total=plot_total)[0]
             _, dataobs_high = _extractDatapoint(result, proj, plot_ybounds[1], pop_labels, charac_specs, plot_total=plot_total)[0]
             # Cleaning data structures ...
-            dataobs_low = dataobs_low
-            dataobs_high = dataobs_high
+            dataobs_yrs = np.array(dataobs_yrs)
+            dataobs_low = np.array(dataobs_low)
+            dataobs_high = np.array(dataobs_high)
             # and removing nan values
             dataobs_yrs = dataobs_yrs[~np.isnan(dataobs_low)]
             dataobs_low = dataobs_low[~np.isnan(dataobs_low)]
