@@ -225,11 +225,11 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
         for pop in final_labels['pops']:
             for output in final_labels['outputs']:
                 figs.append(plt.figure())
-                plt.xlabel('Year')
                 plt.ylabel(name(output,proj))
                 plt.title('%s' % (pop))
-                if plot_type == 'stacked':
-                    y = [final_outputs[result][pop][output] for result in final_labels['results']]
+                if plot_type in ['stacked','proportion']:
+                    y = np.stack([final_outputs[result][pop][output] for result in final_labels['results']])
+                    y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
                     labels = [name(result,proj) for result in final_labels['results']]
                     plt.stackplot(final_tvecs[result],y,labels=labels,colors=colors)
                 else:
@@ -237,18 +237,18 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
                         plt.plot(final_tvecs[result],final_outputs[result][pop][output],color=color,label=name(result,proj))
                         if plot_observed_data:
                             plot_data(proj, pop, output,name,color)
-                apply_formatting()
+                apply_formatting(plot_type)
                 render_legend(plot_type,separate_legend)
 
     elif axis == 'pops':
         for result in final_labels['results']:
             for output in final_labels['outputs']:
                 figs.append(plt.figure())
-                plt.xlabel('Year')
                 plt.ylabel(name(output,proj))
                 plt.title('%s' % (result))
-                if plot_type == 'stacked':
-                    y = [final_outputs[result][pop][output] for pop in final_labels['pops']]
+                if plot_type in ['stacked','proportion']:
+                    y = np.stack([final_outputs[result][pop][output] for pop in final_labels['pops']])
+                    y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
                     labels = [name(pop,proj) for pop in final_labels['pops']]
                     plt.stackplot(final_tvecs[result],y,labels=labels,colors=colors)
                 else:
@@ -256,18 +256,18 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
                         plt.plot(final_tvecs[result],final_outputs[result][pop][output],color=color,label=name(pop,proj))
                         if plot_observed_data:
                             plot_data(proj, pop, output,name,color)
-                apply_formatting()
+                apply_formatting(plot_type)
                 render_legend(plot_type, separate_legend)
 
     elif axis == 'outputs':
         for result in final_labels['results']:
             for pop in final_labels['pops']:
                 figs.append(plt.figure())
-                plt.xlabel('Year')
                 # plt.ylabel('Mixed')
                 plt.title('%s-%s' % (result,name(pop,proj)))
-                if plot_type == 'stacked':
-                    y = [final_outputs[result][pop][output] for output in final_labels['outputs']]
+                if plot_type in ['stacked','proportion']:
+                    y = np.stack([final_outputs[result][pop][output] for output in final_labels['outputs']])
+                    y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
                     labels = [name(output,proj) for output in final_labels['outputs']]
                     plt.stackplot(final_tvecs[result],y,labels=labels,colors=colors)
                 else:
@@ -275,7 +275,7 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
                         plt.plot(final_tvecs[result],final_outputs[result][pop][output],color=color,label=name(output,proj))
                         if plot_observed_data:
                             plot_data(proj, pop, output,name,color)
-                apply_formatting()
+                apply_formatting(plot_type)
                 render_legend(plot_type,separate_legend)
     return figs
 
@@ -306,13 +306,18 @@ def KMSuffixFormatter(x, pos):
     else:
         return '%g' % x
 
-def apply_formatting():
+def apply_formatting(plot_type):
     ax = plt.gca()
     plt.autoscale(enable=True, axis='x', tight=True)
+    plt.xlabel('Year')
     ax.set_ylim(ymin=0)
-    ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
+    if plot_type == 'proportion':
+        ax.set_ylim(ymax=1)
+        ax.set_ylabel('Proportion ' + ax.get_ylabel())
+    else:
+        ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
     ax.yaxis.set_major_formatter(FuncFormatter(KMSuffixFormatter))
-    box = ax.get_position()
+
 
 def render_legend(plot_type,separate_legend):
     ax = plt.gca()
