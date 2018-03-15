@@ -85,7 +85,7 @@ def compute_aggregations(results,outputs,pops,output_aggregation,pop_aggregation
                 elif output_label in pop.charac_ids:
                     data_dict[output_label] = pop.getCharac(output_label).vals
                     compsize[output_label] = data_dict[output_label]
-                    output_units[output_label] = pop.getComp(output_label).units
+                    output_units[output_label] = pop.getCharac(output_label).units
                 elif output_label in pop.par_ids:
                     par = pop.getPar(output_label)
                     if par.links: # If this is a transition parameter, use getFlow to get the flow rate
