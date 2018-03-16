@@ -1338,7 +1338,7 @@ def innerPlotBar(proj, resultset, output_labels, pop_labels=None,
         # classes of compartments i.e. ['Latent disease states','Active disease states']
         legendsettings = plotdict['legendsettings']
         # TODO: fix usage when legend should use colors rather than cat_colors
-        separateLegend(labels=legend_labels, colors=cat_colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
+        separateLegend(labels=legend_labels, colors=cat_colors if len(cat_colors)==len(legend_labels) else colors, fig_name=fig_name, linestyles=linestyles, **legendsettings)
 
     return fig
 
