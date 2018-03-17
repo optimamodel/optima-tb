@@ -471,7 +471,7 @@ class ModelPopulation(Node):
                 A[i,comp_indices[inc.label]] = 1.0
 
         # Solve the linear system
-        x, residual, rank, _ = np.linalg.lstsq(A,b,rcond=None)
+        x, residual, rank, _ = np.linalg.lstsq(A,b,rcond=-1)
 
         # Halt if the solution is not unique (could relax this check later)
         if rank < A.shape[1]:
@@ -781,8 +781,14 @@ class Model(object):
                     for i, link in enumerate(outlinks):
 
                         # Compute the number of people that are going out of each link
-                        converted_amt = 0
                         transition = link.parameter.vals[ti]
+
+                        if transition == 0.0:
+                            # Note that commands below are all multiplicative and thus can't map an initial value of 0.0 to anything
+                            # other than a flow rate of 0, so we can abort early here
+                            outflow[i] = 0.0
+                            link.target_flow[ti] = 0.0
+                            continue
 
                         if link.parameter.scale_factor is not None and link.parameter.scale_factor != project_settings.DO_NOT_SCALE:  # scale factor should be available to be used
                             transition *= link.parameter.scale_factor
@@ -792,16 +798,20 @@ class Model(object):
                             if transition > 1.:
                                 transition = checkTransitionFraction(transition, settings.validation)
                             converted_frac = 1 - (1 - transition) ** dt  # A formula for converting from yearly fraction values to the dt equivalent.
-                            converted_amt = comp_source.vals[ti] * converted_frac
-                        elif link.parameter.units == 'proportion':
-                            converted_amt = comp_source.vals[ti] * transition # Use the value directly - NB. in theory this branch should only run for Junction links, which aren't here (i.e. it should never be used at the moment)
+                            if link.source.tag_birth:
+                                n_alive = 0
+                                for p in self.pops:
+                                    n_alive += p.getCharac(settings.charac_pop_count).vals[ti]
+                                converted_amt = n_alive * converted_frac
+                            else:
+                                converted_amt = comp_source.vals[ti] * converted_frac
                         elif link.parameter.units == 'number':
                             converted_amt = transition * dt
                             if link.is_transfer:
                                 transfer_rescale = comp_source.vals[ti] / pop.getCharac(settings.charac_pop_count).vals[ti]
                                 converted_amt *= transfer_rescale
                         else:
-                            raise OptimaException('Unknown parameter units!')
+                            raise OptimaException('Unknown parameter units! NB. "proportion" links can only appear in junctions')
 
                         outflow[i] = converted_amt
                         link.target_flow[ti] = converted_amt
