@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 from optima_tb.utils import odict, OptimaException
 from optima_tb.results import ResultSet
 import numpy as np
-from optima_tb.project import Project
 import pylab as pl
 from copy import deepcopy as dcp
 from copy import copy as ndcp
@@ -44,224 +43,287 @@ def save_figs(figs,path = '.',prefix = '',fnames=None):
         logger.info('Saved figure "%s"' % fname)
 
 
-def compute_aggregations(results,outputs,pops,output_aggregation,pop_aggregation):
-    # Return a nested dict
-    # final_outputs[result][pop][output] = vals
-    # where the keys are the aggregated labels (if specified)
-    # Aggregation computation is performed here
-    # Input must be a list either containing a list of raw output labels or a dict with a single
-    # key where the value is a list of raw output labels e.g.
-    # outputs = ['vac',{'total':['vac','sus']}]
+class PlotData(object):
+    # This is what gets passed into a plotting function, which displays a View of the data
+    # Conceptually, we are applying visuals to the data.
+    # But we are performing an extraction step rather than doing it directly because things like
+    # labels, colours, groupings etc. only apply to plots, not to results, and there could be several
+    # different views of the same data.
 
-    assert isinstance(pops, list), 'Populations need to be specified as a list'
-    assert isinstance(outputs,list), 'Outputs need to be specified as a list or a string'
+    def __init__(self,results,outputs,pops,output_aggregation,pop_aggregation,project=None):
+        # TODO - Add temporal aggregation
+        # Construct a PlotData instance from a Results object by selecting data and optionally
+        # specifying desired aggregations
+        #
+        # final_outputs[result][pop][output] = vals
+        # where the keys are the aggregated labels (if specified)
+        # Aggregation computation is performed here
+        # Input must be a list either containing a list of raw output labels or a dict with a single
+        # key where the value is a list of raw output labels e.g.
+        # outputs = ['vac',{'total':['vac','sus']}]
 
-    assert output_aggregation in ['sum','average','weighted']
-    assert pop_aggregation in ['sum','average','weighted']
+        #
+        # - results - A ResultSet or a dict of ResultSets with key corresponding
+        #   to name
+        # - outputs - The name of an output compartment, characteristic, or
+        #   parameter, or list of names. Inside a list, a dict can be given to
+        #   specify an aggregation e.g. outputs=['sus',{'total':['sus','vac']}]
+        #   where the key is the new name
+        # - pops - The name of an output population, or list of names. Like
+        #   outputs, can specify a dict with a list of pops to aggregate over them
+        # - axis - Display one of results, outputs, or pops as different coloured
+        #   lines on the plot. A new figure will be generated for all other
+        #   combinations of the remaining quantities
+        # - output_aggregation - If an output aggregation is requested, combine
+        #   the outputs listed using one of
+        #       - 'sum' - just add values together
+        #       - 'average' - unweighted average of quantities
+        #       - 'weighted' - weighted average where the weight is the
+        #         compartment size, characteristic value, or link source
+        #         compartment size (summed over duplicate links). 'weighted'
+        #         method cannot be used with non-transition parameters and a
+        #         KeyError will result in that case
+        # - pop_aggregation - Same as output_aggregation, except that 'weighted'
+        #   uses population sizes. Note that output aggregation is performed
+        #   before population aggregation. This also means that population
+        #   aggregation can be used to combine already aggregated outputs (e.g.
+        #   can first sum 'sus'+'vac' within populations, and then take weighted
+        #   average across populations)
 
-    def extract_labels(l):
-        # Flatten the input arrays to extract all requested pops and outputs
-        # e.g. ['vac',{'a':['vac','sus']}] -> ['vac','vac','sus'] -> set(['vac','sus'])
-        # Also returns the labels for legends etc. i.e. ['vac','a']
-        out = []
-        for x in l:
-            if isinstance(x,dict):
-                k = x.keys()
-                assert len(k) == 1, 'Aggregation dict can only have one key'
-                out += x[k[0]]
-            else:
-                out.append(x)
-        return set(out)
+        # Validate inputs
+        if isinstance(results,odict):
+            results = [result for _,result in results.items()]
+        elif isinstance(results,ResultSet):
+            results = [results]
 
-    # First, get all of the pops and outputs requested by flattening the lists
-    pops_required = extract_labels(pops)
-    outputs_required = extract_labels(outputs)
+        if pops is None:
+            pops = [pop.label for pop in results[0].model.pops]
+        elif pops == 'All':
+            pops = [{'All':[pop.label for pop in results[results.keys()[0]].model.pops]}]
+        elif isinstance(pops,str)
+            pops = [pops]
 
-    final_outputs = dict()
-    final_tvecs = dict()
+        if outputs is None:
+            outputs = [comp.label for comp in results[results.keys()[0]].model.pops[0].comps if not (comp.tag_birth or comp.tag_dead or comp.is_junction)]
+        elif isinstance(outputs,str):
+            outputs = [outputs]
 
-    for result_label,result in results.items(): # For each result
+        assert isinstance(results,list), 'Results should be specified as a Result, list, or odict'
+        assert isinstance(pops, list), 'Populations need to be specified as a string or list'
+        assert isinstance(outputs,list), 'Outputs need to be specified as a string or list'
 
-        final_outputs[result_label] = defaultdict(dict) # This final_outputs[result_label][agg_pop_label][agg_output_label] - i.e. the final data for plotting
-        final_tvecs[result_label] = result.model.sim_settings['tvec']
-        dt = result.model.sim_settings['tvec_dt']
+        assert output_aggregation in ['sum','average','weighted']
+        assert pop_aggregation in ['sum','average','weighted']
 
-        aggregated_outputs = defaultdict(dict) # Dict with aggregated_outputs[pop_label][aggregated_output_label]
-        output_units = dict()
-        compsize = dict()
-        popsize = dict()
+        def extract_labels(l):
+            # Flatten the input arrays to extract all requested pops and outputs
+            # e.g. ['vac',{'a':['vac','sus']}] -> ['vac','vac','sus'] -> set(['vac','sus'])
+            # Also returns the labels for legends etc. i.e. ['vac','a']
+            out = []
+            for x in l:
+                if isinstance(x,dict):
+                    k = x.keys()
+                    assert len(k) == 1, 'Aggregation dict can only have one key'
+                    out += x[k[0]]
+                else:
+                    out.append(x)
+            return set(out)
 
-        # Assemble the final output dicts for each population
-        for pop_label in pops_required:
-            pop = result.model.getPop(pop_label)
-            popsize[pop_label] = pop.popsize()
-            data_dict = dict()  # Temporary storage for raw outputs
+        # First, get all of the pops and outputs requested by flattening the lists
+        pops_required = extract_labels(pops)
+        outputs_required = extract_labels(outputs)
 
-            # First pass, extract the original output quantities
-            for output_label in outputs_required:
-                if output_label in pop.comp_ids:
-                    data_dict[output_label] = pop.getComp(output_label).vals
-                    compsize[output_label] = data_dict[output_label]
-                    output_units[output_label] = pop.getComp(output_label).units
-                elif output_label in pop.charac_ids:
-                    data_dict[output_label] = pop.getCharac(output_label).vals
-                    compsize[output_label] = data_dict[output_label]
-                    output_units[output_label] = pop.getCharac(output_label).units
-                elif output_label in pop.par_ids:
-                    par = pop.getPar(output_label)
-                    if par.links: # If this is a transition parameter, use getFlow to get the flow rate
-                        data_dict[output_label] = np.zeros(final_tvecs[result_label].shape)
-                        compsize[output_label] = np.zeros(final_tvecs[result_label].shape)
-                        for link in par.links:
-                            data_dict[output_label] += link.vals/dt
-                            compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
-                        output_units[output_label] = link.units
+        self.series = []
+        tvecs = dict()
+
+        for result_label,result in results.items(): # For each result
+
+            final_outputs[result_label] = defaultdict(dict) # This final_outputs[result_label][agg_pop_label][agg_output_label] - i.e. the final data for plotting
+            tvecs[result_label] = result.model.sim_settings['tvec']
+            dt = result.model.sim_settings['tvec_dt']
+
+            aggregated_outputs = defaultdict(dict) # Dict with aggregated_outputs[pop_label][aggregated_output_label]
+            output_units = dict()
+            compsize = dict()
+            popsize = dict()
+
+            # Assemble the final output dicts for each population
+            for pop_label in pops_required:
+                pop = result.model.getPop(pop_label)
+                popsize[pop_label] = pop.popsize()
+                data_dict = dict()  # Temporary storage for raw outputs
+
+                # First pass, extract the original output quantities
+                for output_label in outputs_required:
+                    if output_label in pop.comp_ids:
+                        data_dict[output_label] = pop.getComp(output_label).vals
+                        compsize[output_label] = data_dict[output_label]
+                        output_units[output_label] = pop.getComp(output_label).units
+                    elif output_label in pop.charac_ids:
+                        data_dict[output_label] = pop.getCharac(output_label).vals
+                        compsize[output_label] = data_dict[output_label]
+                        output_units[output_label] = pop.getCharac(output_label).units
+                    elif output_label in pop.par_ids:
+                        par = pop.getPar(output_label)
+                        if par.links: # If this is a transition parameter, use getFlow to get the flow rate
+                            data_dict[output_label] = np.zeros(tvecs[result_label].shape)
+                            compsize[output_label] = np.zeros(tvecs[result_label].shape)
+                            for link in par.links:
+                                data_dict[output_label] += link.vals/dt
+                                compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
+                            output_units[output_label] = link.units
+                        else:
+                            data_dict[output_label] = pop.getPar(output_label).vals
+                            output_units[output_label] = pop.getPar(output_label).units
                     else:
-                        data_dict[output_label] = pop.getPar(output_label).vals
-                        output_units[output_label] = pop.getPar(output_label).units
-                else:
-                    raise OptimaException('Output "%s" not found in pop "%s"' % (output_label,pop_label))
+                        raise OptimaException('Output "%s" not found in pop "%s"' % (output_label,pop_label))
 
-            # Second pass, aggregate them according to any aggregations present
-            for output in outputs: # For each final output
-                if isinstance(output,dict):
-                    output_name = output.keys()[0]
-                    labels = output[output_name]
-                    if len(set([output_units[x] for x in labels])) > 1:
-                        logger.warn('Warning - aggregation for output "%s" is mixing units, this is almost certainly not desired' % (output_name))
-                    if output_aggregation == 'sum': 
-                        aggregated_outputs[pop_label][output_name] = sum(data_dict[x] for x in labels) # Add together all the outputs
-                    elif output_aggregation == 'average': 
-                        aggregated_outputs[pop_label][output_name] = sum(data_dict[x] for x in labels) # Add together all the outputs
-                        aggregated_outputs[pop_label][output_name] /= len(labels)
-                    elif output_aggregation == 'weighted':
-                        aggregated_outputs[pop_label][output_name] = sum(data_dict[x]*compsize[x] for x in labels) # Add together all the outputs
-                        aggregated_outputs[pop_label][output_name] /= sum([compsize[x] for x in labels])
-                else:
-                    aggregated_outputs[pop_label][output] = data_dict[output]
+                # Second pass, aggregate them according to any aggregations present
+                for output in outputs: # For each final output
+                    if isinstance(output,dict):
+                        output_name = output.keys()[0]
+                        labels = output[output_name]
+                        if len(set([output_units[x] for x in labels])) > 1:
+                            logger.warn('Warning - aggregation for output "%s" is mixing units, this is almost certainly not desired' % (output_name))
+                        if output_aggregation == 'sum': 
+                            aggregated_outputs[pop_label][output_name] = sum(data_dict[x] for x in labels) # Add together all the outputs
+                        elif output_aggregation == 'average': 
+                            aggregated_outputs[pop_label][output_name] = sum(data_dict[x] for x in labels) # Add together all the outputs
+                            aggregated_outputs[pop_label][output_name] /= len(labels)
+                        elif output_aggregation == 'weighted':
+                            aggregated_outputs[pop_label][output_name] = sum(data_dict[x]*compsize[x] for x in labels) # Add together all the outputs
+                            aggregated_outputs[pop_label][output_name] /= sum([compsize[x] for x in labels])
+                    else:
+                        aggregated_outputs[pop_label][output] = data_dict[output]
 
-        # Now aggregate over populations
-        # If we have requested a reduction over populations, this is done for every output present
-        for pop in pops: # This is looping over the population entries
-            for output_name in aggregated_outputs[aggregated_outputs.keys()[0]].keys():
-                if isinstance(pop,dict):
-                    pop_name = pop.keys()[0]
-                    pop_labels = pop[pop_name]
-                    if pop_aggregation == 'sum': 
-                        final_outputs[result_label][pop_name][output_name] = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
-                    elif pop_aggregation == 'average': 
-                        final_outputs[result_label][pop_name][output_name] = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
-                        final_outputs[result_label][pop_name][output_name] /= len(labels)
-                    elif pop_aggregation == 'weighted':
-                        final_outputs[result_label][pop_name][output_name] = sum(aggregated_outputs[x][output_name]*popsize[x] for x in pop_labels) # Add together all the outputs
-                        final_outputs[result_label][pop_name][output_name] /= sum([popsize[x] for x in pop_labels])
-                else:
-                    final_outputs[result_label][pop][output_name] = aggregated_outputs[pop][output_name]
+            # Now aggregate over populations
+            # If we have requested a reduction over populations, this is done for every output present
+            for pop in pops: # This is looping over the population entries
+                for output_name in aggregated_outputs[aggregated_outputs.keys()[0]].keys():
+                    if isinstance(pop,dict):
+                        pop_name = pop.keys()[0]
+                        pop_labels = pop[pop_name]
+                        if pop_aggregation == 'sum': 
+                            vals = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
+                        elif pop_aggregation == 'average': 
+                            vals = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
+                            vals /= len(labels)
+                        elif pop_aggregation == 'weighted':
+                            vals = sum(aggregated_outputs[x][output_name]*popsize[x] for x in pop_labels) # Add together all the outputs
+                            vals /= sum([popsize[x] for x in pop_labels])
+                        self.series.append(Plottable(tvecs[result_label],vals,result_label,pop_name,output_name))
+                    else:
+                        vals = aggregated_outputs[pop][output_name]
+                        self.series.append(Plottable(tvecs[result_label],vals,result_label,pop,output_name))
 
-    # Now, we have completed all aggregations. The final_outputs dict is now ready to be plotted across the required axis
-    final_labels = dict()
-    final_labels['results'] = results.keys()
-    final_labels['pops'] = [x.keys()[0] if isinstance(x,dict) else x for x in pops]
-    final_labels['outputs'] = [x.keys()[0] if isinstance(x,dict) else x for x in outputs]
+        self.results = results.keys() # NB. These are lists that thus specify the order in which plotting takes place
+        self.pops = [x.keys()[0] if isinstance(x,dict) else x for x in pops]
+        self.outputs = [x.keys()[0] if isinstance(x,dict) else x for x in outputs]
 
-    return final_outputs, final_tvecs, final_labels
+    def convert_to_full_names(self,proj):
+        # Change the labels (in place) to full names
+        for s in self.series:
+            s.result = getFullName(s.result,proj)
+            s.pop = getFullName(s.pop,proj)
+            s.output = getFullName(s.output,proj)
+        self.results = [getFullName(r,proj) for r in self.results]
+        self.pops = [getFullName(r,proj) for r in self.pops]
+        self.outputs = [getFullName(r,proj) for r in self.outputs]
 
-def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggregation='sum',pop_aggregation='sum',plot_type='line',use_full_labels=True,separate_legend=False,plot_observed_data=True,colors=None):
+    def __getitem__(self,key):
+        # key is a tuple of (result,pop,output)
+        # retrive a single Series e.g. plotdata['default','0-4','sus']
+        for s in self.series:
+            if s.result == key[0] and s.pop == key[1] and s.output = key[2]:
+                return s
+        raise OptimaException('Series %s-%s-%s not found' % (key[0],key[1],key[2]))
+
+    def get_xy(self,results=None,pops=None,outputs=None):
+        # Retrieve a matrix of data across keys in one dimension, keeping the other two fixed
+
+
+    def set_colors(self,colors,results=None,pops=None,outputs=None,overwrite=True):
+        # Set the colours for plottables matching the filters applied by results, pops, or outputs
+        # Colours will be applied across all other dimensions
+        # Set the colours in the Plottables manually for further granularity
+        # If overwrite=False, then colours will only be set if the existing color is None
+        # That way, None colours can be replaced by default colours while still preserving any
+        # user-set colors
+
+        assert len(colors) in [len(results),len(pops),len(outputs)]
+        
+        for i,color in colors:
+            
+            if results is not None:
+                series = [x for x in self.series if x.result == results[i]] 
+            elif pops is not None:
+                series = [x for x in self.series if x.pop == pops[i]] 
+            else:
+                series = [x for x in self.series if x.output == outputs[i]] 
+            
+            for s in series:
+                s.color = color
+        
+class Plottable(object):
+    def __init__(self,tvec,vals,result='default',pop='default',output='default',color=None,label=None):
+        self.tvec = tvec
+        self.vals = vals
+        self.result = result
+        self.pop = pop
+        self.output = output
+        self.color = color # Automatically decide color at runtime (e.g. in plotSeries this could vary depending on whether axis='outputs' or 'pops etc)
+        self.label = label # Automatically decide label at runtime (e.g. in plotSeries this could be the output name or the pop name depending on the axis)
+
+
+def plotSeries(plotdata,plot_type='line',project=None,separate_legend=False,plot_observed_data=True):
+    # TODO -
+    # - Clean up doing aggregation separately
+    # - Implement separate figures as everything starting out on the same plot and then
+    #   distributing them across figures if requested? But does this still have those problems associated
+    #   with colours? Maybe the colours should be specified in a dict the same as the data?
     # This function plots a time series for a model output quantities
     #
     # INPUTS
-    # - proj - project object
-    # - results - A ResultSet or a dict of ResultSets with key corresponding
-    #   to name
-    # - outputs - The name of an output compartment, characteristic, or
-    #   parameter, or list of names. Inside a list, a dict can be given to
-    #   specify an aggregation e.g. outputs=['sus',{'total':['sus','vac']}]
-    #   where the key is the new name
-    # - pops - The name of an output population, or list of names. Like
-    #   outputs, can specify a dict with a list of pops to aggregate over them
-    # - axis - Display one of results, outputs, or pops as different coloured
-    #   lines on the plot. A new figure will be generated for all other
-    #   combinations of the remaining quantities
-    # - output_aggregation - If an output aggregation is requested, combine
-    #   the outputs listed using one of
-    #       - 'sum' - just add values together
-    #       - 'average' - unweighted average of quantities
-    #       - 'weighted' - weighted average where the weight is the
-    #         compartment size, characteristic value, or link source
-    #         compartment size (summed over duplicate links). 'weighted'
-    #         method cannot be used with non-transition parameters and a
-    #         KeyError will result in that case
-    # - pop_aggregation - Same as output_aggregation, except that 'weighted'
-    #   uses population sizes. Note that output aggregation is performed
-    #   before population aggregation. This also means that population
-    #   aggregation can be used to combine already aggregated outputs (e.g.
-    #   can first sum 'sus'+'vac' within populations, and then take weighted
-    #   average across populations)
+    # - plotdata - a PlotData instance to plot
     # - plot_type - 'line', 'stacked', or 'proportion' (stacked, normalized to 1)
-    # - use_full_labels - Attempt to convert population and result labels into
-    #   full names. If no matches are found, the provided name will be used
-    #   directly
+    # - project - Attempt to convert population and result labels using a project
     # - separate_legend - Show the legend in a separate figure,
     # - plot_observed_data - Draw scatter points for data wherever the output label matches
     #   a data label. Only draws data if the plot_type is 'line'
-    # - colors should be the same length as whichever quantity is being plotted
-    assert isinstance(proj,Project)
-    if isinstance(results,ResultSet):
-        results = {results.name:results}
-    elif isinstance(results,list):
-        results = {x.name:x for x in results}
-    if pops is None:
-        pops = [pop.label for pop in results[results.keys()[0]].model.pops]
-    elif pops == 'All':
-        pops = [{'All':[pop.label for pop in results[results.keys()[0]].model.pops]}]
-    if outputs is None:
-        outputs = [comp.label for comp in results[results.keys()[0]].model.pops[0].comps if not (comp.tag_birth or comp.tag_dead or comp.is_junction)]
-    if isinstance(pops,str):
-        pops = [pops]
-    if isinstance(outputs,str):
-        outputs = [outputs]
 
     assert axis in ['outputs','results','pops']
 
-    if axis == 'outputs':
-        if colors is not None:
-            assert len(colors) == len(outputs), 'Number of colors does not match number of outputs'
-        else:
-            colors = gridColorMap(len(outputs))
-    elif axis == 'results':
-        if colors is not None:
-            assert len(colors) == len(results), 'Number of colors does not match number of results'
-        else:
-            colors = gridColorMap(len(results))
-    elif axis == 'pops':
-        if colors is not None:
-            assert len(colors) == len(pops), 'Number of colors does not match number of pops'
-        else:
-            colors = gridColorMap(len(pops))
-
-    final_outputs,final_tvecs,final_labels = compute_aggregations(results,outputs,pops,output_aggregation,pop_aggregation)
     figs = []
 
-    if use_full_labels:
-        name = getFullName
-    else:
-        name = lambda x,y: x
+    plotdata = dcp(plotdata)
+
+    if project is not None:
+        plotdata.convert_to_full_names(project)
+
+    # Update colours with defaults, if they were not set
 
     if axis == 'results':
-        for pop in final_labels['pops']:
-            for output in final_labels['outputs']:
+        plotdata.set_colors(len(plotdata.pops),pops=plotdata.pops)
+    elif axis == 'pops':
+        plotdata.set_colors(len(plotdata.pops),pops=plotdata.pops)
+    elif axis == 'outputs':
+        plotdata.set_colors(len(plotdata.outputs),outputs=plotdata.outputs)
+
+    if axis == 'results':
+        for pop in plotdata.pops:
+            for output in plotdata.outputs:
                 figs.append(plt.figure())
                 figs[-1].set_label('%s_%s' % (pop,output))
                 plt.ylabel(name(output,proj))
                 plt.title('%s' % (pop))
                 if plot_type in ['stacked','proportion']:
-                    y = np.stack([final_outputs[result][pop][output] for result in final_labels['results']])
+                    y = np.stack([plotdata[result,pop,output].vals for result in plotdata.results])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
-                    labels = [name(result,proj) for result in final_labels['results']]
+                    labels = [name(result,proj) for result in plotdata.results]
                     plt.stackplot(final_tvecs[result],y,labels=labels,colors=colors)
                 else:
-                    for result,color in zip(final_labels['results'],colors):
-                        plt.plot(final_tvecs[result],final_outputs[result][pop][output],color=color,label=name(result,proj))
+                    for result,color in zip(plotdata.results,colors):
+                        plt.plot(final_tvecs[result],plotdata[result,pop,output].vals,color=color,label=name(result,proj))
                         if plot_observed_data:
                             plot_data(proj, pop, output,name,color)
                 apply_series_formatting(plot_type)
@@ -269,20 +331,20 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
                     render_legend(plot_type)
 
     elif axis == 'pops':
-        for result in final_labels['results']:
-            for output in final_labels['outputs']:
+        for result in plotdata.results:
+            for output in plotdata.outputs:
                 figs.append(plt.figure())
                 figs[-1].set_label('%s_%s' % (result,output))
                 plt.ylabel(name(output,proj))
                 plt.title('%s' % (result))
                 if plot_type in ['stacked','proportion']:
-                    y = np.stack([final_outputs[result][pop][output] for pop in final_labels['pops']])
+                    y = np.stack([plotdata[result,pop,output].vals for pop in plotdata.pops])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
-                    labels = [name(pop,proj) for pop in final_labels['pops']]
+                    labels = [name(pop,proj) for pop in plotdata.pops]
                     plt.stackplot(final_tvecs[result],y,labels=labels,colors=colors)
                 else:
-                    for pop,color in zip(final_labels['pops'],colors):
-                        plt.plot(final_tvecs[result],final_outputs[result][pop][output],color=color,label=name(pop,proj))
+                    for pop,color in zip(plotdata.pops,colors):
+                        plt.plot(final_tvecs[result],plotdata[result,pop,output].vals,color=color,label=name(pop,proj))
                         if plot_observed_data:
                             plot_data(proj, pop, output,name,color)
                 apply_series_formatting(plot_type)
@@ -290,20 +352,20 @@ def plotSeries(proj,results,outputs=None,pops=None,axis='outputs',output_aggrega
                     render_legend(plot_type,)
 
     elif axis == 'outputs':
-        for result in final_labels['results']:
-            for pop in final_labels['pops']:
+        for result in plotdata.results:
+            for pop in plotdata.pops:
                 figs.append(plt.figure())
                 figs[-1].set_label('%s_%s' % (result,pop))
                 # plt.ylabel('Mixed')
                 plt.title('%s-%s' % (result,name(pop,proj)))
                 if plot_type in ['stacked','proportion']:
-                    y = np.stack([final_outputs[result][pop][output] for output in final_labels['outputs']])
+                    y = np.stack([plotdata[result,pop,output].vals for output in plotdata.outputs])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
-                    labels = [name(output,proj) for output in final_labels['outputs']]
+                    labels = [name(output,proj) for output in plotdata.outputs]
                     plt.stackplot(final_tvecs[result],y,labels=labels,colors=colors)
                 else:
-                    for output,color in zip(final_labels['outputs'],colors):
-                        plt.plot(final_tvecs[result],final_outputs[result][pop][output],color=color,label=name(output,proj))
+                    for output,color in zip(plotdata.outputs,colors):
+                        plt.plot(final_tvecs[result],plotdata[result,pop,output].vals,color=color,label=name(output,proj))
                         if plot_observed_data:
                             plot_data(proj, pop, output,name,color)
                 apply_series_formatting(plot_type)
