@@ -236,6 +236,36 @@ class PlotData(object):
         s += 'Outputs: %s\n' % (self.outputs)
         return s
 
+    def time_aggregate(self,t_bins = None, method='sum'):
+        # t_bins is a vector of bin edges
+        # For time points where the time is >= the lower bin value and < upper bin value
+        # values will be aggregated according to the method
+        # If the method is 'sum' then the output time points will be the upper bin edges
+        # If the method is 'average' then the output time points will be the bin centres
+        assert method in ['sum','average']
+
+        if t_bins is None:
+            t_out = np.zeros((1,))
+            assert method=='sum', 'Cannot average data over all time'
+        else:
+            lower = t_bins[0:-1]
+            upper = t_bins[1:]
+            if method == 'sum':
+                t_out = upper
+            elif method == 'average':
+                t_out = (lower+upper)/2.0
+
+        new_series = []
+        for i,low,high in zip(range(len(lower)),lower,upper):
+            for s in self.series:
+                
+
+
+            print low
+            print high
+            print i
+
+
     def __getitem__(self,key):
         # key is a tuple of (result,pop,output)
         # retrive a single Series e.g. plotdata['default','0-4','sus']
@@ -275,6 +305,21 @@ class Plottable(object):
         self.output = output
         self.color = color # Automatically decide color at runtime (e.g. in plotSeries this could vary depending on whether axis='outputs' or 'pops etc)
         self.label = label # Automatically decide label at runtime (e.g. in plotSeries this could be the output name or the pop name depending on the axis)
+
+
+def plotBars(plotdata,stack_pops,stack_outputs):
+    # We have a collection of bars - one for each Result, Pop, Output, and Timepoint.
+    # Any aggregations have already been done. But _groupings_ have not. Let's say that we can group
+    # pops and outputs but we never want to stack results. At least for now. 
+    # But, the quantities could still vary over time. So we will have
+    # - A set of arrays where the number of arrays is the number of things being stacked and
+    #   the number of values is the number of bars - could be time, or could be results?
+    # - As many sets as there are ungrouped bars
+
+    
+    print 'a'
+
+
 
 
 def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,plot_observed_data=True,project=None):
