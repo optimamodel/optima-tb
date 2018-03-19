@@ -4,7 +4,7 @@ from matplotlib.pyplot import plot
 
 logger = logging.getLogger(__name__)
 
-from optima_tb.utils import odict, OptimaException
+from optima_tb.utils import odict, OptimaException, nestedLoop
 from optima_tb.results import ResultSet
 import numpy as np
 import pylab as pl
@@ -22,6 +22,9 @@ import textwrap
 from optima_tb.plotting import gridColorMap
 from matplotlib.ticker import FuncFormatter
 import os
+from itertools import product
+from matplotlib.patches import Rectangle, Patch
+from matplotlib.collections import PatchCollection
 
 def save_figs(figs,path = '.',prefix = '',fnames=None):
     #
@@ -236,6 +239,13 @@ class PlotData(object):
         s += 'Outputs: %s\n' % (self.outputs)
         return s
 
+    def tvals(self):
+        assert len(set([len(x.tvec) for x in self.series])) == 1, 'All series must have the same number of time points' # All series must have the same number of timepoints
+        tvec = self.series[0].tvec
+        for i in xrange(1,len(self.series)):
+            assert(all(self.series[i].tvec == tvec)), 'All series must have the same time points'
+        return tvec
+
     def time_aggregate(self,t_bins = None, method='sum'):
         # t_bins is a vector of bin edges
         # For time points where the time is >= the lower bin value and < upper bin value
@@ -246,6 +256,8 @@ class PlotData(object):
 
         if t_bins is None:
             t_out = np.zeros((1,))
+            lower = [-np.inf]
+            upper = [np.inf]
             assert method=='sum', 'Cannot average data over all time'
         else:
             lower = t_bins[0:-1]
@@ -255,15 +267,18 @@ class PlotData(object):
             elif method == 'average':
                 t_out = (lower+upper)/2.0
 
-        new_series = []
-        for i,low,high in zip(range(len(lower)),lower,upper):
-            for s in self.series:
-                
-
-
-            print low
-            print high
-            print i
+        for s in self.series:
+            tvec = []
+            vals = []
+            for i,low,high,t in zip(range(len(lower)),lower,upper,t_out):
+                flt = (s.tvec >= low) & (s.tvec < high)
+                tvec.append(t)
+                if method == 'sum':
+                    vals.append(np.sum(s.vals[flt]))
+                elif method == 'average':
+                    vals.append(np.average(s.vals[flt]))
+            s.tvec = np.array(tvec)
+            s.vals = np.array(vals)
 
 
     def __getitem__(self,key):
@@ -274,7 +289,7 @@ class PlotData(object):
                 return s
         raise OptimaException('Series %s-%s-%s not found' % (key[0],key[1],key[2]))
 
-    def set_colors(self,colors,results=[],pops=[],outputs=[],overwrite=True):
+    def set_colors(self,colors,results=[],pops=[],outputs=[],overwrite=False):
         # Set the colours for plottables matching the filters applied by results, pops, or outputs
         # Colours will be applied across all other dimensions
         # Set the colours in the Plottables manually for further granularity
@@ -283,7 +298,7 @@ class PlotData(object):
         # user-set colors
 
         assert len(colors) in [len(results),len(pops),len(outputs)]
-        
+            
         for i,color in enumerate(colors):
             
             if results:
@@ -294,20 +309,19 @@ class PlotData(object):
                 series = [x for x in self.series if x.output == outputs[i]] 
             
             for s in series:
-                s.color = color
+                s.color = color if (s.color is None or overwrite==True) else s.color
         
 class Plottable(object):
     def __init__(self,tvec,vals,result='default',pop='default',output='default',color=None,label=None):
-        self.tvec = tvec
-        self.vals = vals
+        self.tvec = np.copy(tvec)
+        self.vals = np.copy(vals)
         self.result = result
         self.pop = pop
         self.output = output
         self.color = color # Automatically decide color at runtime (e.g. in plotSeries this could vary depending on whether axis='outputs' or 'pops etc)
         self.label = label # Automatically decide label at runtime (e.g. in plotSeries this could be the output name or the pop name depending on the axis)
 
-
-def plotBars(plotdata,stack_pops,stack_outputs):
+def plotBars(plotdata,stack_pops=None,stack_outputs=None,adjacent='times',separate_legend=False):
     # We have a collection of bars - one for each Result, Pop, Output, and Timepoint.
     # Any aggregations have already been done. But _groupings_ have not. Let's say that we can group
     # pops and outputs but we never want to stack results. At least for now. 
@@ -316,10 +330,129 @@ def plotBars(plotdata,stack_pops,stack_outputs):
     #   the number of values is the number of bars - could be time, or could be results?
     # - As many sets as there are ungrouped bars
 
-    
-    print 'a'
+    plotdata = dcp(plotdata)
+
+    # Note - all of the tvecs must be the same
+    tvals = plotdata.tvals() # We have to iterate over these, with offsets, if there is more than one
+
+    # If split_time = True, then different timepoints will be on different figures
+    # If split_results = True, then different results will be on different figures
+
+    # First - we should come up with the time/result grouped bars
+    # The bar specification is - for each synchronized element of stack_pops and stack_outputs, it will
+    # group those quantities into a bar. There could be multiple bars. 
+    # If stack pops is not specified, it will default to all populations
+    #
+    # The rule is - if you want quantities to appear as a single color, they should be 
+    # aggregated in plotdata. If you want quantities to appear as separate colors, 
+    # they should be stacked in plotBars
+
+    def get_unique(x):
+        o = set()
+        for y in x:
+            if isinstance(y,list):
+                o.update(y)
+            else:
+                o.add(y)
+        return o
+
+    if stack_pops is None:
+        stack_pops = plotdata.pops
+    else:
+        stack_pops += list(set(plotdata.pops)-get_unique(stack_pops))
+
+    if stack_outputs is None:
+        stack_outputs = plotdata.outputs
+    else:
+        stack_outputs += list(set(plotdata.outputs)-get_unique(stack_outputs))
+
+    bar_pops = []
+    bar_outputs = []
+
+    # TODO - The order of this loop will affect the order the bars are plotted, could
+    # have a switch to manage this order
+    for pop in stack_pops:
+        for output in stack_outputs:
+            bar_pops.append(pop if isinstance(pop,list) else [pop])
+            bar_outputs.append(output if isinstance(output,list) else [output])
 
 
+    # Set colours on a per-output basis by default
+    plotdata.set_colors(gridColorMap(len(plotdata.outputs)),outputs=plotdata.outputs)
+
+    # now bar_pops and bar_outputs are lists of the same length, with length
+    # equal to the total number of bars for a single timepoint-result unit
+    # So a set of these is rendered for every result-output combination
+    # Then, we need to calculate the offsets if we are putting different
+    # results and timepoints on different plots or not
+    # Or the alternative is to say that we want separate plots...?
+    # i.e. force the user to specify individual ones? No, that would be annoying?
+    width = 1.0
+    gaps = (0.1,0.5,2.0) # Spacing within blocks, across blocks, and across major blocks
+
+    block_width = len(bar_pops)*(width+gaps[0])
+
+    if adjacent == 'results':
+        result_offset = block_width+gaps[1]
+        tval_offset = len(plotdata.results)*(block_width+gaps[1])+gaps[2]
+        iterator = nestedLoop([range(len(plotdata.results)),range(len(tvals))],[0,1])
+    else:
+        result_offset = len(tvals)*(block_width+gaps[1])+gaps[2]
+        tval_offset = block_width+gaps[1]
+        iterator = nestedLoop([range(len(plotdata.results)),range(len(tvals))],[1,0])
+
+    figs = []
+    fig,ax = plt.subplots()
+    figs.append(fig)
+
+    rectangles = defaultdict(lambda: defaultdict(list)) # Accumulate the list of rectangles for each colour (pop-output combination)
+    # NOTE
+    # pops, output - colour separates them. To merge colours, aggregate the data first
+    # results, time - spacing separates them. Can choose to group by one or the other
+
+    # Now, there are three levels of ticks
+    # There is the within-block level, the inner group, and the outer group
+    # 
+    xticks = []
+
+    for r_idx,t_idx in iterator:
+        base_offset = r_idx*result_offset + t_idx*tval_offset
+        block_offset = 0.0
+        
+
+        for bar_pop,bar_output in zip(bar_pops,bar_outputs): # For each bar within the bar collection that we are going to be plotting
+            # pop is something like ['0-4','5-14'] or ['0-4']
+            # output is something like ['sus','vac'] or ['0-4'] depending on the stack
+            y0 = 0
+            for pop in bar_pop:
+                for output in bar_output:
+                    y = plotdata[plotdata.results[r_idx],pop,output].vals[t_idx]
+                    rectangles[pop][output].append(Rectangle((base_offset+block_offset,y0), width, y))
+                    y0 += y
+            block_offset += width + gaps[0]
+
+    legend_patches = []
+    for pop,x in rectangles.items():
+        for output,y in x.items():
+            if len(get_unique(stack_pops)) == 1:
+                label = output
+            elif len(get_unique(stack_outputs)) == 1:
+                label = pop
+            else:
+                label = '%s-%s' % (pop,output)
+            pc = PatchCollection(y, facecolor=plotdata[plotdata.results[0],pop,output].color)
+            ax.add_collection(pc)
+            legend_patches.append(Patch(facecolor=plotdata[plotdata.results[0],pop,output].color,label=label))
+
+
+    if separate_legend:
+        figs.append(render_separate_legend(ax),handles=legend_patches)
+    else:
+        render_legend(ax,handles=legend_patches)
+
+    ax.autoscale()
+    ax.set_ylim(ymin=0)
+    return fig
 
 
 def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,plot_observed_data=True,project=None):
@@ -469,8 +602,11 @@ def apply_series_formatting(ax,plot_type):
         ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
     ax.yaxis.set_major_formatter(FuncFormatter(KMSuffixFormatter))
 
-def render_separate_legend(ax,plot_type):
-    handles, labels_leg = ax.get_legend_handles_labels()
+def render_separate_legend(ax,handles=None,plot_type=None):
+    if handles is None:
+        handles, labels_leg = ax.get_legend_handles_labels()
+    else:
+        labels = [h.get_label() for h in handles]
 
     fig = plt.figure()
     legendsettings = {'loc': 'center', 'bbox_to_anchor': None,'frameon':False}
@@ -488,25 +624,28 @@ def render_separate_legend(ax,plot_type):
         h.figure = None
 
     if plot_type in ['stacked', 'proportion']:
-        fig.legend(handles=handles[::-1], labels=labels_leg[::-1], **legendsettings)
+        fig.legend(handles=handles[::-1], labels=labels[::-1], **legendsettings)
     else:
-        fig.legend(handles=handles, labels=labels_leg, **legendsettings)
+        fig.legend(handles=handles, labels=labels, **legendsettings)
 
     return fig
 
-def render_legend(ax,plot_type):
+def render_legend(ax,handles=None,plot_type=None):
     # This function renders a legend
     # INPUTS
     # - plot_type - Used to decide whether to reverse the legend order for stackplots
-    handles, labels_leg = ax.get_legend_handles_labels()
+    if handles is None:
+        handles, labels_leg = ax.get_legend_handles_labels()
+    else:
+        labels = [h.get_label() for h in handles]
 
     legendsettings = {'loc': 'center left', 'bbox_to_anchor': (1.05, 0.5), 'ncol': 1}
-    labels_leg = [textwrap.fill(label, 16) for label in labels_leg]
+    labels = [textwrap.fill(label, 16) for label in labels]
 
     if plot_type in ['stacked', 'proportion']:
-        ax.legend(handles=handles[::-1], labels=labels_leg[::-1], **legendsettings)
+        ax.legend(handles=handles[::-1], labels=labels[::-1], **legendsettings)
     else:
-        ax.legend(handles=handles, labels=labels_leg,**legendsettings)
+        ax.legend(handles=handles, labels=labels,**legendsettings)
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 
