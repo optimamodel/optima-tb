@@ -223,14 +223,9 @@ class PlotData(object):
         self.pops = [x.keys()[0] if isinstance(x,dict) else x for x in pops]
         self.outputs = [x.keys()[0] if isinstance(x,dict) else x for x in outputs]
 
-        if project is not None:
-            for s in self.series:
-                s.result = getFullName(s.result,project)
-                s.pop = getFullName(s.pop,project)
-                s.output = getFullName(s.output,project)
-            self.results = [getFullName(r,project) for r in self.results]
-            self.pops = [getFullName(r,project) for r in self.pops]
-            self.outputs = [getFullName(r,project) for r in self.outputs]
+        self.result_names = {x:x for x in self.results} # At least for now, no ResultSet name mapping
+        self.pop_names = {x:(getFullName(x,project) if project is not None else x) for x in self.pops}
+        self.output_names = {x:(getFullName(x,project) if project is not None else x) for x in self.outputs}
 
     def __repr__(self):
         s = 'PlotData\n'
@@ -242,9 +237,10 @@ class PlotData(object):
     def tvals(self):
         assert len(set([len(x.tvec) for x in self.series])) == 1, 'All series must have the same number of time points' # All series must have the same number of timepoints
         tvec = self.series[0].tvec
+        t_labels = self.series[0].t_labels
         for i in xrange(1,len(self.series)):
             assert(all(self.series[i].tvec == tvec)), 'All series must have the same time points'
-        return tvec
+        return tvec,t_labels
 
     def time_aggregate(self,t_bins = None, method='sum'):
         # t_bins is a vector of bin edges
@@ -279,6 +275,10 @@ class PlotData(object):
                     vals.append(np.average(s.vals[flt]))
             s.tvec = np.array(tvec)
             s.vals = np.array(vals)
+            if t_bins is None:
+                s.t_labels = ['All']
+            else:
+                s.t_labels = ['%d-%d' % (l,h) for l,h in zip(lower,upper)]
 
 
     def __getitem__(self,key):
@@ -290,6 +290,10 @@ class PlotData(object):
         raise OptimaException('Series %s-%s-%s not found' % (key[0],key[1],key[2]))
 
     def set_colors(self,colors,results=[],pops=[],outputs=[],overwrite=False):
+        # TODO - For bar plots, need to set colours across all results simultaneously
+        # Also need to support sets of things e.g. 'ocean'
+        # Also need to set colours for pop-output combinations in case of mixed stacking
+        #
         # Set the colours for plottables matching the filters applied by results, pops, or outputs
         # Colours will be applied across all other dimensions
         # Set the colours in the Plottables manually for further granularity
@@ -314,6 +318,7 @@ class PlotData(object):
 class Plottable(object):
     def __init__(self,tvec,vals,result='default',pop='default',output='default',color=None,label=None):
         self.tvec = np.copy(tvec)
+        self.t_labels = np.copy(self.tvec) # Iterable array of time labels - could become strings like [2010-2014]
         self.vals = np.copy(vals)
         self.result = result
         self.pop = pop
@@ -321,7 +326,7 @@ class Plottable(object):
         self.color = color # Automatically decide color at runtime (e.g. in plotSeries this could vary depending on whether axis='outputs' or 'pops etc)
         self.label = label # Automatically decide label at runtime (e.g. in plotSeries this could be the output name or the pop name depending on the axis)
 
-def plotBars(plotdata,stack_pops=None,stack_outputs=None,adjacent='times',separate_legend=False):
+def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_legend=False,xlabels=None):
     # We have a collection of bars - one for each Result, Pop, Output, and Timepoint.
     # Any aggregations have already been done. But _groupings_ have not. Let's say that we can group
     # pops and outputs but we never want to stack results. At least for now. 
@@ -329,11 +334,13 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,adjacent='times',separa
     # - A set of arrays where the number of arrays is the number of things being stacked and
     #   the number of values is the number of bars - could be time, or could be results?
     # - As many sets as there are ungrouped bars
+    # xlabels refers to labels within a block (i.e. they will be repeated for multiple times and results)
+    assert outer in ['times','results']
 
     plotdata = dcp(plotdata)
 
     # Note - all of the tvecs must be the same
-    tvals = plotdata.tvals() # We have to iterate over these, with offsets, if there is more than one
+    tvals,t_labels = plotdata.tvals() # We have to iterate over these, with offsets, if there is more than one
 
     # If split_time = True, then different timepoints will be on different figures
     # If split_results = True, then different results will be on different figures
@@ -346,7 +353,6 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,adjacent='times',separa
     # The rule is - if you want quantities to appear as a single color, they should be 
     # aggregated in plotdata. If you want quantities to appear as separate colors, 
     # they should be stacked in plotBars
-
     def get_unique(x):
         o = set()
         for y in x:
@@ -355,6 +361,22 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,adjacent='times',separa
             else:
                 o.add(y)
         return o
+
+    # If we are stacking pops only, then we would want the x-label to correspond to pops
+    # and we would colour the sub-bars by outputs. Similar if we are only stacking outputs. 
+    # If we are stacking both, the colours get assigned to pop-output combinations
+    # In that case, the xlabel can actually be left as None
+    if stack_pops is None:
+        xlabel_mode = 'pops'
+        plotdata.set_colors(gridColorMap(len(plotdata.outputs)),outputs=plotdata.outputs)
+    elif stack_outputs is None:
+        xlabel_mode = 'outputs'
+        plotdata.set_colors(gridColorMap(len(plotdata.pops)),pops=plotdata.pops)
+    else:
+        xlabel_mode = None
+        cx = gridColorMap(len(plotdata.series))
+        for i,c in enumerate(cx):
+            plotdata.series[i].color = c
 
     if stack_pops is None:
         stack_pops = plotdata.pops
@@ -366,37 +388,27 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,adjacent='times',separa
     else:
         stack_outputs += list(set(plotdata.outputs)-get_unique(stack_outputs))
 
+    if xlabels is not None:
+        assert len(xlabels) == len(stack_pops)*len(stack_outputs), 'Number of labels specified must match number of bars'
+
+    # Make lists specifying which populations-output quantities to plot in each bar
     bar_pops = []
     bar_outputs = []
-
-    # TODO - The order of this loop will affect the order the bars are plotted, could
-    # have a switch to manage this order
     for pop in stack_pops:
         for output in stack_outputs:
             bar_pops.append(pop if isinstance(pop,list) else [pop])
             bar_outputs.append(output if isinstance(output,list) else [output])
 
-
-    # Set colours on a per-output basis by default
-    plotdata.set_colors(gridColorMap(len(plotdata.outputs)),outputs=plotdata.outputs)
-
-    # now bar_pops and bar_outputs are lists of the same length, with length
-    # equal to the total number of bars for a single timepoint-result unit
-    # So a set of these is rendered for every result-output combination
-    # Then, we need to calculate the offsets if we are putting different
-    # results and timepoints on different plots or not
-    # Or the alternative is to say that we want separate plots...?
-    # i.e. force the user to specify individual ones? No, that would be annoying?
     width = 1.0
-    gaps = (0.1,0.5,2.0) # Spacing within blocks, across blocks, and across major blocks
+    gaps = (0.1,0.4,0.8) # Spacing within blocks, across blocks, and across major blocks
 
     block_width = len(bar_pops)*(width+gaps[0])
 
-    if adjacent == 'results':
+    if outer == 'times':
         result_offset = block_width+gaps[1]
         tval_offset = len(plotdata.results)*(block_width+gaps[1])+gaps[2]
         iterator = nestedLoop([range(len(plotdata.results)),range(len(tvals))],[0,1])
-    else:
+    elif outer == 'results':
         result_offset = len(tvals)*(block_width+gaps[1])+gaps[2]
         tval_offset = block_width+gaps[1]
         iterator = nestedLoop([range(len(plotdata.results)),range(len(tvals))],[1,0])
@@ -412,15 +424,20 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,adjacent='times',separa
 
     # Now, there are three levels of ticks
     # There is the within-block level, the inner group, and the outer group
-    # 
-    xticks = []
+    block_labels = []
+    inner_labels = []
 
+    # Iterate over the inner and outer groups, rendering blocks at a time
     for r_idx,t_idx in iterator:
         base_offset = r_idx*result_offset + t_idx*tval_offset
         block_offset = 0.0
         
+        if outer == 'results':
+            inner_labels.append((base_offset+block_width/2.0,t_labels[t_idx]))
+        elif outer == 'times':
+            inner_labels.append((base_offset+block_width/2.0,plotdata.result_names[plotdata.results[r_idx]]))
 
-        for bar_pop,bar_output in zip(bar_pops,bar_outputs): # For each bar within the bar collection that we are going to be plotting
+        for idx,bar_pop,bar_output in zip(range(len(bar_pops)),bar_pops,bar_outputs): # For each bar within the bar collection that we are going to be plotting
             # pop is something like ['0-4','5-14'] or ['0-4']
             # output is something like ['sus','vac'] or ['0-4'] depending on the stack
             y0 = 0
@@ -429,29 +446,83 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,adjacent='times',separa
                     y = plotdata[plotdata.results[r_idx],pop,output].vals[t_idx]
                     rectangles[pop][output].append(Rectangle((base_offset+block_offset,y0), width, y))
                     y0 += y
+
+                    if xlabels is not None:
+                        bar_label = xlabels[idx]
+                    elif xlabel_mode == 'pops' and len(stack_pops) > 1:
+                        bar_label = pop
+                    elif xlabel_mode == 'outputs' and len(stack_outputs) > 1:
+                        bar_label = output
+                    else:
+                        bar_label = ''
+
+                    block_labels.append((base_offset+block_offset+width/2,bar_label))
+
             block_offset += width + gaps[0]
 
-    legend_patches = []
+    # Add the patches to the figure
+    colors = odict()
     for pop,x in rectangles.items():
         for output,y in x.items():
-            if len(get_unique(stack_pops)) == 1:
-                label = output
-            elif len(get_unique(stack_outputs)) == 1:
-                label = pop
-            else:
-                label = '%s-%s' % (pop,output)
             pc = PatchCollection(y, facecolor=plotdata[plotdata.results[0],pop,output].color)
             ax.add_collection(pc)
-            legend_patches.append(Patch(facecolor=plotdata[plotdata.results[0],pop,output].color,label=label))
+            if plotdata[plotdata.results[0],pop,output].color in colors:
+                colors[plotdata[plotdata.results[0],pop,output].color].append((pop,output))
+            else:
+                colors[plotdata[plotdata.results[0],pop,output].color] = [(pop,output)]
 
+    # Set axes now, because we need block_offset and base_offset after the loop
+    ax.autoscale()
+    ax.set_xlim(xmin=-2*gaps[0],xmax=block_offset+base_offset)
+    fig.set_figwidth((block_offset+base_offset))
+    ax.set_ylim(ymin=0)
+    _turnOffBorder(ax)
+    ax.yaxis.set_major_formatter(FuncFormatter(KMSuffixFormatter))
+    ax.set_xticks([x[0] for x in block_labels])
+    ax.set_xticklabels([x[1] for x in block_labels])
+
+    print block_labels
+
+    legend_patches = []
+    for color,ref in colors.items():
+        pops = set([x[0] for x in ref])
+        outputs = set([x[1] for x in ref])
+
+        if pops == set(plotdata.pops) and len(outputs) == 1: # If the same color is used for all pops and always the same output
+            label = plotdata.output_names[ref[0][1]] # Use the output name
+        elif outputs == set(plotdata.outputs) and len(pops) == 1: # Same color for all outputs and always same pop
+            label = plotdata.pop_names[ref[0][0]] # Use the pop name
+        else:
+            label = ''
+            for x in ref:
+                label += '%s-%s,\n' % (plotdata.pop_names[x[0]],plotdata.output_names[x[1]])
+            label = label.strip()[:-1] # Replace trailing newline and comma
+        legend_patches.append(Patch(facecolor=color,label=label))
 
     if separate_legend:
         figs.append(render_separate_legend(ax),handles=legend_patches)
     else:
         render_legend(ax,handles=legend_patches)
 
-    ax.autoscale()
-    ax.set_ylim(ymin=0)
+    # Inner and outer group labels are only displayed if there is more than one group
+    if outer == 'times' and len(tvals) > 1:
+        offset = 0.0
+        for t in t_labels:
+            ax.text(offset + tval_offset/2 - gaps[2]/2, 1,t,transform=ax.get_xaxis_transform(),verticalalignment='bottom', horizontalalignment='center')
+            offset += tval_offset
+    elif outer == 'results' and len(plotdata.results) > 1:
+        offset = 0.0
+        for r in plotdata.results:
+            ax.text(offset + result_offset/2 - gaps[2]/2, 1,plotdata.result_names[r],transform=ax.get_xaxis_transform(),verticalalignment='bottom', horizontalalignment='center')
+            offset += result_offset
+
+    # Another common scenario is that we go over time by having a block length of 1
+    # In which case, we would want to use the time labels as the axis labels
+    for inner_label in inner_labels:
+        ax.text(inner_label[0], -0.2,inner_label[1],transform=ax.get_xaxis_transform(),verticalalignment='bottom', horizontalalignment='center')
+
+        # The outer blocks correspond to times
+
     return fig
 
 
@@ -479,7 +550,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,pl
     # Update colours with defaults, if they were not set
 
     if axis == 'results':
-        plotdata.set_colors(gridColorMap(len(plotdata.pops)),pops=plotdata.pops)
+        plotdata.set_colors(gridColorMap(len(plotdata.pops)),results=plotdata.results)
     elif axis == 'pops':
         plotdata.set_colors(gridColorMap(len(plotdata.pops)),pops=plotdata.pops)
     elif axis == 'outputs':
@@ -491,15 +562,15 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,pl
                 fig,ax = plt.subplots()
                 fig.set_label('%s_%s' % (pop,output))
                 figs.append(fig)
-                ax.set_ylabel(name(output,proj))
-                ax.set_title('%s' % (pop))
+                ax.set_ylabel(plotdata.output_names[output])
+                ax.set_title('%s' % (plotdata.pop_names[pop]))
                 if plot_type in ['stacked','proportion']:
                     y = np.stack([plotdata[result,pop,output].vals for result in plotdata.results])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
                     ax.stackplot(plotdata[plotdata.results[0],pop,output].tvec,y,labels=plotdata.results,colors=[plotdata[result,pop,output].color for result in plotdata.results])
                 else:
                     for result in plotdata.results:
-                        ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=result)
+                        ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.result_names[result])
                         if project is not None:
                             render_data(ax,project, pop, output,plotdata[result,pop,output].color)
                 apply_series_formatting(ax,plot_type)
@@ -512,19 +583,20 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,pl
                 fig,ax = plt.subplots()
                 fig.set_label('%s_%s' % (result,output))
                 figs.append(fig)
-                ax.set_title('%s' % (result))
+                ax.set_ylabel(plotdata.output_names[output])
+                ax.set_title('%s' % (plotdata.result_names[result]))
                 if plot_type in ['stacked','proportion']:
                     y = np.stack([plotdata[result,pop,output].vals for pop in plotdata.pops])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
                     ax.stackplot(plotdata[result,plotdata.pops[0],output].tvec,y,labels=plotdata.pops,colors=[plotdata[result,pop,output].color for pop in plotdata.pops])
                 else:
                     for pop in plotdata.pops:
-                        ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=pop)
+                        ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.pop_names[pop])
                         if project is not None:
                             render_data(ax,project, pop, output,plotdata[result,pop,output].color)
                 apply_series_formatting(ax,plot_type)
                 if not separate_legend:
-                    render_legend(ax,plot_type,)
+                    render_legend(ax,plot_type)
 
     elif axis == 'outputs':
         for result in plotdata.results:
@@ -533,14 +605,14 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,pl
                 fig.set_label('%s_%s' % (result,pop))
                 figs.append(fig)
                 # plt.ylabel('Mixed')
-                ax.set_title('%s-%s' % (result,pop))
+                ax.set_title('%s-%s' % (plotdata.result_names[result],plotdata.pop_names[pop]))
                 if plot_type in ['stacked','proportion']:
                     y = np.stack([plotdata[result,pop,output].vals for output in plotdata.outputs])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
                     ax.stackplot(plotdata[result,pop,plotdata.outputs[0]].tvec,y,labels=plotdata.outputs,colors=[plotdata[result,pop,output].color for output in plotdata.outputs])
                 else:
                     for output in plotdata.outputs:
-                        ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=output)
+                        ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.output_names[output])
                         if project is not None:
                             render_data(ax,project, pop, output,plotdata[result,pop,output].color)
                 apply_series_formatting(ax,plot_type)
@@ -602,6 +674,15 @@ def apply_series_formatting(ax,plot_type):
         ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
     ax.yaxis.set_major_formatter(FuncFormatter(KMSuffixFormatter))
 
+def _turnOffBorder(ax):
+    """
+    Turns off top and right borders, leaving only bottom and left borders on.
+    """
+    ax.spines['right'].set_color('none')
+    ax.spines['top'].set_color('none')
+    ax.xaxis.set_ticks_position('bottom')
+    ax.yaxis.set_ticks_position('left')
+
 def render_separate_legend(ax,handles=None,plot_type=None):
     if handles is None:
         handles, labels_leg = ax.get_legend_handles_labels()
@@ -630,12 +711,12 @@ def render_separate_legend(ax,handles=None,plot_type=None):
 
     return fig
 
-def render_legend(ax,handles=None,plot_type=None):
+def render_legend(ax,plot_type=None,handles=None,):
     # This function renders a legend
     # INPUTS
     # - plot_type - Used to decide whether to reverse the legend order for stackplots
     if handles is None:
-        handles, labels_leg = ax.get_legend_handles_labels()
+        handles, labels = ax.get_legend_handles_labels()
     else:
         labels = [h.get_label() for h in handles]
 
