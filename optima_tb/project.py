@@ -15,6 +15,8 @@ from optima_tb.calibration import makeManualCalibration, calculateFitFunc, perfo
 from optima_tb.scenarios import ParameterScenario, BudgetScenario, CoverageScenario
 from optima_tb.reconciliation import reconcile
 
+import optima_tb.plotting2 as oplt2
+
 from uuid import uuid4 as uuid
 import numpy as np
 from copy import deepcopy as dcp
@@ -58,6 +60,11 @@ class Project(object):
         else:
             self.settings.tvec_end = yearRange[1]
 
+    def plotResults(self,results):
+        if isinstance(results,str):
+            results = self.results[results]
+        oplt2.plotSeries(self,results,plot_type='stacked')
+
     def runSim(self, parset=None, parset_name='default', progset=None, progset_name=None, options=None, plot=False, debug=False, store_results=True, result_type=None, result_name=None):
         ''' Run model using a selected parset and store/return results. '''
 
@@ -85,7 +92,7 @@ class Project(object):
 
         if plot:
             tp = tic()
-            self.plotResults(results=results, debug=debug)
+            self.plotResults(results=results)
             toc(tp, label='plotting %s' % self.name)
 
         if store_results:

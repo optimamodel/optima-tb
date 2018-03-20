@@ -219,6 +219,8 @@ class GUIProjectManagerBase(qtw.QMainWindow):
                 if not hasattr(self.project.results[key],'model'):
                     logger.info('Result "%s" is in the old format and will not be loaded' % (key))
                     self.project.results.pop(key)
+            if 'legendsettings' in self.project.settings.plot_settings and 'reverse_order' in self.project.settings.plot_settings['legendsettings']:
+                self.project.settings.plot_settings['legendsettings'].pop('reverse_order')
             self.tvec = np.arange(self.project.settings.tvec_start, self.project.settings.tvec_end + 1.0 / 2)
             PlottingSettings("gui") # updates rcParams for this instance
             self.acknowledgeProject()
@@ -490,7 +492,9 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
                 if 'tag' in self.project.settings.linkpar_specs[plot_label]:
                     logger.info("This is a transition parameter - displaying effective flow" )
             else:
-                logger.info('Unable to plot for "%s"' % self.charac_plot_name)
+                logger.error('Unable to plot "%s" as label was not found' % self.charac_plot_name)
+                self.status = ('Status: Unable to plot "%s" as label was not found' % self.charac_plot_name)
+                return
 
             figure = plotCompareResults(self.project,
                                        result_set,

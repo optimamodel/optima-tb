@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 from collections import OrderedDict
 from numpy import array
 from numbers import Number
-
+import itertools
 
 #%% Timing functions
 
@@ -419,4 +419,22 @@ class OptimaException(Exception):
     ''' A wrapper class to allow for Optima-specific exceptions. Can be expanded. '''
     def __init(self, *args, **kwargs):
         Exception.__init__(self, *args, **kwargs)
+
+#%% A nested loop class to dynamically change the nesting order
+
+def nestedLoop(inputs,loop_order):
+    # Take in a list of lists to iterate over, and their nesting order
+    # Return items in the order of the original lists
+    # e.g
+    # inputs = [['a','b','c'],[1,2,3]]
+    # for l,n in nested_loop([['a','b','c'],[1,2,3]],[0,1]):
+    # This would yield in order (a,1),(a,2),(a,3),(b,1)...
+    # but if loop_order = [1,0], then it would be (a,1),(b,1),(c,1),(a,2)...
+    inputs = [inputs[i] for i in loop_order] 
+    iterator = itertools.product(*inputs) # This is in the loop order
+    for item in iterator:
+        out = [None for x in loop_order]
+        for i in xrange(len(item)):
+            out[loop_order[i]] = item[i]
+        yield out
 

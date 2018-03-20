@@ -471,7 +471,7 @@ class ModelPopulation(Node):
                 A[i,comp_indices[inc.label]] = 1.0
 
         # Solve the linear system
-        x, residual, rank, _ = np.linalg.lstsq(A,b,rcond=None)
+        x, residual, rank, _ = np.linalg.lstsq(A,b,rcond=-1)
 
         # Halt if the solution is not unique (could relax this check later)
         if rank < A.shape[1]:
