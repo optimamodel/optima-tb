@@ -11,7 +11,7 @@ import pylab as pl
 from copy import deepcopy as dcp
 from copy import copy as ndcp
 import matplotlib.cm as cmx
-import matplotlib.colors as colors
+import matplotlib.colors as matplotlib_colors
 from random import shuffle
 import numbers
 import textwrap
@@ -22,12 +22,20 @@ import textwrap
 from optima_tb.plotting import gridColorMap
 from matplotlib.ticker import FuncFormatter
 import os
-from itertools import product
+import itertools
 from matplotlib.patches import Rectangle, Patch
 from matplotlib.collections import PatchCollection
+import os
+
 
 def save_figs(figs,path = '.',prefix = '',fnames=None):
     #
+    try:
+        os.makedirs(path)
+    except OSError as err:
+        if err.errno!=17:
+            raise
+
     if not isinstance(figs,list):
         figs = [figs]
     if fnames is not None:
@@ -101,7 +109,7 @@ class PlotData(object):
 
         if pops is None:
             pops = [pop.label for pop in results[0].model.pops]
-        elif pops == 'All':
+        elif pops == 'all':
             pops = [{'All':[pop.label for pop in results[0].model.pops]}]
         elif isinstance(pops,str):
             pops = [pops]
@@ -250,6 +258,12 @@ class PlotData(object):
         # If the method is 'average' then the output time points will be the bin centres
         assert method in ['sum','average']
 
+        if t_bins is not None and not hasattr(t_bins,'__len__'):
+            if not (self.series[0].tvec[-1]-self.series[0].tvec[0])%t_bins:
+                upper = self.series[0].tvec[-1]+t_bins
+            else:
+                upper = self.series[0].tvec[-1]
+            t_bins = np.arange(self.series[0].tvec[0],upper,t_bins)
         if t_bins is None:
             t_out = np.zeros((1,))
             lower = [-np.inf]
@@ -267,12 +281,16 @@ class PlotData(object):
             tvec = []
             vals = []
             for i,low,high,t in zip(range(len(lower)),lower,upper,t_out):
-                flt = (s.tvec >= low) & (s.tvec < high)
                 tvec.append(t)
-                if method == 'sum':
-                    vals.append(np.sum(s.vals[flt]))
-                elif method == 'average':
-                    vals.append(np.average(s.vals[flt]))
+                if low < s.tvec[0] or high > s.tvec[-1]:
+                    vals.append(np.nan)
+                else:
+                    flt = (s.tvec >= low) & (s.tvec < high)
+                    if method == 'sum':
+                        vals.append(np.sum(s.vals[flt]))
+                    elif method == 'average':
+                        vals.append(np.average(s.vals[flt]))
+
             s.tvec = np.array(tvec)
             s.vals = np.array(vals)
             if t_bins is None:
@@ -289,32 +307,62 @@ class PlotData(object):
                 return s
         raise OptimaException('Series %s-%s-%s not found' % (key[0],key[1],key[2]))
 
-    def set_colors(self,colors,results=[],pops=[],outputs=[],overwrite=False):
-        # TODO - For bar plots, need to set colours across all results simultaneously
-        # Also need to support sets of things e.g. 'ocean'
-        # Also need to set colours for pop-output combinations in case of mixed stacking
+    def set_colors(self,colors=None,results=['all'],pops=['all'],outputs=['all'],overwrite=False):
+        # What are the different ways we might want to set colours?
+        # - Assign a set of colours to results/pops/outputs to distinguish on a line plot
+        # - Assign a colour scheme to a bunch of outputs
         #
-        # Set the colours for plottables matching the filters applied by results, pops, or outputs
-        # Colours will be applied across all other dimensions
-        # Set the colours in the Plottables manually for further granularity
-        # If overwrite=False, then colours will only be set if the existing color is None
-        # That way, None colours can be replaced by default colours while still preserving any
-        # user-set colors
+        # There are two usage scenarios
+        # - Colour filling, where we want to assign colours to a number of outputs
+        # What if we want to assign *across* pops? Then, we need something a bit more 
+        # sophisticated
+        #
+        # set_colors() - Assign a colour to every output
+        # set_colors(outputs=[a,b,c]) - Assign a colour to every output of type a,b,c irrespective of pop
+        # set_colors(pops=[a,b,c]) - Assign a colour to each pop irrespective of result/output
+        # What if we want to assign a particular one?
+        # 
+        # Or keep the others fixed? 
+        #
+        # - Specific colour assignment
+        # 
+        # colors can be
+        # - None, in which case colours will automatically be added
+        # - a colour string that will be applied to filtered things
+        #
+        # Then results, pop, outputs corresponds to a series filter
 
-        assert len(colors) in [len(results),len(pops),len(outputs)]
-            
-        for i,color in enumerate(colors):
-            
-            if results:
-                series = [x for x in self.series if x.result == results[i]] 
-            elif pops:
-                series = [x for x in self.series if x.pop == pops[i]] 
-            else:
-                series = [x for x in self.series if x.output == outputs[i]] 
-            
+
+        # Usage scenarios
+        # - Colours are shared across any dimensions that are 'None'
+        # - So for instance, 'output=[a,b,c]' would give the same colour to all of those outputs, across all results and pops
+        # - If multiple ones are specified, combinations get the unique colours
+        # - At least one of them must not be none
+        # - It is a bad idea to manually set colors for more than one dimension because the order is unclear!
+
+        targets = list(itertools.product(results,pops,outputs))
+
+        if colors is None:
+            colors = gridColorMap(len(targets)) # Default colors
+        elif isinstance(colors,list):
+            assert len(colors) == len(targets), 'Number of colors must either be a string, or a list with as many elements as colors to set'
+            colors = colors
+        elif colors.startswith('#') or colors not in [m for m in plt.cm.datad if not m.endswith("_r")]:
+            colors = [colors for x in xrange(len(targets))] # Apply color to all requested outputs
+        else:
+            color_norm = matplotlib_colors.Normalize(vmin=-1, vmax=len(targets))
+            scalar_map = cmx.ScalarMappable(norm=color_norm, cmap=colors)
+            colors = [scalar_map.to_rgba(index) for index in range(len(targets))]
+
+        # Now each of these colors gets assigned 
+        for color,target in zip(colors,targets):
+            series = self.series
+            series = [x for x in series if (x.result == target[0] or target[0] == 'all')]
+            series = [x for x in series if (x.pop == target[1] or target[1] == 'all')]
+            series = [x for x in series if (x.output == target[2] or target[2] == 'all')]
             for s in series:
                 s.color = color if (s.color is None or overwrite==True) else s.color
-        
+
 class Plottable(object):
     def __init__(self,tvec,vals,result='default',pop='default',output='default',color=None,label=None):
         self.tvec = np.copy(tvec)
@@ -335,8 +383,9 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     #   the number of values is the number of bars - could be time, or could be results?
     # - As many sets as there are ungrouped bars
     # xlabels refers to labels within a block (i.e. they will be repeated for multiple times and results)
-    assert outer in ['times','results']
-
+    assert outer in ['times','results'], 'Supported outer groups are "times" or "results"'
+    if xlabels is not None:
+        assert isinstance(xlabels,list), 'xlabels should be a list'
     plotdata = dcp(plotdata)
 
     # Note - all of the tvecs must be the same
@@ -368,15 +417,13 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     # In that case, the xlabel can actually be left as None
     if stack_pops is None:
         xlabel_mode = 'pops'
-        plotdata.set_colors(gridColorMap(len(plotdata.outputs)),outputs=plotdata.outputs)
+        plotdata.set_colors(outputs=plotdata.outputs)
     elif stack_outputs is None:
         xlabel_mode = 'outputs'
-        plotdata.set_colors(gridColorMap(len(plotdata.pops)),pops=plotdata.pops)
+        plotdata.set_colors(pops=plotdata.pops)
     else:
         xlabel_mode = None
-        cx = gridColorMap(len(plotdata.series))
-        for i,c in enumerate(cx):
-            plotdata.series[i].color = c
+        plotdata.set_colors(pops=plotdata.pops,outputs=plotdata.outputs) # If we are stacking both pops and outputs, then unique colours for all by default
 
     if stack_pops is None:
         stack_pops = plotdata.pops
@@ -415,17 +462,20 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
 
     figs = []
     fig,ax = plt.subplots()
+    fig.set_label('bars')
     figs.append(fig)
 
-    rectangles = defaultdict(lambda: defaultdict(list)) # Accumulate the list of rectangles for each colour (pop-output combination)
+    rectangles = defaultdict(list) # Accumulate the list of rectangles for each colour
+    color_legend = odict()
+
     # NOTE
     # pops, output - colour separates them. To merge colours, aggregate the data first
     # results, time - spacing separates them. Can choose to group by one or the other
 
     # Now, there are three levels of ticks
     # There is the within-block level, the inner group, and the outer group
-    block_labels = []
-    inner_labels = []
+    block_labels = [] # Labels for individual bars (tick labels)
+    inner_labels = [] # Labels for bar groups below axis
 
     # Iterate over the inner and outer groups, rendering blocks at a time
     for r_idx,t_idx in iterator:
@@ -443,8 +493,14 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
             y0 = 0
             for pop in bar_pop:
                 for output in bar_output:
-                    y = plotdata[plotdata.results[r_idx],pop,output].vals[t_idx]
-                    rectangles[pop][output].append(Rectangle((base_offset+block_offset,y0), width, y))
+                    series = plotdata[plotdata.results[r_idx],pop,output]
+                    y = series.vals[t_idx]
+                    rectangles[series.color].append(Rectangle((base_offset+block_offset,y0), width, y))
+                    if series.color in color_legend and (pop,output) not in color_legend[series.color]:
+                        color_legend[series.color].append((pop,output))
+                    elif series.color not in color_legend:
+                        color_legend[series.color] = [(pop,output)]
+
                     y0 += y
 
                     if xlabels is not None:
@@ -456,20 +512,32 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
                     else:
                         bar_label = ''
 
-                    block_labels.append((base_offset+block_offset+width/2,bar_label))
+            block_labels.append((base_offset+block_offset+width/2,bar_label))
 
             block_offset += width + gaps[0]
 
-    # Add the patches to the figure
-    colors = odict()
-    for pop,x in rectangles.items():
-        for output,y in x.items():
-            pc = PatchCollection(y, facecolor=plotdata[plotdata.results[0],pop,output].color)
-            ax.add_collection(pc)
-            if plotdata[plotdata.results[0],pop,output].color in colors:
-                colors[plotdata[plotdata.results[0],pop,output].color].append((pop,output))
-            else:
-                colors[plotdata[plotdata.results[0],pop,output].color] = [(pop,output)]
+    # Add the patches to the figure and assemble the legend patches
+    legend_patches = []
+    output_colors = defaultdict(set)
+    pop_colors = defaultdict(set)
+
+    for color,items in color_legend.items():
+        pc = PatchCollection(rectangles[color], facecolor=color)
+        ax.add_collection(pc)
+
+        pops = set([x[0] for x in items])
+        outputs = set([x[1] for x in items])
+
+        if pops == set(plotdata.pops) and len(outputs) == 1: # If the same color is used for all pops and always the same output
+            label = plotdata.output_names[items[0][1]] # Use the output name
+        elif outputs == set(plotdata.outputs) and len(pops) == 1: # Same color for all outputs and always same pop
+            label = plotdata.pop_names[items[0][0]] # Use the pop name
+        else:
+            label = ''
+            for x in items:
+                label += '%s-%s,\n' % (plotdata.pop_names[x[0]],plotdata.output_names[x[1]])
+            label = label.strip()[:-1] # Replace trailing newline and comma
+        legend_patches.append(Patch(facecolor=color,label=label))
 
     # Set axes now, because we need block_offset and base_offset after the loop
     ax.autoscale()
@@ -478,26 +546,9 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     ax.set_ylim(ymin=0)
     _turnOffBorder(ax)
     ax.yaxis.set_major_formatter(FuncFormatter(KMSuffixFormatter))
+    block_labels = sorted(block_labels, key=lambda x: x[0])
     ax.set_xticks([x[0] for x in block_labels])
     ax.set_xticklabels([x[1] for x in block_labels])
-
-    print block_labels
-
-    legend_patches = []
-    for color,ref in colors.items():
-        pops = set([x[0] for x in ref])
-        outputs = set([x[1] for x in ref])
-
-        if pops == set(plotdata.pops) and len(outputs) == 1: # If the same color is used for all pops and always the same output
-            label = plotdata.output_names[ref[0][1]] # Use the output name
-        elif outputs == set(plotdata.outputs) and len(pops) == 1: # Same color for all outputs and always same pop
-            label = plotdata.pop_names[ref[0][0]] # Use the pop name
-        else:
-            label = ''
-            for x in ref:
-                label += '%s-%s,\n' % (plotdata.pop_names[x[0]],plotdata.output_names[x[1]])
-            label = label.strip()[:-1] # Replace trailing newline and comma
-        legend_patches.append(Patch(facecolor=color,label=label))
 
     if separate_legend:
         figs.append(render_separate_legend(ax),handles=legend_patches)
@@ -518,15 +569,18 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
 
     # Another common scenario is that we go over time by having a block length of 1
     # In which case, we would want to use the time labels as the axis labels
-    for inner_label in inner_labels:
-        ax.text(inner_label[0], -0.2,inner_label[1],transform=ax.get_xaxis_transform(),verticalalignment='bottom', horizontalalignment='center')
+    if not any([x[1] for x in block_labels]) and len(block_labels) == len(inner_labels):
+        ax.set_xticklabels([x[1] for x in inner_labels])
+    else: 
+        for inner_label in inner_labels:
+            ax.text(inner_label[0], -0.2,inner_label[1],transform=ax.get_xaxis_transform(),verticalalignment='bottom', horizontalalignment='center')
 
         # The outer blocks correspond to times
 
-    return fig
+    return figs
 
 
-def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,plot_observed_data=True,project=None):
+def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,data=None):
     # TODO -
     # - Clean up doing aggregation separately
     # - Implement separate figures as everything starting out on the same plot and then
@@ -537,7 +591,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,pl
     # INPUTS
     # - plotdata - a PlotData instance to plot
     # - plot_type - 'line', 'stacked', or 'proportion' (stacked, normalized to 1)
-    # - project - Draw scatter points for data wherever the output label matches
+    # - data - Draw scatter points for data wherever the output label matches
     #   a data label. Only draws data if the plot_type is 'line'
     # - separate_legend - Show the legend in a separate figure,
 
@@ -550,11 +604,11 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,pl
     # Update colours with defaults, if they were not set
 
     if axis == 'results':
-        plotdata.set_colors(gridColorMap(len(plotdata.pops)),results=plotdata.results)
+        plotdata.set_colors(results=plotdata.results)
     elif axis == 'pops':
-        plotdata.set_colors(gridColorMap(len(plotdata.pops)),pops=plotdata.pops)
+        plotdata.set_colors(pops=plotdata.pops)
     elif axis == 'outputs':
-        plotdata.set_colors(gridColorMap(len(plotdata.outputs)),outputs=plotdata.outputs)
+        plotdata.set_colors(outputs=plotdata.outputs)
 
     if axis == 'results':
         for pop in plotdata.pops:
@@ -567,12 +621,12 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,pl
                 if plot_type in ['stacked','proportion']:
                     y = np.stack([plotdata[result,pop,output].vals for result in plotdata.results])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
-                    ax.stackplot(plotdata[plotdata.results[0],pop,output].tvec,y,labels=plotdata.results,colors=[plotdata[result,pop,output].color for result in plotdata.results])
+                    ax.stackplot(plotdata[plotdata.results[0],pop,output].tvec,y,labels=[plotdata.result_names[x] for x in plotdata.results],colors=[plotdata[result,pop,output].color for result in plotdata.results])
                 else:
                     for result in plotdata.results:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.result_names[result])
-                        if project is not None:
-                            render_data(ax,project, pop, output,plotdata[result,pop,output].color)
+                        if data is not None:
+                            render_data(ax,data, pop, output,plotdata[result,pop,output].color)
                 apply_series_formatting(ax,plot_type)
                 if not separate_legend:
                     render_legend(ax,plot_type)
@@ -588,12 +642,12 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,pl
                 if plot_type in ['stacked','proportion']:
                     y = np.stack([plotdata[result,pop,output].vals for pop in plotdata.pops])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
-                    ax.stackplot(plotdata[result,plotdata.pops[0],output].tvec,y,labels=plotdata.pops,colors=[plotdata[result,pop,output].color for pop in plotdata.pops])
+                    ax.stackplot(plotdata[result,plotdata.pops[0],output].tvec,y,labels=[plotdata.pop_names[x] for x in plotdata.pops],colors=[plotdata[result,pop,output].color for pop in plotdata.pops])
                 else:
                     for pop in plotdata.pops:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.pop_names[pop])
-                        if project is not None:
-                            render_data(ax,project, pop, output,plotdata[result,pop,output].color)
+                        if data is not None:
+                            render_data(ax,data, pop, output,plotdata[result,pop,output].color)
                 apply_series_formatting(ax,plot_type)
                 if not separate_legend:
                     render_legend(ax,plot_type)
@@ -609,12 +663,12 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,pl
                 if plot_type in ['stacked','proportion']:
                     y = np.stack([plotdata[result,pop,output].vals for output in plotdata.outputs])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
-                    ax.stackplot(plotdata[result,pop,plotdata.outputs[0]].tvec,y,labels=plotdata.outputs,colors=[plotdata[result,pop,output].color for output in plotdata.outputs])
+                    ax.stackplot(plotdata[result,pop,plotdata.outputs[0]].tvec,y,labels=[plotdata.output_names[x] for x in plotdata.outputs],colors=[plotdata[result,pop,output].color for output in plotdata.outputs])
                 else:
                     for output in plotdata.outputs:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.output_names[output])
-                        if project is not None:
-                            render_data(ax,project, pop, output,plotdata[result,pop,output].color)
+                        if data is not None:
+                            render_data(ax,data, pop, output,plotdata[result,pop,output].color)
                 apply_series_formatting(ax,plot_type)
                 if not separate_legend:
                     render_legend(ax,plot_type)
@@ -624,7 +678,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,pl
 
     return figs
 
-def render_data(ax,proj,pop,output,color):
+def render_data(ax,data,pop,output,color):
     # This function renders a scatter plot for a single variable (in a single population)
     # The scatter plot is drawn in the current axis
     # INPUTS
@@ -633,7 +687,6 @@ def render_data(ax,proj,pop,output,color):
     # output - name of an output (str)
     # name - The name-formatting function to retrieve full names (currently unused)
     # color - The color of the data points to use
-    data = proj.data
 
     if output in data['characs'].keys():
         d = data['characs'][output]
@@ -683,13 +736,15 @@ def _turnOffBorder(ax):
     ax.xaxis.set_ticks_position('bottom')
     ax.yaxis.set_ticks_position('left')
 
-def render_separate_legend(ax,handles=None,plot_type=None):
+def render_separate_legend(ax,plot_type=None,handles=None):
     if handles is None:
-        handles, labels_leg = ax.get_legend_handles_labels()
+        handles, labels = ax.get_legend_handles_labels()
     else:
         labels = [h.get_label() for h in handles]
 
-    fig = plt.figure()
+    fig,ax = plt.subplots()
+    ax.set_axis_off() # This allows the figure to be shown in jupyter notebook
+
     legendsettings = {'loc': 'center', 'bbox_to_anchor': None,'frameon':False}
 
     # A legend renders the line/patch based on the object handle. However, an object
