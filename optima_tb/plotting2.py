@@ -447,7 +447,7 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
             bar_outputs.append(output if isinstance(output,list) else [output])
 
     width = 1.0
-    gaps = (0.1,0.4,0.8) # Spacing within blocks, across blocks, and across major blocks
+    gaps = (0.1,0.4,0.8) # Spacing within blocks, between inner groups, and between outer groups
 
     block_width = len(bar_pops)*(width+gaps[0])
 
@@ -550,10 +550,6 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     ax.set_xticks([x[0] for x in block_labels])
     ax.set_xticklabels([x[1] for x in block_labels])
 
-    if separate_legend:
-        figs.append(render_separate_legend(ax),handles=legend_patches)
-    else:
-        render_legend(ax,handles=legend_patches)
 
     # Inner and outer group labels are only displayed if there is more than one group
     if outer == 'times' and len(tvals) > 1:
@@ -572,10 +568,22 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     if not any([x[1] for x in block_labels]) and len(block_labels) == len(inner_labels):
         ax.set_xticklabels([x[1] for x in inner_labels])
     else: 
-        for inner_label in inner_labels:
-            ax.text(inner_label[0], -0.2,inner_label[1],transform=ax.get_xaxis_transform(),verticalalignment='bottom', horizontalalignment='center')
+        ax2 = ax.twiny()  # instantiate a second axes that shares the same x-axis
+        ax2.set_xticks([x[0] for x in inner_labels])
+        ax2.set_xticklabels(['\n'+x[1] for x in inner_labels])
+        ax2.xaxis.set_ticks_position('bottom')
+        ax2.set_xlim(ax.get_xlim())
+        ax2.spines['right'].set_visible(False)
+        ax2.spines['top'].set_visible(False)
+        ax2.spines['left'].set_visible(False)
+        ax2.spines['bottom'].set_visible(False)
+        ax2.tick_params(axis=u'both', which=u'both',length=0)
 
-        # The outer blocks correspond to times
+    # Do the legend last, so repositioning the axes works properly
+    if separate_legend:
+        figs.append(render_separate_legend(ax),handles=legend_patches)
+    else:
+        render_legend(ax,handles=legend_patches)
 
     return figs
 
