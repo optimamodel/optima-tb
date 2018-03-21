@@ -555,12 +555,12 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     if outer == 'times' and len(tvals) > 1:
         offset = 0.0
         for t in t_labels:
-            ax.text(offset + tval_offset/2 - gaps[2]/2, 1,t,transform=ax.get_xaxis_transform(),verticalalignment='bottom', horizontalalignment='center')
+            ax.text(offset + (tval_offset - gaps[1] - gaps[2])/2, 1,t,transform=ax.get_xaxis_transform(),verticalalignment='bottom', horizontalalignment='center')
             offset += tval_offset
     elif outer == 'results' and len(plotdata.results) > 1:
         offset = 0.0
         for r in plotdata.results:
-            ax.text(offset + result_offset/2 - gaps[2]/2, 1,plotdata.result_names[r],transform=ax.get_xaxis_transform(),verticalalignment='bottom', horizontalalignment='center')
+            ax.text(offset + (result_offset - gaps[1] - gaps[2])/2, 1,plotdata.result_names[r],transform=ax.get_xaxis_transform(),verticalalignment='bottom', horizontalalignment='center')
             offset += result_offset
 
     # Another common scenario is that we go over time by having a block length of 1
