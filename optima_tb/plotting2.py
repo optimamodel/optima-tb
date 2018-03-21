@@ -581,9 +581,9 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
 
     # Do the legend last, so repositioning the axes works properly
     if separate_legend:
-        figs.append(render_separate_legend(ax),handles=legend_patches)
+        figs.append(render_separate_legend(ax),plot_type='bar',handles=legend_patches)
     else:
-        render_legend(ax,handles=legend_patches)
+        render_legend(ax,plot_type='bar',handles=legend_patches)
 
     return figs
 
@@ -728,6 +728,7 @@ def apply_series_formatting(ax,plot_type):
     ax.autoscale(enable=True, axis='x', tight=True)
     ax.set_xlabel('Year')
     ax.set_ylim(ymin=0)
+    _turnOffBorder(ax)
     if plot_type == 'proportion':
         ax.set_ylim(ymax=1)
         ax.set_ylabel('Proportion ' + ax.get_ylabel())
@@ -767,7 +768,7 @@ def render_separate_legend(ax,plot_type=None,handles=None):
     for h in handles:
         h.figure = None
 
-    if plot_type in ['stacked', 'proportion']:
+    if plot_type in ['stacked', 'proportion','bar']:
         fig.legend(handles=handles[::-1], labels=labels[::-1], **legendsettings)
     else:
         fig.legend(handles=handles, labels=labels, **legendsettings)
@@ -786,7 +787,7 @@ def render_legend(ax,plot_type=None,handles=None,):
     legendsettings = {'loc': 'center left', 'bbox_to_anchor': (1.05, 0.5), 'ncol': 1}
     labels = [textwrap.fill(label, 16) for label in labels]
 
-    if plot_type in ['stacked', 'proportion']:
+    if plot_type in ['stacked', 'proportion','bar']:
         ax.legend(handles=handles[::-1], labels=labels[::-1], **legendsettings)
     else:
         ax.legend(handles=handles, labels=labels,**legendsettings)
