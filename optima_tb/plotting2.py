@@ -712,16 +712,22 @@ def render_data(ax,data,pop,output,color):
 
     ax.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
 
-def KMSuffixFormatter(x, pos):
-    # This function specifies the formatting for the Y-axis labels
+def set_ytick_format(ax,formatter):
 
-    'The two args are the value and tick position'
-    if x >= 1e6:
-        return '%1.1fM' % (x * 1e-6)
-    # elif x >= 1e3:
-    #     return '%1.1fK' % (x * 1e-3)
-    else:
-        return '%g' % x
+    def KM(x, pos):
+        # 
+        if x >= 1e6:
+            return '%1.1fM' % (x * 1e-6)
+        elif x >= 1e3:
+            return '%1.1fK' % (x * 1e-3)
+        else:
+            return '%g' % x
+
+    def percent(x,pos):
+        return '%g%%' % (x*100)
+
+    fcn = locals()[formatter]
+    ax.yaxis.set_major_formatter(FuncFormatter(fcn))
 
 def apply_series_formatting(ax,plot_type):
     # This function applies formatting that is common to all Series plots
@@ -735,7 +741,8 @@ def apply_series_formatting(ax,plot_type):
         ax.set_ylabel('Proportion ' + ax.get_ylabel())
     else:
         ax.set_ylim(ymax=ax.get_ylim()[1] * 1.05)
-    ax.yaxis.set_major_formatter(FuncFormatter(KMSuffixFormatter))
+
+    set_ytick_format(ax,'KM')
 
 def _turnOffBorder(ax):
     """
