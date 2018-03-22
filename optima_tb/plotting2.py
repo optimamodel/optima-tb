@@ -818,25 +818,24 @@ def reorder_legend(fig,order=None):
         new_children.append(vpacker._children[order[i]])
     vpacker._children = new_children
 
-def relabel_legend(fig,labels,label_idx=None):
-    assert isinstance(labels,list), 'Labels must be specified as a list'
-
-    if label_idx is None:
-        label_idx = range(0,len(labels))
-
-    assert len(labels) == len(label_idx), 'Each label must have an accompanying index'
+def relabel_legend(fig,labels):
 
     legend = fig.findobj(Legend)[0]
     assert len(legend._legend_handle_box._children) == 1, 'Only single-column legends are supported'
     vpacker = legend._legend_handle_box._children[0]
 
-    assert max(label_idx) < len(vpacker._children), 'Requested label index greater than number of legend entries'
+    if isinstance(labels,list):
+        assert len(labels) == len(vpacker._children), 'If specifying list of labels, length must match number of legend entries'
+        labels = {i:l for i,l in enumerate(labels)}
+    elif isinstance(labels,dict):
+        idx = labels.keys()
+        assert max(idx) < len(vpacker._children), 'Requested index greater than number of legend entries'
+    else:
+        raise OptimaException('Labels must be a list or a dict')
 
-    for idx,label in zip(label_idx,labels):
+    for idx,label in labels.items():
         text=vpacker._children[idx]._children[1]._text
         text.set_text(label)
-
-
 
 
 def getFullName(output_id, proj):
