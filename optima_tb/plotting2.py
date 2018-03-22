@@ -25,6 +25,7 @@ import os
 import itertools
 from matplotlib.patches import Rectangle, Patch
 from matplotlib.collections import PatchCollection
+from matplotlib.legend import Legend
 import os
 
 
@@ -793,6 +794,49 @@ def render_legend(ax,plot_type=None,handles=None,):
         ax.legend(handles=handles, labels=labels,**legendsettings)
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+def reorder_legend(fig,order=None):
+    # This helper function lets you reorder a legend after figure creation
+    # Order can be
+    # - A string 'reverse' to reverse the order of the legend
+    # - A list of indices mapping old position to new position. For example, if the
+    #   original label order was ['a,'b','c'], then order=[1,0,2] would result in ['b','a','c']
+
+    legend = fig.findobj(Legend)[0]
+    assert len(legend._legend_handle_box._children) == 1, 'Only single-column legends are supported'
+    vpacker = legend._legend_handle_box._children[0]
+
+    if order is None:
+        return
+    elif order == 'reverse':
+        order = range(len(legend.legendHandles)-1,-1,-1)
+    else:
+        assert max(order) < len(vpacker._children), 'Requested index greater than number of legend entries'
+
+    new_children = []
+    for i in xrange(0,len(order)):
+        new_children.append(vpacker._children[order[i]])
+    vpacker._children = new_children
+
+def relabel_legend(fig,labels,label_idx=None):
+    assert isinstance(labels,list), 'Labels must be specified as a list'
+
+    if label_idx is None:
+        label_idx = range(0,len(labels))
+
+    assert len(labels) == len(label_idx), 'Each label must have an accompanying index'
+
+    legend = fig.findobj(Legend)[0]
+    assert len(legend._legend_handle_box._children) == 1, 'Only single-column legends are supported'
+    vpacker = legend._legend_handle_box._children[0]
+
+    assert max(label_idx) < len(vpacker._children), 'Requested label index greater than number of legend entries'
+
+    for idx,label in zip(label_idx,labels):
+        text=vpacker._children[idx]._children[1]._text
+        text.set_text(label)
+
+
 
 
 def getFullName(output_id, proj):
