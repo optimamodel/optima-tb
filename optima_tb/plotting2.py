@@ -167,15 +167,15 @@ class PlotData(object):
 
                 # First pass, extract the original output quantities
                 for output_label in outputs_required:
-                    if output_label in pop.comp_ids:
+                    if output_label in pop.comp_lookup:
                         data_dict[output_label] = pop.getComp(output_label).vals
                         compsize[output_label] = data_dict[output_label]
                         output_units[output_label] = pop.getComp(output_label).units
-                    elif output_label in pop.charac_ids:
+                    elif output_label in pop.charac_lookup:
                         data_dict[output_label] = pop.getCharac(output_label).vals
                         compsize[output_label] = data_dict[output_label]
                         output_units[output_label] = pop.getCharac(output_label).units
-                    elif output_label in pop.par_ids:
+                    elif output_label in pop.par_lookup:
                         par = pop.getPar(output_label)
                         if par.links: # If this is a transition parameter, use getFlow to get the flow rate
                             data_dict[output_label] = np.zeros(tvecs[result_label].shape)
