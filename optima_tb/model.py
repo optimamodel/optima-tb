@@ -201,6 +201,8 @@ class Parameter(Variable):
         self.deps = deps
         if self.links: # We only need to set dependencies if this is a Transition parameter and thus dependencies must be evaluated during integration
             for dep in deps:
+                if isinstance(dep,Link):
+                    raise OptimaException('A transition parameter cannot itself depend on a transition tag')
                 dep.set_dependent()
 
     def set_dependent(self):
