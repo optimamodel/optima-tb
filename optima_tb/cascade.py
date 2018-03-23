@@ -390,6 +390,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
 
     # Store transition details in settings and make sure there is tag bijectivity between this sheet and the transition matrix.
     standard_sheet_count = ws_pars.nrows - 1      # All parameters are printed to the standard databook sheet to begin with.
+    defined_tags = []
     for row_id in xrange(ws_pars.nrows):
         tag = str(ws_pars.cell_value(row_id, cid_tag))
         label = str(ws_pars.cell_value(row_id, cid_label))
@@ -401,6 +402,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 if tag not in settings.links:
                     raise OptimaException('ERROR: Cascade transition-parameter worksheet has a tag (%s) that is not in the transition matrix.' % tag)
                 settings.linkpar_specs[label]['tag'] = tag
+                defined_tags.append(tag)
             else:
                 settings.par_deps[label] = True     # Untagged parameters are dependencies for actual tagged transitions.
 
@@ -462,7 +464,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     settings.linkpar_specs[label]['deps'] = var_dict
                     for var in var_dict.keys():
                         if not var in settings.charac_specs.keys():
-                            if not var in settings.linkpar_specs.keys():
+                            if not var in settings.linkpar_specs.keys() and not var in defined_tags:
                                 raise OptimaException('ERROR: Dependency "%s" has not been defined by the time "%s" is loaded into settings.' % (var, label))
                         else:
                             if not var in settings.charac_deps.keys():

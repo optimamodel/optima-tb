@@ -199,8 +199,9 @@ class Parameter(Variable):
     def set_f_stack(self,f_stack,deps):
         self.f_stack = f_stack
         self.deps = deps
-        for dep in deps:
-            dep.set_dependent()
+        if self.links: # We only need to set dependencies if this is a Transition parameter and thus dependencies must be evaluated during integration
+            for dep in deps:
+                dep.set_dependent()
 
     def set_dependent(self):
         self.dependency = True
@@ -216,7 +217,7 @@ class Parameter(Variable):
             self.vals[ti] = min(self.limits[1],self.vals[ti])
 
     def update(self,ti=None):
-        # Update the value of this program at time index ti 
+        # Update the value of this Parameter at time index ti
         # by evaluating its f_stack function using the 
         # current values of all dependent variables at time index ti
         if ti is None:
