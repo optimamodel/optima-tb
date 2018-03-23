@@ -105,9 +105,8 @@ class Parameter(object):
         return output
     
     def __repr__(self, *args, **kwargs):
-        return "Parameter: %s \n t       : %s \n y       : %s \n y_format: %s\n  y_factor: %s\n"%(self.label,self.t,self.y,self.y_format,self.y_factor)
+        return "Parameter: %s\n\nt\n%s\ny\n%s\ny_format\n%s\ny_factor\n%s\n"%(self.label,self.t,self.y,self.y_format,self.y_factor)
         
-
 
 #%% Parset class that contains one set of parameters converted from raw project data
 

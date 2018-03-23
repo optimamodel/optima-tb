@@ -49,12 +49,16 @@ class ModelProgramSet(object):
         self.par_by_id = {x.uid:x for x in self.pars} # Map parameter ID to parameter object
         self.constraints = dict() # par_uid:(lower,upper)
 
-    def load_constraints(self,constraints):
+    def load_constraints(self,constraints=None):
         self.constraints = dict()
-        for par_label,d in constraints['impacts'].items():
+        if constraints is None:
             for par in self.pars:
-                if par.label == par_label:
-                    self.constraints[par.uid] = d['vals']
+                self.constraints[par.uid] = [0.0,np.inf]
+        else:
+            for par_label,d in constraints['impacts'].items():
+                for par in self.pars:
+                    if par.label == par_label:
+                        self.constraints[par.uid] = d['vals']
         return
 
     def unlink(self):
@@ -94,7 +98,7 @@ class ModelProgramSet(object):
                 spending = init_alloc[prog.label]
 
                 # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to time points.
-                if not isinstance(spending,np.ndarray) and 'constraints' in sim_settings and 'max_yearly_change' in sim_settings['constraints'] and prog.label in sim_settings['constraints']['max_yearly_change']:
+                if not isinstance(spending,np.ndarray) and 'constraints' in sim_settings and sim_settings['constraints'] is not None and 'max_yearly_change' in sim_settings['constraints'] and prog.label in sim_settings['constraints']['max_yearly_change']:
                     if alloc_is_coverage:
                         default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
                     else:

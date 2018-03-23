@@ -301,14 +301,14 @@ class ModelPopulation(Node):
     def __repr__(self):
         return '%s "%s" (%s)' % (self.__class__.__name__,self.label,self.uid)
 
-    def popsize(self,ti):
+    def popsize(self,ti=None):
         # A population's popsize is the sum of all of the people in its compartments, excluding
         # birth and death compartments
         n = 0
         for comp in self.comps:
             if not comp.tag_birth and not comp.tag_dead:
                 n += comp.vals[ti]
-        return n
+        return n.ravel()
 
     def getModelState(self, ti):
         states = [c.getValue(ti) for c in self.comps]
@@ -701,6 +701,8 @@ class Model(object):
                 else: self.sim_settings['init_alloc'] = {}
                 if 'constraints' in options:
                     self.sim_settings['constraints'] = options['constraints']
+                else:
+                    self.sim_settings['constraints'] = None
                 if 'alloc_is_coverage' in options:
                     self.sim_settings['alloc_is_coverage'] = options['alloc_is_coverage']
                 else: self.sim_settings['alloc_is_coverage'] = False
