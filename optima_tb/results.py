@@ -343,7 +343,7 @@ class ResultSet(object):
 
         for pop in self.model.pops:
             if pop_labels is None or pop.label in pop_labels:
-                if par_label in pop.par_ids:
+                if par_label in pop.par_lookup:
                     par = pop.getPar(par_label)
                     for link in par.links:
                         if target_flow:

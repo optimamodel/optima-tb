@@ -45,12 +45,14 @@ class Variable(object):
         self.uid = uuid.uuid4()
         self.label = label
         self.t = None
+        self.dt = None
         self.vals = None
         self.vals_old = None                # An optional array that stores old values in the case of overwriting.
         self.units = ''
 
-    def preallocate(self,tvec):
+    def preallocate(self,tvec,dt):
         self.t = tvec
+        self.dt = dt
         self.vals = np.ones(tvec.shape) * np.nan
         self.vals_old = np.ones(tvec.shape) * np.nan
 
@@ -185,6 +187,8 @@ class Parameter(Variable):
     # This is a Parameter in the cascade.xlsx sense - there is one Parameter object for every item in the 
     # Parameters sheet. A parameter that maps to multiple transitions (e.g. doth_rate) will have one parameter
     # and multiple Link instances that depend on the same Parameter instance
+    #
+    #  *** Parameter values are always annualized ***
     def __init__(self, label='default'):
         Variable.__init__(self, label=label)
         self.deps = None
@@ -260,6 +264,8 @@ class Link(Variable):
     Variable refer to flow rates. If used in ModelPop, the Link references two
     cascade compartments within a single population.
     '''
+    #
+    # *** Link values are always dt-based ***
     def __init__(self, parameter, object_from, object_to,tag,is_transfer=False):
         # Note that the Link's label is the transition tag
         Variable.__init__(self, label=tag)
@@ -287,8 +293,8 @@ class Link(Variable):
     def __repr__(self, *args, **kwargs):
         return "Link %s (parameter %s) - %s to %s" % (self.label, self.parameter.label, self.source.label, self.dest.label)
 
-    def preallocate(self,tvec):
-        Variable.preallocate(self, tvec)
+    def preallocate(self,tvec,dt):
+        Variable.preallocate(self, tvec,dt)
         self.target_flow = np.ones(tvec.shape) * np.nan
 
     def plot(self):
@@ -451,9 +457,8 @@ class ModelPopulation(Node):
         Array maintains initial value but pre-fills everything else with NaNs.
         Thus errors due to incorrect parset value saturation should be obvious from results.
         '''
-        tvec = sim_settings['tvec']
         for obj in self.comps + self.characs + self.links + self.pars:
-            obj.preallocate(tvec)
+            obj.preallocate(tvec=sim_settings['tvec'],dt=sim_settings['tvec_dt'])
 
     def initialize_compartments(self,parset,settings,t_init):
         # Given a set of characteristics and their initial values, compute the initial
@@ -640,7 +645,7 @@ class Model(object):
                         # Create the parameter object for this link (shared across all compartments)
                         par_label = trans_type + '_' + pop_source + '_to_' + pop_target # e.g. 'aging_0-4_to_15-64'
                         par = Parameter(label=par_label)
-                        par.preallocate(self.sim_settings['tvec'])
+                        par.preallocate(self.sim_settings['tvec'],self.sim_settings['tvec_dt'])
                         val = transfer_parameter.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_target)
                         par.vals = val
                         par.scale_factor = transfer_parameter.y_factor[pop_target]
@@ -656,7 +661,7 @@ class Model(object):
                                 dest = target_pop_obj.getComp(source.label) # Get the corresponding compartment
                                 link_tag = par_label + '_' + source.label # e.g. 'aging_0-4_to_15-64_sus'
                                 link = Link(par, source, dest, link_tag, is_transfer=True)
-                                link.preallocate(self.sim_settings['tvec'])
+                                link.preallocate(self.sim_settings['tvec'],self.sim_settings['tvec_dt'])
                                 pop.links.append(link)
                                 if link.label in pop.link_lookup:
                                     pop.link_lookup[link.label].append(link)
