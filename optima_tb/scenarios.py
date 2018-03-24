@@ -31,7 +31,7 @@ class Scenario(object):
 
 class ParameterScenario(Scenario):
 
-    def __init__(self, name, settings, run_scenario=False, overwrite=True, scenario_values=None):
+    def __init__(self, name, settings, run_scenario=False, overwrite=True, scenario_values=None,**kwargs):
         """
         Given some data that describes a parameter scenario, creates the corresponding parameterSet 
         which can then be combined with a ParameterSet when running a model.
@@ -108,7 +108,7 @@ class ParameterScenario(Scenario):
 
 class BudgetScenario(Scenario):
 
-    def __init__(self, name, run_scenario=False, overwrite=True, scenario_values=None, pop_labels=None, **kwargs):
+    def __init__(self, name, run_scenario=False, overwrite=True, scenario_values=None,**kwargs):
         super(BudgetScenario, self).__init__(name, run_scenario, overwrite)
         self.makeScenarioProgset(budget_allocation=scenario_values)
         self.budget_allocation = budget_allocation
@@ -142,8 +142,8 @@ class BudgetScenario(Scenario):
 
 class CoverageScenario(BudgetScenario):
 
-    def __init__(self, name, run_scenario=False, overwrite=True, scenario_values=None, pop_labels=None, **kwargs):
-        super(CoverageScenario, self).__init__(name, run_scenario=run_scenario, overwrite=overwrite, scenario_values=scenario_values, pop_labels=pop_labels, **kwargs)
+    def __init__(self, name, run_scenario=False, overwrite=True, scenario_values=None,**kwargs):
+        super(CoverageScenario, self).__init__(name, run_scenario=run_scenario, overwrite=overwrite, scenario_values=scenario_values)
 
     def getScenarioProgset(self, progset, options):
         progset, options = super(CoverageScenario, self).getScenarioProgset(progset, options)
