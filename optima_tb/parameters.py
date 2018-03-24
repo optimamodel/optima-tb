@@ -461,44 +461,6 @@ class ParameterSet(object):
                     logger.debug("ParameterSet.__add__ : Observed max that is less than accepted max value for parameter type '%s': cascade label=%s for population=%s"%(c.pars['cascade'][c_index].y_format[pop],par_name,pop))
                     c.pars['cascade'][c_index].y[pop][c.pars['cascade'][c_index].y[pop]>minmax[1]] = minmax[1]
         return c
-    
-    def __lshift__(a,b):
-        """
-        Intended for when values in ParameterSet b should overwrite values in 
-        ParameterSet a if they already exist, or append them if not. 
-        
-        As only the cascade values in b are copied over, it is mandatory at this
-        stage that a should be the ParameterSet kept for it's characteristics and
-        transfer definitions.
-        
-        Usage: 
-        
-        c = a << b
-        
-        """
-        logger.debug("Shifting two parameter sets together: %s << %s"%(a.name,b.name))
-        c = dcp(a)
-        for par_name, b_index in b.par_ids['cascade'].iteritems():
-            
-            # find corresponding par_id in c
-            c_index = c.par_ids['cascade'][par_name]
-            # for each population referenced:
-            for pop in b.pars['cascade'][b_index].t.keys():     
-                # check that the y_format matches: if not, throw an error
-                if b.pars['cascade'][b_index].y_format[pop] != c.pars['cascade'][c_index].y_format[pop]:
-                    raise OptimaException("ERROR: trying to combine two Parameters with different y_formats: ")
-                # add or insert value of b into c
-                for i,t_val in enumerate(b.pars['cascade'][b_index].t[pop]):
-                    
-                    tmp =  c.pars['cascade'][c_index].t[pop]
-                    if t_val in c.pars['cascade'][c_index].t[pop]: 
-                        mask = tmp == t_val
-                        c.pars['cascade'][c_index].y[pop][mask] = b.pars['cascade'][b_index].y[pop][i]
-                    else:
-                        c.pars['cascade'][c_index].y[pop] = np.append(c.pars['cascade'][c_index].y[pop],[b.pars['cascade'][b_index].y[pop][i]])
-                        c.pars['cascade'][c_index].t[pop] = np.append(c.pars['cascade'][c_index].t[pop],[t_val])
-                
-        return c
         
 
 def __read_block(csvdata,pops,index_start,index_end):
