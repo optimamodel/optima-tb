@@ -236,7 +236,10 @@ class Parameter(Variable):
 
         dep_vals = defaultdict(np.float64)
         for dep in self.deps:
-            dep_vals[dep.label] += dep.vals[[ti]]
+            if isinstance(dep,Link):
+                dep_vals[dep.label] += dep.vals[[ti]]/dep.dt
+            else:
+                dep_vals[dep.label] += dep.vals[[ti]]
         self.vals[ti] = parser.evaluateStack(stack=self.f_stack[0:], deps=dep_vals)   # self.f_stack[0:] makes a copy
 
     def source_popsize(self,ti):
