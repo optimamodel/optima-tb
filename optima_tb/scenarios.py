@@ -18,7 +18,6 @@ class Scenario(object):
         self.uid = uuid()
         self.run_scenario = run_scenario
         self.overwrite = overwrite
-        self.scenario_parset = None  # Placeholder for scenario values
         self.settings = settings
 
     def getScenarioParset(self, parset):
@@ -27,10 +26,12 @@ class Scenario(object):
     def getScenarioProgset(self, progset, options):
         return progset, options
 
+    def __repr__(self):
+        return '%s "%s" (%s)' % (self.__class__.__name__,self.name,self.uid)
 
 class ParameterScenario(Scenario):
 
-    def __init__(self, name, settings, run_scenario=False, overwrite=True, scenario_values=None, pop_labels=None, **kwargs):
+    def __init__(self, name, settings, run_scenario=False, overwrite=True, scenario_values=None):
         """
         Given some data that describes a parameter scenario, creates the corresponding parameterSet 
         which can then be combined with a ParameterSet when running a model.
@@ -41,39 +42,21 @@ class ParameterScenario(Scenario):
                                      o = odict with keys:
                                          t : np.array or list with year values
                                          y : np.array or list with corresponding parameter values
-                                         y_format : string, describing format of y value. Possible values = 'number', 'fraction' or 'proportion'
-                                         y_factor : float, preferably chosen as settings.DO_NOT_SCALE or settings.DEFAULT_YFACTOR
-                                         
+
                                          
         Example:
-            from optima_tb.settings import DO_NOT_SCALE
             scvalues = odict()
             param = 'birth_transit'
             scvalues[param] = odict()
             scvalues[param]['Pop1'] = odict()
             scvalues[param]['Pop1']['y'] = [3e6, 1e4, 1e4, 2e6]
             scvalues[param]['Pop1']['t'] = [2003.,2004.,2014.,2015.]
-            scvalues[param]['Pop1']['y_format'] = 'number'
-            scvalues[param]['Pop1']['y_factor'] = DO_NOT_SCALE
-            pops = {'Pop1':'Pop1','Pop2':'Pop2'}
-                                     
-            pscenario = ParameterScenario(name="examplePS",scenario_values=scvalues,pop_labels=pops)
+
+            pscenario = ParameterScenario(name="examplePS",scenario_values=scvalues)
     
         """
         super(ParameterScenario, self).__init__(name, settings, run_scenario, overwrite)
-        self.makeScenarioParset(scenario_values, pop_labels=pop_labels)
-
-        data = getEmptyData()
-
-        if scenario_values is None:
-            scenario_values = odict()
-        data['linkpars'] = scenario_values
-        # values required when creating a parameter set
-        data['pops']['label_names'] = pop_labels
-
-        ps = ParameterSet(self.name)
-        ps.makePars(data)
-        self.scenario_parset = ps
+        self.scenario_values = scenario_values
 
     def getScenarioParset(self, parset):
         """
@@ -83,22 +66,45 @@ class ParameterScenario(Scenario):
         The output depends on whether to overwrite (replace) or add values that appear in both the 
         parameterScenario's parameterSet to the baseline parameterSet. 
         """
+
+        # Note - the parset will be overwritten between the first and last year specified in scvalues
+        # on a per-parameter+pop basis. Within the scenario, only the data points in scvalues will be used
+
         import numpy as np
         tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + self.settings.tvec_dt / 2, self.settings.tvec_dt)
 
-
         if self.overwrite:  # update values in parset with those in scenario_parset
-            return parset << self.scenario_parset
+            new_parset = dcp(parset)
+
+            for par_label in self.scenario_values.keys():
+                par = new_parset.getPar(par_label) # This is the parameter we are updating
+                for pop_label,overwrite in self.scenario_values[par_label].items():
+                    start_year = min(overwrite['t'])
+                    stop_year = max(overwrite['t'])
+
+                    if 'smooth_onset' not in overwrite:
+                        onset = self.settings.tvec_dt
+                    else:
+                        onset = overwrite['smooth_onset']
+
+                    # First, remove values during the overwrite, and add back the onset value
+                    # The par values are interpolated first to ensure they exactly match
+                    par_dt_vals = par.interpolate(tvec,pop_label)
+                    par.t[pop_label] = tvec
+                    par.y[pop_label] = par_dt_vals/np.abs(par.y_factor[pop_label]) # Don't forget to divide by the y-factor because this value will get passed through interpolate() later
+                    par.removeBetween([start_year-onset, stop_year],pop_label)
+
+                    # Now, insert all of the program overwrites
+                    for i in xrange(0,len(overwrite['t'])):
+                        par.insertValuePair(overwrite['t'][i], overwrite['y'][i]/par.y_factor[pop_label], pop_label)
+
+            return new_parset
+
         else:  # add the two together
             # inflate both the two parameter sets first
             parset.inflate(tvec)
             self.scenario_parset.inflate(tvec)
             return parset + self.scenario_parset
-
-
-    def __repr__(self, *args, **kwargs):
-        return "ParameterScenario: \n%s" % self.scenario_parset
-
 
 class BudgetScenario(Scenario):
 
@@ -134,9 +140,6 @@ class BudgetScenario(Scenario):
 
         return progset, new_budget_options
 
-    def __repr__(self, *args, **kwargs):
-        return "BudgetScenario: \n" + ''.join('{}={}\n'.format(key, val) for key, val in sorted(self.budget_allocation.items()))
-
 class CoverageScenario(BudgetScenario):
 
     def __init__(self, name, run_scenario=False, overwrite=True, scenario_values=None, pop_labels=None, **kwargs):
@@ -146,8 +149,3 @@ class CoverageScenario(BudgetScenario):
         progset, options = super(CoverageScenario, self).getScenarioProgset(progset, options)
         options['alloc_is_coverage'] = True
         return progset, options
-
-    def __repr__(self, *args, **kwargs):
-        return "CoverageScenario: \n" + ''.join('{}={}\n'.format(key, val) for key, val in sorted(self.budget_allocation.items()))
-
-

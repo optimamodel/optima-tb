@@ -36,43 +36,39 @@ class Parameter(object):
         self.y_factor = y_factor                # Scaling factor of data. Corresponds to different transformations whether format is fraction or number.
         self.autocalibrate = autocalibrate      # A set of boolean flags corresponding to y_factor that denote whether this parameter can be autocalibrated.
                                                                 
-    def insertValuePair(self, t, y, y_factor = 1.0 pop_label):
+    def insertValuePair(self, t, y, pop_label):
         ''' Check if the inserted t value already exists for the population parameter. If not, append y value. If so, overwrite y value. '''
         # Make sure it stays sorted
         if t in self.t[pop_label]:
-            self.y[self.t[pop_label]==t] = y
-            self.y_factor[self.t[pop_label]==t] = y_factor
+            self.y[pop_label][self.t[pop_label]==t] = y
         else:
-            idx = np.searchsorted(self.t,t)
-            self.t[pop_label].insert(idx,t)
-            self.y[pop_label].insert(idx,y)
-            self.y_factor[pop_label].insert(idx,y_factor)
+            idx = np.searchsorted(self.t[pop_label],t)
+            self.t[pop_label] = np.insert(self.t[pop_label],idx,t)
+            self.y[pop_label] = np.insert(self.y[pop_label],idx,y)
 
     def removeValueAt(self, t, pop_label):
         '''
         # Remove t value if at least one other time point exists    
         '''
-        if not t in self.t[pop_label]:
-            return True     # Deleting a value for a timepoint that is not in the parameter is considered a successful deletion.
-        
+
         if t in self.t[pop_label]:
-            if len(self.t[pop_label])>1:
+            if len(self.t[pop_label]) <= 1:
                 return False
             else:
                 idx = (self.t[pop_label]==t).nonzero()[0][0]
-                self.t[pop_label] = np.delete(self.t[pop_label], k)
-                self.y[pop_label] = np.delete(self.y[pop_label], k)
-                self.y_factor[pop_label] = np.delete(self.y_factor[pop_label], k)
+                self.t[pop_label] = np.delete(self.t[pop_label], idx)
+                self.y[pop_label] = np.delete(self.y[pop_label], idx)
                 return True
         else:
             return True
 
     def removeBetween(self,t_remove,pop_label):
         # t is a two element vector [min,max] such that
-        # times >= min and < max are removed
+        # times > min and < max are removed
+        # Note that the endpoints are not included!
         original_t = self.t[pop_label]
         for tval in original_t:
-            if tval >= t_remove[0] and tval < t_remove[1]:
+            if tval > t_remove[0] and tval < t_remove[1]:
                 self.removeValueAt(tval,pop_label)
         
     def interpolate(self, tvec = None, pop_label = None, extrapolate_nan = False):
