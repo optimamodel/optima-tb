@@ -464,7 +464,7 @@ class Project(object):
                 # TODO decide what to do if scenario with same name already exists. Update or ignore? SJ: prefer to ignore.
 
             if vals['type'].lower() == 'parameter':
-                self.scenarios[scenario_name] = ParameterScenario(name=scenario_name, settings=self.settings, pop_labels=pop_labels, **vals)
+                self.scenarios[scenario_name] = ParameterScenario(name=scenario_name, settings=self.settings)
 
             elif vals['type'].lower() == 'budget':
                 self.scenarios[scenario_name] = BudgetScenario(name=scenario_name, pop_labels=pop_labels, **vals)
