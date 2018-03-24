@@ -30,41 +30,50 @@ class Parameter(object):
         if y_format is None: y_format = odict()
         if y_factor is None: y_factor = odict()
         if autocalibrate is None: autocalibrate = odict()
-        self.t = t                              # Time data.
-        self.y = y                              # Value data.
+        self.t = t # Time data 
+        self.y = y # Value data
         self.y_format = y_format                # Value format data (e.g. Probability, Fraction or Number).
         self.y_factor = y_factor                # Scaling factor of data. Corresponds to different transformations whether format is fraction or number.
         self.autocalibrate = autocalibrate      # A set of boolean flags corresponding to y_factor that denote whether this parameter can be autocalibrated.
                                                                 
-    def insertValuePair(self, t, y, pop_label):
+    def insertValuePair(self, t, y, y_factor = 1.0 pop_label):
         ''' Check if the inserted t value already exists for the population parameter. If not, append y value. If so, overwrite y value. '''
-        k = 0
-        for t_val in self.t[pop_label]:
-            if t_val == t:
-                self.y[pop_label][k] = y
-                return
-            k += 1
-        self.t[pop_label] = np.append(self.t[pop_label], t)
-        self.y[pop_label] = np.append(self.y[pop_label], y)
-        
+        # Make sure it stays sorted
+        if t in self.t[pop_label]:
+            self.y[self.t[pop_label]==t] = y
+            self.y_factor[self.t[pop_label]==t] = y_factor
+        else:
+            idx = np.searchsorted(self.t,t)
+            self.t[pop_label].insert(idx,t)
+            self.y[pop_label].insert(idx,y)
+            self.y_factor[pop_label].insert(idx,y_factor)
+
     def removeValueAt(self, t, pop_label):
         '''
-        Check if the inserted t value already exists for the population parameter.
-        If so, delete it and its y value, but only if others exist.
-        Return a boolean flag for whether removal was a success.        
+        # Remove t value if at least one other time point exists    
         '''
         if not t in self.t[pop_label]:
             return True     # Deleting a value for a timepoint that is not in the parameter is considered a successful deletion.
         
-        if len(self.t[pop_label]) > 1:
-            k = 0
-            for t_val in self.t[pop_label]:
-                if t_val == t:
-                    self.t[pop_label] = np.delete(self.t[pop_label], k)
-                    self.y[pop_label] = np.delete(self.y[pop_label], k)
-                    return True
-                k += 1
-        return False
+        if t in self.t[pop_label]:
+            if len(self.t[pop_label])>1:
+                return False
+            else:
+                idx = (self.t[pop_label]==t).nonzero()[0][0]
+                self.t[pop_label] = np.delete(self.t[pop_label], k)
+                self.y[pop_label] = np.delete(self.y[pop_label], k)
+                self.y_factor[pop_label] = np.delete(self.y_factor[pop_label], k)
+                return True
+        else:
+            return True
+
+    def removeBetween(self,t_remove,pop_label):
+        # t is a two element vector [min,max] such that
+        # times >= min and < max are removed
+        original_t = self.t[pop_label]
+        for tval in original_t:
+            if tval >= t_remove[0] and tval < t_remove[1]:
+                self.removeValueAt(tval,pop_label)
         
     def interpolate(self, tvec = None, pop_label = None, extrapolate_nan = False):
         ''' Take parameter values and construct an interpolated array corresponding to the input time vector. '''
