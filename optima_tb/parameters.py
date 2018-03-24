@@ -30,41 +30,46 @@ class Parameter(object):
         if y_format is None: y_format = odict()
         if y_factor is None: y_factor = odict()
         if autocalibrate is None: autocalibrate = odict()
-        self.t = t                              # Time data.
-        self.y = y                              # Value data.
+        self.t = t # Time data 
+        self.y = y # Value data
         self.y_format = y_format                # Value format data (e.g. Probability, Fraction or Number).
         self.y_factor = y_factor                # Scaling factor of data. Corresponds to different transformations whether format is fraction or number.
         self.autocalibrate = autocalibrate      # A set of boolean flags corresponding to y_factor that denote whether this parameter can be autocalibrated.
                                                                 
     def insertValuePair(self, t, y, pop_label):
         ''' Check if the inserted t value already exists for the population parameter. If not, append y value. If so, overwrite y value. '''
-        k = 0
-        for t_val in self.t[pop_label]:
-            if t_val == t:
-                self.y[pop_label][k] = y
-                return
-            k += 1
-        self.t[pop_label] = np.append(self.t[pop_label], t)
-        self.y[pop_label] = np.append(self.y[pop_label], y)
-        
+        # Make sure it stays sorted
+        if t in self.t[pop_label]:
+            self.y[pop_label][self.t[pop_label]==t] = y
+        else:
+            idx = np.searchsorted(self.t[pop_label],t)
+            self.t[pop_label] = np.insert(self.t[pop_label],idx,t)
+            self.y[pop_label] = np.insert(self.y[pop_label],idx,y)
+
     def removeValueAt(self, t, pop_label):
         '''
-        Check if the inserted t value already exists for the population parameter.
-        If so, delete it and its y value, but only if others exist.
-        Return a boolean flag for whether removal was a success.        
+        # Remove t value if at least one other time point exists    
         '''
-        if not t in self.t[pop_label]:
-            return True     # Deleting a value for a timepoint that is not in the parameter is considered a successful deletion.
-        
-        if len(self.t[pop_label]) > 1:
-            k = 0
-            for t_val in self.t[pop_label]:
-                if t_val == t:
-                    self.t[pop_label] = np.delete(self.t[pop_label], k)
-                    self.y[pop_label] = np.delete(self.y[pop_label], k)
-                    return True
-                k += 1
-        return False
+
+        if t in self.t[pop_label]:
+            if len(self.t[pop_label]) <= 1:
+                return False
+            else:
+                idx = (self.t[pop_label]==t).nonzero()[0][0]
+                self.t[pop_label] = np.delete(self.t[pop_label], idx)
+                self.y[pop_label] = np.delete(self.y[pop_label], idx)
+                return True
+        else:
+            return True
+
+    def removeBetween(self,t_remove,pop_label):
+        # t is a two element vector [min,max] such that
+        # times > min and < max are removed
+        # Note that the endpoints are not included!
+        original_t = self.t[pop_label]
+        for tval in original_t:
+            if tval > t_remove[0] and tval < t_remove[1]:
+                self.removeValueAt(tval,pop_label)
         
     def interpolate(self, tvec = None, pop_label = None, extrapolate_nan = False):
         ''' Take parameter values and construct an interpolated array corresponding to the input time vector. '''
@@ -460,44 +465,6 @@ class ParameterSet(object):
                 if minmax[1] is not None and sum(c.pars['cascade'][c_index].y[pop]>minmax[1]) > 0: 
                     logger.debug("ParameterSet.__add__ : Observed max that is less than accepted max value for parameter type '%s': cascade label=%s for population=%s"%(c.pars['cascade'][c_index].y_format[pop],par_name,pop))
                     c.pars['cascade'][c_index].y[pop][c.pars['cascade'][c_index].y[pop]>minmax[1]] = minmax[1]
-        return c
-    
-    def __lshift__(a,b):
-        """
-        Intended for when values in ParameterSet b should overwrite values in 
-        ParameterSet a if they already exist, or append them if not. 
-        
-        As only the cascade values in b are copied over, it is mandatory at this
-        stage that a should be the ParameterSet kept for it's characteristics and
-        transfer definitions.
-        
-        Usage: 
-        
-        c = a << b
-        
-        """
-        logger.debug("Shifting two parameter sets together: %s << %s"%(a.name,b.name))
-        c = dcp(a)
-        for par_name, b_index in b.par_ids['cascade'].iteritems():
-            
-            # find corresponding par_id in c
-            c_index = c.par_ids['cascade'][par_name]
-            # for each population referenced:
-            for pop in b.pars['cascade'][b_index].t.keys():     
-                # check that the y_format matches: if not, throw an error
-                if b.pars['cascade'][b_index].y_format[pop] != c.pars['cascade'][c_index].y_format[pop]:
-                    raise OptimaException("ERROR: trying to combine two Parameters with different y_formats: ")
-                # add or insert value of b into c
-                for i,t_val in enumerate(b.pars['cascade'][b_index].t[pop]):
-                    
-                    tmp =  c.pars['cascade'][c_index].t[pop]
-                    if t_val in c.pars['cascade'][c_index].t[pop]: 
-                        mask = tmp == t_val
-                        c.pars['cascade'][c_index].y[pop][mask] = b.pars['cascade'][b_index].y[pop][i]
-                    else:
-                        c.pars['cascade'][c_index].y[pop] = np.append(c.pars['cascade'][c_index].y[pop],[b.pars['cascade'][b_index].y[pop][i]])
-                        c.pars['cascade'][c_index].t[pop] = np.append(c.pars['cascade'][c_index].t[pop],[t_val])
-                
         return c
         
 

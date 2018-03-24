@@ -453,9 +453,6 @@ class Project(object):
         """
         logger.info("About to create scenarios")
 
-        pop_labels = self.data['pops']['label_names']
-
-
         for scenario_name in scenario_dict.keys():
             vals = scenario_dict[scenario_name]
 
@@ -464,13 +461,13 @@ class Project(object):
                 # TODO decide what to do if scenario with same name already exists. Update or ignore? SJ: prefer to ignore.
 
             if vals['type'].lower() == 'parameter':
-                self.scenarios[scenario_name] = ParameterScenario(name=scenario_name, settings=self.settings, pop_labels=pop_labels, **vals)
+                self.scenarios[scenario_name] = ParameterScenario(name=scenario_name, settings=self.settings, **vals)
 
             elif vals['type'].lower() == 'budget':
-                self.scenarios[scenario_name] = BudgetScenario(name=scenario_name, pop_labels=pop_labels, **vals)
+                self.scenarios[scenario_name] = BudgetScenario(name=scenario_name, **vals)
 
             elif vals['type'].lower() == 'coverage':
-                self.scenarios[scenario_name] = CoverageScenario(name=scenario_name, pop_labels=pop_labels, **vals)
+                self.scenarios[scenario_name] = CoverageScenario(name=scenario_name, **vals)
             else:
                 raise NotImplementedError("ERROR: No corresponding Scenario type for scenario=%s" % scenario_name)
 
