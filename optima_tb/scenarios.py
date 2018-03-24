@@ -21,28 +21,16 @@ class Scenario(object):
         self.scenario_parset = None  # Placeholder for scenario values
         self.settings = settings
 
-
-    def makeScenarioParset(self):
-        raise NotImplementedError
-
     def getScenarioParset(self, parset):
-        raise NotImplementedError
-
-    def makeScenarioProgset(self):
-        raise NotImplementedError
+        return parset
 
     def getScenarioProgset(self, progset, options):
-        raise NotImplementedError
+        return progset, options
 
 
 class ParameterScenario(Scenario):
 
     def __init__(self, name, settings, run_scenario=False, overwrite=True, scenario_values=None, pop_labels=None, **kwargs):
-        super(ParameterScenario, self).__init__(name, settings, run_scenario, overwrite)
-        self.makeScenarioParset(scenario_values, pop_labels=pop_labels)
-
-
-    def makeScenarioParset(self, scenario_values, pop_labels):
         """
         Given some data that describes a parameter scenario, creates the corresponding parameterSet 
         which can then be combined with a ParameterSet when running a model.
@@ -72,6 +60,9 @@ class ParameterScenario(Scenario):
             pscenario = ParameterScenario(name="examplePS",scenario_values=scvalues,pop_labels=pops)
     
         """
+        super(ParameterScenario, self).__init__(name, settings, run_scenario, overwrite)
+        self.makeScenarioParset(scenario_values, pop_labels=pop_labels)
+
         data = getEmptyData()
 
         if scenario_values is None:
@@ -105,10 +96,6 @@ class ParameterScenario(Scenario):
             return parset + self.scenario_parset
 
 
-
-    def getScenarioProgset(self, progset, options):
-        return progset, options
-
     def __repr__(self, *args, **kwargs):
         return "ParameterScenario: \n%s" % self.scenario_parset
 
@@ -118,29 +105,7 @@ class BudgetScenario(Scenario):
     def __init__(self, name, run_scenario=False, overwrite=True, scenario_values=None, pop_labels=None, **kwargs):
         super(BudgetScenario, self).__init__(name, run_scenario, overwrite)
         self.makeScenarioProgset(budget_allocation=scenario_values)
-
-
-    def getScenarioParset(self, parset):
-        """
-
-        """
-        return parset
-
-    def makeScenarioProgset(self, budget_allocation):
-        """
-        Sets up the program set budgetary allocation.
-        
-        Params:
-            budget_allocation     A dict of program label: budget allocation pairs
-            
-        Example:
-            budget_allocation = {'HT-DS': 3.14e6}
-            makeScenarioProgset(budget_allocation)
-            
-        """
         self.budget_allocation = budget_allocation
-
-
 
     def getScenarioProgset(self, progset, budget_options):
         """
@@ -176,7 +141,6 @@ class CoverageScenario(BudgetScenario):
 
     def __init__(self, name, run_scenario=False, overwrite=True, scenario_values=None, pop_labels=None, **kwargs):
         super(CoverageScenario, self).__init__(name, run_scenario=run_scenario, overwrite=overwrite, scenario_values=scenario_values, pop_labels=pop_labels, **kwargs)
-
 
     def getScenarioProgset(self, progset, options):
         progset, options = super(CoverageScenario, self).getScenarioProgset(progset, options)
