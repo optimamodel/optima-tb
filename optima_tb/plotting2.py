@@ -27,7 +27,7 @@ from matplotlib.patches import Rectangle, Patch
 from matplotlib.collections import PatchCollection
 from matplotlib.legend import Legend
 import os
-from optima_tb.model import Parameter
+from optima_tb.model import Compartment, Characteristic, Parameter, Link
 from optima_tb.parsing import FunctionParser
 parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
@@ -165,6 +165,7 @@ class PlotData(object):
             output_units = dict()
             compsize = dict()
             popsize = dict()
+            data_label = defaultdict(str) # Label used to identify which data to plot, maps output label to data label. Defaultdict won't throw key error when checking outputs
 
             # Assemble the final output dicts for each population
             for pop_label in pops_required:
@@ -172,32 +173,36 @@ class PlotData(object):
                 popsize[pop_label] = pop.popsize()
                 data_dict = dict()  # Temporary storage for raw outputs
 
-                # First pass, extract the original output quantities
+                # First pass, extract the original output quantities, summing links and annualizing as required
                 for output_label in outputs_required:
-                    if output_label in pop.comp_lookup:
-                        data_dict[output_label] = pop.getComp(output_label).vals
-                        compsize[output_label] = data_dict[output_label]
-                        output_units[output_label] = pop.getComp(output_label).units
-                    elif output_label in pop.charac_lookup:
-                        data_dict[output_label] = pop.getCharac(output_label).vals
-                        compsize[output_label] = data_dict[output_label]
-                        output_units[output_label] = pop.getCharac(output_label).units
-                    elif output_label in pop.par_lookup:
-                        par = pop.getPar(output_label)
-                        if par.links: # If this is a transition parameter, use getFlow to get the flow rate
-                            data_dict[output_label] = np.zeros(tvecs[result_label].shape)
+                    vars = pop.getVariable(output_label)
+
+                    if isinstance(vars[0],Link):
+                        data_dict[output_label] = np.zeros(tvecs[result_label].shape)
+                        compsize[output_label] = np.zeros(tvecs[result_label].shape)
+                        for link in vars:
+                            data_dict[output_label] += link.vals / dt
+                            compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
+                        output_units[output_label] = link.units
+                        data_label[output_label] = vars[0].parameter.label
+
+                    elif isinstance(vars[0],Parameter):
+                        data_dict[output_label] = vars[0].vals
+                        if vars[0].links:
+                            output_units[output_label] = vars[0].units
                             compsize[output_label] = np.zeros(tvecs[result_label].shape)
-                            for link in par.links:
-                                data_dict[output_label] += link.vals/dt
+                            for link in vars[0].links:
                                 compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
-                            output_units[output_label] = link.units
-                        else:
-                            data_dict[output_label] = pop.getPar(output_label).vals
-                            output_units[output_label] = pop.getPar(output_label).units
-                    else:
-                        raise OptimaException('Output "%s" not found in pop "%s"' % (output_label,pop_label))
+                        data_label[output_label] = vars[0].label
+                    else: # Compartment or Characteristic
+                        data_dict[output_label] = vars[0].vals
+                        compsize[output_label] = vars[0]
+                        output_units[output_label] = vars[0].units
+                        data_label[output_label] = vars[0].label
 
                 # Second pass, add in any dynamically computed quantities
+                # Using model.Parameter will automatically sum over Links and convert Links
+                # to annualized rates
                 for l in outputs:
                     if not isinstance(l,dict):
                         continue
@@ -257,10 +262,10 @@ class PlotData(object):
                         elif pop_aggregation == 'weighted':
                             vals = sum(aggregated_outputs[x][output_name]*popsize[x] for x in pop_labels) # Add together all the outputs
                             vals /= sum([popsize[x] for x in pop_labels])
-                        self.series.append(Plottable(tvecs[result_label],vals,result_label,pop_name,output_name))
+                        self.series.append(Plottable(tvecs[result_label],vals,result_label,pop_name,output_name,data_label[output_name]))
                     else:
                         vals = aggregated_outputs[pop][output_name]
-                        self.series.append(Plottable(tvecs[result_label],vals,result_label,pop,output_name))
+                        self.series.append(Plottable(tvecs[result_label],vals,result_label,pop,output_name,data_label[output_name]))
 
         self.results = [x.name for x in results] # NB. These are lists that thus specify the order in which plotting takes place
         self.pops = [x.keys()[0] if isinstance(x,dict) else x for x in pops]
@@ -400,7 +405,7 @@ class PlotData(object):
                 s.color = color if (s.color is None or overwrite==True) else s.color
 
 class Plottable(object):
-    def __init__(self,tvec,vals,result='default',pop='default',output='default',color=None,label=None):
+    def __init__(self,tvec,vals,result='default',pop='default',output='default',data_label='',color=None,label=None):
         self.tvec = np.copy(tvec)
         self.t_labels = np.copy(self.tvec) # Iterable array of time labels - could become strings like [2010-2014]
         self.vals = np.copy(vals)
@@ -409,6 +414,7 @@ class Plottable(object):
         self.output = output
         self.color = color
         self.label = label
+        self.data_label = data_label # Used to identify data for plotting
 
 def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_legend=False,xlabels=None):
     # We have a collection of bars - one for each Result, Pop, Output, and Timepoint.
@@ -670,7 +676,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                     for result in plotdata.results:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.result_names[result])
                         if data is not None:
-                            render_data(ax,data, pop, output,plotdata[result,pop,output].color)
+                            render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
                 if not separate_legend:
                     render_legend(ax,plot_type)
@@ -691,7 +697,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                     for pop in plotdata.pops:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.pop_names[pop])
                         if data is not None:
-                            render_data(ax,data, pop, output,plotdata[result,pop,output].color)
+                            render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
                 if not separate_legend:
                     render_legend(ax,plot_type)
@@ -712,7 +718,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                     for output in plotdata.outputs:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.output_names[output])
                         if data is not None:
-                            render_data(ax,data, pop, output,plotdata[result,pop,output].color)
+                            render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
                 if not separate_legend:
                     render_legend(ax,plot_type)
@@ -722,7 +728,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
 
     return figs
 
-def render_data(ax,data,pop,output,color):
+def render_data(ax,data,series):
     # This function renders a scatter plot for a single variable (in a single population)
     # The scatter plot is drawn in the current axis
     # INPUTS
@@ -732,20 +738,20 @@ def render_data(ax,data,pop,output,color):
     # name - The name-formatting function to retrieve full names (currently unused)
     # color - The color of the data points to use
 
-    if output in data['characs'].keys():
-        d = data['characs'][output]
-    elif output in data['linkpars'].keys():
-        d = data['linkpars'][output]
+    if series.data_label in data['characs']:
+        d = data['characs'][series.data_label]
+    elif series.data_label in data['linkpars']:
+        d = data['linkpars'][series.data_label]
     else:
         return
 
-    if pop in d:
-        y = d[pop]['y']
-        t = d[pop]['t']
+    if series.pop in d:
+        y = d[series.pop]['y']
+        t = d[series.pop]['t']
     else:
         return
 
-    ax.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
+    ax.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=series.color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
 
 def set_ytick_format(ax,formatter):
 
