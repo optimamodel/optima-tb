@@ -27,6 +27,9 @@ from matplotlib.patches import Rectangle, Patch
 from matplotlib.collections import PatchCollection
 from matplotlib.legend import Legend
 import os
+from optima_tb.model import Parameter
+from optima_tb.parsing import FunctionParser
+parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
 
 def save_figs(figs,path = '.',prefix = '',fnames=None):
@@ -63,7 +66,6 @@ class PlotData(object):
     # different views of the same data.
 
     def __init__(self,results,outputs=None,pops=None,output_aggregation='sum',pop_aggregation='sum',project=None):
-        # TODO - Add temporal aggregation
         # Construct a PlotData instance from a Results object by selecting data and optionally
         # specifying desired aggregations
         #
@@ -80,7 +82,9 @@ class PlotData(object):
         # - outputs - The name of an output compartment, characteristic, or
         #   parameter, or list of names. Inside a list, a dict can be given to
         #   specify an aggregation e.g. outputs=['sus',{'total':['sus','vac']}]
-        #   where the key is the new name
+        #   where the key is the new name. Or, a formula can be given which will
+        #   be evaluated by looking up labels within the model object. Links will
+        #   automatically be summed over
         # - pops - The name of an output population, or list of names. Like
         #   outputs, can specify a dict with a list of pops to aggregate over them
         # - axis - Display one of results, outputs, or pops as different coloured
@@ -136,7 +140,10 @@ class PlotData(object):
                 if isinstance(x,dict):
                     k = x.keys()
                     assert len(k) == 1, 'Aggregation dict can only have one key'
-                    out += x[k[0]]
+                    if isinstance(x[k[0]],str):
+                        continue
+                    else:
+                        out += x[k[0]]
                 else:
                     out.append(x)
             return set(out)
@@ -190,11 +197,38 @@ class PlotData(object):
                     else:
                         raise OptimaException('Output "%s" not found in pop "%s"' % (output_label,pop_label))
 
-                # Second pass, aggregate them according to any aggregations present
+                # Second pass, add in any dynamically computed quantities
+                for l in outputs:
+                    if not isinstance(l,dict):
+                        continue
+
+                    output_label,f_stack_str = l.items()[0] # extract_labels has already ensured only one key is present
+
+                    if not isinstance(f_stack_str,str):
+                        continue
+
+                    par = Parameter(output_label)
+                    f_stack, dep_labels = parser.produceStack(f_stack_str)
+                    deps = []
+                    for dep_label in dep_labels:
+                        deps += pop.getVariable(dep_label)
+                    par.f_stack = f_stack
+                    par.deps = deps
+                    par.preallocate(tvecs[result_label], dt)
+                    par.update()
+                    data_dict[output_label] = par.vals
+                    output_units[output_label] = par.units
+
+                # Third pass, aggregate them according to any aggregations present
                 for output in outputs: # For each final output
                     if isinstance(output,dict):
                         output_name = output.keys()[0]
                         labels = output[output_name]
+
+                        if isinstance(labels,str): # If this was a function, aggregation over outputs doesn't apply so just put it straight in
+                            aggregated_outputs[pop_label][output_name] = data_dict[output_name]
+                            continue
+
                         if len(set([output_units[x] for x in labels])) > 1:
                             logger.warn('Warning - aggregation for output "%s" is mixing units, this is almost certainly not desired' % (output_name))
                         if output_aggregation == 'sum': 
@@ -232,6 +266,7 @@ class PlotData(object):
         self.pops = [x.keys()[0] if isinstance(x,dict) else x for x in pops]
         self.outputs = [x.keys()[0] if isinstance(x,dict) else x for x in outputs]
 
+        # Names will be substituted with these at the last minute when plotting for titles/legends
         self.result_names = {x:x for x in self.results} # At least for now, no ResultSet name mapping
         self.pop_names = {x:(getFullName(x,project) if project is not None else x) for x in self.pops}
         self.output_names = {x:(getFullName(x,project) if project is not None else x) for x in self.outputs}
@@ -372,8 +407,8 @@ class Plottable(object):
         self.result = result
         self.pop = pop
         self.output = output
-        self.color = color # Automatically decide color at runtime (e.g. in plotSeries this could vary depending on whether axis='outputs' or 'pops etc)
-        self.label = label # Automatically decide label at runtime (e.g. in plotSeries this could be the output name or the pop name depending on the axis)
+        self.color = color
+        self.label = label
 
 def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_legend=False,xlabels=None):
     # We have a collection of bars - one for each Result, Pop, Output, and Timepoint.
