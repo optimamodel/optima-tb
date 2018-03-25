@@ -196,7 +196,7 @@ class PlotData(object):
                         data_label[output_label] = vars[0].label
                     else: # Compartment or Characteristic
                         data_dict[output_label] = vars[0].vals
-                        compsize[output_label] = vars[0]
+                        compsize[output_label] = vars[0].vals
                         output_units[output_label] = vars[0].units
                         data_label[output_label] = vars[0].label
 
@@ -587,7 +587,7 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     fig.set_figwidth((block_offset+base_offset))
     ax.set_ylim(ymin=0)
     _turnOffBorder(ax)
-    ax.yaxis.set_major_formatter(FuncFormatter(KMSuffixFormatter))
+    set_ytick_format(ax,'KM')
     block_labels = sorted(block_labels, key=lambda x: x[0])
     ax.set_xticks([x[0] for x in block_labels])
     ax.set_xticklabels([x[1] for x in block_labels])
