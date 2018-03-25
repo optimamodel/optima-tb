@@ -992,9 +992,7 @@ class Model(object):
         outputs = odict()
 
         for pop in self.pops:
-            for output in pop.pars + pop.characs + pop.links:
-                if isinstance(output,Parameter) and len(output.links) > 0:
-                    continue # Load in links instead of this parameter
+            for output in pop.pars + pop.characs:
                 if output.label not in outputs:
                     outputs[output.label] = odict()
                 if pop.label in outputs[output.label]:
@@ -1002,7 +1000,6 @@ class Model(object):
                     outputs[output.label][pop.label] += output.vals
                 else:
                     outputs[output.label][pop.label] = output.vals
-                
         return outputs
 
 

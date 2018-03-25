@@ -89,9 +89,9 @@ class ResultSet(object):
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
         self.link_labels = []
         for pop in model.pops:
-            for par in pop.pars:
-                if par.label not in self.link_labels and len(par.links) > 0:
-                    self.link_labels.append(par.label)
+            for link in pop.links:
+                if link.label not in self.link_labels:
+                    self.link_labels.append(link.label)
 
         self.budgets = {} # placeholders
         self.coverages = {}
@@ -162,7 +162,6 @@ class ResultSet(object):
 
         # Find values in results and add them to the output array per relevant population group.
         # TODO: Semantics need to be cleaned during design review phase.
-        #       Link tags are actually stored in link_labels, while link labels could be in char_labels if a transition is marked as a result output.
         if label in self.link_labels:
 
             values = self.getFlow(label, pop_labels=pop_labels)[0]
@@ -184,7 +183,6 @@ class ResultSet(object):
 
             values, _, _, units = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)
             for pop in values.keys():
-                popvalues = values[pop]
                 output += values[pop][label].vals[idx]
 
         else:
@@ -277,35 +275,35 @@ class ResultSet(object):
         """
         if pop_label is not None:
             if isinstance(pop_label, list):
-                pop_label = pop_label
+                pop_labels = pop_label
             else:
-                pop_label = [pop_label]
+                pop_labels = [pop_label]
         else:
-            pop_label = self.pop_labels
+            pop_labels = self.pop_labels
 
         if char_label is not None:
             if isinstance(char_label, list):
-                char_label = char_label
+                char_labels = char_label
             else:
-                char_label = [char_label]
+                char_labels = [char_label]
         else:
-            char_label = self.char_labels
+            char_labels = self.char_labels
 
         datapoints = defaultdict(dict)
-        for pop in self.model.pops:
-            for charac in pop.characs:
-                if pop.label in pop_label and charac.label in char_label:
-                    if use_observed_times:
-                        datapoints[charac.label][pop.label] = charac.vals[self.indices_observed_data]
-                    else:
-                        datapoints[charac.label][pop.label] = charac.vals
 
-        units = 'people' # TODO - this is not correct, as a characteristic could be a prevalence 
+        for pop_label in pop_labels:
+            for char_label in char_labels:
+                if use_observed_times:
+                    datapoints[char_label][pop_label] = self.outputs[char_label][pop_label][self.indices_observed_data]
+                else:
+                    datapoints[char_label][pop_label] = self.outputs[char_label][pop_label]
+
+        units = ''
 
         return datapoints, char_label, pop_label, units
 
 
-    def getFlow(self, par_label, pop_labels=None,target_flow=False,annualize=True,as_fraction=False):
+    def getFlow(self, link_tag, pop_labels=None,target_flow=False,annualize=True,as_fraction=False):
         """
         Return the flow at each time point in the simulation for a single parameter
 
@@ -343,14 +341,12 @@ class ResultSet(object):
 
         for pop in self.model.pops:
             if pop_labels is None or pop.label in pop_labels:
-                if par_label in pop.par_lookup:
-                    par = pop.getPar(par_label)
-                    for link in par.links:
-                        if target_flow:
-                            datapoints[pop.label] += link.target_flow
-                        else:
-                            datapoints[pop.label] += link.vals
-                        source_size[pop.label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
+                for link in pop.getVariable(link_tag):
+                    if target_flow:
+                        datapoints[pop.label] += link.target_flow
+                    else:
+                        datapoints[pop.label] += link.vals
+                    source_size[pop.label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
 
         # If as_fraction is None, use the same units as the Parameter. All Parameters should have the same units
         # in all populations so can use whichever one is left after the loop above
