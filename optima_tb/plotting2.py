@@ -190,25 +190,38 @@ class PlotData(object):
                     if isinstance(vars[0],Link):
                         data_dict[output_label] = np.zeros(tvecs[result_label].shape)
                         compsize[output_label] = np.zeros(tvecs[result_label].shape)
+                        
                         for link in vars:
-                            data_dict[output_label] += link.vals / (dt if t_bins is not None else 1.0)
+                            data_dict[output_label] += link.vals
                             compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
-                        output_units[output_label] = link.units
+
+                        if t_bins is None: # Annualize if not time aggregating
+                            data_dict[output_label] /= dt
+                            output_units[output_label] = link.units + '/year'
+                        else:    
+                            output_units[output_label] = link.units # If we sum links in a bin, we get a number of people
                         data_label[output_label] = vars[0].parameter.label
 
                     elif isinstance(vars[0],Parameter):
                         data_dict[output_label] = vars[0].vals
+                        output_units[output_label] = vars[0].units
+                        data_label[output_label] = vars[0].label
+
+                        # If there are links, we can retrieve a compsize for the user to do a weighted average
                         if vars[0].links:
                             output_units[output_label] = vars[0].units
                             compsize[output_label] = np.zeros(tvecs[result_label].shape)
                             for link in vars[0].links:
                                 compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
-                        data_label[output_label] = vars[0].label
-                    else: # Compartment or Characteristic
+
+                    elif isinstance(vars[0],Compartment) or isinstance(vars[0],Characteristic): # Compartment or Characteristic
                         data_dict[output_label] = vars[0].vals
                         compsize[output_label] = vars[0].vals
                         output_units[output_label] = vars[0].units
                         data_label[output_label] = vars[0].label
+
+                    else:
+                        raise OptimaException('Unknown type')
 
                 # Second pass, add in any dynamically computed quantities
                 # Using model. Parameter objects will automatically sum over Links and convert Links
@@ -246,14 +259,18 @@ class PlotData(object):
 
                         if isinstance(labels,str): # If this was a function, aggregation over outputs doesn't apply so just put it straight in
                             aggregated_outputs[pop_label][output_name] = data_dict[output_name]
-                            aggregated_units[output_name] = '' # Also, we don't know what the units of a function are
+                            aggregated_units[output_name] = 'unknown' # Also, we don't know what the units of a function are
                             continue
 
-                        if len(set([output_units[x] for x in labels])) > 1:
+                        units = list(set([output_units[x] for x in labels]))
+                        if len(units) > 1:
                             logger.warn('Warning - aggregation for output "%s" is mixing units, this is almost certainly not desired' % (output_name))
-                            aggregated_units[output_name] = ''
+                            aggregated_units[output_name] = 'unknown'
                         else:
+                            if units[0] in ['','fraction','proportion'] and output_aggregation == 'sum': # Dimensionless quantity, like a prevalance
+                                logger.warn('Warning - output "%s" is not in number units, so output aggregation probably should not be "sum"' % (output_name))
                             aggregated_units[output_name] = output_units[labels[0]]
+                            
                         if output_aggregation == 'sum': 
                             aggregated_outputs[pop_label][output_name] = sum(data_dict[x] for x in labels) # Add together all the outputs
                         elif output_aggregation == 'average': 
@@ -273,7 +290,9 @@ class PlotData(object):
                     if isinstance(pop,dict):
                         pop_name = pop.keys()[0]
                         pop_labels = pop[pop_name]
-                        if pop_aggregation == 'sum': 
+                        if pop_aggregation == 'sum':
+                            if aggregated_units[output_name] in ['','fraction','proportion']:
+                                logger.warn('Warning - output "%s" is not in number units, so population aggregation probably should not be "sum"' % (output_name))
                             vals = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
                         elif pop_aggregation == 'average': 
                             vals = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
@@ -281,10 +300,10 @@ class PlotData(object):
                         elif pop_aggregation == 'weighted':
                             vals = sum(aggregated_outputs[x][output_name]*popsize[x] for x in pop_labels) # Add together all the outputs
                             vals /= sum([popsize[x] for x in pop_labels])
-                        self.series.append(Series(tvecs[result_label],vals,result_label,pop_name,output_name,data_label[output_name]))
+                        self.series.append(Series(tvecs[result_label],vals,result_label,pop_name,output_name,data_label[output_name],units=aggregated_units[output_name]))
                     else:
                         vals = aggregated_outputs[pop][output_name]
-                        self.series.append(Series(tvecs[result_label],vals,result_label,pop,output_name,data_label[output_name]))
+                        self.series.append(Series(tvecs[result_label],vals,result_label,pop,output_name,data_label[output_name],units=aggregated_units[output_name]))
 
         self.results = [x.name for x in results] # NB. These are lists that thus specify the order in which plotting takes place
         self.pops = [x.keys()[0] if isinstance(x,dict) else x for x in pops]
@@ -612,6 +631,13 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     ax.set_xticks([x[0] for x in block_labels])
     ax.set_xticklabels([x[1] for x in block_labels])
 
+    # Calculate the units. As all bar patches are shown on the same axis, they are all expected to have the
+    # same units. If they do not, the plot could be misleading
+    units = list(set([x.units for x in plotdata.series])) 
+    if len(units) == 1:
+        ax.set_ylabel(units[0])
+    else:
+        logger.warn('Warning - bar plot quantities mix units, double check that output selection is correct')
 
     # Inner and outer group labels are only displayed if there is more than one group
     if outer == 'times' and len(tvals) > 1:
@@ -686,7 +712,13 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                 fig,ax = plt.subplots()
                 fig.set_label('%s_%s' % (pop,output))
                 figs.append(fig)
-                ax.set_ylabel(plotdata.output_names[output])
+
+                units = list(set([plotdata[result,pop,output].units for result in plotdata.results]))
+                if len(units) == 1:
+                    ax.set_ylabel('%s (%s)' % (plotdata.output_names[output],units[0]))
+                else:
+                    ax.set_ylabel('%s' % (plotdata.output_names[output]))
+
                 ax.set_title('%s' % (plotdata.pop_names[pop]))
                 if plot_type in ['stacked','proportion']:
                     y = np.stack([plotdata[result,pop,output].vals for result in plotdata.results])
@@ -707,7 +739,13 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                 fig,ax = plt.subplots()
                 fig.set_label('%s_%s' % (result,output))
                 figs.append(fig)
-                ax.set_ylabel(plotdata.output_names[output])
+
+                units = list(set([plotdata[result,pop,output].units for pop in plotdata.pops]))
+                if len(units) == 1:
+                    ax.set_ylabel('%s (%s)' % (plotdata.output_names[output],units[0]))
+                else:
+                    ax.set_ylabel('%s' % (plotdata.output_names[output]))
+
                 ax.set_title('%s' % (plotdata.result_names[result]))
                 if plot_type in ['stacked','proportion']:
                     y = np.stack([plotdata[result,pop,output].vals for pop in plotdata.pops])
@@ -728,7 +766,11 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                 fig,ax = plt.subplots()
                 fig.set_label('%s_%s' % (result,pop))
                 figs.append(fig)
-                # plt.ylabel('Mixed')
+
+                units = list(set([plotdata[result,pop,output].units for output in plotdata.outputs]))
+                if len(units) == 1:
+                    ax.set_ylabel(units[0])
+
                 ax.set_title('%s-%s' % (plotdata.result_names[result],plotdata.pop_names[pop]))
                 if plot_type in ['stacked','proportion']:
                     y = np.stack([plotdata[result,pop,output].vals for output in plotdata.outputs])

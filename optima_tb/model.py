@@ -48,7 +48,7 @@ class Variable(object):
         self.dt = None
         self.vals = None
         self.vals_old = None                # An optional array that stores old values in the case of overwriting.
-        self.units = ''
+        self.units = 'unknown'              # 'unknown' units are distinct to dimensionless units, that have value ''
 
     def preallocate(self,tvec,dt):
         self.t = tvec
@@ -153,7 +153,7 @@ class Characteristic(Variable):
         assert isinstance(x,Compartment) or isinstance(x,Characteristic)
         self.denominator = x
         x.set_dependent()
-        self.units = 'proportion'
+        self.units = ''
 
     def update(self,ti=None):
         # Read popsizes at time ti from includes, and update the value of this characteristic
@@ -273,7 +273,7 @@ class Link(Variable):
         # Note that the Link's label is the transition tag
         Variable.__init__(self, label=tag)
         self.tag = tag
-        self.units = 'people/timestep'
+        self.units = 'people'
 
         self.parameter = parameter # Source parameter where the unscaled link value is drawn from (a single parameter may have multiple links)
         self.parameter.dependency = True # A transition parameter must be updated during integration
