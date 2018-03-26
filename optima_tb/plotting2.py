@@ -51,7 +51,7 @@ def save_figs(figs,path = '.',prefix = '',fnames=None):
             if fig.get_label() == '':
                 continue
             fname = prefix+fig.get_label() + '.png'
-        fig.savefig(os.path.join(path,fname))
+        fig.savefig(os.path.join(path,fname),bbox_inches='tight')
         logger.info('Saved figure "%s"' % fname)
 
 
@@ -760,6 +760,7 @@ def render_separate_legend(ax,plot_type=None,handles=None):
         labels = [h.get_label() for h in handles]
 
     fig,ax = plt.subplots()
+    ax.set_position([0.5,0.5,0.01,0.01])
     ax.set_axis_off() # This allows the figure to be shown in jupyter notebook
 
     legendsettings = {'loc': 'center', 'bbox_to_anchor': None,'frameon':False}
