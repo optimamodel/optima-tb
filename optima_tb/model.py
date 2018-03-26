@@ -627,8 +627,9 @@ class Model(object):
                 pop = self.getPop(pop_label)
                 par = pop.getPar(cascade_par.label) # Find the parameter with the requested label
                 par.vals = cascade_par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
-                par.units = cascade_par.y_format[pop_label]
                 par.scale_factor = cascade_par.y_factor[pop_label]
+                if par.links:
+                    par.units = cascade_par.y_format[pop_label]
 
         # Propagating transfer parameter parset values into Model object.
         # For each population pair, instantiate a Parameter with the values from the databook
