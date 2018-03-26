@@ -65,7 +65,7 @@ class PlotData(object):
     # labels, colours, groupings etc. only apply to plots, not to results, and there could be several
     # different views of the same data.
 
-    def __init__(self,results,outputs=None,pops=None,output_aggregation='sum',pop_aggregation='sum',project=None):
+    def __init__(self,results,outputs=None,pops=None,output_aggregation='sum',pop_aggregation='sum',project=None,time_aggregation='sum',t_bins=None):
         # Construct a PlotData instance from a Results object by selecting data and optionally
         # specifying desired aggregations
         #
@@ -75,7 +75,7 @@ class PlotData(object):
         # Input must be a list either containing a list of raw output labels or a dict with a single
         # key where the value is a list of raw output labels e.g.
         # outputs = ['vac',{'total':['vac','sus']}]
-
+        #
         #
         # - results - A ResultSet or a dict of ResultSets with key corresponding
         #   to name
@@ -105,6 +105,13 @@ class PlotData(object):
         #   aggregation can be used to combine already aggregated outputs (e.g.
         #   can first sum 'sus'+'vac' within populations, and then take weighted
         #   average across populations)
+        # - time_aggregation - Supported methods are 'sum' and 'average' (no weighting). When aggregating
+        #   times, *non-annualized* flow rates will be used. 
+        # - t_bins can be
+        #       - A vector of bin edges. Time points are included if the time
+        #         is >= the lower bin value and < upper bin value.
+        #       - A scalar bin size (e.g. 5) which will be expanded to a vector spanning the data
+        #       - The string 'all' will maps to bin edges [-inf inf] aggregating over all time
 
         # Validate inputs
         if isinstance(results,odict):
@@ -130,6 +137,7 @@ class PlotData(object):
 
         assert output_aggregation in ['sum','average','weighted']
         assert pop_aggregation in ['sum','average','weighted']
+        assert time_aggregation in ['sum','average']
 
         def extract_labels(l):
             # Flatten the input arrays to extract all requested pops and outputs
@@ -155,19 +163,21 @@ class PlotData(object):
         self.series = []
         tvecs = dict()
 
-        for result in results: # For each result
+        # Because aggregations always occur within a Result object, loop over results
+        for result in results: 
 
             result_label = result.name
             tvecs[result_label] = result.model.sim_settings['tvec']
             dt = result.model.sim_settings['tvec_dt']
 
             aggregated_outputs = defaultdict(dict) # Dict with aggregated_outputs[pop_label][aggregated_output_label]
+            aggregated_units = dict() # Dict with aggregated_units[aggregated_output_label]
             output_units = dict()
             compsize = dict()
             popsize = dict()
             data_label = defaultdict(str) # Label used to identify which data to plot, maps output label to data label. Defaultdict won't throw key error when checking outputs
 
-            # Assemble the final output dicts for each population
+            # Aggregation over outputs takes place first, so loop over pops
             for pop_label in pops_required:
                 pop = result.model.getPop(pop_label)
                 popsize[pop_label] = pop.popsize()
@@ -181,7 +191,7 @@ class PlotData(object):
                         data_dict[output_label] = np.zeros(tvecs[result_label].shape)
                         compsize[output_label] = np.zeros(tvecs[result_label].shape)
                         for link in vars:
-                            data_dict[output_label] += link.vals / dt
+                            data_dict[output_label] += link.vals / (dt if t_bins is not None else 1.0)
                             compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
                         output_units[output_label] = link.units
                         data_label[output_label] = vars[0].parameter.label
@@ -201,7 +211,7 @@ class PlotData(object):
                         data_label[output_label] = vars[0].label
 
                 # Second pass, add in any dynamically computed quantities
-                # Using model.Parameter will automatically sum over Links and convert Links
+                # Using model. Parameter objects will automatically sum over Links and convert Links
                 # to annualized rates
                 for l in outputs:
                     if not isinstance(l,dict):
@@ -215,7 +225,11 @@ class PlotData(object):
                     par = Parameter(output_label)
                     f_stack, dep_labels = parser.produceStack(f_stack_str)
                     deps = []
+                    displayed_annualization_warning = False
                     for dep_label in dep_labels:
+                        var = pop.getVariable(dep_label)
+                        if t_bins is not None and (isinstance(var,Link) or isinstance(var,Parameter)) and time_aggregation == "sum" and not displayed_annualization_warning:
+                            raise OptimaException('Function includes Parameter/Link so annualized rates are being used. Aggregation may need to use "average" rather than "sum"')
                         deps += pop.getVariable(dep_label)
                     par.f_stack = f_stack
                     par.deps = deps
@@ -232,10 +246,14 @@ class PlotData(object):
 
                         if isinstance(labels,str): # If this was a function, aggregation over outputs doesn't apply so just put it straight in
                             aggregated_outputs[pop_label][output_name] = data_dict[output_name]
+                            aggregated_units[output_name] = '' # Also, we don't know what the units of a function are
                             continue
 
                         if len(set([output_units[x] for x in labels])) > 1:
                             logger.warn('Warning - aggregation for output "%s" is mixing units, this is almost certainly not desired' % (output_name))
+                            aggregated_units[output_name] = ''
+                        else:
+                            aggregated_units[output_name] = output_units[labels[0]]
                         if output_aggregation == 'sum': 
                             aggregated_outputs[pop_label][output_name] = sum(data_dict[x] for x in labels) # Add together all the outputs
                         elif output_aggregation == 'average': 
@@ -246,6 +264,7 @@ class PlotData(object):
                             aggregated_outputs[pop_label][output_name] /= sum([compsize[x] for x in labels])
                     else:
                         aggregated_outputs[pop_label][output] = data_dict[output]
+                        aggregated_units[output] = output_units[output]
 
             # Now aggregate over populations
             # If we have requested a reduction over populations, this is done for every output present
@@ -262,10 +281,10 @@ class PlotData(object):
                         elif pop_aggregation == 'weighted':
                             vals = sum(aggregated_outputs[x][output_name]*popsize[x] for x in pop_labels) # Add together all the outputs
                             vals /= sum([popsize[x] for x in pop_labels])
-                        self.series.append(Plottable(tvecs[result_label],vals,result_label,pop_name,output_name,data_label[output_name]))
+                        self.series.append(Series(tvecs[result_label],vals,result_label,pop_name,output_name,data_label[output_name]))
                     else:
                         vals = aggregated_outputs[pop][output_name]
-                        self.series.append(Plottable(tvecs[result_label],vals,result_label,pop,output_name,data_label[output_name]))
+                        self.series.append(Series(tvecs[result_label],vals,result_label,pop,output_name,data_label[output_name]))
 
         self.results = [x.name for x in results] # NB. These are lists that thus specify the order in which plotting takes place
         self.pops = [x.keys()[0] if isinstance(x,dict) else x for x in pops]
@@ -276,6 +295,49 @@ class PlotData(object):
         self.pop_names = {x:(getFullName(x,project) if project is not None else x) for x in self.pops}
         self.output_names = {x:(getFullName(x,project) if project is not None else x) for x in self.outputs}
 
+        if t_bins is not None:
+
+            # If t_bins is a scalar, expand it into a vector of bin edges
+            if not hasattr(t_bins,'__len__'):
+                if not (self.series[0].tvec[-1]-self.series[0].tvec[0])%t_bins:
+                    upper = self.series[0].tvec[-1]+t_bins
+                else:
+                    upper = self.series[0].tvec[-1]
+                t_bins = np.arange(self.series[0].tvec[0],upper,t_bins)
+            
+            if isinstance(t_bins,str) and t_bins == 'all':
+                t_out = np.zeros((1,))
+                lower = [-np.inf]
+                upper = [np.inf]
+            else:
+                lower = t_bins[0:-1]
+                upper = t_bins[1:]
+                if time_aggregation == 'sum':
+                    t_out = upper
+                elif time_aggregation == 'average':
+                    t_out = (lower+upper)/2.0
+
+            for s in self.series:
+                tvec = []
+                vals = []
+                for i,low,high,t in zip(range(len(lower)),lower,upper,t_out):
+                    tvec.append(t)
+                    if (not np.isinf(low) and low < s.tvec[0]) or (not np.isinf(high) and high > s.tvec[-1]):
+                        vals.append(np.nan)
+                    else:
+                        flt = (s.tvec >= low) & (s.tvec < high)
+                        if time_aggregation == 'sum':
+                            vals.append(np.sum(s.vals[flt]))
+                        elif time_aggregation == 'average':
+                            vals.append(np.average(s.vals[flt]))
+
+                s.tvec = np.array(tvec)
+                s.vals = np.array(vals)
+                if isinstance(t_bins,str) and t_bins == 'all':
+                    s.t_labels = ['All']
+                else:
+                    s.t_labels = ['%d-%d' % (l,h) for l,h in zip(lower,upper)]
+                
     def __repr__(self):
         s = 'PlotData\n'
         s += 'Results: %s\n' % (self.results)
@@ -284,61 +346,14 @@ class PlotData(object):
         return s
 
     def tvals(self):
+        # Return a vector of time values for the PlotData object, if all of the series have the
+        # same time axis (otherwise throw an error)
         assert len(set([len(x.tvec) for x in self.series])) == 1, 'All series must have the same number of time points' # All series must have the same number of timepoints
         tvec = self.series[0].tvec
         t_labels = self.series[0].t_labels
         for i in xrange(1,len(self.series)):
             assert(all(self.series[i].tvec == tvec)), 'All series must have the same time points'
         return tvec,t_labels
-
-    def time_aggregate(self,t_bins = None, method='sum'):
-        # t_bins is a vector of bin edges
-        # For time points where the time is >= the lower bin value and < upper bin value
-        # values will be aggregated according to the method
-        # If the method is 'sum' then the output time points will be the upper bin edges
-        # If the method is 'average' then the output time points will be the bin centres
-        assert method in ['sum','average']
-
-        if t_bins is not None and not hasattr(t_bins,'__len__'):
-            if not (self.series[0].tvec[-1]-self.series[0].tvec[0])%t_bins:
-                upper = self.series[0].tvec[-1]+t_bins
-            else:
-                upper = self.series[0].tvec[-1]
-            t_bins = np.arange(self.series[0].tvec[0],upper,t_bins)
-        if t_bins is None:
-            t_out = np.zeros((1,))
-            lower = [-np.inf]
-            upper = [np.inf]
-            assert method=='sum', 'Cannot average data over all time'
-        else:
-            lower = t_bins[0:-1]
-            upper = t_bins[1:]
-            if method == 'sum':
-                t_out = upper
-            elif method == 'average':
-                t_out = (lower+upper)/2.0
-
-        for s in self.series:
-            tvec = []
-            vals = []
-            for i,low,high,t in zip(range(len(lower)),lower,upper,t_out):
-                tvec.append(t)
-                if low < s.tvec[0] or high > s.tvec[-1]:
-                    vals.append(np.nan)
-                else:
-                    flt = (s.tvec >= low) & (s.tvec < high)
-                    if method == 'sum':
-                        vals.append(np.sum(s.vals[flt]))
-                    elif method == 'average':
-                        vals.append(np.average(s.vals[flt]))
-
-            s.tvec = np.array(tvec)
-            s.vals = np.array(vals)
-            if t_bins is None:
-                s.t_labels = ['All']
-            else:
-                s.t_labels = ['%d-%d' % (l,h) for l,h in zip(lower,upper)]
-
 
     def __getitem__(self,key):
         # key is a tuple of (result,pop,output)
@@ -404,8 +419,8 @@ class PlotData(object):
             for s in series:
                 s.color = color if (s.color is None or overwrite==True) else s.color
 
-class Plottable(object):
-    def __init__(self,tvec,vals,result='default',pop='default',output='default',data_label='',color=None,label=None):
+class Series(object):
+    def __init__(self,tvec,vals,result='default',pop='default',output='default',data_label='',color=None,label=None, units = ''):
         self.tvec = np.copy(tvec)
         self.t_labels = np.copy(self.tvec) # Iterable array of time labels - could become strings like [2010-2014]
         self.vals = np.copy(vals)
@@ -415,6 +430,11 @@ class Plottable(object):
         self.color = color
         self.label = label
         self.data_label = data_label # Used to identify data for plotting
+        self.units = units
+
+    def __repr__(self):
+        return 'Series(%s,%s,%s)' % (self.result,self.pop,self.output)
+
 
 def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_legend=False,xlabels=None):
     # We have a collection of bars - one for each Result, Pop, Output, and Timepoint.
