@@ -6,7 +6,7 @@ import optima_tb.settings as project_settings
 from optima_tb.results import ResultSet
 from optima_tb.parsing import FunctionParser
 from optima_tb.ModelPrograms import ModelProgramSet, ModelProgram
-
+import cPickle as pickle
 import logging
 logger = logging.getLogger(__name__)
 parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
@@ -562,12 +562,12 @@ class Model(object):
 
     def __getstate__(self):
         self.unlink()
-        d = dcp(self.__dict__) # Deepcopy so that relinking doesn't modify the originals
+        d = pickle.dumps(self.__dict__, protocol=-1) # Pickling to string results in a copy
         self.relink() # Relink, otherwise the original object gets unlinked
         return d
 
     def __setstate__(self, d):
-        self.__dict__ = d
+        self.__dict__ = pickle.loads(d)
         self.relink()
 
     def getPop(self, pop_label):
