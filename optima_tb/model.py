@@ -17,22 +17,6 @@ import uuid
 
 import matplotlib.pyplot as plt
 
-# np.seterr(all='raise')
-# %% Abstract classes used in model
-
-class ModelCompartment(object):
-    pass
-
-
-class Node(object):
-    ''' Lightweight abstract class to represent one object within a network. '''
-    def __init__(self, label='default'):
-        self.uid = uuid.uuid4()
-        self.label = label          # Reference name for this object.
-        # self.index = index          # Index to denote storage position in Model object. Format is left unspecified.
-        #                             # For a ModelPopulation, this is intended as an integer.
-        #                             # For a Compartment, this is intended as a tuple with first element denoting index of ModelPopulation.
-
 class Variable(object):
     '''
     Lightweight abstract class to store a variable array of values (presumably corresponding to an external time vector).
@@ -68,34 +52,6 @@ class Variable(object):
         # overloaded differently for Characteristics and Parameters
         return
 
-    def unlink(self):
-        # A Variable has an unlink function that replaces all of its internal references 
-        # with the corresponding object UUID
-        for prop in self.__dict__.keys():
-            if isinstance(self.__dict__[prop],list):
-                for i,obj in enumerate(self.__dict__[prop]):
-                    if hasattr(obj,'uid'):
-                        self.__dict__[prop][i] = obj.uid
-            else:
-                obj = self.__dict__[prop]
-                if hasattr(obj,'uid'):
-                    self.__dict__[prop] = obj.uid
-
-    def relink(self,objs):
-        # Given a dictionary of objects, restore the internal references
-        # based on the UUID
-        for prop in self.__dict__.keys():
-            if prop == 'uid':
-                continue
-            elif isinstance(self.__dict__[prop],list):
-                for i,obj in enumerate(self.__dict__[prop]):
-                    if isinstance(obj,uuid.UUID):
-                        self.__dict__[prop][i] = objs[obj]
-            else:
-                obj = self.__dict__[prop]
-                if isinstance(obj,uuid.UUID):
-                    self.__dict__[prop] = objs[obj]
-
     def __repr__(self):
         return '%s "%s" (%s)' % (self.__class__.__name__,self.label,self.uid)
 
@@ -119,6 +75,15 @@ class Compartment(Variable):
         """ Get value of population at timestep ti """
         return self.vals[ti]
 
+    def unlink(self):
+        self.outlinks = [x.uid for x in self.outlinks]
+        self.inlinks = [x.uid for x in self.inlinks]
+
+    def relink(self,objs):
+        self.outlinks = [objs[x] for x in self.outlinks]
+        self.inlinks = [objs[x] for x in self.inlinks]
+
+
 class Characteristic(Variable):
     ''' A characteristic represents a grouping of compartments 
     '''
@@ -132,6 +97,16 @@ class Characteristic(Variable):
         self.denominator = None
         self.dependency = False # This flag indicates whether another variable depends on this one, indicating the value needs to be computed during integration
 
+    def unlink(self):
+        self.includes = [x.uid for x in self.includes]
+        self.denominator = self.denominator.uid if self.denominator is not None else None
+
+    def relink(self,objs):
+        # Given a dictionary of objects, restore the internal references
+        # based on the UUID
+        self.includes = [objs[x] for x in self.includes]
+        self.denominator = objs[self.denominator] if self.denominator is not None else None
+
     def add_include(self,x):
         assert isinstance(x,Compartment) or isinstance(x,Characteristic)
         self.includes.append(x)
@@ -144,7 +119,6 @@ class Characteristic(Variable):
         if isinstance(x,Characteristic):
             x.dependency = True
         self.units = 'proportion'
-
 
     def update(self,ti=None):
         # Read popsizes at time ti from includes, and update the value of this characteristic
@@ -195,6 +169,16 @@ class Parameter(Variable):
         self.links = [] # References to links that derive from this parameter
         self.source_popsize_cache_time = None
         self.source_popsize_cache_val = None
+
+    def unlink(self):
+        self.links = [x.uid for x in self.links]
+        self.deps = [x.uid for x in self.deps] if self.deps is not None else None
+
+    def relink(self,objs):
+        # Given a dictionary of objects, restore the internal references
+        # based on the UUID
+        self.links = [objs[x] for x in self.links]
+        self.deps = [objs[x] for x in self.deps] if self.deps is not None else None
 
     def constrain(self,ti):
         # NB. Must be an array, so ti must must not be supplied
@@ -266,7 +250,19 @@ class Link(Variable):
         # The target flow also stores for each time point, the number of people proposed to move
         # The original parameter value is available from the Link's bound parameter
         self.target_flow = None # For each time point, store the number of people that were proposed to move (in units of number of people)
-        
+    
+    def unlink(self):
+        self.parameter = self.parameter.uid
+        self.source = self.source.uid
+        self.dest = self.dest.uid
+
+    def relink(self,objs):
+        # Given a dictionary of objects, restore the internal references
+        # based on the UUID
+        self.parameter = objs[self.parameter]
+        self.source = objs[self.source]
+        self.dest = objs[self.dest]
+
     def __repr__(self, *args, **kwargs):
         return "Link %s - %s to %s" % (self.label, self.source.label, self.dest.label)
 
@@ -279,14 +275,16 @@ class Link(Variable):
         plt.title('Link %s to %s' % (self.source.label,self.dest.label))
 
 # %% Cascade compartment and population classes
-class ModelPopulation(Node):
+class ModelPopulation(object):
     '''
     A class to wrap up data for one population within model.
     Each model population must contain a set of compartments with equivalent labels.
     '''
 
     def __init__(self, settings, label='default'):
-        Node.__init__(self, label=label)
+        self.uid = uuid.uuid4()
+        self.label = label          # Reference name for this object.
+
         self.comps = list()         # List of cascade compartments that this model population subdivides into.
         self.characs = list()       # List of output characteristics and parameters (dependencies computed during integration, pure outputs added after)
         self.links = list()         # List of intra-population cascade transitions within this model population.
