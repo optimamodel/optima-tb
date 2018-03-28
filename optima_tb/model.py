@@ -509,14 +509,14 @@ class ModelPopulation(object):
                     deps += self.getVariable(dep_label)
                 par.set_f_stack(f_stack,deps)
 
-    def preAllocate(self, sim_settings):
+    def preallocate(self, tvec, dt):
         '''
         Pre-allocate variable arrays in compartments, links and dependent variables for faster processing.
         Array maintains initial value but pre-fills everything else with NaNs.
         Thus errors due to incorrect parset value saturation should be obvious from results.
         '''
         for obj in self.comps + self.characs + self.links + self.pars:
-            obj.preallocate(tvec=sim_settings['tvec'],dt=sim_settings['tvec_dt'])
+            obj.preallocate(tvec,dt)
 
     def initialize_compartments(self,parset,settings,t_init):
         # Given a set of characteristics and their initial values, compute the initial
@@ -601,7 +601,7 @@ class ModelPopulation(object):
 class Model(object):
     ''' A class to wrap up multiple populations within model and handle cross-population transitions. '''
 
-    def __init__(self):
+    def __init__(self,settings, parset, progset=None, options=None,name=None):
 
         self.pops = list()              # List of population groups that this model subdivides into.
         self.pop_ids = dict()           # Maps label of a population to its position index within populations list.
@@ -610,6 +610,15 @@ class Model(object):
         self.t_index = 0                # Keeps track of array index for current timepoint data within all compartments.
         self.programs_active = None     # True or False depending on whether Programs will be used or not
         self.pset = None                # Instance of ModelProgramSet
+        self.t = None
+        self.dt = None
+        self.uid = uuid.uuid4()
+        if name is None:
+            self.name = parset.name + ('-%s' % (progset.name) if progset is not None else '')
+        else:
+            self.name = name
+
+        self.build(settings, parset, progset, options)
 
     def unlink(self):
         # Break cycles when deepcopying or pickling by swapping them for UIDs
@@ -661,8 +670,8 @@ class Model(object):
 
         if options is None: options = dict()
 
-        self.sim_settings['tvec'] = settings.tvec # NB. returning a mutable variable in a class @property method returns a new object each time
-        self.sim_settings['tvec_dt'] = settings.tvec_dt
+        self.t = settings.tvec # NB. returning a mutable variable in a class @property method returns a new object each time
+        self.dt = settings.tvec_dt
 
         self.sim_settings['impact_pars_not_func'] = []      # Program impact parameters that are not functions of other parameters and thus already marked for dynamic updating.
                                                             # This is only non-empty if a progset is being used in the model.
@@ -670,9 +679,9 @@ class Model(object):
 
         for k, pop_label in enumerate(parset.pop_labels):
             self.pops.append(ModelPopulation(settings=settings, label=pop_label))
-            self.pops[-1].preAllocate(self.sim_settings)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
+            self.pops[-1].preallocate(self.t,self.dt)     # Memory is allocated, speeding up model. However, values are NaN so as to enforce proper parset value saturation.
             self.pop_ids[pop_label] = k
-            self.pops[-1].initialize_compartments(parset,settings,self.sim_settings['tvec'][0])
+            self.pops[-1].initialize_compartments(parset,settings,self.t[0])
 
         self.contacts = dcp(parset.contacts)    # Simple propagation of interaction details from parset to model.
 
@@ -681,7 +690,7 @@ class Model(object):
             for pop_label in parset.pop_labels:
                 pop = self.getPop(pop_label)
                 par = pop.getPar(cascade_par.label) # Find the parameter with the requested label
-                par.vals = cascade_par.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_label)
+                par.vals = cascade_par.interpolate(tvec=self.t, pop_label=pop_label)
                 par.scale_factor = cascade_par.y_factor[pop_label]
                 if par.links:
                     par.units = cascade_par.y_format[pop_label]
@@ -704,8 +713,8 @@ class Model(object):
                         # Create the parameter object for this link (shared across all compartments)
                         par_label = trans_type + '_' + pop_source + '_to_' + pop_target # e.g. 'aging_0-4_to_15-64'
                         par = Parameter(label=par_label)
-                        par.preallocate(self.sim_settings['tvec'],self.sim_settings['tvec_dt'])
-                        val = transfer_parameter.interpolate(tvec=self.sim_settings['tvec'], pop_label=pop_target)
+                        par.preallocate(self.t,self.dt)
+                        val = transfer_parameter.interpolate(tvec=self.t, pop_label=pop_target)
                         par.vals = val
                         par.scale_factor = transfer_parameter.y_factor[pop_target]
                         par.units = transfer_parameter.y_format[pop_target]
@@ -720,7 +729,7 @@ class Model(object):
                                 dest = target_pop_obj.getComp(source.label) # Get the corresponding compartment
                                 link_tag = par_label + '_' + source.label # e.g. 'aging_0-4_to_15-64_sus'
                                 link = Link(par, source, dest, link_tag, is_transfer=True)
-                                link.preallocate(self.sim_settings['tvec'],self.sim_settings['tvec_dt'])
+                                link.preallocate(self.t,self.dt)
                                 pop.links.append(link)
                                 if link.label in pop.link_lookup:
                                     pop.link_lookup[link.label].append(link)
@@ -765,7 +774,7 @@ class Model(object):
                 self.pset = ModelProgramSet(progset,self.pops) # Make a ModelProgramSet wrapper
                 self.pset.load_constraints(self.sim_settings['constraints'])
                 alloc = self.pset.get_alloc(self.sim_settings)[0]
-                self.pset.update_cache(alloc,self.sim_settings['tvec'],self.sim_settings['tvec_dt']) # Perform precomputations
+                self.pset.update_cache(alloc,self.t,self.dt) # Perform precomputations
 
             else:
                 raise OptimaException('ERROR: A model run was initiated with instructions to activate programs, but no program set was passed to the model.')
@@ -794,7 +803,7 @@ class Model(object):
         Run the full model.
         '''
 
-        for t in self.sim_settings['tvec'][1:]:
+        for t in self.t[1:]:
             self.stepForward(settings=settings, dt=settings.tvec_dt)
             self.processJunctions(settings=settings)
             self.updateValues(settings=settings)
@@ -971,7 +980,7 @@ class Model(object):
         # 4th:  Any parameter that is restricted within a range of values, i.e. by min/max values.
         # Looping through populations must be internal so that all values are calculated before special inter-population rules are applied.
         # We resolve one parameter at a time, in dependency order
-        do_program_overwrite = self.programs_active and self.sim_settings['tvec'][ti] >= self.sim_settings['progs_start'] and self.sim_settings['tvec'][ti] <= self.sim_settings['progs_end']
+        do_program_overwrite = self.programs_active and self.t[ti] >= self.sim_settings['progs_start'] and self.t[ti] <= self.sim_settings['progs_end']
         if do_program_overwrite:
             prog_vals = self.pset.compute_pars(ti)[0]
 
@@ -1053,7 +1062,7 @@ class Model(object):
 
 
 
-def runModel(settings, parset, progset=None, options=None,full_output=False):
+def runModel(settings, parset, progset=None, options=None,full_output=False,name=None):
     '''
     Processes the TB epidemiological model.
     Parset-based overwrites are generally done externally, so the parset is only used for model-building.
@@ -1062,8 +1071,7 @@ def runModel(settings, parset, progset=None, options=None,full_output=False):
     - If full_output = False, non-output Parameters (and corresponding links) will be set to None
     '''
 
-    m = Model()
-    m.build(settings, parset, progset, options)
+    m = Model(settings, parset, progset, options,name)
     m.process(settings, progset,full_output)
 
     results = ResultSet(m, parset, settings, progset, options)    # NOTE: Progset may need to be passed to results. Depends on what results object stores.

@@ -37,7 +37,7 @@ def save_figs(figs,path = '.',prefix = '',fnames=None):
     try:
         os.makedirs(path)
     except OSError as err:
-        if err.errno!=17:
+        if err.errno!=17: # TODO: I think this is the error if the folder exists, probably should double check
             raise
 
     if not isinstance(figs,list):
@@ -167,8 +167,8 @@ class PlotData(object):
         for result in results: 
 
             result_label = result.name
-            tvecs[result_label] = result.model.sim_settings['tvec']
-            dt = result.model.sim_settings['tvec_dt']
+            tvecs[result_label] = result.model.t
+            dt = result.model.dt
 
             aggregated_outputs = defaultdict(dict) # Dict with aggregated_outputs[pop_label][aggregated_output_label]
             aggregated_units = dict() # Dict with aggregated_units[aggregated_output_label]
