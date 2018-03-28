@@ -187,6 +187,9 @@ class PlotData(object):
                 for output_label in outputs_required:
                     vars = pop.getVariable(output_label)
 
+                    if vars[0].vals is None:
+                        raise OptimaException('Requested output "%s" was not recorded because only partial results were saved' % (vars[0].label))
+
                     if isinstance(vars[0],Link):
                         data_dict[output_label] = np.zeros(tvecs[result_label].shape)
                         compsize[output_label] = np.zeros(tvecs[result_label].shape)
