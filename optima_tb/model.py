@@ -134,6 +134,7 @@ class Characteristic(Variable):
 
     def set_dependent(self):
         self.dependency = True
+
     def unlink(self):
         self.includes = [x.uid for x in self.includes]
         self.denominator = self.denominator.uid if self.denominator is not None else None
@@ -287,12 +288,7 @@ class Link(Variable):
         self.dest.inlinks.append(self)
 
         self.is_transfer = is_transfer # A transfer connections compartments across populations
-        
-        # Link vals stores the number of people actually transferred
-        # The target flow also stores for each time point, the number of people proposed to move
-        # The original parameter value is available from the Link's bound parameter
-        self.target_flow = None # For each time point, store the number of people that were proposed to move (in units of number of people)
-    
+
     def unlink(self):
         self.parameter = self.parameter.uid
         self.source = self.source.uid
@@ -307,10 +303,6 @@ class Link(Variable):
 
     def __repr__(self, *args, **kwargs):
         return "Link %s (parameter %s) - %s to %s" % (self.label, self.parameter.label, self.source.label, self.dest.label)
-
-    def preallocate(self,tvec,dt):
-        Variable.preallocate(self, tvec,dt)
-        self.target_flow = np.ones(tvec.shape) * np.nan
 
     def plot(self):
         Variable.plot(self)
@@ -806,7 +798,6 @@ class Model(object):
                             # Note that commands below are all multiplicative and thus can't map an initial value of 0.0 to anything
                             # other than a flow rate of 0, so we can abort early here
                             outflow[i] = 0.0
-                            link.target_flow[ti] = 0.0
                             continue
 
                         if link.parameter.scale_factor is not None and link.parameter.scale_factor != project_settings.DO_NOT_SCALE:  # scale factor should be available to be used
@@ -833,7 +824,6 @@ class Model(object):
                             raise OptimaException('Unknown parameter units! NB. "proportion" links can only appear in junctions')
 
                         outflow[i] = converted_amt
-                        link.target_flow[ti] = converted_amt
 
                     # Prevent negative population by proportionately downscaling the outflow
                     # if there are insufficient people _currently_ in the compartment
@@ -902,12 +892,10 @@ class Model(object):
                         for link in junc.outlinks:
                             if review_count == 1:
                                 link.vals[ti] = 0
-                                link.target_flow[ti] = 0
                             flow = current_size * link.parameter.vals[ti_link] / denom_val
                             link.source.vals[ti] -= flow
                             link.dest.vals[ti]   += flow
                             link.vals[ti] += flow
-                            link.target_flow[ti] += flow
                             if link.dest.is_junction:
                                 review_required = True # Need to review if a junction received an inflow at this step
 

@@ -303,14 +303,13 @@ class ResultSet(object):
         return datapoints, char_label, pop_label, units
 
 
-    def getFlow(self, link_tag, pop_labels=None,target_flow=False,annualize=True,as_fraction=False):
+    def getFlow(self, link_tag, pop_labels=None,annualize=True,as_fraction=False):
         """
         Return the flow at each time point in the simulation for a single parameter
 
         INPUTS
         - par_label : A string specifying a single Parameter to retrieve flow rates for
         - pop_label : A list or list of strings of population labels. If None, use all populations
-        - target_flow : By default, the actual flow rates accounting for compartment sizes during integration will be used. If target_flow=True, then the target flow rate will be returned
         - annualize : Boolean which specifies if the number of moved people should be annualized or not. If True, an annual average is computed; if False, the number of people per time step is computed
         - as_fraction : Boolean which specifies if the flow rate should be expressed as a fraction of the source compartment size.
             - If True, the fractional flow rate for each link will be computed by dividing the net flow by the sum of source compartment sizes
@@ -342,10 +341,7 @@ class ResultSet(object):
         for pop in self.model.pops:
             if pop_labels is None or pop.label in pop_labels:
                 for link in pop.getVariable(link_tag):
-                    if target_flow:
-                        datapoints[pop.label] += link.target_flow
-                    else:
-                        datapoints[pop.label] += link.vals
+                    datapoints[pop.label] += link.vals
                     source_size[pop.label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
 
         # If as_fraction is None, use the same units as the Parameter. All Parameters should have the same units
