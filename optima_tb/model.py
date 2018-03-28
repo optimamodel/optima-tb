@@ -789,7 +789,7 @@ class Model(object):
                 if tag in settings.node_specs[node_label]:
                     self.sim_settings[tag] = node_label
 
-    def process(self, settings, progset=None):
+    def process(self, settings, progset,full_output):
         ''' 
         Run the full model.
         '''
@@ -800,9 +800,16 @@ class Model(object):
             self.updateValues(settings=settings)
 
         for pop in self.pops:
-            [par.update() for par in pop.pars if not par.dependency]
+            [par.update() for par in pop.pars if not par.dependency] # Update any remaining parameters
             for charac in pop.characs:
                 charac.internal_vals = None # Wipe out characteristic vals to save space
+
+            if not full_output:
+                for par in pop.pars:
+                    if (not par.label in settings.linkpar_specs) or (not 'output' in settings.linkpar_specs[par.label]) or (settings.linkpar_specs[par.label] != 'y'):
+                        par.vals = None
+                        for link in par.links:
+                            link.vals = None
 
         return self.pops, self.sim_settings
 
@@ -1046,17 +1053,18 @@ class Model(object):
 
 
 
-def runModel(settings, parset, progset=None, options=None):
+def runModel(settings, parset, progset=None, options=None,full_output=False):
     '''
     Processes the TB epidemiological model.
     Parset-based overwrites are generally done externally, so the parset is only used for model-building.
     Progset-based overwrites take place internally and must be part of the processing step.
     The options dictionary is usually passed in with progset to specify when the overwrites take place.
+    - If full_output = False, non-output Parameters (and corresponding links) will be set to None
     '''
 
     m = Model()
-    m.build(settings=settings, parset=parset, progset=progset, options=options)
-    m.process(settings=settings, progset=progset)
+    m.build(settings, parset, progset, options)
+    m.process(settings, progset,full_output)
 
     results = ResultSet(m, parset, settings, progset, options)    # NOTE: Progset may need to be passed to results. Depends on what results object stores.
 

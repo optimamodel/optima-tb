@@ -65,7 +65,7 @@ class Project(object):
             results = self.results[results]
         oplt2.plotSeries(oplt2.PlotData(results),plot_type='stacked',separate_legend=True)
 
-    def runSim(self, parset=None, parset_name='default', progset=None, progset_name=None, options=None, plot=False, debug=False, store_results=True, result_type=None, result_name=None):
+    def runSim(self, parset=None, parset_name='default', progset=None, progset_name=None, options=None, plot=False, full_output=False, store_results=True, result_type=None, result_name=None):
         ''' Run model using a selected parset and store/return results. '''
 
         if parset is None:
@@ -86,7 +86,7 @@ class Project(object):
         tm = tic()
 
         # results = runModel(settings = self.settings, parset = parset)
-        results = runModel(settings=self.settings, parset=parset, progset=progset, options=options)
+        results = runModel(settings=self.settings, parset=parset, progset=progset, options=options,full_output=full_output)
 
         toc(tm, label='running %s model' % self.name)
 
