@@ -77,13 +77,6 @@ class Compartment(Variable):
         self.outlinks = []
         self.inlinks = []
 
-    def __repr__(self, *args, **kwargs):
-        return "Compartment %s: %g" % (self.label, self.vals[0])
-
-    def getValue(self, ti):
-        """ Get value of population at timestep ti """
-        return self.vals[ti]
-
     def unlink(self):
         self.outlinks = [x.uid for x in self.outlinks]
         self.inlinks = [x.uid for x in self.inlinks]
@@ -92,6 +85,52 @@ class Compartment(Variable):
         self.outlinks = [objs[x] for x in self.outlinks]
         self.inlinks = [objs[x] for x in self.inlinks]
 
+    def expected_duration(self,ti=None):
+        # Returns the expected number of years that an individual is expected to remain
+        # in this compartment for, if the outgoing flow rates are maintained
+        if ti is None:
+            ti = np.arange(0,len(self.t))
+
+        outflow_probability = 0
+        for link in self.outlinks:
+            if link.parameter.units == 'fraction':
+                outflow_probability += 1 - (1 - link.parameter.vals[ti]) ** self.dt  # A formula for converting from yearly fraction values to the dt equivalent.
+            elif link.parameter.units == 'number':
+                outflow_probability += link.parameter.vals[ti]*dt/self.vals[ti]
+            else:
+                raise OptimaException('Unknown parameter units')
+
+        remain_probability = 1-outflow_probability
+        dur = np.zeros(outflow_probability.shape)
+        # From OSL/HMM-MAR:
+        # Given a transition probability, what is the expected lifetime in units of steps?
+        # This can be determined using a symbolic integration, below
+        # syms k_step p;
+        # assume(p>0);
+        # f =(k_step)*p^k_step*(1-p); # (probability that the state lasts k *more* steps, multiplied by lifetime which is k)
+        # fa = 1+int(f,k_step,0,inf); # Add 1 to the lifetime because all states last at least 1 sample
+        # f = @(x) double(subs(fa,p,x));
+        #
+        # However, the result of the symbolic integration contains a limit which is
+        # zero unless p=1, but p=1 is not needed because we know it means the compartment immediately empties.
+        # So instead of the function above, can instead drop the limit term and write the rest of the
+        # expression out which gives identical results from p=0.00001 to p=0.99 (note that if dirichletdiag>=1)
+        # then the upper bound on the transition probability is p=0.5 anyway for K=2
+        dur[dur<1] = (1 - (1. / np.log(remain_probability[dur<1])**2)*(remain_probability[dur<1] - 1))*self.dt
+        return dur
+
+    def expected_outflow(self,ti):
+        # After 1 year, where are people expected to be? If people would leave in less than a year,
+        # then the numbers correspond to when the compartment is empty
+        popsize = self.vals[ti] # This is the number of people who are leaving
+
+        outflow = {link.dest.label: popsize * link.vals[ti]/self.dt for link in self.outlinks}
+        rescale = popsize/sum([y for _,y in outflow.items()])
+        for x in outflow.keys():
+            outflow[x] *= rescale
+        outflow[self.label] = popsize - sum([y for _,y in outflow.items()])
+
+        return outflow
 
 class Characteristic(Variable):
     ''' A characteristic represents a grouping of compartments 

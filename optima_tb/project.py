@@ -63,7 +63,7 @@ class Project(object):
     def plotResults(self,results):
         if isinstance(results,str):
             results = self.results[results]
-        oplt2.plotSeries(self,results,plot_type='stacked')
+        oplt2.plotSeries(oplt2.PlotData(results),plot_type='stacked',separate_legend=True)
 
     def runSim(self, parset=None, parset_name='default', progset=None, progset_name=None, options=None, plot=False, debug=False, store_results=True, result_type=None, result_name=None):
         ''' Run model using a selected parset and store/return results. '''
