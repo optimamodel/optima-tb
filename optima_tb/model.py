@@ -7,7 +7,7 @@ from optima_tb.results import ResultSet
 from optima_tb.parsing import FunctionParser
 from optima_tb.ModelPrograms import ModelProgramSet, ModelProgram
 from collections import defaultdict
-
+import cPickle as pickle
 import logging
 logger = logging.getLogger(__name__)
 parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
@@ -17,22 +17,6 @@ from copy import deepcopy as dcp
 import uuid
 
 import matplotlib.pyplot as plt
-
-# np.seterr(all='raise')
-# %% Abstract classes used in model
-
-class ModelCompartment(object):
-    pass
-
-
-class Node(object):
-    ''' Lightweight abstract class to represent one object within a network. '''
-    def __init__(self, label='default'):
-        self.uid = uuid.uuid4()
-        self.label = label          # Reference name for this object.
-        # self.index = index          # Index to denote storage position in Model object. Format is left unspecified.
-        #                             # For a ModelPopulation, this is intended as an integer.
-        #                             # For a Compartment, this is intended as a tuple with first element denoting index of ModelPopulation.
 
 class Variable(object):
     '''
@@ -47,14 +31,12 @@ class Variable(object):
         self.t = None
         self.dt = None
         self.vals = None
-        self.vals_old = None                # An optional array that stores old values in the case of overwriting.
         self.units = 'unknown'              # 'unknown' units are distinct to dimensionless units, that have value ''
 
     def preallocate(self,tvec,dt):
         self.t = tvec
         self.dt = dt
         self.vals = np.ones(tvec.shape) * np.nan
-        self.vals_old = np.ones(tvec.shape) * np.nan
 
     def plot(self):
         plt.figure()
@@ -70,34 +52,6 @@ class Variable(object):
         # A Variable can have a function to update its value at a given time, which is
         # overloaded differently for Characteristics and Parameters
         return
-
-    def unlink(self):
-        # A Variable has an unlink function that replaces all of its internal references 
-        # with the corresponding object UUID
-        for prop in self.__dict__.keys():
-            if isinstance(self.__dict__[prop],list):
-                for i,obj in enumerate(self.__dict__[prop]):
-                    if hasattr(obj,'uid'):
-                        self.__dict__[prop][i] = obj.uid
-            else:
-                obj = self.__dict__[prop]
-                if hasattr(obj,'uid'):
-                    self.__dict__[prop] = obj.uid
-
-    def relink(self,objs):
-        # Given a dictionary of objects, restore the internal references
-        # based on the UUID
-        for prop in self.__dict__.keys():
-            if prop == 'uid':
-                continue
-            elif isinstance(self.__dict__[prop],list):
-                for i,obj in enumerate(self.__dict__[prop]):
-                    if isinstance(obj,uuid.UUID):
-                        self.__dict__[prop][i] = objs[obj]
-            else:
-                obj = self.__dict__[prop]
-                if isinstance(obj,uuid.UUID):
-                    self.__dict__[prop] = objs[obj]
 
     def set_dependent(self):
         # Make the variable a dependency. For Compartments and Links, this does nothing. For Characteristics and
@@ -128,6 +82,15 @@ class Compartment(Variable):
         """ Get value of population at timestep ti """
         return self.vals[ti]
 
+    def unlink(self):
+        self.outlinks = [x.uid for x in self.outlinks]
+        self.inlinks = [x.uid for x in self.inlinks]
+
+    def relink(self,objs):
+        self.outlinks = [objs[x] for x in self.outlinks]
+        self.inlinks = [objs[x] for x in self.inlinks]
+
+
 class Characteristic(Variable):
     ''' A characteristic represents a grouping of compartments 
     '''
@@ -143,6 +106,15 @@ class Characteristic(Variable):
 
     def set_dependent(self):
         self.dependency = True
+    def unlink(self):
+        self.includes = [x.uid for x in self.includes]
+        self.denominator = self.denominator.uid if self.denominator is not None else None
+
+    def relink(self,objs):
+        # Given a dictionary of objects, restore the internal references
+        # based on the UUID
+        self.includes = [objs[x] for x in self.includes]
+        self.denominator = objs[self.denominator] if self.denominator is not None else None
 
     def add_include(self,x):
         assert isinstance(x,Compartment) or isinstance(x,Characteristic)
@@ -215,6 +187,16 @@ class Parameter(Variable):
             for dep in self.deps:
                 if isinstance(dep,Link):
                     raise OptimaException('A Parameter that depends on transition flow rates cannot be a dependency, it must be output only')
+
+    def unlink(self):
+        self.links = [x.uid for x in self.links]
+        self.deps = [x.uid for x in self.deps] if self.deps is not None else None
+
+    def relink(self,objs):
+        # Given a dictionary of objects, restore the internal references
+        # based on the UUID
+        self.links = [objs[x] for x in self.links]
+        self.deps = [objs[x] for x in self.deps] if self.deps is not None else None
 
     def constrain(self,ti):
         # NB. Must be an array, so ti must must not be supplied
@@ -292,7 +274,19 @@ class Link(Variable):
         # The target flow also stores for each time point, the number of people proposed to move
         # The original parameter value is available from the Link's bound parameter
         self.target_flow = None # For each time point, store the number of people that were proposed to move (in units of number of people)
-        
+    
+    def unlink(self):
+        self.parameter = self.parameter.uid
+        self.source = self.source.uid
+        self.dest = self.dest.uid
+
+    def relink(self,objs):
+        # Given a dictionary of objects, restore the internal references
+        # based on the UUID
+        self.parameter = objs[self.parameter]
+        self.source = objs[self.source]
+        self.dest = objs[self.dest]
+
     def __repr__(self, *args, **kwargs):
         return "Link %s (parameter %s) - %s to %s" % (self.label, self.parameter.label, self.source.label, self.dest.label)
 
@@ -305,14 +299,16 @@ class Link(Variable):
         plt.title('Link %s to %s' % (self.source.label,self.dest.label))
 
 # %% Cascade compartment and population classes
-class ModelPopulation(Node):
+class ModelPopulation(object):
     '''
     A class to wrap up data for one population within model.
     Each model population must contain a set of compartments with equivalent labels.
     '''
 
     def __init__(self, settings, label='default'):
-        Node.__init__(self, label=label)
+        self.uid = uuid.uuid4()
+        self.label = label          # Reference name for this object.
+
         self.comps = list()         # List of cascade compartments that this model population subdivides into.
         self.characs = list()       # List of output characteristics and parameters (dependencies computed during integration, pure outputs added after)
         self.links = list()         # List of intra-population cascade transitions within this model population.
@@ -588,12 +584,12 @@ class Model(object):
 
     def __getstate__(self):
         self.unlink()
-        d = dcp(self.__dict__) # Deepcopy so that relinking doesn't modify the originals
+        d = pickle.dumps(self.__dict__, protocol=-1) # Pickling to string results in a copy
         self.relink() # Relink, otherwise the original object gets unlinked
         return d
 
     def __setstate__(self, d):
-        self.__dict__ = d
+        self.__dict__ = pickle.loads(d)
         self.relink()
 
     def getPop(self, pop_label):
@@ -866,14 +862,6 @@ class Model(object):
 
                 for junc in junctions:
 
-                    # Stores junction popsize values before emptying - so vals_old stores the total number of people that transitioned out of this junction while vals = 0
-                    if review_count == 1:
-                        junc.vals_old[ti] = junc.vals[ti] # Back up the old value (should have been preallocated)
-                    else:
-                        # If a junction is being reviewed again, it means that it received inflow before emptying.
-                        # Add this inflow to the stored popsize.
-                        junc.vals_old[ti] += junc.vals[ti]
-
                     # If the compartment is numerically empty, make it empty
                     if junc.vals[ti] <= project_settings.TOLERANCE:   # Includes negative values.
                         junc.vals[ti] = 0
@@ -942,8 +930,7 @@ class Model(object):
             if do_special and 'rules' in settings.linkpar_specs[par_label]:
                 pars = self.pars_by_pop[par_label]  # All of the parameters with this label, across populations. There should be one for each population (these are Parameters, not Links)
 
-                for par in pars:
-                    par.vals_old[ti] = par.vals[ti]
+                old_vals = {par.uid: par.vals[ti] for par in self.pars_by_pop[par_label]}
 
                 rule = settings.linkpar_specs[par_label]['rules']
                 for pop in self.pops:
@@ -952,24 +939,22 @@ class Model(object):
 
                         # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
                         if not ((len(from_list) == 1 and from_list[0] == pop.label)):
-                            old_vals = np.ones(len(from_list)) * np.nan
-                            weights = np.ones(len(from_list)) * np.nan
-                            pop_counts = np.ones(len(from_list)) * np.nan
+
                             if len(from_list) == 0:
                                 new_val = 0.0
                             else:
-                                k = 0
-                                for from_pop in from_list:
+                                val_sum = 0.0
+                                weights = 0.0
+
+                                for k,from_pop in enumerate(from_list):
                                     # All transition links with the same par_label are identically valued. For calculations, only one is needed for reference.
                                     par = self.getPop(from_pop).getPar(par_label)
-                                    old_vals[k] = par.vals_old[ti]
-                                    weights[k] = self.contacts['into'][pop.label][from_pop]
-                                    pop_counts[k] = self.getPop(from_pop).getCharac(settings.charac_pop_count).vals[ti]
-                                    k += 1
-                                wpc = np.multiply(weights, pop_counts)          # Population counts weighted by contact rate.
-                                wpc_sum = sum(wpc)                              # Normalisation factor for weighted population counts.
-                                if abs(wpc_sum) > project_settings.TOLERANCE:
-                                    new_val = np.dot(old_vals, wpc / wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
+                                    weight = self.contacts['into'][pop.label][from_pop]*self.getPop(from_pop).getCharac(settings.charac_pop_count).vals[ti]
+                                    val_sum += old_vals[par.uid]*weight
+                                    weights += weight
+
+                                if abs(val_sum) > project_settings.TOLERANCE:
+                                    new_val = val_sum / weights
                                 else:
                                     new_val = 0.0   # Only valid because if the weighted sum is zero, all pop_counts must be zero, meaning that the numerator is zero.
 
