@@ -29,13 +29,11 @@ class Variable(object):
         self.label = label
         self.t = None
         self.vals = None
-        self.vals_old = None                # An optional array that stores old values in the case of overwriting.
         self.units = ''
 
     def preallocate(self,tvec):
         self.t = tvec
         self.vals = np.ones(tvec.shape) * np.nan
-        self.vals_old = np.ones(tvec.shape) * np.nan
 
     def plot(self):
         plt.figure()
@@ -870,14 +868,6 @@ class Model(object):
 
                 for junc in junctions:
 
-                    # Stores junction popsize values before emptying - so vals_old stores the total number of people that transitioned out of this junction while vals = 0
-                    if review_count == 1:
-                        junc.vals_old[ti] = junc.vals[ti] # Back up the old value (should have been preallocated)
-                    else:
-                        # If a junction is being reviewed again, it means that it received inflow before emptying.
-                        # Add this inflow to the stored popsize.
-                        junc.vals_old[ti] += junc.vals[ti]
-
                     # If the compartment is numerically empty, make it empty
                     if junc.vals[ti] <= project_settings.TOLERANCE:   # Includes negative values.
                         junc.vals[ti] = 0
@@ -946,8 +936,7 @@ class Model(object):
             if do_special and 'rules' in settings.linkpar_specs[par_label]:
                 pars = self.pars_by_pop[par_label]  # All of the parameters with this label, across populations. There should be one for each population (these are Parameters, not Links)
 
-                for par in pars:
-                    par.vals_old[ti] = par.vals[ti]
+                old_vals = {par.uid: par.vals[ti] for par in self.pars_by_pop[par_label]}
 
                 rule = settings.linkpar_specs[par_label]['rules']
                 for pop in self.pops:
@@ -956,24 +945,22 @@ class Model(object):
 
                         # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
                         if not ((len(from_list) == 1 and from_list[0] == pop.label)):
-                            old_vals = np.ones(len(from_list)) * np.nan
-                            weights = np.ones(len(from_list)) * np.nan
-                            pop_counts = np.ones(len(from_list)) * np.nan
+
                             if len(from_list) == 0:
                                 new_val = 0.0
                             else:
-                                k = 0
-                                for from_pop in from_list:
+                                val_sum = 0.0
+                                weights = 0.0
+
+                                for k,from_pop in enumerate(from_list):
                                     # All transition links with the same par_label are identically valued. For calculations, only one is needed for reference.
                                     par = self.getPop(from_pop).getPar(par_label)
-                                    old_vals[k] = par.vals_old[ti]
-                                    weights[k] = self.contacts['into'][pop.label][from_pop]
-                                    pop_counts[k] = self.getPop(from_pop).getCharac(settings.charac_pop_count).vals[ti]
-                                    k += 1
-                                wpc = np.multiply(weights, pop_counts)          # Population counts weighted by contact rate.
-                                wpc_sum = sum(wpc)                              # Normalisation factor for weighted population counts.
-                                if abs(wpc_sum) > project_settings.TOLERANCE:
-                                    new_val = np.dot(old_vals, wpc / wpc_sum)         # Do a weighted average of the parameter values pertaining to contact-initiating pop groups.
+                                    weight = self.contacts['into'][pop.label][from_pop]*self.getPop(from_pop).getCharac(settings.charac_pop_count).vals[ti]
+                                    val_sum += old_vals[par.uid]*weight
+                                    weights += weight
+
+                                if abs(val_sum) > project_settings.TOLERANCE:
+                                    new_val = val_sum / weights
                                 else:
                                     new_val = 0.0   # Only valid because if the weighted sum is zero, all pop_counts must be zero, meaning that the numerator is zero.
 
