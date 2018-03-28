@@ -30,7 +30,8 @@ class Variable(object):
         self.label = label
         self.t = None
         self.dt = None
-        self.vals = None
+        if 'vals' not in dir(self): # characteristics already have a vals method
+            self.vals = None
         self.units = 'unknown'              # 'unknown' units are distinct to dimensionless units, that have value ''
 
     def preallocate(self,tvec,dt):
@@ -71,6 +72,7 @@ class Compartment(Variable):
         self.tag_birth = False                      # Tag for whether this compartment contains unborn people.
         self.tag_dead = False                       # Tag for whether this compartment contains dead people.
         self.is_junction = False
+        self.vals = None
 
         self.outlinks = []
         self.inlinks = []
@@ -103,6 +105,32 @@ class Characteristic(Variable):
         self.includes = []
         self.denominator = None
         self.dependency = False # This flag indicates whether another variable depends on this one, indicating the value needs to be computed during integration
+        self.internal_vals = None
+
+    def preallocate(self,tvec,dt):
+        self.t = tvec
+        self.dt = dt
+        self.internal_vals = np.ones(tvec.shape) * np.nan
+
+    @property
+    def vals(self):
+        if self.internal_vals is None:
+            vals = np.zeros(self.t.shape)
+
+            for comp in self.includes:
+                vals += comp.vals
+
+            if self.denominator is not None:
+                denom = self.denominator.vals
+                vals_zero = vals < project_settings.TOLERANCE
+                vals[denom > 0] /= denom[denom > 0]
+                vals[vals_zero] = 0.0
+                vals[(denom<=0) & (~vals_zero)] = np.inf
+
+            return vals
+        else:
+            return self.internal_vals
+
 
     def set_dependent(self):
         self.dependency = True
@@ -127,31 +155,19 @@ class Characteristic(Variable):
         x.set_dependent()
         self.units = ''
 
-    def update(self,ti=None):
-        # Read popsizes at time ti from includes, and update the value of this characteristic
-        # If ti is none, then use all vals
-        if ti is None:
-            ti = np.arange(0,self.vals.size) # This corresponds to every time point
-        else:
-            ti = np.array(ti).ravel()
-
-        self.vals[ti] = 0
-
+    def update(self,ti):
+        self.internal_vals[ti] = 0
         for comp in self.includes:
-            self.vals[ti] += comp.vals[ti]
-
+            self.internal_vals[ti] += comp.vals[ti]
         if self.denominator is not None:
-            denom  = self.denominator.vals[[ti]]
+            denom  = self.denominator.vals[ti]
+            if denom > 0:
+                self.internal_vals[ti] /= denom
+            elif self.internal_vals[ti] < project_settings.TOLERANCE:
+                self.internal_vals[ti] = 0  # Given a zero/zero case, make the answer zero.
+            else:
+                self.internal_vals[ti] = np.inf  # Given a non-zero/zero case, keep the answer infinite.
 
-            ## Todo - do this better!
-            for i in xrange(0,ti.size):
-                if denom[i] > 0:
-                    self.vals[ti[i]] /= denom[i]
-                elif self.vals[ti[i]] < project_settings.TOLERANCE:
-                    self.vals[ti[i]] = 0  # Given a zero/zero case, make the answer zero.
-                else:
-                    self.vals[ti[i]] = np.inf  # Given a non-zero/zero case, keep the answer infinite.
-    
 class Parameter(Variable):
     # A parameter is a Variable that can have a value computed via an f_stack and a list of 
     # dependent Variables. This class may need to be renamed to avoid confusion with
@@ -163,9 +179,11 @@ class Parameter(Variable):
     #  *** Parameter values are always annualized ***
     def __init__(self, label='default'):
         Variable.__init__(self, label=label)
+        self.vals = None
         self.deps = None
         self.f_stack = None
         self.limits = None # Can be a two element vector [min,max]
+
         self.dependency = False 
         self.scale_factor = 1.0
         self.links = [] # References to links that derive from this parameter
@@ -249,11 +267,11 @@ class Link(Variable):
     Variable refer to flow rates. If used in ModelPop, the Link references two
     cascade compartments within a single population.
     '''
-    #
     # *** Link values are always dt-based ***
     def __init__(self, parameter, object_from, object_to,tag,is_transfer=False):
         # Note that the Link's label is the transition tag
         Variable.__init__(self, label=tag)
+        self.vals = None
         self.tag = tag
         self.units = 'people'
 
@@ -321,6 +339,9 @@ class ModelPopulation(object):
 
         self.genCascade(settings=settings)    # Convert compartmental cascade into lists of compartment and link objects.
 
+        self.popsize_cache_time = None
+        self.popsize_cache_val = None
+
     def __repr__(self):
         return '%s "%s" (%s)' % (self.__class__.__name__,self.label,self.uid)
 
@@ -344,11 +365,18 @@ class ModelPopulation(object):
     def popsize(self,ti=None):
         # A population's popsize is the sum of all of the people in its compartments, excluding
         # birth and death compartments
-        n = 0
-        for comp in self.comps:
-            if not comp.tag_birth and not comp.tag_dead:
-                n += comp.vals[ti]
-        return n.ravel()
+        if ti is None:
+            return np.sum([comp.vals for comp in self.comps if (not comp.tag_birth and not comp.tag_dead)],axis=0)
+
+        if ti == self.popsize_cache_time:
+            return self.popsize_cache_val
+        else:
+            n = 0
+            for comp in self.comps:
+                if not comp.tag_birth and not comp.tag_dead:
+                    n += comp.vals[ti]
+
+            return n
 
     def getVariable(self,label):
         # Returns a list of variables whose label matches the requested label
@@ -742,7 +770,8 @@ class Model(object):
 
         for pop in self.pops:
             [par.update() for par in pop.pars if not par.dependency]
-            [charac.update() for charac in pop.characs if not charac.dependency]
+            for charac in pop.characs:
+                charac.internal_vals = None # Wipe out characteristic vals to save space
 
         return self.pops, self.sim_settings
 
@@ -791,14 +820,14 @@ class Model(object):
                             if link.source.tag_birth:
                                 n_alive = 0
                                 for p in self.pops:
-                                    n_alive += p.getCharac(settings.charac_pop_count).vals[ti]
+                                    n_alive += p.popsize(ti)
                                 converted_amt = n_alive * converted_frac
                             else:
                                 converted_amt = comp_source.vals[ti] * converted_frac
                         elif link.parameter.units == 'number':
                             converted_amt = transition * dt
                             if link.is_transfer:
-                                transfer_rescale = comp_source.vals[ti] / pop.getCharac(settings.charac_pop_count).vals[ti]
+                                transfer_rescale = comp_source.vals[ti] / pop.popsize(ti)
                                 converted_amt *= transfer_rescale
                         else:
                             raise OptimaException('Unknown parameter units! NB. "proportion" links can only appear in junctions')
@@ -949,7 +978,7 @@ class Model(object):
                                 for k,from_pop in enumerate(from_list):
                                     # All transition links with the same par_label are identically valued. For calculations, only one is needed for reference.
                                     par = self.getPop(from_pop).getPar(par_label)
-                                    weight = self.contacts['into'][pop.label][from_pop]*self.getPop(from_pop).getCharac(settings.charac_pop_count).vals[ti]
+                                    weight = self.contacts['into'][pop.label][from_pop]*self.getPop(from_pop).popsize(ti)
                                     val_sum += old_vals[par.uid]*weight
                                     weights += weight
 
