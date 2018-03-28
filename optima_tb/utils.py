@@ -28,7 +28,7 @@ def toc(start=0, label='', sigfigs=3):
     elapsed = time() - start
     if label=='': base = 'Elapsed time: '
     else: base = 'Elapsed time for %s: ' % label
-    logger.debug(base + '%.*f s' % (sigfigs, elapsed))
+    logger.info(base + '%.*f s' % (sigfigs, elapsed))
     return elapsed
 
 
