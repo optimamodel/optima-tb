@@ -773,7 +773,7 @@ class Model(object):
 
                 self.pset = ModelProgramSet(progset,self.pops) # Make a ModelProgramSet wrapper
                 self.pset.load_constraints(self.sim_settings['constraints'])
-                alloc = self.pset.get_alloc(self.sim_settings)[0]
+                alloc = self.pset.get_alloc(self.t,self.dt,self.sim_settings)[0]
                 self.pset.update_cache(alloc,self.t,self.dt) # Perform precomputations
 
             else:

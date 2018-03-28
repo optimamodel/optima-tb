@@ -183,7 +183,7 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
 
         # Now, make the original attribute dict
         pset = progset_results.model.pset
-        original_alloc,_,_ = pset.get_alloc({'progs_start':reconcile_for_year,'init_alloc':{},'tvec':np.array([reconcile_for_year]),'tvec_dt':progset_results.model.sim_settings['tvec_dt'],'alloc_is_coverage':False,'saturate_with_default_budgets':True})
+        original_alloc = pset.get_alloc(progset_results.model.t,progset_results.model.dt,{'progs_start':reconcile_for_year,'init_alloc':{},'alloc_is_coverage':False,'saturate_with_default_budgets':True})
 
         # Copy over the popsizes from the original simulation
         for pop in progset_results.model.pops:

@@ -76,7 +76,7 @@ class ModelProgramSet(object):
         for prog in self.programs:
             prog.relink(objs)
 
-    def get_alloc(self,sim_settings):
+    def get_alloc(self,t,dt,sim_settings):
         # Extract the allocation (spending value at each point in time for all active programs)
         # based on sim_settings
         #
@@ -87,7 +87,6 @@ class ModelProgramSet(object):
         start_year = sim_settings['progs_start']
         init_alloc = sim_settings['init_alloc']
         alloc_is_coverage = sim_settings['alloc_is_coverage']
-        dt = sim_settings['tvec_dt']
 
         alloc = dict()
 
@@ -105,8 +104,8 @@ class ModelProgramSet(object):
                         default = prog.getDefaultBudget(year=start_year)
                     default = prog.getDefaultBudget(year=start_year)
                     if np.abs(spending - default) > project_settings.TOLERANCE:
-                        spending_def = sim_settings['tvec'] * 0.0 + default
-                        spending_new = sim_settings['tvec'] * 0.0 + spending
+                        spending_def = t * 0.0 + default
+                        spending_new = t * 0.0 + spending
                         try: eps = sim_settings['constraints']['max_yearly_change'][prog.label]['val']
                         except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog.label)
                         if 'rel' in sim_settings['constraints']['max_yearly_change'][prog.label] and sim_settings['constraints']['max_yearly_change'][prog.label]['rel'] is True:
@@ -115,10 +114,10 @@ class ModelProgramSet(object):
                         if np.abs(eps * dt) < np.abs(spending - default):
                             if np.abs(eps) < project_settings.TOLERANCE:
                                 raise OptimaException('ERROR: The change in budget for ramp-constrained "%s" is effectively zero. Model will not continue running; change in program funding would be negligible.' % prog.label)
-                            spending_ramp = default + (sim_settings['tvec'] - start_year) * eps * np.sign(spending - default)
+                            spending_ramp = default + (t - start_year) * eps * np.sign(spending - default)
                             if spending >= default: spending_ramp = np.minimum(spending_ramp, spending_new)
                             else: spending_ramp = np.maximum(spending_ramp, spending_new)
-                            spending = spending_def * (sim_settings['tvec'] < start_year) + spending_ramp * (sim_settings['tvec'] >= start_year)
+                            spending = spending_def * (t < start_year) + spending_ramp * (t >= start_year)
 
                 if alloc_is_coverage:
                     alloc[prog.label] = prog.getBudget(coverage=spending)
@@ -131,7 +130,7 @@ class ModelProgramSet(object):
             else:
                 logger.warn("Program '%s' will not be used because no initial allocation was provided, 'saturate_with_default_budgets' not enabled." % prog.label)
 
-        return alloc, sim_settings['tvec'],dt
+        return alloc, t,dt
 
     def update_cache(self,alloc,tvals,dt): # Do the stuff in precalculateprogsetvals
         # alloc must be a spending value - note that if the settings originally had alloc_is_coverage then the alloc would have been
