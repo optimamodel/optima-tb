@@ -429,11 +429,17 @@ class ModelPopulation(object):
         ''' Allow compartments to be retrieved by label rather than index. Returns a Compartment. '''
         return self.comp_lookup[comp_label]
 
-    def getLinks(self, par_label):
-        ''' Retrieve Links associated with a Parameter label e.g. 'doth_rate' would return all of the associated Links '''
+    def getLinks(self, label):
+        ''' Retrieve Links'''
+        # Links can be looked up by parameter label or by link label, unlike getVariable. This is because
+        # getLinks() is guaranteed to return a list of Link objects
         # As opposed to getVariable which would retrieve the Parameter for 'doth rate' and the Links for 'z'
-        par = self.getPar(par_label)
-        return par.links
+        if label in self.par_lookup:
+            return self.par_lookup[label].links
+        elif label in self.link_lookup:
+            return self.link_lookup[label]
+        else:
+            raise OptimaException('Object %s not found' % (label))
 
     def getCharac(self, charac_label):
         ''' Allow dependencies to be retrieved by label rather than index. Returns a Variable. '''
@@ -1037,7 +1043,7 @@ class Model(object):
             for par in pars:
                 par.constrain(ti)
 
-    def calculateOutputs(self, settings):
+    def calculateOutputs(self):
         '''
         Calculate outputs (called cascade characteristics in settings).
         These outputs must be calculated in the same order as defined in settings, otherwise references may break.
@@ -1062,7 +1068,7 @@ class Model(object):
 
 
 
-def runModel(settings, parset, progset=None, options=None,full_output=False,name=None):
+def runModel(settings, parset, progset=None, options=None,full_output=True,name=None):
     '''
     Processes the TB epidemiological model.
     Parset-based overwrites are generally done externally, so the parset is only used for model-building.

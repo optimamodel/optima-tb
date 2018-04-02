@@ -60,7 +60,7 @@ class ResultSet(object):
         self.indices_observed_data = np.where(self.t_step % 1.0 == 0)
         self.t_observed_data = self.t_step[self.indices_observed_data]
 
-        self.outputs = model.calculateOutputs(settings=settings)
+        self.outputs = model.calculateOutputs()
 
         # Set up for future use
         self.calibration_fit = None
@@ -152,7 +152,7 @@ class ResultSet(object):
             pop_labels = self.pop_labels
 
         # Get time array ids for values between initial (inclusive) and end year (exclusive).
-        tvals = np.array(self.sim_settings['tvec'])
+        tvals = np.array(self.model.t)
         if year_end is None: year_end = year_init + dt
         idx = (tvals >= year_init - dt / 2) * (tvals <= year_end - dt / 2)
 
@@ -340,7 +340,10 @@ class ResultSet(object):
 
         for pop in self.model.pops:
             if pop_labels is None or pop.label in pop_labels:
-                for link in pop.getVariable(link_tag):
+                for link in pop.getLinks(link_tag):
+                    if link.vals is None:
+                        raise OptimaException('Requested flow rate "%s" was not recorded because only partial results were saved' % (link.label))
+
                     datapoints[pop.label] += link.vals
                     source_size[pop.label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
 
@@ -403,8 +406,12 @@ class ResultSet(object):
                         data = self.outputs[key][popkey][self.indices_observed_data]
 
                     output += key + sep + popkey + sep
-                    for t in range(npts):
-                        output += ('%g' + sep) % data[t]
+
+                    if data is None: # If full_output=False then some fields will be skipped
+                        output += 'Not stored - set full_output to True to retain'
+                    else:
+                        for t in range(npts):
+                            output += ('%g' + sep) % data[t]
 
         if writetofile:
             with open(filename, 'w') as f: f.write(output)
