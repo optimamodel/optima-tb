@@ -942,17 +942,19 @@ class Model(object):
 
                 for junc in junctions:
 
+                    if review_count == 1:
+                        for link in junc.outlinks:
+                            link.vals[ti] = 0
+
                     # If the compartment is numerically empty, make it empty
                     if junc.vals[ti] <= project_settings.TOLERANCE:   # Includes negative values.
                         junc.vals[ti] = 0
                     else:
                         current_size = junc.vals[ti]
-                        denom_val = sum(link.parameter.vals[ti_link] for link in junc.outlinks) # This is the total number of people in the outflow compartments, at the previous timestep, used for splitting the outputs
+                        denom_val = sum(link.parameter.vals[ti_link] for link in junc.outlinks) # This is the total fraction of people requested to leave, so outflows are scaled to the entire compartment size
                         if denom_val == 0:
                             raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
                         for link in junc.outlinks:
-                            if review_count == 1:
-                                link.vals[ti] = 0
                             flow = current_size * link.parameter.vals[ti_link] / denom_val
                             link.source.vals[ti] -= flow
                             link.dest.vals[ti]   += flow

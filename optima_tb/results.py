@@ -162,7 +162,9 @@ class ResultSet(object):
 
         # Find values in results and add them to the output array per relevant population group.
         # TODO: Semantics need to be cleaned during design review phase.
-        if label in self.link_labels:
+        from optima_tb.model import Parameter, Link
+        vars = self.model.pops[0].getVariable(label)[0]
+        if isinstance(vars,Link) or isinstance(vars,Parameter) and vars.links: # TODO - Replace other calls with isinstance checks? Or deprecate entirely?
 
             values = self.getFlow(label, pop_labels=pop_labels)[0]
 
@@ -345,7 +347,7 @@ class ResultSet(object):
                         raise OptimaException('Requested flow rate "%s" was not recorded because only partial results were saved' % (link.label))
 
                     datapoints[pop.label] += link.vals
-                    source_size[pop.label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
+                    source_size[pop.label] += (link.source.vals if not link.source.is_junction else sum([x.vals for x in link.source.outlinks]))
 
         # If as_fraction is None, use the same units as the Parameter. All Parameters should have the same units
         # in all populations so can use whichever one is left after the loop above
