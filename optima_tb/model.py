@@ -233,18 +233,19 @@ class Parameter(Variable):
     def set_f_stack(self,f_stack,deps):
         self.f_stack = f_stack
         self.deps = deps
-        if self.links: # We only need to set dependencies if this is a Transition parameter and thus dependencies must be evaluated during integration
-            for dep in deps:
-                if isinstance(dep,Link):
-                    raise OptimaException('A transition parameter cannot itself depend on a transition tag')
-                dep.set_dependent()
+
+        # If this Parameter has links, it must be marked as dependent for evaluation during integration
+        if self.links:
+            self.set_dependent()
+
 
     def set_dependent(self):
         self.dependency = True
-        if self.deps is not None:
+        if self.deps is not None: # Make all dependencies dependent too, this will propagate through dependent parameters
             for dep in self.deps:
                 if isinstance(dep,Link):
                     raise OptimaException('A Parameter that depends on transition flow rates cannot be a dependency, it must be output only')
+                dep.set_dependent()
 
     def unlink(self):
         self.links = [x.uid for x in self.links]
