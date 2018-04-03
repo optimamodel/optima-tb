@@ -531,15 +531,26 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
             bar_outputs.append(output if isinstance(output,list) else [output])
 
     width = 1.0
-    gaps = (0.1,0.4,0.8) # Spacing within blocks, between inner groups, and between outer groups
+    gaps = [0.1,0.4,0.8] # Spacing within blocks, between inner groups, and between outer groups
 
     block_width = len(bar_pops)*(width+gaps[0])
 
+    # If there is only one bar group, then increase spacing between bars
+    if len(tvals) == 1 and len(plotdata.results) == 1:
+        gaps[0] = 0.3
+
     if outer == 'times':
+        if len(plotdata.results) == 1: # If there is only one inner group
+            gaps[2] = gaps[1]
+            gaps[1] = 0
+
         result_offset = block_width+gaps[1]
         tval_offset = len(plotdata.results)*(block_width+gaps[1])+gaps[2]
         iterator = nestedLoop([range(len(plotdata.results)),range(len(tvals))],[0,1])
     elif outer == 'results':
+        if len(tvals) == 1: # If there is only one inner group
+            gaps[2] = gaps[1]
+            gaps[1] = 0
         result_offset = len(tvals)*(block_width+gaps[1])+gaps[2]
         tval_offset = block_width+gaps[1]
         iterator = nestedLoop([range(len(plotdata.results)),range(len(tvals))],[1,0])
@@ -563,8 +574,8 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
 
     # Iterate over the inner and outer groups, rendering blocks at a time
     for r_idx,t_idx in iterator:
-        base_offset = r_idx*result_offset + t_idx*tval_offset
-        block_offset = 0.0
+        base_offset = r_idx*result_offset + t_idx*tval_offset # Offset between outer groups
+        block_offset = 0.0 # Offset between inner groups
         
         if outer == 'results':
             inner_labels.append((base_offset+block_width/2.0,t_labels[t_idx]))
@@ -602,13 +613,10 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
 
     # Add the patches to the figure and assemble the legend patches
     legend_patches = []
-    output_colors = defaultdict(set)
-    pop_colors = defaultdict(set)
 
     for color,items in color_legend.items():
         pc = PatchCollection(rectangles[color], facecolor=color)
         ax.add_collection(pc)
-
         pops = set([x[0] for x in items])
         outputs = set([x[1] for x in items])
 
@@ -626,7 +634,7 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     # Set axes now, because we need block_offset and base_offset after the loop
     ax.autoscale()
     ax.set_xlim(xmin=-2*gaps[0],xmax=block_offset+base_offset)
-    fig.set_figwidth((block_offset+base_offset))
+    fig.set_figwidth(1.75*(block_offset+base_offset))
     ax.set_ylim(ymin=0)
     _turnOffBorder(ax)
     set_ytick_format(ax,'KM')
@@ -642,7 +650,7 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     else:
         logger.warn('Warning - bar plot quantities mix units, double check that output selection is correct')
 
-    # Inner and outer group labels are only displayed if there is more than one group
+    # Outer group labels are only displayed if there is more than one group
     if outer == 'times' and len(tvals) > 1:
         offset = 0.0
         for t in t_labels:
@@ -654,11 +662,10 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
             ax.text(offset + (result_offset - gaps[1] - gaps[2])/2, 1,plotdata.result_names[r],transform=ax.get_xaxis_transform(),verticalalignment='bottom', horizontalalignment='center')
             offset += result_offset
 
-    # Another common scenario is that we go over time by having a block length of 1
-    # In which case, we would want to use the time labels as the axis labels
+    # If there is only one block per inner group, then use the inner group string as the bar label
     if not any([x[1] for x in block_labels]) and len(block_labels) == len(inner_labels):
         ax.set_xticklabels([x[1] for x in inner_labels])
-    else: 
+    elif len(inner_labels) > 1: # Inner group labels are only displayed if there is more than one group
         ax2 = ax.twiny()  # instantiate a second axes that shares the same x-axis
         ax2.set_xticks([x[0] for x in inner_labels])
         ax2.set_xticklabels(['\n'+x[1] for x in inner_labels])
@@ -672,7 +679,7 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
 
     # Do the legend last, so repositioning the axes works properly
     if separate_legend:
-        figs.append(render_separate_legend(ax),plot_type='bar',handles=legend_patches)
+        figs.append(render_separate_legend(ax,plot_type='bar',handles=legend_patches))
     else:
         render_legend(ax,plot_type='bar',handles=legend_patches)
 
