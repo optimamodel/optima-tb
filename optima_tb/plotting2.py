@@ -964,4 +964,8 @@ def getFullName(output_id, proj):
         output_id = proj.settings.node_specs[output_id]['name']
     elif output_id in proj.data['pops']['label_names'].keys(): # population label
         output_id = proj.data['pops']['label_names'][output_id]
+    else:
+        for label,spec in proj.settings.linkpar_specs.items():
+            if 'tag' in spec and spec['tag'] == output_id:
+                output_id = '%s (flow)' % (spec['name'])
     return output_id
