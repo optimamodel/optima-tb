@@ -130,7 +130,7 @@ class ModelProgramSet(object):
             else:
                 logger.warn("Program '%s' will not be used because no initial allocation was provided, 'saturate_with_default_budgets' not enabled." % prog.label)
 
-        return alloc, t,dt
+        return alloc
 
     def update_cache(self,alloc,tvals,dt): # Do the stuff in precalculateprogsetvals
         # alloc must be a spending value - note that if the settings originally had alloc_is_coverage then the alloc would have been
