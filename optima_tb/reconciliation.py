@@ -193,7 +193,7 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
         args = {
             'pset': progset_results.model.pset,
             'tval': np.array([reconcile_for_year]),
-            'dt': progset_results.model.sim_settings['tvec_dt'],
+            'dt': progset_results.model.dt,
             'target_vals': target_vals,
             'attribute_dict': dcp(attribute_dict),
             'constrain_budget': constrain_budget,
@@ -223,11 +223,16 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
         pset.update_cache(alloc, args['tval'], args['dt'])
         proposed_vals, proposed_coverage = pset.compute_pars(0)
 
-        outcome = '%s %s %s %s %s' % ('Population'.ljust(15),'Parameter'.ljust(15),'Parset'.rjust(10), '    Initial'.ljust(21),'      Reconciled'.ljust(21))
+        outcome = '%s %s %s %s %s\n' % ('Population'.ljust(15),'Parameter'.ljust(15),'Parset'.rjust(10), '    Initial'.ljust(21),'      Reconciled'.ljust(21))
+        residual_old = 0.0
+        residual_new = 0.0
         for pop in progset_results.model.pops:
             for par in pop.pars:
                 if par.uid in target_vals:
-                    outcome += '\n%s %s %10.4f %10.4f (%+10.4f) %10.4f (%+10.4f)' % (pop.label.ljust(15),par.label.ljust(15),target_vals[par.uid],initial_prog_vals[par.uid],initial_prog_vals[par.uid]-target_vals[par.uid],proposed_vals[par.uid],proposed_vals[par.uid]-target_vals[par.uid])
+                    outcome += '%s %s %10.4f %10.4f (%+10.4f) %10.4f (%+10.4f)\n' % (pop.label.ljust(15),par.label.ljust(15),target_vals[par.uid],initial_prog_vals[par.uid],initial_prog_vals[par.uid]-target_vals[par.uid],proposed_vals[par.uid],proposed_vals[par.uid]-target_vals[par.uid])
+                    residual_old += (initial_prog_vals[par.uid]-target_vals[par.uid])**2
+                    residual_new += (proposed_vals[par.uid]-target_vals[par.uid])**2
+        outcome += 'Old residual (no coverage penalty) = %10.4f, New residual = %10.4f\n' % (residual_old,residual_new)
 
         return pset.progset, outcome
 
