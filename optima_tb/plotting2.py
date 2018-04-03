@@ -196,7 +196,7 @@ class PlotData(object):
                         
                         for link in vars:
                             data_dict[output_label] += link.vals
-                            compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
+                            compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.outflow)
 
                         if t_bins is None: # Annualize if not time aggregating
                             data_dict[output_label] /= dt
@@ -215,7 +215,7 @@ class PlotData(object):
                             output_units[output_label] = vars[0].units
                             compsize[output_label] = np.zeros(tvecs[result_label].shape)
                             for link in vars[0].links:
-                                compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
+                                compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.outflow)
 
                     elif isinstance(vars[0],Compartment) or isinstance(vars[0],Characteristic): # Compartment or Characteristic
                         data_dict[output_label] = vars[0].vals
