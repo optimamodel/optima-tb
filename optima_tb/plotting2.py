@@ -615,7 +615,7 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     legend_patches = []
 
     for color,items in color_legend.items():
-        pc = PatchCollection(rectangles[color], facecolor=color)
+        pc = PatchCollection(rectangles[color], facecolor=color,edgecolor='none')
         ax.add_collection(pc)
         pops = set([x[0] for x in items])
         outputs = set([x[1] for x in items])
