@@ -119,6 +119,10 @@ class PlotData(object):
         elif isinstance(results,ResultSet):
             results = [results]
 
+        result_names = [x.name for x in results]
+        if len(set(result_names)) != len(result_names):
+            raise OptimaException('Results must have different names (in their result.name property)')
+
         if pops is None:
             pops = [pop.label for pop in results[0].model.pops]
         elif pops == 'all':
@@ -270,7 +274,7 @@ class PlotData(object):
                             logger.warn('Warning - aggregation for output "%s" is mixing units, this is almost certainly not desired' % (output_name))
                             aggregated_units[output_name] = 'unknown'
                         else:
-                            if units[0] in ['','fraction','proportion'] and output_aggregation == 'sum': # Dimensionless quantity, like a prevalance
+                            if units[0] in ['','fraction','proportion'] and output_aggregation == 'sum' and len(labels) > 1: # Dimensionless quantity, like a prevalance
                                 logger.warn('Warning - output "%s" is not in number units, so output aggregation probably should not be "sum"' % (output_name))
                             aggregated_units[output_name] = output_units[labels[0]]
                             
@@ -294,7 +298,7 @@ class PlotData(object):
                         pop_name = pop.keys()[0]
                         pop_labels = pop[pop_name]
                         if pop_aggregation == 'sum':
-                            if aggregated_units[output_name] in ['','fraction','proportion']:
+                            if aggregated_units[output_name] in ['','fraction','proportion'] and len(pop_labels) > 1:
                                 logger.warn('Warning - output "%s" is not in number units, so population aggregation probably should not be "sum"' % (output_name))
                             vals = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
                         elif pop_aggregation == 'average': 
