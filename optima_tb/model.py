@@ -520,6 +520,7 @@ class ModelPopulation(object):
                     par.limits[1] = spec['max']
 
             if 'f_stack' in spec:
+
                 f_stack = dcp(spec['f_stack'])
                 deps = []
                 for dep_label in spec['deps']:
@@ -640,6 +641,11 @@ class Model(object):
     def unlink(self):
         # Break cycles when deepcopying or pickling by swapping them for UIDs
         # Primary storage is in the comps, links, and outputs properties
+
+        # If we are already unlinked, do nothing
+        if self.pars_by_pop is None:
+            return
+
         for pop in self.pops:
             pop.unlink()
         if self.pset is not None:
@@ -648,6 +654,11 @@ class Model(object):
 
     def relink(self):
         # Need to enumerate objects at Model level because transitions link across pops
+
+        # If we are already linked, do nothing
+        if self.pars_by_pop is not None:
+            return
+
         objs = {}
         for pop in self.pops:
             for obj in pop.comps + pop.characs + pop.pars + pop.links:
