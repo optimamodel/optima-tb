@@ -1,34 +1,38 @@
 # %% Imports
 import logging
-from matplotlib.pyplot import plot
-
 logger = logging.getLogger(__name__)
+
+import numpy as np
+import pylab as pl
+from random import shuffle
+import numbers
+import os
+import itertools
+import textwrap
+
+from collections import defaultdict
+
+from copy import deepcopy as dcp
 
 from optima_tb.utils import odict, OptimaException, nestedLoop
 from optima_tb.results import ResultSet
-import numpy as np
-import pylab as pl
-from copy import deepcopy as dcp
-from copy import copy as ndcp
+from optima_tb.plotting import gridColorMap
+from optima_tb.model import Compartment, Characteristic, Parameter, Link
+from optima_tb.parsing import FunctionParser
+
+import matplotlib
+from matplotlib.pyplot import plot
 import matplotlib.cm as cmx
 import matplotlib.colors as matplotlib_colors
-from random import shuffle
-import numbers
-import textwrap
-from collections import defaultdict
 import matplotlib.pyplot as plt
-import matplotlib
-import textwrap
-from optima_tb.plotting import gridColorMap
 from matplotlib.ticker import FuncFormatter
-import os
-import itertools
 from matplotlib.patches import Rectangle, Patch
 from matplotlib.collections import PatchCollection
 from matplotlib.legend import Legend
-import os
-from optima_tb.model import Compartment, Characteristic, Parameter, Link
-from optima_tb.parsing import FunctionParser
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
+
+
 parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
 
@@ -875,6 +879,41 @@ def _turnOffBorder(ax):
     ax.spines['top'].set_color('none')
     ax.xaxis.set_ticks_position('bottom')
     ax.yaxis.set_ticks_position('left')
+
+def plotLegend(entries,plot_type='patch',fig=None):
+    # plot type - can be 'patch' or 'line'
+    # The legend items are a dict keyed with the label e.g.
+    # entries = {'sus':'blue','vac':'red'}
+    # If a figure is passed in, the legend will be drawn in that figure, overwriting
+    # a previous legend if one was already there
+
+    h = []
+    for label,color in entries.items():
+        if plot_type == 'patch':
+            h.append(Patch(color=color,label=label))
+        else:
+            h.append(Line2D([0],[0],color=color,label=label))
+
+    legendsettings = {'loc': 'center', 'bbox_to_anchor': None,'frameon':False} # Settings for separate legend
+
+    if fig is None: # Draw in a new figure
+        render_separate_legend(None,None,h)
+    else:
+        existing_legend = fig.findobj(Legend)
+        if existing_legend and existing_legend[0].parent is fig: # If existing legend and this is a separate legend fig
+                existing_legend[0].remove() # Delete the old legend
+                fig.legend(handles=h, **legendsettings)
+        else: # Drawing into an existing figure
+            ax = fig.axes[0]
+            legendsettings = {'loc': 'center left', 'bbox_to_anchor': (1.05, 0.5), 'ncol': 1}
+            if existing_legend:
+                existing_legend[0].remove() # Delete the old legend
+                ax.legend(handles=h,**legendsettings)
+            else:
+                ax.legend(handles=h,**legendsettings)
+                box = ax.get_position()
+                ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+    return fig
 
 def render_separate_legend(ax,plot_type=None,handles=None):
     if handles is None:
