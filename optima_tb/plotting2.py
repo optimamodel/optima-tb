@@ -37,7 +37,7 @@ def save_figs(figs,path = '.',prefix = '',fnames=None):
     try:
         os.makedirs(path)
     except OSError as err:
-        if err.errno!=17: # TODO: I think this is the error if the folder exists, probably should double check
+        if err.errno!=os.errno.EEXIST:
             raise
 
     if not isinstance(figs,list):
