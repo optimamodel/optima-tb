@@ -101,6 +101,9 @@ class Compartment(Variable):
         if ti is None:
             ti = np.arange(0,len(self.t))
 
+        if self.tag_birth or self.tag_dead or self.is_junction:
+            return 0
+
         outflow_probability = 0
         for link in self.outlinks:
             if link.parameter.units == 'fraction':
@@ -595,21 +598,24 @@ class ModelPopulation(object):
                 else:
                     logger.warn(n_indent * '\t' + 'Compartment %s: Computed value = %f' % (inc.label,x[comp_indices[inc.label]]))
 
-        for i in xrange(0, len(comps)):
-            if x[i] < -project_settings.TOLERANCE:
-                logger.warn('Compartment %s %s - Calculated %f' % (self.label, comps[i].label, x[i]))
-                for charac in characs:
-                    if comps[i] in extract_includes(charac):
-                        report_characteristic(charac)
-
+        # Halt for any negative popsizes - print diagnostic for negative compartment
+        if np.any(x < -project_settings.TOLERANCE):
+            for i in xrange(0, len(comps)):
+                if x[i] < -project_settings.TOLERANCE:
+                    logger.warn('Compartment %s %s - Calculated %f' % (self.label, comps[i].label, x[i]))
+                    for charac in characs:
+                        if comps[i] in extract_includes(charac):
+                            report_characteristic(charac)
+            raise OptimaException('Negative initial popsizes')
 
         # Halt for an unsatisfactory overall solution (could relax this check later)
+        # Print diagnostic for all characteristics
         if residual > project_settings.TOLERANCE:
+            for charac in characs:
+                report_characteristic(charac)
             raise OptimaException('Residual was %f which is unacceptably large (should be < %f) - this points to a probable inconsistency in the initial values' % (residual,project_settings.TOLERANCE))
 
-        # Halt for any negative popsizes
-        if np.any(x < -project_settings.TOLERANCE):
-            raise OptimaException('Negative initial popsizes')
+
 
         # Otherwise, insert the values
         for i,c in enumerate(comps):
