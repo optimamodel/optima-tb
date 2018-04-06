@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 import pylab as pl
 import numpy as np
 from matplotlib.ticker import FuncFormatter
-
+import optima_tb.plotting2 as oplt
 
 
 # %% Settings class (for data that is effectively static per epidemic context)
@@ -371,6 +371,8 @@ class PlottingSettings():
         pl.rcParams['font.size'] = 14
         pl.rcParams['lines.linewidth'] = 4
 
+        oplt.settings['separate_legend'] = False
+
         self.plotdict['legend_off'] = False
         self.plotdict['use_full_labels'] = True
         self.plotdict['title'] = ''  # No title when we have presentation quality
@@ -415,6 +417,8 @@ class PlottingSettings():
         pl.rcParams['ytick.minor.width'] = 0
 
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
+
+        oplt.settings['separate_legend'] = True
 
         self.plotdict['legend_off'] = True # plots separate legend
         self.plotdict['title'] = ''  # No title when we have presentation quality
