@@ -33,7 +33,7 @@ parser = FunctionParser(debug=False)  # Decomposes and evaluates functions writt
 
 
 settings = dict()
-settings['separate_legend'] = False
+settings['legend_mode'] = 'together' # Possible options are ['together','separate','none'] 
 settings['bar_width'] = 1.0 # Width of bars in plotBars()
 
 def save_figs(figs,path = '.',prefix = '',fnames=None):
@@ -688,9 +688,9 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',xlabels=N
         ax2.tick_params(axis=u'both', which=u'both',length=0)
 
     # Do the legend last, so repositioning the axes works properly
-    if settings['separate_legend']:
+    if settings['legend_mode'] == 'separate':
         figs.append(render_separate_legend(ax,plot_type='bar',handles=legend_patches))
-    else:
+    elif settings['legend_mode'] == 'together':
         render_legend(ax,plot_type='bar',handles=legend_patches)
 
     return figs
@@ -709,7 +709,6 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
     # - plot_type - 'line', 'stacked', or 'proportion' (stacked, normalized to 1)
     # - data - Draw scatter points for data wherever the output label matches
     #   a data label. Only draws data if the plot_type is 'line'
-    # - separate_legend - Show the legend in a separate figure,
     global settings
 
     assert axis in ['outputs','results','pops']
@@ -751,7 +750,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                         if data is not None:
                             render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
-                if not settings['separate_legend']:
+                if settings['legend_mode'] == 'together':
                     render_legend(ax,plot_type)
 
     elif axis == 'pops':
@@ -778,7 +777,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                         if data is not None:
                             render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
-                if not settings['separate_legend']:
+                if settings['legend_mode'] == 'together':
                     render_legend(ax,plot_type)
 
     elif axis == 'outputs':
@@ -803,10 +802,10 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                         if data is not None:
                             render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
-                if not settings['separate_legend']:
+                if settings['legend_mode'] == 'together':
                     render_legend(ax,plot_type)
 
-    if settings['separate_legend']:
+    if settings['legend_mode'] == 'separate':
         figs.append(render_separate_legend(ax,plot_type))
 
     return figs
