@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 import pylab as pl
 import numpy as np
 from matplotlib.ticker import FuncFormatter
-import optima_tb.plotting2 as oplt
 
 
 # %% Settings class (for data that is effectively static per epidemic context)
@@ -364,6 +363,7 @@ class PlottingSettings():
         pl.rcParams['savefig.transparent'] = 'False'  # relax
 
     def printSettings(self):
+        import optima_tb.plotting2 as oplt
 
         pl.rcParams['figure.figsize'] = (9, 7)
         pl.rcParams['savefig.dpi'] = 200
@@ -394,6 +394,8 @@ class PlottingSettings():
         pl.rcParams['ytick.minor.width'] = 0
 
     def presentationSettings(self):
+        import optima_tb.plotting2 as oplt
+
         pl.rcParams['font.size'] = 14
         pl.rcParams['figure.figsize'] = (9, 7)
         pl.rcParams['savefig.dpi'] = 200
