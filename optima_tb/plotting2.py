@@ -728,7 +728,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                 figs.append(fig)
 
                 units = list(set([plotdata[result,pop,output].units for result in plotdata.results]))
-                if len(units) == 1:
+                if len(units) == 1 and units[0]:
                     ax.set_ylabel('%s (%s)' % (plotdata.output_names[output],units[0]))
                 else:
                     ax.set_ylabel('%s' % (plotdata.output_names[output]))
@@ -755,7 +755,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                 figs.append(fig)
 
                 units = list(set([plotdata[result,pop,output].units for pop in plotdata.pops]))
-                if len(units) == 1:
+                if len(units) == 1 and units[0]:
                     ax.set_ylabel('%s (%s)' % (plotdata.output_names[output],units[0]))
                 else:
                     ax.set_ylabel('%s' % (plotdata.output_names[output]))
@@ -782,7 +782,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                 figs.append(fig)
 
                 units = list(set([plotdata[result,pop,output].units for output in plotdata.outputs]))
-                if len(units) == 1:
+                if len(units) == 1 and units[0]:
                     ax.set_ylabel(units[0])
 
                 ax.set_title('%s-%s' % (plotdata.result_names[result],plotdata.pop_names[pop]))
