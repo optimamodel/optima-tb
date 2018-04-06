@@ -32,6 +32,10 @@ from optima_tb.parsing import FunctionParser
 parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
 
+settings = dict()
+settings['separate_legend'] = False
+settings['bar_width'] = 1.0 # Width of bars in plotBars()
+
 def save_figs(figs,path = '.',prefix = '',fnames=None):
     #
     try:
@@ -462,7 +466,7 @@ class Series(object):
         return 'Series(%s,%s,%s)' % (self.result,self.pop,self.output)
 
 
-def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_legend=False,xlabels=None):
+def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',xlabels=None):
     # We have a collection of bars - one for each Result, Pop, Output, and Timepoint.
     # Any aggregations have already been done. But _groupings_ have not. Let's say that we can group
     # pops and outputs but we never want to stack results. At least for now. 
@@ -471,6 +475,8 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     #   the number of values is the number of bars - could be time, or could be results?
     # - As many sets as there are ungrouped bars
     # xlabels refers to labels within a block (i.e. they will be repeated for multiple times and results)
+    global settings
+
     assert outer in ['times','results'], 'Supported outer groups are "times" or "results"'
     if xlabels is not None:
         assert isinstance(xlabels,list), 'xlabels should be a list'
@@ -534,7 +540,7 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
             bar_pops.append(pop if isinstance(pop,list) else [pop])
             bar_outputs.append(output if isinstance(output,list) else [output])
 
-    width = 1.0
+    width = settings['bar_width']
     gaps = [0.1,0.4,0.8] # Spacing within blocks, between inner groups, and between outer groups
 
     block_width = len(bar_pops)*(width+gaps[0])
@@ -682,7 +688,7 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
         ax2.tick_params(axis=u'both', which=u'both',length=0)
 
     # Do the legend last, so repositioning the axes works properly
-    if separate_legend:
+    if settings['separate_legend']:
         figs.append(render_separate_legend(ax,plot_type='bar',handles=legend_patches))
     else:
         render_legend(ax,plot_type='bar',handles=legend_patches)
@@ -690,7 +696,7 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     return figs
 
 
-def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,data=None):
+def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
     # TODO -
     # - Clean up doing aggregation separately
     # - Implement separate figures as everything starting out on the same plot and then
@@ -704,6 +710,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
     # - data - Draw scatter points for data wherever the output label matches
     #   a data label. Only draws data if the plot_type is 'line'
     # - separate_legend - Show the legend in a separate figure,
+    global settings
 
     assert axis in ['outputs','results','pops']
 
@@ -744,7 +751,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                         if data is not None:
                             render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
-                if not separate_legend:
+                if not settings['separate_legend']:
                     render_legend(ax,plot_type)
 
     elif axis == 'pops':
@@ -771,7 +778,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                         if data is not None:
                             render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
-                if not separate_legend:
+                if not settings['separate_legend']:
                     render_legend(ax,plot_type)
 
     elif axis == 'outputs':
@@ -796,10 +803,10 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                         if data is not None:
                             render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
-                if not separate_legend:
+                if not settings['separate_legend']:
                     render_legend(ax,plot_type)
 
-    if separate_legend:
+    if settings['separate_legend']:
         figs.append(render_separate_legend(ax,plot_type))
 
     return figs
