@@ -32,8 +32,8 @@ def _extract_target_vals(parset_results, progset_results, impact_pars):
     target_vals = dict()  # This is a dict mapping par_uid:par_value for the reconciliation year in the Parset - the UIDs correspond to the progset run though
     initial_prog_vals = dict()
     for pop_label, par_label, par_uid in mapping:
-        target_vals[par_uid] = parset_results.model.getPop(pop_label).getPar(par_label).vals[-1]
-        initial_prog_vals[par_uid] = progset_results.model.getPop(pop_label).getPar(par_label).vals[-1]
+        target_vals[par_uid] = parset_results.model.getPop(pop_label).getPar(par_label).vals
+        initial_prog_vals[par_uid] = progset_results.model.getPop(pop_label).getPar(par_label).vals
 
     return target_vals,initial_prog_vals
 
@@ -171,8 +171,6 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
         """
 
         # First, get baseline values
-        orig_tvec_end = proj.settings.tvec_end
-        proj.setYear([2000, reconcile_for_year], False) # This is the easiest way to evaluate the dependent parameter values
         options = defaultOptimOptions(settings=proj.settings, progset=proj.progsets[0])
         if reconcile_for_year != options['progs_start']:
             logging.warn('Reconciling for %.2f, but programs start in %.2f' % (reconcile_for_year,options['progs_start']))
@@ -181,7 +179,6 @@ def reconcile(proj, parset_name, progset_name, reconcile_for_year, sigma_dict=No
         parset = proj.parsets[parset_name]
         parset_results = proj.runSim(parset=parset, store_results=False) # parset values we want to match
         progset_results = proj.runSim(parset=parset, progset_name=progset_name, store_results=False,options=options) # Default results - also, instantiates a ModelProgramSet for use in next steps
-        proj.setYear([2000, orig_tvec_end], False) # Reset the project end year
 
         # Extract the target values, make an attribute dict, etc.
         target_vals, initial_prog_vals = _extract_target_vals(parset_results,progset_results,impact_pars)
