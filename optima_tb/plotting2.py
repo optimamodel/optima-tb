@@ -454,7 +454,7 @@ class PlotData(object):
                 s.color = color if (s.color is None or overwrite==True) else s.color
 
 class Series(object):
-    def __init__(self,tvec,vals,result='default',pop='default',output='default',data_label='',color=None,label=None, units = ''):
+    def __init__(self,tvec,vals,result='default',pop='default',output='default',data_label='',color=None, units = ''):
         self.tvec = np.copy(tvec)
         self.t_labels = np.copy(self.tvec) # Iterable array of time labels - could become strings like [2010-2014]
         self.vals = np.copy(vals)
@@ -462,7 +462,6 @@ class Series(object):
         self.pop = pop
         self.output = output
         self.color = color
-        self.label = label
         self.data_label = data_label # Used to identify data for plotting
         self.units = units
 
