@@ -50,18 +50,25 @@ def save_figs(figs,path = '.',prefix = '',fnames=None):
 
     if not isinstance(figs,list):
         figs = [figs]
+
     if fnames is not None:
         if not isinstance(fnames,list):
             fnames = [fnames]
-        assert len(fnames) == len(figs), 'Number of figures must match number of specified filenames'
+        if len(fnames) == len(figs)-1 and not figs[-1].get_label():
+            fnames.append('')
+        else:
+            assert len(fnames) == len(figs), 'Number of figures must match number of specified filenames, or the last figure must be a legend with no label'
 
     for i,fig in enumerate(figs):
-        if fnames is not None:
+        if fnames is not None and fnames[i]: # Use the specified filename
             fname = prefix+fnames[i] + '.png'
         else:
-            if fig.get_label() == '':
-                continue
-            fname = prefix+fig.get_label() + '.png'
+            if not fig.get_label() and i == len(figs)-1: # If the figure has no label (e.g. it is a legend)
+                fname = fname[0:-4] + '_legend.png'
+            elif not fig.get_label():
+                raise OptimaException('Only the last figure passed to save_figs is allowed to have an empty label if the filenames are not explicitly specified')
+            else:
+                fname = prefix+fig.get_label() + '.png'
         fig.savefig(os.path.join(path,fname),bbox_inches='tight')
         logger.info('Saved figure "%s"' % fname)
 
@@ -135,17 +142,29 @@ class PlotData(object):
             pops = [pop.label for pop in results[0].model.pops]
         elif pops == 'all':
             pops = [{'All':[pop.label for pop in results[0].model.pops]}]
-        elif isinstance(pops,str):
+        elif not isinstance(pops,list):
             pops = [pops]
 
         if outputs is None:
             outputs = [comp.label for comp in results[0].model.pops[0].comps if not (comp.tag_birth or comp.tag_dead or comp.is_junction)]
-        elif isinstance(outputs,str):
+        elif not isinstance(outputs,list):
             outputs = [outputs]
 
+        def expand_dict(x):
+            # If a list contains a dict with multiple keys, expand it into multiple dicts each
+            # with a single key
+            y = list()
+            for v in x:
+                if isinstance(v,dict):
+                    y += [{a:b} for a,b in v.items()]
+                else:
+                    y.append(v)
+            return y
+
+        pops = expand_dict(pops)
+        outputs = expand_dict(outputs)
+
         assert isinstance(results,list), 'Results should be specified as a Result, list, or odict'
-        assert isinstance(pops, list), 'Populations need to be specified as a string or list'
-        assert isinstance(outputs,list), 'Outputs need to be specified as a string or list'
 
         assert output_aggregation in ['sum','average','weighted']
         assert pop_aggregation in ['sum','average','weighted']
@@ -469,7 +488,7 @@ class Series(object):
         return 'Series(%s,%s,%s)' % (self.result,self.pop,self.output)
 
 
-def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',xlabels=None):
+def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times'):
     # We have a collection of bars - one for each Result, Pop, Output, and Timepoint.
     # Any aggregations have already been done. But _groupings_ have not. Let's say that we can group
     # pops and outputs but we never want to stack results. At least for now. 
@@ -481,67 +500,66 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',xlabels=N
     global settings
 
     assert outer in ['times','results'], 'Supported outer groups are "times" or "results"'
-    if xlabels is not None:
-        assert isinstance(xlabels,list), 'xlabels should be a list'
+
     plotdata = dcp(plotdata)
 
     # Note - all of the tvecs must be the same
     tvals,t_labels = plotdata.tvals() # We have to iterate over these, with offsets, if there is more than one
 
-    # If split_time = True, then different timepoints will be on different figures
-    # If split_results = True, then different results will be on different figures
+    # If quantities are stacked, then they need to be coloured differently.
+    if stack_pops is None:
+        color_by = 'outputs'
+        plotdata.set_colors(outputs=plotdata.outputs)
+    elif stack_outputs is None:
+        color_by = 'pops'
+        plotdata.set_colors(pops=plotdata.pops)
+    else:
+        color_by = 'both'
+        plotdata.set_colors(pops=plotdata.pops,outputs=plotdata.outputs)
 
-    # First - we should come up with the time/result grouped bars
-    # The bar specification is - for each synchronized element of stack_pops and stack_outputs, it will
-    # group those quantities into a bar. There could be multiple bars. 
-    # If stack pops is not specified, it will default to all populations
-    #
-    # The rule is - if you want quantities to appear as a single color, they should be 
-    # aggregated in plotdata. If you want quantities to appear as separate colors, 
-    # they should be stacked in plotBars
+    # Make lists specifying which populations-output quantities to plot in each bar
+    # The first tuple item is the automatic label name
+    # The second item is the user-provided label (if the user entered a dict)
+    # The third item is a list of output/pop labels to stack
+
     def get_unique(x):
+        # Take in a dict or a nested list
+        # Return a Set of all items
         o = set()
-        for y in x:
+        for _,_,y in x:
             if isinstance(y,list):
                 o.update(y)
             else:
                 o.add(y)
         return o
 
-    # If we are stacking pops only, then we would want the x-label to correspond to pops
-    # and we would colour the sub-bars by outputs. Similar if we are only stacking outputs. 
-    # If we are stacking both, the colours get assigned to pop-output combinations
-    # In that case, the xlabel can actually be left as None
     if stack_pops is None:
-        xlabel_mode = 'pops'
-        plotdata.set_colors(outputs=plotdata.outputs)
-    elif stack_outputs is None:
-        xlabel_mode = 'outputs'
-        plotdata.set_colors(pops=plotdata.pops)
-    else:
-        xlabel_mode = None
-        plotdata.set_colors(pops=plotdata.pops,outputs=plotdata.outputs) # If we are stacking both pops and outputs, then unique colours for all by default
+        stack_pops = [(x,'',[x]) for x in plotdata.pops]
+    elif isinstance(stack_pops,list):
+        stack_pops = [('','',x) if len(x) > 1 else (x,x) for x in stack_pops]
+    elif isinstance(stack_pops,dict):
+        stack_pops = [('',k,x) if len(x) > 1 else (k,[x]) for k,x in stack_pops.items()]
 
-    if stack_pops is None:
-        stack_pops = plotdata.pops
-    else:
-        stack_pops += list(set(plotdata.pops)-get_unique(stack_pops))
+    missing_pops = list(set(plotdata.pops)-get_unique(stack_pops))
+    stack_pops += [(x,[x]) for x in missing_pops]
 
     if stack_outputs is None:
-        stack_outputs = plotdata.outputs
-    else:
-        stack_outputs += list(set(plotdata.outputs)-get_unique(stack_outputs))
+        stack_outputs = [(x,'',[x]) for x in plotdata.outputs]
+    elif isinstance(stack_outputs,list):
+        stack_outputs = [('','',x) if len(x) > 1 else (x,[x]) for x in stack_outputs]
+    elif isinstance(stack_outputs,dict):
+        stack_outputs = [('',k,x) if len(x) > 1 else (k,[x]) for k,x in stack_outputs.items()]
 
-    if xlabels is not None:
-        assert len(xlabels) == len(stack_pops)*len(stack_outputs), 'Number of labels specified must match number of bars'
+    missing_outputs = list(set(plotdata.outputs)-get_unique(stack_outputs))
+    stack_outputs += [(x,'',[x]) for x in missing_outputs]
 
-    # Make lists specifying which populations-output quantities to plot in each bar
+    # Now work out which pops and outputs appear in each bar (a bar is a pop-output combo)
     bar_pops = []
     bar_outputs = []
     for pop in stack_pops:
         for output in stack_outputs:
-            bar_pops.append(pop if isinstance(pop,list) else [pop])
-            bar_outputs.append(output if isinstance(output,list) else [output])
+            bar_pops.append(pop)
+            bar_outputs.append(output)
 
     width = settings['bar_width']
     gaps = [0.1,0.4,0.8] # Spacing within blocks, between inner groups, and between outer groups
@@ -556,7 +574,6 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',xlabels=N
         if len(plotdata.results) == 1: # If there is only one inner group
             gaps[2] = gaps[1]
             gaps[1] = 0
-
         result_offset = block_width+gaps[1]
         tval_offset = len(plotdata.results)*(block_width+gaps[1])+gaps[2]
         iterator = nestedLoop([range(len(plotdata.results)),range(len(tvals))],[0,1])
@@ -595,12 +612,38 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',xlabels=N
         elif outer == 'times':
             inner_labels.append((base_offset+block_width/2.0,plotdata.result_names[plotdata.results[r_idx]]))
 
-        for idx,bar_pop,bar_output in zip(range(len(bar_pops)),bar_pops,bar_outputs): # For each bar within the bar collection that we are going to be plotting
+        for idx,bar_pop,bar_output in zip(range(len(bar_pops)),bar_pops,bar_outputs):
             # pop is something like ['0-4','5-14'] or ['0-4']
             # output is something like ['sus','vac'] or ['0-4'] depending on the stack
             y0 = 0
-            for pop in bar_pop:
-                for output in bar_output:
+
+            # Set the name of the bar
+            # If the user provided a label, it will always be displayed
+            # In addition, if there is more than one label of the other (output/pop) type,
+            # then that label will also be shown, otherwise it will be suppressed
+            if bar_pop[1] or bar_output[1]:
+                if bar_pop[1]:
+                    if bar_output[1]:
+                        bar_label = '%s\n%s' % (bar_pop[1], bar_output[1])
+                    elif len(stack_outputs) > 1 and len(set([x[0] for x in stack_outputs])) > 1 and bar_output[0]:
+                        bar_label = '%s\n%s' % (bar_pop[1], bar_output[0])
+                    else:
+                        bar_label = bar_pop[1]
+                else:
+                    if len(stack_pops) > 1 and len(set([x[0] for x in stack_pops])) > 1 and bar_pop[0]:
+                        bar_label = '%s\n%s' % (bar_pop[0], bar_output[1])
+                    else:
+                        bar_label = bar_output[1]
+            else:
+                if color_by == 'outputs' and len(stack_pops) > 1 and len(set([x[0] for x in stack_pops])) > 1:
+                    bar_label = bar_pop[0]
+                elif color_by == 'pops' and len(stack_outputs) > 1 and len(set([x[0] for x in stack_outputs])) > 1:
+                    bar_label = bar_output[0]
+                else:
+                    bar_label = ''
+
+            for pop in bar_pop[2]:
+                for output in bar_output[2]:
                     series = plotdata[plotdata.results[r_idx],pop,output]
                     y = series.vals[t_idx]
                     rectangles[series.color].append(Rectangle((base_offset+block_offset,y0), width, y))
@@ -608,17 +651,7 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',xlabels=N
                         color_legend[series.color].append((pop,output))
                     elif series.color not in color_legend:
                         color_legend[series.color] = [(pop,output)]
-
                     y0 += y
-
-                    if xlabels is not None:
-                        bar_label = xlabels[idx]
-                    elif xlabel_mode == 'pops' and len(stack_pops) > 1:
-                        bar_label = pop
-                    elif xlabel_mode == 'outputs' and len(stack_outputs) > 1:
-                        bar_label = output
-                    else:
-                        bar_label = ''
 
             block_labels.append((base_offset+block_offset+width/2,bar_label))
 
@@ -676,12 +709,12 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',xlabels=N
             offset += result_offset
 
     # If there is only one block per inner group, then use the inner group string as the bar label
-    if not any([x[1] for x in block_labels]) and len(block_labels) == len(inner_labels):
+    if not any([x[1] for x in block_labels]) and len(block_labels) == len(inner_labels) and len(set([x for _,x in inner_labels])) > 1:
         ax.set_xticklabels([x[1] for x in inner_labels])
-    elif len(inner_labels) > 1: # Inner group labels are only displayed if there is more than one group
+    elif len(inner_labels) > 1 and len(set([x for _,x in inner_labels])) > 1: # Inner group labels are only displayed if there is more than one label
         ax2 = ax.twiny()  # instantiate a second axes that shares the same x-axis
         ax2.set_xticks([x[0] for x in inner_labels])
-        ax2.set_xticklabels(['\n'+x[1] for x in inner_labels])
+        ax2.set_xticklabels(['\n\n'+x[1] for x in inner_labels])
         ax2.xaxis.set_ticks_position('bottom')
         ax2.set_xlim(ax.get_xlim())
         ax2.spines['right'].set_visible(False)
@@ -964,12 +997,21 @@ def render_legend(ax,plot_type=None,handles=None,):
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 
-def reorder_legend(fig,order=None):
+def reorder_legend(figs,order=None):
     # This helper function lets you reorder a legend after figure creation
     # Order can be
     # - A string 'reverse' to reverse the order of the legend
     # - A list of indices mapping old position to new position. For example, if the
     #   original label order was ['a,'b','c'], then order=[1,0,2] would result in ['b','a','c']
+
+    if isinstance(figs,list):
+        if not figs[-1].get_label(): # If the last figure is a legend figure
+            fig = figs[-1]
+        else:
+            for fig in figs: # Apply order operation to all figures passed in
+                reorder_legend(fig,order=order)
+    else:
+        fig = figs
 
     legend = fig.findobj(Legend)[0]
     assert len(legend._legend_handle_box._children) == 1, 'Only single-column legends are supported'
@@ -987,7 +1029,16 @@ def reorder_legend(fig,order=None):
         new_children.append(vpacker._children[order[i]])
     vpacker._children = new_children
 
-def relabel_legend(fig,labels):
+def relabel_legend(figs,labels):
+
+    if isinstance(figs,list):
+        if not figs[-1].get_label(): # If the last figure is a legend figure
+            fig = figs[-1]
+        else:
+            for fig in figs: # Apply order operation to all figures passed in
+                relabel_legend(fig,labels=labels)
+    else:
+        fig = figs
 
     legend = fig.findobj(Legend)[0]
     assert len(legend._legend_handle_box._children) == 1, 'Only single-column legends are supported'
