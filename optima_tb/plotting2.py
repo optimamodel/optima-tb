@@ -517,47 +517,59 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times'):
         color_by = 'both'
         plotdata.set_colors(pops=plotdata.pops,outputs=plotdata.outputs)
 
-    # Make lists specifying which populations-output quantities to plot in each bar
-    # The first tuple item is the automatic label name
-    # The second item is the user-provided label (if the user entered a dict)
-    # The third item is a list of output/pop labels to stack
+    def process_input_stacks(input_stacks,available_items):
+        # Sanitize the input. input stack could be
+        # - A list of stacks, where a stack is a list of pops or a string with a single pop
+        # - A dict of stacks, where the key is the name, and the value is a list of pops or a string with a single pop
+        # - None, in which case all available items are used
+        # The return value `output_stacks` is a list of tuples where
+        # (a,b,c)
+        # a - The automatic name
+        # b - User provided manual name
+        # c - List of pop labels
+        # Same for outputs
 
-    def get_unique(x):
-        # Take in a dict or a nested list
-        # Return a Set of all items
-        o = set()
-        for _,_,y in x:
-            if isinstance(y,list):
-                o.update(y)
-            else:
-                o.add(y)
-        return o
+        if input_stacks is None:
+            return [(x, '', [x]) for x in available_items]
 
-    if stack_pops is None:
-        stack_pops = [(x,'',[x]) for x in plotdata.pops]
-    elif isinstance(stack_pops,list):
-        stack_pops = [('','',x) if len(x) > 1 else (x,x) for x in stack_pops]
-    elif isinstance(stack_pops,dict):
-        stack_pops = [('',k,x) if len(x) > 1 else (k,[x]) for k,x in stack_pops.items()]
+        items = set()
+        output_stacks = []
+        if isinstance(input_stacks, list):
+            for x in input_stacks:
+                if isinstance(x,list):
+                    output_stacks.append( ('','',x) if len(x) > 1 else (x[0],'',x))
+                    items.update(x)
+                elif isinstance(x,str):
+                    output_stacks.append((x, '', [x]))
+                    items.add(x)
+                else:
+                    raise OptimaException('Unsupported input')
 
-    missing_pops = list(set(plotdata.pops)-get_unique(stack_pops))
-    stack_pops += [(x,[x]) for x in missing_pops]
+        elif isinstance(input_stacks, dict):
+            for k, x in input_stacks.items():
+                if isinstance(x,list):
+                    output_stacks.append( ('',k,x) if len(x) > 1 else (x[0],k,x))
+                    items.update(x)
+                elif isinstance(x,str):
+                    output_stacks.append((x, k, [x]))
+                    items.add(x)
+                else:
+                    raise OptimaException('Unsupported input')
 
-    if stack_outputs is None:
-        stack_outputs = [(x,'',[x]) for x in plotdata.outputs]
-    elif isinstance(stack_outputs,list):
-        stack_outputs = [('','',x) if len(x) > 1 else (x,[x]) for x in stack_outputs]
-    elif isinstance(stack_outputs,dict):
-        stack_outputs = [('',k,x) if len(x) > 1 else (k,[x]) for k,x in stack_outputs.items()]
+        # Add missing items
+        missing = list(set(available_items) - items)
+        output_stacks += [(x, '', [x]) for x in missing]
+        return output_stacks
 
-    missing_outputs = list(set(plotdata.outputs)-get_unique(stack_outputs))
-    stack_outputs += [(x,'',[x]) for x in missing_outputs]
+    pop_stacks = process_input_stacks(stack_pops,plotdata.pops)
+    output_stacks = process_input_stacks(stack_outputs,plotdata.outputs)
+
 
     # Now work out which pops and outputs appear in each bar (a bar is a pop-output combo)
     bar_pops = []
     bar_outputs = []
-    for pop in stack_pops:
-        for output in stack_outputs:
+    for pop in pop_stacks:
+        for output in output_stacks:
             bar_pops.append(pop)
             bar_outputs.append(output)
 
@@ -625,19 +637,19 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times'):
                 if bar_pop[1]:
                     if bar_output[1]:
                         bar_label = '%s\n%s' % (bar_pop[1], bar_output[1])
-                    elif len(stack_outputs) > 1 and len(set([x[0] for x in stack_outputs])) > 1 and bar_output[0]:
+                    elif len(output_stacks) > 1 and len(set([x[0] for x in output_stacks])) > 1 and bar_output[0]:
                         bar_label = '%s\n%s' % (bar_pop[1], bar_output[0])
                     else:
                         bar_label = bar_pop[1]
                 else:
-                    if len(stack_pops) > 1 and len(set([x[0] for x in stack_pops])) > 1 and bar_pop[0]:
+                    if len(pop_stacks) > 1 and len(set([x[0] for x in pop_stacks])) > 1 and bar_pop[0]:
                         bar_label = '%s\n%s' % (bar_pop[0], bar_output[1])
                     else:
                         bar_label = bar_output[1]
             else:
-                if color_by == 'outputs' and len(stack_pops) > 1 and len(set([x[0] for x in stack_pops])) > 1:
+                if color_by == 'outputs' and len(pop_stacks) > 1 and len(set([x[0] for x in pop_stacks])) > 1:
                     bar_label = bar_pop[0]
-                elif color_by == 'pops' and len(stack_outputs) > 1 and len(set([x[0] for x in stack_outputs])) > 1:
+                elif color_by == 'pops' and len(output_stacks) > 1 and len(set([x[0] for x in output_stacks])) > 1:
                     bar_label = bar_output[0]
                 else:
                     bar_label = ''
