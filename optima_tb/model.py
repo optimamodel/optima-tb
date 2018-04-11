@@ -582,14 +582,14 @@ class ModelPopulation(object):
         proposed = np.matmul(A,x)
         for i in xrange(0,len(characs)):
             if abs(proposed[i]-b[i]) > project_settings.TOLERANCE:
-                logger.warn('Characteristic %s %s - Requested %f, Calculated %f' % (self.label,characs[i].label,b[i],proposed[i]))
+                logger.warn('Mismatched characteristic %s %s - Requested %f, Calculated %f' % (self.label,characs[i].label,b[i],proposed[i]))
         
         # Print diagnostic output for compartments that were assigned a negative value
         def report_characteristic(charac,n_indent=0):
             if charac.label in charac_indices:
-                logger.warn(n_indent * '\t' + 'Characteristic %s: Target value = %f' % (charac.label,b[charac_indices[charac.label]]))
+                logger.warn(n_indent * '\t' + 'Characteristic %s: Requested = %f, Calculated %f' % (charac.label,b[charac_indices[charac.label]],proposed[charac_indices[charac.label]]))
             else:
-                logger.warn(n_indent * '\t' + 'Characteristic %s not in databook: Target value = N/A (0.0)' % (charac.label))
+                logger.warn(n_indent * '\t' + 'Characteristic %s not in databook: Requested = N/A' % (charac.label))
 
             n_indent += 1
             for inc in charac.includes:
@@ -600,6 +600,7 @@ class ModelPopulation(object):
 
         # Halt for any negative popsizes - print diagnostic for negative compartment
         if np.any(x < -project_settings.TOLERANCE):
+            logger.warn('NEGATIVE POPSIZE DETECTED - Dumping output')
             for i in xrange(0, len(comps)):
                 if x[i] < -project_settings.TOLERANCE:
                     logger.warn('Compartment %s %s - Calculated %f' % (self.label, comps[i].label, x[i]))
@@ -611,6 +612,7 @@ class ModelPopulation(object):
         # Halt for an unsatisfactory overall solution (could relax this check later)
         # Print diagnostic for all characteristics
         if residual > project_settings.TOLERANCE:
+            logger.warn('LARGE RESIDUAL - Dumping output')
             for charac in characs:
                 report_characteristic(charac)
             raise OptimaException('Residual was %f which is unacceptably large (should be < %f) - this points to a probable inconsistency in the initial values' % (residual,project_settings.TOLERANCE))
