@@ -371,7 +371,7 @@ class PlottingSettings():
         pl.rcParams['font.size'] = 14
         pl.rcParams['lines.linewidth'] = 4
 
-        oplt.settings['separate_legend'] = False
+        oplt.settings['legend_mode'] = 'together'
 
         self.plotdict['legend_off'] = False
         self.plotdict['use_full_labels'] = True
@@ -420,7 +420,7 @@ class PlottingSettings():
 
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
 
-        oplt.settings['separate_legend'] = True
+        oplt.settings['legend_mode'] = 'separate'
 
         self.plotdict['legend_off'] = True # plots separate legend
         self.plotdict['title'] = ''  # No title when we have presentation quality
