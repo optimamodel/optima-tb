@@ -449,6 +449,10 @@ class PlotData(object):
         # - At least one of them must not be none
         # - It is a bad idea to manually set colors for more than one dimension because the order is unclear!
 
+        results = [results] if not isinstance(results,list) else results
+        pops = [pops] if not isinstance(pops,list) else pops
+        outputs = [outputs] if not isinstance(outputs,list) else outputs
+
         targets = list(itertools.product(results,pops,outputs))
 
         if colors is None:

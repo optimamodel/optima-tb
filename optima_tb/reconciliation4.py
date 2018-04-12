@@ -1,15 +1,11 @@
 from optima_tb.utils import odict, OptimaException
-import optima_tb.settings as settings
 from copy import deepcopy as dcp
 from optima_tb.asd import asd
 import numpy as np
-from optima_tb.parsing import FunctionParser
-import optima_tb.settings as project_settings
 from optima_tb.defaults import defaultOptimOptions
 
 import logging
 logger = logging.getLogger(__name__)
-
 
 def _extract_target_vals(parset_results, progset_results, impact_pars):
     # Store the target parset values in the same form as the progset computed parameter values
@@ -37,7 +33,6 @@ def _extract_target_vals(parset_results, progset_results, impact_pars):
 
     return target_vals,initial_prog_vals
 
-
 def _createAttributeDict(progset, reconcile_for_year):
     '''Creates an attribute dictionary on a per program basis from the identified progset
        for all parameters/impact labels that can be reconciled
@@ -58,7 +53,6 @@ def _createAttributeDict(progset, reconcile_for_year):
     for prog in progset.progs:
         if 'unit_cost' in prog.func_specs['pars'].keys() and prog.getDefaultBudget(year=tval) > 0.:
             attributes_dict[(prog.label, 'unit_cost')] = prog.func_specs['pars']['unit_cost']
-            attributes_dict[(prog.label, 'budget')] = prog.getDefaultBudget(year=tval)
             original_attributes[(prog.label,'cost')] = np.copy(prog.cost)
             interpolated_attributes = prog.interpolate(tvec=tval)
             for key, val in interpolated_attributes.items():
@@ -70,7 +64,7 @@ def _createAttributeDict(progset, reconcile_for_year):
 
     return attributes_dict,original_attributes
 
-def _prepare_arrays(attribute_dict, sigma_dict, unitcost_sigma, attribute_sigma, budget_sigma):
+def _prepare_arrays(attribute_dict, sigma_dict, unitcost_sigma, attribute_sigma):
     xmin_d = odict()
     xmax_d = odict()
     attribute_dict = dcp(attribute_dict)
@@ -83,9 +77,6 @@ def _prepare_arrays(attribute_dict, sigma_dict, unitcost_sigma, attribute_sigma,
         elif attribute[1] == 'unit_cost':
             xmin_d[attribute] = val * (1 - unitcost_sigma)
             xmax_d[attribute] = val * (1 + unitcost_sigma)
-        elif attribute[1] == 'budget':
-            xmin_d[attribute] = val * (1 - budget_sigma)
-            xmax_d[attribute] = val * (1 + budget_sigma)
         else:
             xmin_d[attribute] = val * (1 - attribute_sigma)
             xmax_d[attribute] = val * (1 + attribute_sigma)
@@ -103,54 +94,67 @@ def _prepare_arrays(attribute_dict, sigma_dict, unitcost_sigma, attribute_sigma,
 
     return x0, xmin, xmax, attribute_dict
 
-
-def _objective(attribute_list, pset, t, dt, target_vals, attribute_dict, ti,original_attributes):
-
-    # First update the ProgramSet
+def _update_progset(pset,attribute_list,attribute_dict,original_attributes,reconcile_for_year):
+    # First turn the attribute list back into an attribute dict (to identify quantities by name)
     for idx, val in enumerate(attribute_list):
         attribute_dict[idx] = val
 
-    # Constrain the budget if required
-    if constrain_budget and original_budget:
-        normalization = original_budget / sum([val for attrib, val in attribute_dict.items() if attrib[1] == 'budget'])
-        for attrib in attribute_dict:
-            if attrib[1] == 'budget':
-                attribute_dict[attrib] *= normalization
-
     # Update the programs and update the new allocation
-    alloc = dcp(original_alloc)
     for attribute, val in attribute_dict.items():
-        prog = progset.getProg(attribute[0])
-        if attribute[1] == 'budget':
-            prog.cost = np.copy(original_attributes[(prog.label,'cost')])
-            prog.insertValuePair(t=reconcile_for_year, y=val, attribute='cost', rescale_after_year=True)
-            alloc[prog.label] = val
-        elif attribute[1] == 'unit_cost':
+        prog = pset.progset.getProg(attribute[0])
+        if attribute[1] == 'unit_cost':
             prog.func_specs['pars']['unit_cost'] = val
         else:
             prog.attributes[attribute] = np.copy(original_attributes[attribute])
             prog.insertValuePair(t=reconcile_for_year, y=val, attribute=attribute[1], rescale_after_year=True)
 
+
+def _objective(attribute_list, pset, t, dt, target_vals, attribute_dict, ti,reconcile_for_year,original_attributes,alloc):
+
+    # First, update the progset
+    _update_progset(pset, attribute_list, attribute_dict, original_attributes, reconcile_for_year)
+
     # Then, update the cache
-    # TODO UPGRADE - Here, need to replace t with only the times that are required. This will greatly improve performance
-    pset.update_cache(alloc, t, dt)
+    pset.update_cache(alloc, t[ti], dt)
 
     # Finally, compute parameters and evaluate objective function
     obj = 0.0
-    for idx in ti:
-        # TODO UPGRADE - Now here, the index will need to correspond to the times passed into pset.update_cache(), NOT the ones in target_vals
+    for i,idx in enumerate(ti):
         # Unless target_vals already had the truncation performed - in fact, that's the correct way to do it...
         
-        proposed_vals, proposed_coverage = pset.compute_pars(idx)  # As there is only one timepoint, that is the one we are using
+        proposed_vals, proposed_coverage = pset.compute_pars(i)  # Compute pars at the ti index
         for par_uid in target_vals:
             obj += (target_vals[par_uid][idx] - proposed_vals[par_uid]) ** 2  # Add squared difference in parameter value
             # obj += sum([x for x in proposed_coverage[par_uid] if x > 1])  # Add extra penalty for excess coverage
+
+
+    # # SCRATCHPAD
+    # # Because - the source popsize index is wrong. That needs to be updated
+    # from uuid import UUID
+    #
+    # pset.update_cache(alloc, t[ti], dt)
+    # proposed_vals, proposed_coverage = pset.compute_pars(i)
+    # proposed_vals[UUID('feff9f78-6a2d-4400-8e2f-a93f5317ae21')]
+    # proposed_coverage[UUID('feff9f78-6a2d-4400-8e2f-a93f5317ae21')]
+    # pset.programs[0].net_dt_cov
+    # pset.programs[0].net_dt_impact
+    # pset.programs[0].get_contribution(t[ti[0]], 0)
+    #
+    #
+    # pset.update_cache(alloc, t, dt)
+    # proposed_vals, proposed_coverage = pset.compute_pars(idx)
+    # proposed_vals[UUID('feff9f78-6a2d-4400-8e2f-a93f5317ae21')]
+    # proposed_coverage[UUID('feff9f78-6a2d-4400-8e2f-a93f5317ae21')]
+    # pset.programs[0].net_dt_cov
+    # pset.programs[0].net_dt_impact
+    # pset.programs[0].get_contribution(t[ti[0]], 60)
+
     return obj
 
 # ASD takes in a list of values. So we need to map all of the things we are optimizing onto 
-def reconcile(proj, parset_name, progset_name, reconciliation_range, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, constrain_budget=False, max_time=15):
+def reconcile(proj, parset_name, progset_name, reconciliation_range, sigma_dict=None, unitcost_sigma=0.05, attribute_sigma=0.20, budget_sigma=0.0, impact_pars=None, constrain_budget=False, max_time=15,verbose=2):
         """
-        Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standar deviation sigma
+        Reconciles progset to identified parset, the objective being to match the parameters as closely as possible with identified standard deviation sigma
         
         Params:
             proj                    Project object to run simulations for reconciliation process (type: Python object)
@@ -171,6 +175,9 @@ def reconcile(proj, parset_name, progset_name, reconciliation_range, sigma_dict=
             
         """
 
+        # Typically, programs have values entered into the databook
+        reconcile_for_year = reconciliation_range[0]
+
         # First, get baseline values
         options = defaultOptimOptions(settings=proj.settings, progset=proj.progsets[0])
         parset = proj.parsets[parset_name]
@@ -182,13 +189,18 @@ def reconcile(proj, parset_name, progset_name, reconciliation_range, sigma_dict=
         attribute_dict,original_attributes = _createAttributeDict(progset_results.model.pset.progset,reconcile_for_year)
         x0,xmin,xmax,attribute_dict = _prepare_arrays(attribute_dict,sigma_dict,unitcost_sigma,attribute_sigma)
 
-        # Now, make the original attribute dict
+        # These are the time indices that we are looking at
+        ti = np.where((progset_results.model.t >= reconciliation_range[0]) & (progset_results.model.t <= reconciliation_range[1]))[0]
+
+        # Now, extract the default alloc for the required years and set the popsizes accordingly
         pset = progset_results.model.pset
+        alloc = pset.get_alloc(progset_results.model.t[ti],progset_results.model.dt,{'progs_start':reconcile_for_year,'init_alloc':{},'alloc_is_coverage':False,'saturate_with_default_budgets':True})
+        for pop in progset_results.model.pops:
+            for comp in pop.comps:
+                comp.vals = parset_results.model.getPop(pop.label).getComp(comp.label).vals[ti]
 
         # Reconciliation will consider parameter value differences at all times listed below
-        print "Reconciling starting from %.2f up to %.2f" % (reconcile_for_year,pset.progset.progs[0].t[-1])
-
-        ti = np.where((progset_results.model.t >= reconciliation_range[0]) & (progset_results.model.t <= reconciliation_range[1]))[0]
+        print "Reconciling starting from %.2f up to %.2f" % (reconciliation_range[0],reconciliation_range[1])
 
         args = {
             'pset': progset_results.model.pset,
@@ -197,8 +209,9 @@ def reconcile(proj, parset_name, progset_name, reconciliation_range, sigma_dict=
             'target_vals': target_vals,
             'attribute_dict': dcp(attribute_dict),
             'ti':ti, # Time indexes to evaluate objective function at
-            'reconcile_for_year':reconcile_for_year,
-            'original_attributes':original_attributes
+            'reconcile_for_year':reconcile_for_year, # The values get updated from the first year in reconciliation
+            'original_attributes':original_attributes,
+            'alloc':alloc
             }
 
         optim_args = {
@@ -211,6 +224,7 @@ def reconcile(proj, parset_name, progset_name, reconciliation_range, sigma_dict=
                      'reltol': None,
                      'xmin': xmin,
                      'xmax': xmax,
+                     'verbose': verbose
                      }
 
         if not max_time is None:
@@ -218,12 +232,12 @@ def reconcile(proj, parset_name, progset_name, reconciliation_range, sigma_dict=
 
         best_attribute_list, _, _ = asd(_objective, x0, args, **optim_args)
 
-        # Now, make the original attribute dict
-        alloc = _update_progset(pset.progset, best_attribute_list, args['attribute_dict'], args['reconcile_for_year'], args['original_attributes'])
-        pset.update_cache(alloc, args['t'], args['dt'])
+        # Now, update the progset
+        _update_progset(pset, best_attribute_list, args['attribute_dict'],  args['original_attributes'], args['reconcile_for_year'])
 
-        t_rec = np.where(progset_results.model.t == reconcile_for_year)[0]
-        proposed_vals, proposed_coverage = pset.compute_pars(t_rec)
+        rec_idx = np.where(progset_results.model.t == args['reconcile_for_year']) # Time index for reconciliation year - note this refers back to args['t']
+        pset.update_cache(alloc, args['t'][rec_idx], args['dt'])
+        proposed_vals, proposed_coverage = pset.compute_pars(0) # Reconciliation year is the first year in ti, hence index 0
 
         outcome = '%s %s %s %s %s\n' % ('Population'.ljust(15),'Parameter'.ljust(15),'Parset'.rjust(10), '    Initial'.ljust(21),'      Reconciled'.ljust(21))
         residual_old = 0.0
@@ -231,9 +245,9 @@ def reconcile(proj, parset_name, progset_name, reconciliation_range, sigma_dict=
         for pop in progset_results.model.pops:
             for par in pop.pars:
                 if par.uid in target_vals:
-                    outcome += '%s %s %10.4f %10.4f (%+10.4f) %10.4f (%+10.4f)\n' % (pop.label.ljust(15),par.label.ljust(15),target_vals[par.uid][t_rec],initial_prog_vals[par.uid][t_rec],initial_prog_vals[par.uid][t_rec]-target_vals[par.uid][t_rec],proposed_vals[par.uid],proposed_vals[par.uid]-target_vals[par.uid][t_rec])
-                    residual_old += (initial_prog_vals[par.uid][t_rec]-target_vals[par.uid][t_rec])**2
-                    residual_new += (proposed_vals[par.uid]-target_vals[par.uid][t_rec])**2
+                    outcome += '%s %s %10.4f %10.4f (%+10.4f) %10.4f (%+10.4f)\n' % (pop.label.ljust(15),par.label.ljust(15),target_vals[par.uid][rec_idx],initial_prog_vals[par.uid][rec_idx],initial_prog_vals[par.uid][rec_idx]-target_vals[par.uid][rec_idx],proposed_vals[par.uid],proposed_vals[par.uid]-target_vals[par.uid][rec_idx])
+                    residual_old += (initial_prog_vals[par.uid][rec_idx]-target_vals[par.uid][ti[0]])**2
+                    residual_new += (proposed_vals[par.uid]-target_vals[par.uid][ti[0]])**2
         outcome += 'Old residual (no coverage penalty, reconciliation year) = %10.4f, New residual = %10.4f\n' % (residual_old,residual_new)
 
         return pset.progset, outcome

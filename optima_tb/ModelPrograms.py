@@ -82,6 +82,7 @@ class ModelProgramSet(object):
         #
         # This returns alloc (dict with prog_label:[spending vals]) and alloc_is_coverage flag
         # And corresponding time points
+        # Note that spending vals could be a single item, or could have the same shape as t
         
         # Take in a set of times and 
         start_year = sim_settings['progs_start']
@@ -98,6 +99,7 @@ class ModelProgramSet(object):
 
                 # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to time points.
                 if not isinstance(spending,np.ndarray) and 'constraints' in sim_settings and sim_settings['constraints'] is not None and 'max_yearly_change' in sim_settings['constraints'] and prog.label in sim_settings['constraints']['max_yearly_change']:
+                    # Todo - alloc is coverage below does not seem to get used?
                     if alloc_is_coverage:
                         default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
                     else:
@@ -119,6 +121,7 @@ class ModelProgramSet(object):
                             else: spending_ramp = np.maximum(spending_ramp, spending_new)
                             spending = spending_def * (t < start_year) + spending_ramp * (t >= start_year)
 
+                # Todo - alloc_is_coverage is mentioned above? Does this statement execute correctly, or should it be an elif?
                 if alloc_is_coverage:
                     alloc[prog.label] = prog.getBudget(coverage=spending)
                 else:
