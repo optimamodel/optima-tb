@@ -1,2 +1,3 @@
-# tb-ucl
-Optima TB-UCL model. Based on Optima HIV 2.0.
+# Optima TB
+
+Optima TB has been Developed in partnership between the Burnet Institute, University College London, and the World Bank. This is a **prerelease version** and is not intended for public use. If you would like to be notified when it is ready for use, please email info@optimamodel.com
