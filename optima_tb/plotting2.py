@@ -799,8 +799,11 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                 else:
                     for result in plotdata.results:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.result_names[result])
-                        if data is not None:
-                            render_data(ax,data,plotdata[result,pop,output])
+
+                if data is not None:
+                    for result in plotdata.results:
+                        render_data(ax,data,plotdata[result,pop,output],plot_type)
+
                 apply_series_formatting(ax,plot_type)
                 if settings['legend_mode'] == 'together':
                     render_legend(ax,plot_type)
@@ -826,8 +829,11 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                 else:
                     for pop in plotdata.pops:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.pop_names[pop])
-                        if data is not None:
-                            render_data(ax,data,plotdata[result,pop,output])
+
+                if data is not None:
+                    for pop in plotdata.pops:
+                        render_data(ax,data,plotdata[result,pop,output],plot_type)
+
                 apply_series_formatting(ax,plot_type)
                 if settings['legend_mode'] == 'together':
                     render_legend(ax,plot_type)
@@ -851,8 +857,11 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                 else:
                     for output in plotdata.outputs:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.output_names[output])
-                        if data is not None:
-                            render_data(ax,data,plotdata[result,pop,output])
+
+                if data is not None:
+                    for output in plotdata.outputs:
+                        render_data(ax,data,plotdata[result,pop,output],plot_type)
+
                 apply_series_formatting(ax,plot_type)
                 if settings['legend_mode'] == 'together':
                     render_legend(ax,plot_type)
@@ -862,7 +871,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
 
     return figs
 
-def render_data(ax,data,series):
+def render_data(ax,data,series,plot_type):
     # This function renders a scatter plot for a single variable (in a single population)
     # The scatter plot is drawn in the current axis
     # INPUTS
@@ -885,7 +894,12 @@ def render_data(ax,data,series):
     else:
         return
 
-    ax.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=series.color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
+    if plot_type == 'stacked':
+        # For stacked plots, need a black border
+        ax.plot(t, y, marker='o', linestyle='none', markersize=10, markeredgewidth=1, markerfacecolor=series.color,
+                markeredgecolor='k')  # label='Data %s %s' % (name(pop,proj),name(output,proj)))
+    else:
+        ax.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=series.color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
 
 def set_ytick_format(ax,formatter):
 
