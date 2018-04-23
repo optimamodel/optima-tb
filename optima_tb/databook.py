@@ -623,6 +623,7 @@ def loadSpreadsheetFunc(settings, databook_path):
             data['transfers'][mig_type] = odict()
 
     # %% Inter-population transfer details sheet.
+    header_id = None # Store row_id for the header of the current migration type
     mig_specified = False
     mig_type = None
     array_id = 0
@@ -653,11 +654,11 @@ def loadSpreadsheetFunc(settings, databook_path):
                         val = ws_transval.cell_value(row_id, col_id)
 
                         list_y.append(float(val))
-                        if not isinstance(ws_transval.cell_value(row_id - 1 - array_id, col_id), Number):
-                            list_t.append(float(ws_transval.cell_value(row_id - 1 - array_id, col_id + 2)))
+                        if not isinstance(ws_transval.cell_value(header_id, col_id), Number):
+                            list_t.append(float(ws_transval.cell_value(header_id, col_id + 2)))
                             break
                         else:
-                            list_t.append(float(ws_transval.cell_value(row_id - 1 - array_id, col_id)))
+                            list_t.append(float(ws_transval.cell_value(header_id, col_id)))
 
                 data['transfers'][mig_type][pop_source_label][pop_target_label]['t'] = np.array(list_t)
                 data['transfers'][mig_type][pop_source_label][pop_target_label]['y'] = np.array(list_y)
@@ -671,6 +672,8 @@ def loadSpreadsheetFunc(settings, databook_path):
             mig_specified = True
             mig_type = str(zero_col).lower().replace(' ', '_')
             array_id = 0
+            header_id = row_id
+
 
     # %% Program definitions sheet.
     data['meta']['progs'] = dict()

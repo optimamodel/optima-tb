@@ -307,9 +307,12 @@ class ParameterSet(object):
         return init_compartments,charac_labels
          
     
-    def update(self, par_vec, par_pop_labels, isYFactor=False):
+    def update(self, values, par_pop_labels, isYFactor=False):
         """
         Update parameters from a list of values, given a corresponding list of parameter labels and population labels, arranged in pairs.
+
+        values - list of values to insert
+        par_pop_labels - list of corresponding tuples (par_label,pop_label)
 
         TODO: extend function so that can also add years or format values
         TODO: remove index ...?
@@ -330,12 +333,12 @@ class ParameterSet(object):
 #                    logger.info("ParameterSet %s has not modifed its y-factor value for parameter %s, population %s, due to y-factor constraints." % (self.name, par_label, pop_label))
 #                    continue
                 
-                if par.y_factor[pop_label] != par_vec[index]:
-                    logger.info("ParameterSet %s is updating its y-factor for parameter %s, population %s from %f to %f." % (self.name, par_label, pop_label, par.y_factor[pop_label], par_vec[index]))
+                if par.y_factor[pop_label] != values[index]:
+                    logger.info("ParameterSet %s is updating its y-factor for parameter %s, population %s from %f to %f." % (self.name, par_label, pop_label, par.y_factor[pop_label], values[index]))
                 
-                par.y_factor[pop_label] = par_vec[index]
+                par.y_factor[pop_label] = values[index]
             else:
-                par.y[pop_label] = par_vec[index]
+                par.y[pop_label] = values[index]
             index += 1
             
         

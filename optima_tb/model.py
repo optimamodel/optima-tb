@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
 import numpy as np
+import scipy.optimize
 from copy import deepcopy as dcp
 import uuid
 
@@ -571,8 +572,12 @@ class ModelPopulation(object):
             for inc in extract_includes(c):
                 A[i,comp_indices[inc.label]] = 1.0
 
-        # Solve the linear system
+        # Solve the linear system - allowing negative popsizes to be computed
         x, residual, rank, _ = np.linalg.lstsq(A,b,rcond=-1)
+
+        # Solve the linear system - do not allow negative popsizes
+        # x, residual = scipy.optimize.nnls(A,b.ravel())
+        # rank = np.linalg.matrix_rank(A)
 
         # Halt if the solution is not unique (could relax this check later)
         if rank < A.shape[1]:
