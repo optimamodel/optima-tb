@@ -3,8 +3,8 @@ logger = logging.getLogger(__name__)
 
 from optima_tb.utils import OptimaException, tic, toc, odict
 import optima_tb.settings as settings
-import optima_tb.asd as asd
-from optima_tb.parameters import ParameterSet
+from optima_tb.asd import asd
+import optima_tb.plotting2 as oplt
 
 from optima_tb.model import Compartment, Characteristic, Link, Parameter
 
@@ -30,21 +30,33 @@ Calibration and sensitivity analysis
 # and HIV infection rates, and the output parameters could be a list of characteristics
 # In theory these could be population-specific?
 
+def update_parset(parset,y_factors,pars_to_adjust):
+    for i,x in enumerate(pars_to_adjust):
+        par_label = x[0]
+        pop_label = x[1]
+
+        if par_label in parset.par_ids['cascade'] or par_label in parset.par_ids['characs']:
+            parset.update([y_factors[i]], [(par_label,pop_label)], isYFactor=True)
+        else: # For now, must be in there...
+            tokens = par_label.split('_from_')
+            par = parset.transfers[tokens[0]][tokens[1]]
+            par.y_factor[pop_label] = y_factors[i]
+
 def calculateObjective(y_factors,pars_to_adjust,output_quantities,parset,project):
     # y-factors, array of y-factors to apply to specified output_quantities
     # pars_to_adjust - list of tuples (par_label,pop_label) recognized by parset.update()
-    # output_quantnties - a tuple like (pop,var,weight,metric) understood by model.getPop[pop].getVar(var)
+    # output_quantities - a tuple like (pop,var,weight,metric) understood by model.getPop[pop].getVar(var)
     # TODO - support Link flow rates and parameters, need to auto adjust
 
-    parset.update(y_factors, pars_to_adjust, isYFactor=True)
+    update_parset(parset,y_factors, pars_to_adjust)
 
-    results = project.runSim(parset = parset, store_results = False)
+    result = project.runSim(parset = parset, store_results = False)
 
     objective = 0.0
 
-    for pop_label,var_label,weight,metric in output_quantities
+    for pop_label,var_label,weight,metric in output_quantities:
         var = result.model.getPop(pop_label).getVariable(var_label)
-        if isinstance(var,Characteristic):
+        if isinstance(var[0],Characteristic):
             target = project.data['characs'][var_label][pop_label]
         else:
             raise OptimaException('Not yet implemented')
@@ -52,7 +64,7 @@ def calculateObjective(y_factors,pars_to_adjust,output_quantities,parset,project
         y = target['y']
         y2 = interpolateFunc(var[0].t,var[0].vals,target['t'])
 
-        objective += weight* _calculateFitscore(y, y2, metric)
+        objective += weight* sum(_calculateFitscore(y, y2, metric))
 
     return objective
 
@@ -95,11 +107,11 @@ def _calc_R2(y_obs,y_fit):
     """
     raise NotImplementedError
 
-
-def performAutofit(project,parset,pars_to_adjust,output_quantities):
+def performAutofit(proj,parset,pars_to_adjust,output_quantities,max_time=60):
     """
     Run an autofit and save resulting parameterset
-    
+
+    pars_to_adjust - list of tuples, (par,pop,scale) where allowed Y-factor range is 1-scale to 1+scale
     Params:
         project
         paramset
@@ -111,13 +123,27 @@ def performAutofit(project,parset,pars_to_adjust,output_quantities):
     """
 
     args = {
-        'project': project,
+        'project': proj,
         'parset': dcp(parset),
         'pars_to_adjust': pars_to_adjust,
         'output_quantities': output_quantities,
     }
 
-    x0 = parset.getPar(adjust[0],adjust[1]).
+    x0 = []
+    xmin = []
+    xmax = []
+    for i,x in enumerate(pars_to_adjust):
+        par_label, pop_label, scale = x
+        if par_label in parset.par_ids['cascade'] or par_label in parset.par_ids['characs']:
+            par = parset.getPar(par_label)
+            x0.append(par.y_factor[pop_label])
+        else:
+            tokens = par_label.split('_from_')
+            par = parset.transfers[tokens[0]][tokens[1]]
+            x0.append(par.y_factor[pop_label])
+        xmin.append(1-scale)
+        xmax.append(1+scale)
+
     optim_args = {
                  'stepsize': proj.settings.autofit_params['stepsize'],
                  'maxiters': proj.settings.autofit_params['maxiters'],
@@ -133,72 +159,37 @@ def performAutofit(project,parset,pars_to_adjust,output_quantities):
     if not max_time is None:
         optim_args['maxtime'] = max_time
 
-    best_attribute_list, _, _ = asd(_objective, x0, args, **optim_args)
+    x1, _, _ = asd(calculateObjective, x0, args, **optim_args)
 
-    # setup:
-    
-    # setup for cascade parameters
-    paramvec,minmax,par_pop_labels = paramset.extract(settings=project.settings,getMinMax=True,getYFactor=useYFactor)  # array representation of initial values for p0, with bounds
-    # setup for characteristics
-    compartment_init,charac_pop_labels = paramset.extractEntryPoints(project.settings,useInitCompartments=useInitCompartments)
-    # min maxes for compartments are always (0,np.inf):
-    charac_minmax = [(0,np.inf) for i in charac_pop_labels]
-    minmax += charac_minmax
-    
-#    print par_pop_labels
-#    print charac_pop_labels
-    
-    
-    if len(paramvec)+len(compartment_init) == 0:
-        raise OptimaException("No available cascade parameters or initial characteristic sizes to calibrate during autofitting. At least one 'Autocalibrate' cascade value must be listed something other than 'n' or '-1'.")
-    
-    mins, maxs = zip(*minmax)
-    sample_param = dcp(paramset)   # ParameterSet created just to be overwritten
-    sample_param.name = "calibrating"
-    
-#    print mins
-#    print maxs
-    
-    if target_characs is None: 
-        # if no targets characteristics are supplied, then we autofit to all characteristics 
-        target_data_characs = dcp(project.data['characs'])
-        for label in target_data_characs.keys():
-            target_data_characs[label]['pops_to_fit'] = {pop_label:True for pop_label in paramset.pop_labels}
-        logger.info("Autofit: fitting to all characteristics")
-    else:
-        target_data_characs = odict()
-        for pair in target_characs:
-            if not pair[0] in target_data_characs:
-                target_data_characs[pair[0]] = dcp(project.data['characs'][pair[0]])
-            if 'pops_to_fit' not in target_data_characs[pair[0]]:
-                target_data_characs[pair[0]]['pops_to_fit'] = {}
-            target_data_characs[pair[0]]['pops_to_fit'][pair[1]] = True
-        logger.info("Autofit: fi
-    parvecnew, fval, details = asd.asd(calculateObjective, paramvec+compartment_init, args={}, xmin=mins, xmax=maxs, **calibration_settings)
-    
-#    # Compare old and new values 
-#    print paramvec
-#    print parvecnew[:len(paramvec)]
-#    print compartment_init
-#    print parvecnew[len(paramvec):]
-    
-    sample_param.update(parvecnew, par_pop_labels+charac_pop_labels, isYFactor=useYFactor)
-#    sample_param._updateFromYFactor()
-    sample_param.name = new_parset_name
-    
-    return sample_param
-    
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+    update_parset(args['parset'],x1,pars_to_adjust)
+
+    return args['parset']
+
+
+
+def calibrate_demographics(project,parset,max_time=60):
+
+    # Adjust birth rate
+    birth_pars = [('b_rate',parset.getPar('b_rate').pops[0],0.9)]
+
+    # Adjust all transfer parameters
+    transfer_pars = []
+    for x in parset.transfers.values(): # for transfer type
+        for y in x.values(): # for from_pop
+            for pop in y.pops:
+                transfer_pars.append((y.label,pop,0.9))
+
+    pars_to_adjust = birth_pars + transfer_pars
+
+    # Collate the output demographic quantities (just alive for all pops)
+    output_quantities = []
+    for pop in parset.pop_labels:
+        output_quantities.append((pop,'alive',1.0,"wape"))
+
+    calibrated_parset = performAutofit(project, parset, pars_to_adjust, output_quantities,max_time=max_time)
+
+    return calibrated_parset
+
+# Adjust death rates
+
+
