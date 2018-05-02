@@ -252,7 +252,6 @@ class Parameter(Variable):
         if self.links:
             self.set_dependent()
 
-
     def set_dependent(self):
         self.dependency = True
         if self.deps is not None: # Make all dependencies dependent too, this will propagate through dependent parameters
@@ -296,7 +295,8 @@ class Parameter(Variable):
             else:
                 dep_vals[dep.label] += dep.vals[[ti]]
         self.vals[ti] = parser.evaluateStack(stack=self.f_stack[0:], deps=dep_vals)   # self.f_stack[0:] makes a copy
-
+        self.vals[ti] *= self.scale_factor
+        
     def source_popsize(self,ti):
         # Get the total number of people covered by this program
         # i.e. the sum of the source compartments of all links that
@@ -895,9 +895,6 @@ class Model(object):
                             # other than a flow rate of 0, so we can abort early here
                             outflow[i] = 0.0
                             continue
-
-                        if link.parameter.scale_factor is not None and link.parameter.scale_factor != project_settings.DO_NOT_SCALE:  # scale factor should be available to be used
-                            transition *= link.parameter.scale_factor
 
                         if link.parameter.units == 'fraction':
                             # check if there are any violations, and if so, deal with them
