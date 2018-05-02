@@ -56,11 +56,11 @@ class ResultSet(object):
         self.parset_id = parset.uid
 
         self.dt = settings.tvec_dt
-        self.t_step = model.sim_settings['tvec']
+        self.t_step = model.t
         self.indices_observed_data = np.where(self.t_step % 1.0 == 0)
         self.t_observed_data = self.t_step[self.indices_observed_data]
 
-        self.outputs = model.calculateOutputs(settings=settings)
+        self.outputs = model.calculateOutputs()
 
         # Set up for future use
         self.calibration_fit = None
@@ -89,9 +89,9 @@ class ResultSet(object):
         self.char_labels = self.outputs.keys() # definitely need a better way of determining these
         self.link_labels = []
         for pop in model.pops:
-            for par in pop.pars:
-                if par.label not in self.link_labels and len(par.links) > 0:
-                    self.link_labels.append(par.label)
+            for link in pop.links:
+                if link.label not in self.link_labels:
+                    self.link_labels.append(link.label)
 
         self.budgets = {} # placeholders
         self.coverages = {}
@@ -152,7 +152,7 @@ class ResultSet(object):
             pop_labels = self.pop_labels
 
         # Get time array ids for values between initial (inclusive) and end year (exclusive).
-        tvals = np.array(self.sim_settings['tvec'])
+        tvals = np.array(self.model.t)
         if year_end is None: year_end = year_init + dt
         idx = (tvals >= year_init - dt / 2) * (tvals <= year_end - dt / 2)
 
@@ -162,8 +162,9 @@ class ResultSet(object):
 
         # Find values in results and add them to the output array per relevant population group.
         # TODO: Semantics need to be cleaned during design review phase.
-        #       Link tags are actually stored in link_labels, while link labels could be in char_labels if a transition is marked as a result output.
-        if label in self.link_labels:
+        from optima_tb.model import Parameter, Link
+        vars = self.model.pops[0].getVariable(label)[0]
+        if isinstance(vars,Link) or isinstance(vars,Parameter) and vars.links: # TODO - Replace other calls with isinstance checks? Or deprecate entirely?
 
             values = self.getFlow(label, pop_labels=pop_labels)[0]
 
@@ -184,7 +185,6 @@ class ResultSet(object):
 
             values, _, _, units = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)
             for pop in values.keys():
-                popvalues = values[pop]
                 output += values[pop][label].vals[idx]
 
         else:
@@ -277,42 +277,41 @@ class ResultSet(object):
         """
         if pop_label is not None:
             if isinstance(pop_label, list):
-                pop_label = pop_label
+                pop_labels = pop_label
             else:
-                pop_label = [pop_label]
+                pop_labels = [pop_label]
         else:
-            pop_label = self.pop_labels
+            pop_labels = self.pop_labels
 
         if char_label is not None:
             if isinstance(char_label, list):
-                char_label = char_label
+                char_labels = char_label
             else:
-                char_label = [char_label]
+                char_labels = [char_label]
         else:
-            char_label = self.char_labels
+            char_labels = self.char_labels
 
         datapoints = defaultdict(dict)
-        for pop in self.model.pops:
-            for charac in pop.characs:
-                if pop.label in pop_label and charac.label in char_label:
-                    if use_observed_times:
-                        datapoints[charac.label][pop.label] = charac.vals[self.indices_observed_data]
-                    else:
-                        datapoints[charac.label][pop.label] = charac.vals
 
-        units = 'people' # TODO - this is not correct, as a characteristic could be a prevalence 
+        for pop_label in pop_labels:
+            for char_label in char_labels:
+                if use_observed_times:
+                    datapoints[char_label][pop_label] = self.outputs[char_label][pop_label][self.indices_observed_data]
+                else:
+                    datapoints[char_label][pop_label] = self.outputs[char_label][pop_label]
+
+        units = ''
 
         return datapoints, char_label, pop_label, units
 
 
-    def getFlow(self, par_label, pop_labels=None,target_flow=False,annualize=True,as_fraction=False):
+    def getFlow(self, link_tag, pop_labels=None,annualize=True,as_fraction=False):
         """
         Return the flow at each time point in the simulation for a single parameter
 
         INPUTS
         - par_label : A string specifying a single Parameter to retrieve flow rates for
         - pop_label : A list or list of strings of population labels. If None, use all populations
-        - target_flow : By default, the actual flow rates accounting for compartment sizes during integration will be used. If target_flow=True, then the target flow rate will be returned
         - annualize : Boolean which specifies if the number of moved people should be annualized or not. If True, an annual average is computed; if False, the number of people per time step is computed
         - as_fraction : Boolean which specifies if the flow rate should be expressed as a fraction of the source compartment size.
             - If True, the fractional flow rate for each link will be computed by dividing the net flow by the sum of source compartment sizes
@@ -343,14 +342,12 @@ class ResultSet(object):
 
         for pop in self.model.pops:
             if pop_labels is None or pop.label in pop_labels:
-                if par_label in pop.par_ids:
-                    par = pop.getPar(par_label)
-                    for link in par.links:
-                        if target_flow:
-                            datapoints[pop.label] += link.target_flow
-                        else:
-                            datapoints[pop.label] += link.vals
-                        source_size[pop.label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
+                for link in pop.getLinks(link_tag):
+                    if link.vals is None:
+                        raise OptimaException('Requested flow rate "%s" was not recorded because only partial results were saved' % (link.label))
+
+                    datapoints[pop.label] += link.vals
+                    source_size[pop.label] += (link.source.vals if not link.source.is_junction else sum([x.vals for x in link.source.outlinks]))
 
         # If as_fraction is None, use the same units as the Parameter. All Parameters should have the same units
         # in all populations so can use whichever one is left after the loop above
@@ -411,8 +408,12 @@ class ResultSet(object):
                         data = self.outputs[key][popkey][self.indices_observed_data]
 
                     output += key + sep + popkey + sep
-                    for t in range(npts):
-                        output += ('%g' + sep) % data[t]
+
+                    if data is None: # If full_output=False then some fields will be skipped
+                        output += 'Not stored - set full_output to True to retain'
+                    else:
+                        for t in range(npts):
+                            output += ('%g' + sep) % data[t]
 
         if writetofile:
             with open(filename, 'w') as f: f.write(output)

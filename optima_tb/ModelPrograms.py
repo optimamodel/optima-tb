@@ -76,18 +76,18 @@ class ModelProgramSet(object):
         for prog in self.programs:
             prog.relink(objs)
 
-    def get_alloc(self,sim_settings):
+    def get_alloc(self,t,dt,sim_settings):
         # Extract the allocation (spending value at each point in time for all active programs)
         # based on sim_settings
         #
         # This returns alloc (dict with prog_label:[spending vals]) and alloc_is_coverage flag
         # And corresponding time points
+        # Note that spending vals could be a single item, or could have the same shape as t
         
         # Take in a set of times and 
         start_year = sim_settings['progs_start']
         init_alloc = sim_settings['init_alloc']
         alloc_is_coverage = sim_settings['alloc_is_coverage']
-        dt = sim_settings['tvec_dt']
 
         alloc = dict()
 
@@ -99,14 +99,15 @@ class ModelProgramSet(object):
 
                 # If ramp constraints are active, stored cost and coverage needs to be a fully time-dependent array corresponding to time points.
                 if not isinstance(spending,np.ndarray) and 'constraints' in sim_settings and sim_settings['constraints'] is not None and 'max_yearly_change' in sim_settings['constraints'] and prog.label in sim_settings['constraints']['max_yearly_change']:
+                    # Todo - alloc is coverage below does not seem to get used?
                     if alloc_is_coverage:
                         default = prog.getCoverage(budget=prog.getDefaultBudget(year=start_year))
                     else:
                         default = prog.getDefaultBudget(year=start_year)
                     default = prog.getDefaultBudget(year=start_year)
                     if np.abs(spending - default) > project_settings.TOLERANCE:
-                        spending_def = sim_settings['tvec'] * 0.0 + default
-                        spending_new = sim_settings['tvec'] * 0.0 + spending
+                        spending_def = t * 0.0 + default
+                        spending_new = t * 0.0 + spending
                         try: eps = sim_settings['constraints']['max_yearly_change'][prog.label]['val']
                         except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog.label)
                         if 'rel' in sim_settings['constraints']['max_yearly_change'][prog.label] and sim_settings['constraints']['max_yearly_change'][prog.label]['rel'] is True:
@@ -115,11 +116,12 @@ class ModelProgramSet(object):
                         if np.abs(eps * dt) < np.abs(spending - default):
                             if np.abs(eps) < project_settings.TOLERANCE:
                                 raise OptimaException('ERROR: The change in budget for ramp-constrained "%s" is effectively zero. Model will not continue running; change in program funding would be negligible.' % prog.label)
-                            spending_ramp = default + (sim_settings['tvec'] - start_year) * eps * np.sign(spending - default)
+                            spending_ramp = default + (t - start_year) * eps * np.sign(spending - default)
                             if spending >= default: spending_ramp = np.minimum(spending_ramp, spending_new)
                             else: spending_ramp = np.maximum(spending_ramp, spending_new)
-                            spending = spending_def * (sim_settings['tvec'] < start_year) + spending_ramp * (sim_settings['tvec'] >= start_year)
+                            spending = spending_def * (t < start_year) + spending_ramp * (t >= start_year)
 
+                # Todo - alloc_is_coverage is mentioned above? Does this statement execute correctly, or should it be an elif?
                 if alloc_is_coverage:
                     alloc[prog.label] = prog.getBudget(coverage=spending)
                 else:
@@ -131,7 +133,7 @@ class ModelProgramSet(object):
             else:
                 logger.warn("Program '%s' will not be used because no initial allocation was provided, 'saturate_with_default_budgets' not enabled." % prog.label)
 
-        return alloc, sim_settings['tvec'],dt
+        return alloc
 
     def update_cache(self,alloc,tvals,dt): # Do the stuff in precalculateprogsetvals
         # alloc must be a spending value - note that if the settings originally had alloc_is_coverage then the alloc would have been

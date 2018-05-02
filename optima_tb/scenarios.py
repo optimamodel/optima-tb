@@ -5,6 +5,8 @@ logger = logging.getLogger(__name__)
 from uuid import uuid4 as uuid
 from copy import deepcopy as dcp
 
+from math import ceil
+
 from optima_tb.utils import odict
 from optima_tb.parameters import ParameterSet
 from optima_tb.databook import getEmptyData
@@ -83,19 +85,31 @@ class ParameterScenario(Scenario):
                     stop_year = max(overwrite['t'])
 
                     if 'smooth_onset' not in overwrite:
-                        onset = self.settings.tvec_dt
+                        first_onset = self.settings.tvec_dt
                     else:
-                        onset = overwrite['smooth_onset']
+                        first_onset = overwrite['smooth_onset'] if type(overwrite['smooth_onset'])==float else overwrite['smooth_onset'][overwrite['t'].index(start_year)]
 
                     # First, remove values during the overwrite, and add back the onset value
                     # The par values are interpolated first to ensure they exactly match
                     par_dt_vals = par.interpolate(tvec,pop_label)
                     par.t[pop_label] = tvec
                     par.y[pop_label] = par_dt_vals/np.abs(par.y_factor[pop_label]) # Don't forget to divide by the y-factor because this value will get passed through interpolate() later
-                    par.removeBetween([start_year-onset, stop_year],pop_label)
+                    par.removeBetween([start_year-first_onset, stop_year],pop_label)
 
                     # Now, insert all of the program overwrites
                     for i in xrange(0,len(overwrite['t'])):
+                        #if this isn't the first year for which onset is already covered and there is a specified onset for this parameter/year/pop combo
+                        if overwrite['t'][i]!= start_year and type(overwrite['smooth_onset'])==list and not overwrite['smooth_onset'][i] is None:
+                            #whatever the onset is specified, round it up to the nearest dt (and at least one dt)
+                            onset = max(self.settings.tvec_dt, ceil(overwrite['smooth_onset'][i]/self.settings.tvec_dt)*self.settings.tvec_dt)
+                            #if there aren't any intervening definitions within the onset period specified
+                            if [time for time in overwrite['t'] if (time>=overwrite['t'][i] - onset and time < overwrite['t'][i])] == []:
+                                #get the previous relevant year
+                                previous_time = max([time for time in overwrite['t'] if time < overwrite['t'][i]])
+                                previous_time_ind = overwrite['t'].index(previous_time)
+                                #add in a duplicate of the previously specified 'y' value in the scenario at the start of the onset period
+                                par.insertValuePair(overwrite['t'][i] - onset, overwrite['y'][previous_time_ind]/par.y_factor[pop_label], pop_label)
+                            
                         par.insertValuePair(overwrite['t'][i], overwrite['y'][i]/par.y_factor[pop_label], pop_label)
 
             return new_parset

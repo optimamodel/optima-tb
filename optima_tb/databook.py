@@ -515,7 +515,7 @@ def loadSpreadsheetFunc(settings, databook_path):
         ws_progval = workbook.sheet_by_name(settings.databook['sheet_names']['progval'])
     except:
         ws_prog_exists = False
-        logging.warning('One or two program-based sheets, "%s" and "%s", are excluded in the project data workbook.' % (settings.databook['sheet_names']['progmat'], settings.databook['sheet_names']['progval']))
+        logging.warning('One or two program-based sheets, "%s" and "%s", are missing in the project data workbook.' % (settings.databook['sheet_names']['progmat'], settings.databook['sheet_names']['progval']))
 
     # Extra validation. Even if there are program sheets in the databook, they cannot be used if no program type framework has been loaded from the cascade workbook.
     if len(settings.progtype_specs.keys()) == 0:

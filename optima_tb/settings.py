@@ -11,7 +11,6 @@ import numpy as np
 from matplotlib.ticker import FuncFormatter
 
 
-
 # %% Settings class (for data that is effectively static per epidemic context)
 
 VALIDATION_IGNORE = 0
@@ -364,12 +363,15 @@ class PlottingSettings():
         pl.rcParams['savefig.transparent'] = 'False'  # relax
 
     def printSettings(self):
+        import optima_tb.plotting2 as oplt
 
         pl.rcParams['figure.figsize'] = (9, 7)
         pl.rcParams['savefig.dpi'] = 200
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
         pl.rcParams['font.size'] = 14
         pl.rcParams['lines.linewidth'] = 4
+
+        oplt.settings['legend_mode'] = 'together'
 
         self.plotdict['legend_off'] = False
         self.plotdict['use_full_labels'] = True
@@ -392,6 +394,8 @@ class PlottingSettings():
         pl.rcParams['ytick.minor.width'] = 0
 
     def presentationSettings(self):
+        import optima_tb.plotting2 as oplt
+
         pl.rcParams['font.size'] = 14
         pl.rcParams['figure.figsize'] = (9, 7)
         pl.rcParams['savefig.dpi'] = 200
@@ -415,6 +419,8 @@ class PlottingSettings():
         pl.rcParams['ytick.minor.width'] = 0
 
         pl.rcParams['savefig.transparent'] = 'True'  # enforce
+
+        oplt.settings['legend_mode'] = 'separate'
 
         self.plotdict['legend_off'] = True # plots separate legend
         self.plotdict['title'] = ''  # No title when we have presentation quality

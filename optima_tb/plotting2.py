@@ -1,56 +1,74 @@
 # %% Imports
 import logging
-from matplotlib.pyplot import plot
-
 logger = logging.getLogger(__name__)
+
+import numpy as np
+import pylab as pl
+from random import shuffle
+import numbers
+import os
+import itertools
+import textwrap
+
+from collections import defaultdict
+
+from copy import deepcopy as dcp
 
 from optima_tb.utils import odict, OptimaException, nestedLoop
 from optima_tb.results import ResultSet
-import numpy as np
-import pylab as pl
-from copy import deepcopy as dcp
-from copy import copy as ndcp
+from optima_tb.plotting import gridColorMap
+from optima_tb.model import Compartment, Characteristic, Parameter, Link
+from optima_tb.parsing import FunctionParser
+
+import matplotlib
+from matplotlib.pyplot import plot
 import matplotlib.cm as cmx
 import matplotlib.colors as matplotlib_colors
-from random import shuffle
-import numbers
-import textwrap
-from collections import defaultdict
 import matplotlib.pyplot as plt
-import matplotlib
-import textwrap
-from optima_tb.plotting import gridColorMap
 from matplotlib.ticker import FuncFormatter
-import os
-import itertools
 from matplotlib.patches import Rectangle, Patch
 from matplotlib.collections import PatchCollection
 from matplotlib.legend import Legend
-import os
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
 
+
+parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
+
+
+settings = dict()
+settings['legend_mode'] = 'together' # Possible options are ['together','separate','none'] 
+settings['bar_width'] = 1.0 # Width of bars in plotBars()
 
 def save_figs(figs,path = '.',prefix = '',fnames=None):
     #
     try:
         os.makedirs(path)
     except OSError as err:
-        if err.errno!=17:
+        if err.errno!=os.errno.EEXIST:
             raise
 
     if not isinstance(figs,list):
         figs = [figs]
+
     if fnames is not None:
         if not isinstance(fnames,list):
             fnames = [fnames]
-        assert len(fnames) == len(figs), 'Number of figures must match number of specified filenames'
+        if len(fnames) == len(figs)-1 and not figs[-1].get_label():
+            fnames.append('')
+        else:
+            assert len(fnames) == len(figs), 'Number of figures must match number of specified filenames, or the last figure must be a legend with no label'
 
     for i,fig in enumerate(figs):
-        if fnames is not None:
+        if fnames is not None and fnames[i]: # Use the specified filename
             fname = prefix+fnames[i] + '.png'
         else:
-            if fig.get_label() == '':
-                continue
-            fname = prefix+fig.get_label() + '.png'
+            if not fig.get_label() and i == len(figs)-1: # If the figure has no label (e.g. it is a legend)
+                fname = fname[0:-4] + '_legend.png'
+            elif not fig.get_label():
+                raise OptimaException('Only the last figure passed to save_figs is allowed to have an empty label if the filenames are not explicitly specified')
+            else:
+                fname = prefix+fig.get_label() + '.png'
         fig.savefig(os.path.join(path,fname),bbox_inches='tight')
         logger.info('Saved figure "%s"' % fname)
 
@@ -62,8 +80,7 @@ class PlotData(object):
     # labels, colours, groupings etc. only apply to plots, not to results, and there could be several
     # different views of the same data.
 
-    def __init__(self,results,outputs=None,pops=None,output_aggregation='sum',pop_aggregation='sum',project=None):
-        # TODO - Add temporal aggregation
+    def __init__(self,results,outputs=None,pops=None,output_aggregation='sum',pop_aggregation='sum',project=None,time_aggregation='sum',t_bins=None):
         # Construct a PlotData instance from a Results object by selecting data and optionally
         # specifying desired aggregations
         #
@@ -73,14 +90,16 @@ class PlotData(object):
         # Input must be a list either containing a list of raw output labels or a dict with a single
         # key where the value is a list of raw output labels e.g.
         # outputs = ['vac',{'total':['vac','sus']}]
-
+        #
         #
         # - results - A ResultSet or a dict of ResultSets with key corresponding
         #   to name
         # - outputs - The name of an output compartment, characteristic, or
         #   parameter, or list of names. Inside a list, a dict can be given to
         #   specify an aggregation e.g. outputs=['sus',{'total':['sus','vac']}]
-        #   where the key is the new name
+        #   where the key is the new name. Or, a formula can be given which will
+        #   be evaluated by looking up labels within the model object. Links will
+        #   automatically be summed over
         # - pops - The name of an output population, or list of names. Like
         #   outputs, can specify a dict with a list of pops to aggregate over them
         # - axis - Display one of results, outputs, or pops as different coloured
@@ -101,6 +120,13 @@ class PlotData(object):
         #   aggregation can be used to combine already aggregated outputs (e.g.
         #   can first sum 'sus'+'vac' within populations, and then take weighted
         #   average across populations)
+        # - time_aggregation - Supported methods are 'sum' and 'average' (no weighting). When aggregating
+        #   times, *non-annualized* flow rates will be used. 
+        # - t_bins can be
+        #       - A vector of bin edges. Time points are included if the time
+        #         is >= the lower bin value and < upper bin value.
+        #       - A scalar bin size (e.g. 5) which will be expanded to a vector spanning the data
+        #       - The string 'all' will maps to bin edges [-inf inf] aggregating over all time
 
         # Validate inputs
         if isinstance(results,odict):
@@ -108,24 +134,41 @@ class PlotData(object):
         elif isinstance(results,ResultSet):
             results = [results]
 
+        result_names = [x.name for x in results]
+        if len(set(result_names)) != len(result_names):
+            raise OptimaException('Results must have different names (in their result.name property)')
+
         if pops is None:
             pops = [pop.label for pop in results[0].model.pops]
         elif pops == 'all':
             pops = [{'All':[pop.label for pop in results[0].model.pops]}]
-        elif isinstance(pops,str):
+        elif not isinstance(pops,list):
             pops = [pops]
 
         if outputs is None:
             outputs = [comp.label for comp in results[0].model.pops[0].comps if not (comp.tag_birth or comp.tag_dead or comp.is_junction)]
-        elif isinstance(outputs,str):
+        elif not isinstance(outputs,list):
             outputs = [outputs]
 
+        def expand_dict(x):
+            # If a list contains a dict with multiple keys, expand it into multiple dicts each
+            # with a single key
+            y = list()
+            for v in x:
+                if isinstance(v,dict):
+                    y += [{a:b} for a,b in v.items()]
+                else:
+                    y.append(v)
+            return y
+
+        pops = expand_dict(pops)
+        outputs = expand_dict(outputs)
+
         assert isinstance(results,list), 'Results should be specified as a Result, list, or odict'
-        assert isinstance(pops, list), 'Populations need to be specified as a string or list'
-        assert isinstance(outputs,list), 'Outputs need to be specified as a string or list'
 
         assert output_aggregation in ['sum','average','weighted']
         assert pop_aggregation in ['sum','average','weighted']
+        assert time_aggregation in ['sum','average']
 
         def extract_labels(l):
             # Flatten the input arrays to extract all requested pops and outputs
@@ -136,7 +179,10 @@ class PlotData(object):
                 if isinstance(x,dict):
                     k = x.keys()
                     assert len(k) == 1, 'Aggregation dict can only have one key'
-                    out += x[k[0]]
+                    if isinstance(x[k[0]],str):
+                        continue
+                    else:
+                        out += x[k[0]]
                 else:
                     out.append(x)
             return set(out)
@@ -148,55 +194,117 @@ class PlotData(object):
         self.series = []
         tvecs = dict()
 
-        for result in results: # For each result
+        # Because aggregations always occur within a Result object, loop over results
+        for result in results: 
 
             result_label = result.name
-            tvecs[result_label] = result.model.sim_settings['tvec']
-            dt = result.model.sim_settings['tvec_dt']
+            tvecs[result_label] = result.model.t
+            dt = result.model.dt
 
             aggregated_outputs = defaultdict(dict) # Dict with aggregated_outputs[pop_label][aggregated_output_label]
+            aggregated_units = dict() # Dict with aggregated_units[aggregated_output_label]
             output_units = dict()
             compsize = dict()
             popsize = dict()
+            data_label = defaultdict(str) # Label used to identify which data to plot, maps output label to data label. Defaultdict won't throw key error when checking outputs
 
-            # Assemble the final output dicts for each population
+            # Aggregation over outputs takes place first, so loop over pops
             for pop_label in pops_required:
                 pop = result.model.getPop(pop_label)
                 popsize[pop_label] = pop.popsize()
                 data_dict = dict()  # Temporary storage for raw outputs
 
-                # First pass, extract the original output quantities
+                # First pass, extract the original output quantities, summing links and annualizing as required
                 for output_label in outputs_required:
-                    if output_label in pop.comp_ids:
-                        data_dict[output_label] = pop.getComp(output_label).vals
-                        compsize[output_label] = data_dict[output_label]
-                        output_units[output_label] = pop.getComp(output_label).units
-                    elif output_label in pop.charac_ids:
-                        data_dict[output_label] = pop.getCharac(output_label).vals
-                        compsize[output_label] = data_dict[output_label]
-                        output_units[output_label] = pop.getCharac(output_label).units
-                    elif output_label in pop.par_ids:
-                        par = pop.getPar(output_label)
-                        if par.links: # If this is a transition parameter, use getFlow to get the flow rate
-                            data_dict[output_label] = np.zeros(tvecs[result_label].shape)
-                            compsize[output_label] = np.zeros(tvecs[result_label].shape)
-                            for link in par.links:
-                                data_dict[output_label] += link.vals/dt
-                                compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.vals_old)
-                            output_units[output_label] = link.units
-                        else:
-                            data_dict[output_label] = pop.getPar(output_label).vals
-                            output_units[output_label] = pop.getPar(output_label).units
-                    else:
-                        raise OptimaException('Output "%s" not found in pop "%s"' % (output_label,pop_label))
+                    vars = pop.getVariable(output_label)
 
-                # Second pass, aggregate them according to any aggregations present
+                    if vars[0].vals is None:
+                        raise OptimaException('Requested output "%s" was not recorded because only partial results were saved' % (vars[0].label))
+
+                    if isinstance(vars[0],Link):
+                        data_dict[output_label] = np.zeros(tvecs[result_label].shape)
+                        compsize[output_label] = np.zeros(tvecs[result_label].shape)
+                        
+                        for link in vars:
+                            data_dict[output_label] += link.vals
+                            compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.outflow)
+
+                        if t_bins is None: # Annualize if not time aggregating
+                            data_dict[output_label] /= dt
+                            output_units[output_label] = link.units + '/year'
+                        else:    
+                            output_units[output_label] = link.units # If we sum links in a bin, we get a number of people
+                        data_label[output_label] = vars[0].parameter.label
+
+                    elif isinstance(vars[0],Parameter):
+                        data_dict[output_label] = vars[0].vals
+                        output_units[output_label] = vars[0].units
+                        data_label[output_label] = vars[0].label
+
+                        # If there are links, we can retrieve a compsize for the user to do a weighted average
+                        if vars[0].links:
+                            output_units[output_label] = vars[0].units
+                            compsize[output_label] = np.zeros(tvecs[result_label].shape)
+                            for link in vars[0].links:
+                                compsize[output_label] += (link.source.vals if not link.source.is_junction else link.source.outflow)
+
+                    elif isinstance(vars[0],Compartment) or isinstance(vars[0],Characteristic): # Compartment or Characteristic
+                        data_dict[output_label] = vars[0].vals
+                        compsize[output_label] = vars[0].vals
+                        output_units[output_label] = vars[0].units
+                        data_label[output_label] = vars[0].label
+
+                    else:
+                        raise OptimaException('Unknown type')
+
+                # Second pass, add in any dynamically computed quantities
+                # Using model. Parameter objects will automatically sum over Links and convert Links
+                # to annualized rates
+                for l in outputs:
+                    if not isinstance(l,dict):
+                        continue
+
+                    output_label,f_stack_str = l.items()[0] # extract_labels has already ensured only one key is present
+
+                    if not isinstance(f_stack_str,str):
+                        continue
+
+                    par = Parameter(output_label)
+                    f_stack, dep_labels = parser.produceStack(f_stack_str)
+                    deps = []
+                    displayed_annualization_warning = False
+                    for dep_label in dep_labels:
+                        var = pop.getVariable(dep_label)
+                        if t_bins is not None and (isinstance(var,Link) or isinstance(var,Parameter)) and time_aggregation == "sum" and not displayed_annualization_warning:
+                            raise OptimaException('Function includes Parameter/Link so annualized rates are being used. Aggregation may need to use "average" rather than "sum"')
+                        deps += pop.getVariable(dep_label)
+                    par.f_stack = f_stack
+                    par.deps = deps
+                    par.preallocate(tvecs[result_label], dt)
+                    par.update()
+                    data_dict[output_label] = par.vals
+                    output_units[output_label] = par.units
+
+                # Third pass, aggregate them according to any aggregations present
                 for output in outputs: # For each final output
                     if isinstance(output,dict):
                         output_name = output.keys()[0]
                         labels = output[output_name]
-                        if len(set([output_units[x] for x in labels])) > 1:
+
+                        if isinstance(labels,str): # If this was a function, aggregation over outputs doesn't apply so just put it straight in
+                            aggregated_outputs[pop_label][output_name] = data_dict[output_name]
+                            aggregated_units[output_name] = 'unknown' # Also, we don't know what the units of a function are
+                            continue
+
+                        units = list(set([output_units[x] for x in labels]))
+                        if len(units) > 1:
                             logger.warn('Warning - aggregation for output "%s" is mixing units, this is almost certainly not desired' % (output_name))
+                            aggregated_units[output_name] = 'unknown'
+                        else:
+                            if units[0] in ['','fraction','proportion'] and output_aggregation == 'sum' and len(labels) > 1: # Dimensionless quantity, like a prevalance
+                                logger.warn('Warning - output "%s" is not in number units, so output aggregation probably should not be "sum"' % (output_name))
+                            aggregated_units[output_name] = output_units[labels[0]]
+                            
                         if output_aggregation == 'sum': 
                             aggregated_outputs[pop_label][output_name] = sum(data_dict[x] for x in labels) # Add together all the outputs
                         elif output_aggregation == 'average': 
@@ -207,6 +315,7 @@ class PlotData(object):
                             aggregated_outputs[pop_label][output_name] /= sum([compsize[x] for x in labels])
                     else:
                         aggregated_outputs[pop_label][output] = data_dict[output]
+                        aggregated_units[output] = output_units[output]
 
             # Now aggregate over populations
             # If we have requested a reduction over populations, this is done for every output present
@@ -215,7 +324,9 @@ class PlotData(object):
                     if isinstance(pop,dict):
                         pop_name = pop.keys()[0]
                         pop_labels = pop[pop_name]
-                        if pop_aggregation == 'sum': 
+                        if pop_aggregation == 'sum':
+                            if aggregated_units[output_name] in ['','fraction','proportion'] and len(pop_labels) > 1:
+                                logger.warn('Warning - output "%s" is not in number units, so population aggregation probably should not be "sum"' % (output_name))
                             vals = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
                         elif pop_aggregation == 'average': 
                             vals = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
@@ -223,19 +334,63 @@ class PlotData(object):
                         elif pop_aggregation == 'weighted':
                             vals = sum(aggregated_outputs[x][output_name]*popsize[x] for x in pop_labels) # Add together all the outputs
                             vals /= sum([popsize[x] for x in pop_labels])
-                        self.series.append(Plottable(tvecs[result_label],vals,result_label,pop_name,output_name))
+                        self.series.append(Series(tvecs[result_label],vals,result_label,pop_name,output_name,data_label[output_name],units=aggregated_units[output_name]))
                     else:
                         vals = aggregated_outputs[pop][output_name]
-                        self.series.append(Plottable(tvecs[result_label],vals,result_label,pop,output_name))
+                        self.series.append(Series(tvecs[result_label],vals,result_label,pop,output_name,data_label[output_name],units=aggregated_units[output_name]))
 
         self.results = [x.name for x in results] # NB. These are lists that thus specify the order in which plotting takes place
         self.pops = [x.keys()[0] if isinstance(x,dict) else x for x in pops]
         self.outputs = [x.keys()[0] if isinstance(x,dict) else x for x in outputs]
 
+        # Names will be substituted with these at the last minute when plotting for titles/legends
         self.result_names = {x:x for x in self.results} # At least for now, no ResultSet name mapping
         self.pop_names = {x:(getFullName(x,project) if project is not None else x) for x in self.pops}
         self.output_names = {x:(getFullName(x,project) if project is not None else x) for x in self.outputs}
 
+        if t_bins is not None:
+
+            # If t_bins is a scalar, expand it into a vector of bin edges
+            if not hasattr(t_bins,'__len__'):
+                if not (self.series[0].tvec[-1]-self.series[0].tvec[0])%t_bins:
+                    upper = self.series[0].tvec[-1]+t_bins
+                else:
+                    upper = self.series[0].tvec[-1]
+                t_bins = np.arange(self.series[0].tvec[0],upper,t_bins)
+            
+            if isinstance(t_bins,str) and t_bins == 'all':
+                t_out = np.zeros((1,))
+                lower = [-np.inf]
+                upper = [np.inf]
+            else:
+                lower = t_bins[0:-1]
+                upper = t_bins[1:]
+                if time_aggregation == 'sum':
+                    t_out = upper
+                elif time_aggregation == 'average':
+                    t_out = (lower+upper)/2.0
+
+            for s in self.series:
+                tvec = []
+                vals = []
+                for i,low,high,t in zip(range(len(lower)),lower,upper,t_out):
+                    tvec.append(t)
+                    if (not np.isinf(low) and low < s.tvec[0]) or (not np.isinf(high) and high > s.tvec[-1]):
+                        vals.append(np.nan)
+                    else:
+                        flt = (s.tvec >= low) & (s.tvec < high)
+                        if time_aggregation == 'sum':
+                            vals.append(np.sum(s.vals[flt]))
+                        elif time_aggregation == 'average':
+                            vals.append(np.average(s.vals[flt]))
+
+                s.tvec = np.array(tvec)
+                s.vals = np.array(vals)
+                if isinstance(t_bins,str) and t_bins == 'all':
+                    s.t_labels = ['All']
+                else:
+                    s.t_labels = ['%d-%d' % (l,h) for l,h in zip(lower,upper)]
+                
     def __repr__(self):
         s = 'PlotData\n'
         s += 'Results: %s\n' % (self.results)
@@ -244,61 +399,14 @@ class PlotData(object):
         return s
 
     def tvals(self):
+        # Return a vector of time values for the PlotData object, if all of the series have the
+        # same time axis (otherwise throw an error)
         assert len(set([len(x.tvec) for x in self.series])) == 1, 'All series must have the same number of time points' # All series must have the same number of timepoints
         tvec = self.series[0].tvec
         t_labels = self.series[0].t_labels
         for i in xrange(1,len(self.series)):
             assert(all(self.series[i].tvec == tvec)), 'All series must have the same time points'
         return tvec,t_labels
-
-    def time_aggregate(self,t_bins = None, method='sum'):
-        # t_bins is a vector of bin edges
-        # For time points where the time is >= the lower bin value and < upper bin value
-        # values will be aggregated according to the method
-        # If the method is 'sum' then the output time points will be the upper bin edges
-        # If the method is 'average' then the output time points will be the bin centres
-        assert method in ['sum','average']
-
-        if t_bins is not None and not hasattr(t_bins,'__len__'):
-            if not (self.series[0].tvec[-1]-self.series[0].tvec[0])%t_bins:
-                upper = self.series[0].tvec[-1]+t_bins
-            else:
-                upper = self.series[0].tvec[-1]
-            t_bins = np.arange(self.series[0].tvec[0],upper,t_bins)
-        if t_bins is None:
-            t_out = np.zeros((1,))
-            lower = [-np.inf]
-            upper = [np.inf]
-            assert method=='sum', 'Cannot average data over all time'
-        else:
-            lower = t_bins[0:-1]
-            upper = t_bins[1:]
-            if method == 'sum':
-                t_out = upper
-            elif method == 'average':
-                t_out = (lower+upper)/2.0
-
-        for s in self.series:
-            tvec = []
-            vals = []
-            for i,low,high,t in zip(range(len(lower)),lower,upper,t_out):
-                tvec.append(t)
-                if low < s.tvec[0] or high > s.tvec[-1]:
-                    vals.append(np.nan)
-                else:
-                    flt = (s.tvec >= low) & (s.tvec < high)
-                    if method == 'sum':
-                        vals.append(np.sum(s.vals[flt]))
-                    elif method == 'average':
-                        vals.append(np.average(s.vals[flt]))
-
-            s.tvec = np.array(tvec)
-            s.vals = np.array(vals)
-            if t_bins is None:
-                s.t_labels = ['All']
-            else:
-                s.t_labels = ['%d-%d' % (l,h) for l,h in zip(lower,upper)]
-
 
     def __getitem__(self,key):
         # key is a tuple of (result,pop,output)
@@ -341,6 +449,10 @@ class PlotData(object):
         # - At least one of them must not be none
         # - It is a bad idea to manually set colors for more than one dimension because the order is unclear!
 
+        results = [results] if not isinstance(results,list) else results
+        pops = [pops] if not isinstance(pops,list) else pops
+        outputs = [outputs] if not isinstance(outputs,list) else outputs
+
         targets = list(itertools.product(results,pops,outputs))
 
         if colors is None:
@@ -364,18 +476,23 @@ class PlotData(object):
             for s in series:
                 s.color = color if (s.color is None or overwrite==True) else s.color
 
-class Plottable(object):
-    def __init__(self,tvec,vals,result='default',pop='default',output='default',color=None,label=None):
+class Series(object):
+    def __init__(self,tvec,vals,result='default',pop='default',output='default',data_label='',color=None, units = ''):
         self.tvec = np.copy(tvec)
         self.t_labels = np.copy(self.tvec) # Iterable array of time labels - could become strings like [2010-2014]
         self.vals = np.copy(vals)
         self.result = result
         self.pop = pop
         self.output = output
-        self.color = color # Automatically decide color at runtime (e.g. in plotSeries this could vary depending on whether axis='outputs' or 'pops etc)
-        self.label = label # Automatically decide label at runtime (e.g. in plotSeries this could be the output name or the pop name depending on the axis)
+        self.color = color
+        self.data_label = data_label # Used to identify data for plotting
+        self.units = units
 
-def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_legend=False,xlabels=None):
+    def __repr__(self):
+        return 'Series(%s,%s,%s)' % (self.result,self.pop,self.output)
+
+
+def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times'):
     # We have a collection of bars - one for each Result, Pop, Output, and Timepoint.
     # Any aggregations have already been done. But _groupings_ have not. Let's say that we can group
     # pops and outputs but we never want to stack results. At least for now. 
@@ -384,79 +501,102 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     #   the number of values is the number of bars - could be time, or could be results?
     # - As many sets as there are ungrouped bars
     # xlabels refers to labels within a block (i.e. they will be repeated for multiple times and results)
+    global settings
+
     assert outer in ['times','results'], 'Supported outer groups are "times" or "results"'
-    if xlabels is not None:
-        assert isinstance(xlabels,list), 'xlabels should be a list'
+
     plotdata = dcp(plotdata)
 
     # Note - all of the tvecs must be the same
     tvals,t_labels = plotdata.tvals() # We have to iterate over these, with offsets, if there is more than one
 
-    # If split_time = True, then different timepoints will be on different figures
-    # If split_results = True, then different results will be on different figures
-
-    # First - we should come up with the time/result grouped bars
-    # The bar specification is - for each synchronized element of stack_pops and stack_outputs, it will
-    # group those quantities into a bar. There could be multiple bars. 
-    # If stack pops is not specified, it will default to all populations
-    #
-    # The rule is - if you want quantities to appear as a single color, they should be 
-    # aggregated in plotdata. If you want quantities to appear as separate colors, 
-    # they should be stacked in plotBars
-    def get_unique(x):
-        o = set()
-        for y in x:
-            if isinstance(y,list):
-                o.update(y)
-            else:
-                o.add(y)
-        return o
-
-    # If we are stacking pops only, then we would want the x-label to correspond to pops
-    # and we would colour the sub-bars by outputs. Similar if we are only stacking outputs. 
-    # If we are stacking both, the colours get assigned to pop-output combinations
-    # In that case, the xlabel can actually be left as None
+    # If quantities are stacked, then they need to be coloured differently.
     if stack_pops is None:
-        xlabel_mode = 'pops'
+        color_by = 'outputs'
         plotdata.set_colors(outputs=plotdata.outputs)
     elif stack_outputs is None:
-        xlabel_mode = 'outputs'
+        color_by = 'pops'
         plotdata.set_colors(pops=plotdata.pops)
     else:
-        xlabel_mode = None
-        plotdata.set_colors(pops=plotdata.pops,outputs=plotdata.outputs) # If we are stacking both pops and outputs, then unique colours for all by default
+        color_by = 'both'
+        plotdata.set_colors(pops=plotdata.pops,outputs=plotdata.outputs)
 
-    if stack_pops is None:
-        stack_pops = plotdata.pops
-    else:
-        stack_pops += list(set(plotdata.pops)-get_unique(stack_pops))
+    def process_input_stacks(input_stacks,available_items):
+        # Sanitize the input. input stack could be
+        # - A list of stacks, where a stack is a list of pops or a string with a single pop
+        # - A dict of stacks, where the key is the name, and the value is a list of pops or a string with a single pop
+        # - None, in which case all available items are used
+        # The return value `output_stacks` is a list of tuples where
+        # (a,b,c)
+        # a - The automatic name
+        # b - User provided manual name
+        # c - List of pop labels
+        # Same for outputs
 
-    if stack_outputs is None:
-        stack_outputs = plotdata.outputs
-    else:
-        stack_outputs += list(set(plotdata.outputs)-get_unique(stack_outputs))
+        if input_stacks is None:
+            return [(x, '', [x]) for x in available_items]
 
-    if xlabels is not None:
-        assert len(xlabels) == len(stack_pops)*len(stack_outputs), 'Number of labels specified must match number of bars'
+        items = set()
+        output_stacks = []
+        if isinstance(input_stacks, list):
+            for x in input_stacks:
+                if isinstance(x,list):
+                    output_stacks.append( ('','',x) if len(x) > 1 else (x[0],'',x))
+                    items.update(x)
+                elif isinstance(x,str):
+                    output_stacks.append((x, '', [x]))
+                    items.add(x)
+                else:
+                    raise OptimaException('Unsupported input')
 
-    # Make lists specifying which populations-output quantities to plot in each bar
+        elif isinstance(input_stacks, dict):
+            for k, x in input_stacks.items():
+                if isinstance(x,list):
+                    output_stacks.append( ('',k,x) if len(x) > 1 else (x[0],k,x))
+                    items.update(x)
+                elif isinstance(x,str):
+                    output_stacks.append((x, k, [x]))
+                    items.add(x)
+                else:
+                    raise OptimaException('Unsupported input')
+
+        # Add missing items
+        missing = list(set(available_items) - items)
+        output_stacks += [(x, '', [x]) for x in missing]
+        return output_stacks
+
+    pop_stacks = process_input_stacks(stack_pops,plotdata.pops)
+    output_stacks = process_input_stacks(stack_outputs,plotdata.outputs)
+
+
+    # Now work out which pops and outputs appear in each bar (a bar is a pop-output combo)
     bar_pops = []
     bar_outputs = []
-    for pop in stack_pops:
-        for output in stack_outputs:
-            bar_pops.append(pop if isinstance(pop,list) else [pop])
-            bar_outputs.append(output if isinstance(output,list) else [output])
+    for pop in pop_stacks:
+        for output in output_stacks:
+            bar_pops.append(pop)
+            bar_outputs.append(output)
 
-    width = 1.0
-    gaps = (0.1,0.4,0.8) # Spacing within blocks, between inner groups, and between outer groups
+    width = settings['bar_width']
+    gaps = [0.1,0.4,0.8] # Spacing within blocks, between inner groups, and between outer groups
 
     block_width = len(bar_pops)*(width+gaps[0])
 
+    # If there is only one bar group, then increase spacing between bars
+    if len(tvals) == 1 and len(plotdata.results) == 1:
+        gaps[0] = 0.3
+
     if outer == 'times':
+        if len(plotdata.results) == 1: # If there is only one inner group
+            gaps[2] = gaps[1]
+            gaps[1] = 0
         result_offset = block_width+gaps[1]
         tval_offset = len(plotdata.results)*(block_width+gaps[1])+gaps[2]
         iterator = nestedLoop([range(len(plotdata.results)),range(len(tvals))],[0,1])
     elif outer == 'results':
+        if len(tvals) == 1: # If there is only one inner group
+            gaps[2] = gaps[1]
+            gaps[1] = 0
         result_offset = len(tvals)*(block_width+gaps[1])+gaps[2]
         tval_offset = block_width+gaps[1]
         iterator = nestedLoop([range(len(plotdata.results)),range(len(tvals))],[1,0])
@@ -480,20 +620,46 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
 
     # Iterate over the inner and outer groups, rendering blocks at a time
     for r_idx,t_idx in iterator:
-        base_offset = r_idx*result_offset + t_idx*tval_offset
-        block_offset = 0.0
+        base_offset = r_idx*result_offset + t_idx*tval_offset # Offset between outer groups
+        block_offset = 0.0 # Offset between inner groups
         
         if outer == 'results':
             inner_labels.append((base_offset+block_width/2.0,t_labels[t_idx]))
         elif outer == 'times':
             inner_labels.append((base_offset+block_width/2.0,plotdata.result_names[plotdata.results[r_idx]]))
 
-        for idx,bar_pop,bar_output in zip(range(len(bar_pops)),bar_pops,bar_outputs): # For each bar within the bar collection that we are going to be plotting
+        for idx,bar_pop,bar_output in zip(range(len(bar_pops)),bar_pops,bar_outputs):
             # pop is something like ['0-4','5-14'] or ['0-4']
             # output is something like ['sus','vac'] or ['0-4'] depending on the stack
             y0 = 0
-            for pop in bar_pop:
-                for output in bar_output:
+
+            # Set the name of the bar
+            # If the user provided a label, it will always be displayed
+            # In addition, if there is more than one label of the other (output/pop) type,
+            # then that label will also be shown, otherwise it will be suppressed
+            if bar_pop[1] or bar_output[1]:
+                if bar_pop[1]:
+                    if bar_output[1]:
+                        bar_label = '%s\n%s' % (bar_pop[1], bar_output[1])
+                    elif len(output_stacks) > 1 and len(set([x[0] for x in output_stacks])) > 1 and bar_output[0]:
+                        bar_label = '%s\n%s' % (bar_pop[1], bar_output[0])
+                    else:
+                        bar_label = bar_pop[1]
+                else:
+                    if len(pop_stacks) > 1 and len(set([x[0] for x in pop_stacks])) > 1 and bar_pop[0]:
+                        bar_label = '%s\n%s' % (bar_pop[0], bar_output[1])
+                    else:
+                        bar_label = bar_output[1]
+            else:
+                if color_by == 'outputs' and len(pop_stacks) > 1 and len(set([x[0] for x in pop_stacks])) > 1:
+                    bar_label = bar_pop[0]
+                elif color_by == 'pops' and len(output_stacks) > 1 and len(set([x[0] for x in output_stacks])) > 1:
+                    bar_label = bar_output[0]
+                else:
+                    bar_label = ''
+
+            for pop in bar_pop[2]:
+                for output in bar_output[2]:
                     series = plotdata[plotdata.results[r_idx],pop,output]
                     y = series.vals[t_idx]
                     rectangles[series.color].append(Rectangle((base_offset+block_offset,y0), width, y))
@@ -501,17 +667,7 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
                         color_legend[series.color].append((pop,output))
                     elif series.color not in color_legend:
                         color_legend[series.color] = [(pop,output)]
-
                     y0 += y
-
-                    if xlabels is not None:
-                        bar_label = xlabels[idx]
-                    elif xlabel_mode == 'pops' and len(stack_pops) > 1:
-                        bar_label = pop
-                    elif xlabel_mode == 'outputs' and len(stack_outputs) > 1:
-                        bar_label = output
-                    else:
-                        bar_label = ''
 
             block_labels.append((base_offset+block_offset+width/2,bar_label))
 
@@ -519,13 +675,10 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
 
     # Add the patches to the figure and assemble the legend patches
     legend_patches = []
-    output_colors = defaultdict(set)
-    pop_colors = defaultdict(set)
 
     for color,items in color_legend.items():
-        pc = PatchCollection(rectangles[color], facecolor=color)
+        pc = PatchCollection(rectangles[color], facecolor=color,edgecolor='none')
         ax.add_collection(pc)
-
         pops = set([x[0] for x in items])
         outputs = set([x[1] for x in items])
 
@@ -543,16 +696,23 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
     # Set axes now, because we need block_offset and base_offset after the loop
     ax.autoscale()
     ax.set_xlim(xmin=-2*gaps[0],xmax=block_offset+base_offset)
-    fig.set_figwidth((block_offset+base_offset))
+    fig.set_figwidth(1.75*(block_offset+base_offset))
     ax.set_ylim(ymin=0)
     _turnOffBorder(ax)
-    ax.yaxis.set_major_formatter(FuncFormatter(KMSuffixFormatter))
+    set_ytick_format(ax,'KM')
     block_labels = sorted(block_labels, key=lambda x: x[0])
     ax.set_xticks([x[0] for x in block_labels])
     ax.set_xticklabels([x[1] for x in block_labels])
 
+    # Calculate the units. As all bar patches are shown on the same axis, they are all expected to have the
+    # same units. If they do not, the plot could be misleading
+    units = list(set([x.units for x in plotdata.series])) 
+    if len(units) == 1:
+        ax.set_ylabel(units[0])
+    else:
+        logger.warn('Warning - bar plot quantities mix units, double check that output selection is correct')
 
-    # Inner and outer group labels are only displayed if there is more than one group
+    # Outer group labels are only displayed if there is more than one group
     if outer == 'times' and len(tvals) > 1:
         offset = 0.0
         for t in t_labels:
@@ -564,14 +724,13 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
             ax.text(offset + (result_offset - gaps[1] - gaps[2])/2, 1,plotdata.result_names[r],transform=ax.get_xaxis_transform(),verticalalignment='bottom', horizontalalignment='center')
             offset += result_offset
 
-    # Another common scenario is that we go over time by having a block length of 1
-    # In which case, we would want to use the time labels as the axis labels
-    if not any([x[1] for x in block_labels]) and len(block_labels) == len(inner_labels):
+    # If there is only one block per inner group, then use the inner group string as the bar label
+    if not any([x[1] for x in block_labels]) and len(block_labels) == len(inner_labels) and len(set([x for _,x in inner_labels])) > 1:
         ax.set_xticklabels([x[1] for x in inner_labels])
-    else: 
+    elif len(inner_labels) > 1 and len(set([x for _,x in inner_labels])) > 1: # Inner group labels are only displayed if there is more than one label
         ax2 = ax.twiny()  # instantiate a second axes that shares the same x-axis
         ax2.set_xticks([x[0] for x in inner_labels])
-        ax2.set_xticklabels(['\n'+x[1] for x in inner_labels])
+        ax2.set_xticklabels(['\n\n'+x[1] for x in inner_labels])
         ax2.xaxis.set_ticks_position('bottom')
         ax2.set_xlim(ax.get_xlim())
         ax2.spines['right'].set_visible(False)
@@ -581,15 +740,15 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times',separate_
         ax2.tick_params(axis=u'both', which=u'both',length=0)
 
     # Do the legend last, so repositioning the axes works properly
-    if separate_legend:
-        figs.append(render_separate_legend(ax),plot_type='bar',handles=legend_patches)
-    else:
+    if settings['legend_mode'] == 'separate':
+        figs.append(render_separate_legend(ax,plot_type='bar',handles=legend_patches))
+    elif settings['legend_mode'] == 'together':
         render_legend(ax,plot_type='bar',handles=legend_patches)
 
     return figs
 
 
-def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,data=None):
+def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
     # TODO -
     # - Clean up doing aggregation separately
     # - Implement separate figures as everything starting out on the same plot and then
@@ -602,7 +761,7 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
     # - plot_type - 'line', 'stacked', or 'proportion' (stacked, normalized to 1)
     # - data - Draw scatter points for data wherever the output label matches
     #   a data label. Only draws data if the plot_type is 'line'
-    # - separate_legend - Show the legend in a separate figure,
+    global settings
 
     assert axis in ['outputs','results','pops']
 
@@ -625,7 +784,13 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                 fig,ax = plt.subplots()
                 fig.set_label('%s_%s' % (pop,output))
                 figs.append(fig)
-                ax.set_ylabel(plotdata.output_names[output])
+
+                units = list(set([plotdata[result,pop,output].units for result in plotdata.results]))
+                if len(units) == 1 and units[0]:
+                    ax.set_ylabel('%s (%s)' % (plotdata.output_names[output],units[0]))
+                else:
+                    ax.set_ylabel('%s' % (plotdata.output_names[output]))
+
                 ax.set_title('%s' % (plotdata.pop_names[pop]))
                 if plot_type in ['stacked','proportion']:
                     y = np.stack([plotdata[result,pop,output].vals for result in plotdata.results])
@@ -634,10 +799,13 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                 else:
                     for result in plotdata.results:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.result_names[result])
-                        if data is not None:
-                            render_data(ax,data, pop, output,plotdata[result,pop,output].color)
+
+                if data is not None:
+                    for result in plotdata.results:
+                        render_data(ax,data,plotdata[result,pop,output],plot_type)
+
                 apply_series_formatting(ax,plot_type)
-                if not separate_legend:
+                if settings['legend_mode'] == 'together':
                     render_legend(ax,plot_type)
 
     elif axis == 'pops':
@@ -646,7 +814,13 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                 fig,ax = plt.subplots()
                 fig.set_label('%s_%s' % (result,output))
                 figs.append(fig)
-                ax.set_ylabel(plotdata.output_names[output])
+
+                units = list(set([plotdata[result,pop,output].units for pop in plotdata.pops]))
+                if len(units) == 1 and units[0]:
+                    ax.set_ylabel('%s (%s)' % (plotdata.output_names[output],units[0]))
+                else:
+                    ax.set_ylabel('%s' % (plotdata.output_names[output]))
+
                 ax.set_title('%s' % (plotdata.result_names[result]))
                 if plot_type in ['stacked','proportion']:
                     y = np.stack([plotdata[result,pop,output].vals for pop in plotdata.pops])
@@ -655,10 +829,13 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                 else:
                     for pop in plotdata.pops:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.pop_names[pop])
-                        if data is not None:
-                            render_data(ax,data, pop, output,plotdata[result,pop,output].color)
+
+                if data is not None:
+                    for pop in plotdata.pops:
+                        render_data(ax,data,plotdata[result,pop,output],plot_type)
+
                 apply_series_formatting(ax,plot_type)
-                if not separate_legend:
+                if settings['legend_mode'] == 'together':
                     render_legend(ax,plot_type)
 
     elif axis == 'outputs':
@@ -667,7 +844,11 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                 fig,ax = plt.subplots()
                 fig.set_label('%s_%s' % (result,pop))
                 figs.append(fig)
-                # plt.ylabel('Mixed')
+
+                units = list(set([plotdata[result,pop,output].units for output in plotdata.outputs]))
+                if len(units) == 1 and units[0]:
+                    ax.set_ylabel(units[0])
+
                 ax.set_title('%s-%s' % (plotdata.result_names[result],plotdata.pop_names[pop]))
                 if plot_type in ['stacked','proportion']:
                     y = np.stack([plotdata[result,pop,output].vals for output in plotdata.outputs])
@@ -676,18 +857,21 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',separate_legend=False,da
                 else:
                     for output in plotdata.outputs:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.output_names[output])
-                        if data is not None:
-                            render_data(ax,data, pop, output,plotdata[result,pop,output].color)
+
+                if data is not None:
+                    for output in plotdata.outputs:
+                        render_data(ax,data,plotdata[result,pop,output],plot_type)
+
                 apply_series_formatting(ax,plot_type)
-                if not separate_legend:
+                if settings['legend_mode'] == 'together':
                     render_legend(ax,plot_type)
 
-    if separate_legend:
+    if settings['legend_mode'] == 'separate':
         figs.append(render_separate_legend(ax,plot_type))
 
     return figs
 
-def render_data(ax,data,pop,output,color):
+def render_data(ax,data,series,plot_type):
     # This function renders a scatter plot for a single variable (in a single population)
     # The scatter plot is drawn in the current axis
     # INPUTS
@@ -697,20 +881,25 @@ def render_data(ax,data,pop,output,color):
     # name - The name-formatting function to retrieve full names (currently unused)
     # color - The color of the data points to use
 
-    if output in data['characs'].keys():
-        d = data['characs'][output]
-    elif output in data['linkpars'].keys():
-        d = data['linkpars'][output]
+    if series.data_label in data['characs']:
+        d = data['characs'][series.data_label]
+    elif series.data_label in data['linkpars']:
+        d = data['linkpars'][series.data_label]
     else:
         return
 
-    if pop in d:
-        y = d[pop]['y']
-        t = d[pop]['t']
+    if series.pop in d:
+        y = d[series.pop]['y']
+        t = d[series.pop]['t']
     else:
         return
 
-    ax.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
+    if plot_type == 'stacked':
+        # For stacked plots, need a black border
+        ax.plot(t, y, marker='o', linestyle='none', markersize=10, markeredgewidth=1, markerfacecolor=series.color,
+                markeredgecolor='k')  # label='Data %s %s' % (name(pop,proj),name(output,proj)))
+    else:
+        ax.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=series.color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
 
 def set_ytick_format(ax,formatter):
 
@@ -752,6 +941,41 @@ def _turnOffBorder(ax):
     ax.spines['top'].set_color('none')
     ax.xaxis.set_ticks_position('bottom')
     ax.yaxis.set_ticks_position('left')
+
+def plotLegend(entries,plot_type='patch',fig=None):
+    # plot type - can be 'patch' or 'line'
+    # The legend items are a dict keyed with the label e.g.
+    # entries = {'sus':'blue','vac':'red'}
+    # If a figure is passed in, the legend will be drawn in that figure, overwriting
+    # a previous legend if one was already there
+
+    h = []
+    for label,color in entries.items():
+        if plot_type == 'patch':
+            h.append(Patch(color=color,label=label))
+        else:
+            h.append(Line2D([0],[0],color=color,label=label))
+
+    legendsettings = {'loc': 'center', 'bbox_to_anchor': None,'frameon':False} # Settings for separate legend
+
+    if fig is None: # Draw in a new figure
+        render_separate_legend(None,None,h)
+    else:
+        existing_legend = fig.findobj(Legend)
+        if existing_legend and existing_legend[0].parent is fig: # If existing legend and this is a separate legend fig
+                existing_legend[0].remove() # Delete the old legend
+                fig.legend(handles=h, **legendsettings)
+        else: # Drawing into an existing figure
+            ax = fig.axes[0]
+            legendsettings = {'loc': 'center left', 'bbox_to_anchor': (1.05, 0.5), 'ncol': 1}
+            if existing_legend:
+                existing_legend[0].remove() # Delete the old legend
+                ax.legend(handles=h,**legendsettings)
+            else:
+                ax.legend(handles=h,**legendsettings)
+                box = ax.get_position()
+                ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+    return fig
 
 def render_separate_legend(ax,plot_type=None,handles=None):
     if handles is None:
@@ -803,12 +1027,21 @@ def render_legend(ax,plot_type=None,handles=None,):
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 
-def reorder_legend(fig,order=None):
+def reorder_legend(figs,order=None):
     # This helper function lets you reorder a legend after figure creation
     # Order can be
     # - A string 'reverse' to reverse the order of the legend
     # - A list of indices mapping old position to new position. For example, if the
     #   original label order was ['a,'b','c'], then order=[1,0,2] would result in ['b','a','c']
+
+    if isinstance(figs,list):
+        if not figs[-1].get_label(): # If the last figure is a legend figure
+            fig = figs[-1]
+        else:
+            for fig in figs: # Apply order operation to all figures passed in
+                reorder_legend(fig,order=order)
+    else:
+        fig = figs
 
     legend = fig.findobj(Legend)[0]
     assert len(legend._legend_handle_box._children) == 1, 'Only single-column legends are supported'
@@ -826,7 +1059,16 @@ def reorder_legend(fig,order=None):
         new_children.append(vpacker._children[order[i]])
     vpacker._children = new_children
 
-def relabel_legend(fig,labels):
+def relabel_legend(figs,labels):
+
+    if isinstance(figs,list):
+        if not figs[-1].get_label(): # If the last figure is a legend figure
+            fig = figs[-1]
+        else:
+            for fig in figs: # Apply order operation to all figures passed in
+                relabel_legend(fig,labels=labels)
+    else:
+        fig = figs
 
     legend = fig.findobj(Legend)[0]
     assert len(legend._legend_handle_box._children) == 1, 'Only single-column legends are supported'
@@ -858,4 +1100,8 @@ def getFullName(output_id, proj):
         output_id = proj.settings.node_specs[output_id]['name']
     elif output_id in proj.data['pops']['label_names'].keys(): # population label
         output_id = proj.data['pops']['label_names'][output_id]
+    else:
+        for label,spec in proj.settings.linkpar_specs.items():
+            if 'tag' in spec and spec['tag'] == output_id:
+                output_id = '%s (flow)' % (spec['name'])
     return output_id
