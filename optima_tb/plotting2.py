@@ -380,6 +380,8 @@ class PlotData(object):
                     else:
                         flt = (s.tvec >= low) & (s.tvec < high)
                         if time_aggregation == 'sum':
+                            if s.units in ['','fraction','proportion']:
+                                logger.warning('Warning - %s is not in number units, so time aggregation probably should not be "sum"' % (s))
                             vals.append(np.sum(s.vals[flt]))
                         elif time_aggregation == 'average':
                             vals.append(np.average(s.vals[flt]))
