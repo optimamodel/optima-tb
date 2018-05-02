@@ -542,7 +542,7 @@ def loadSpreadsheetFunc(settings, databook_path):
     data['pops']['ages'] = odict()
     for row_id in xrange(1, ws_pops.nrows):
         
-        if ws_pops.cell_value(row_id, 0) == WB_COMMENT_TAG:
+        if ws_pops.cell_value(row_id, 0).startswith(WB_COMMENT_TAG):
             continue
         
         if ws_pops.cell_value(row_id, 0) not in ['']:
@@ -567,7 +567,7 @@ def loadSpreadsheetFunc(settings, databook_path):
     if ws_contact_exists:
         for row_id in xrange(1, ws_contact.nrows):
             
-            if ws_contact.cell_value(row_id, 0) == WB_COMMENT_TAG:
+            if ws_contact.cell_value(row_id, 0).startswith(WB_COMMENT_TAG):
                 continue
 
             for col_id in xrange(1, ws_contact.ncols):
@@ -593,7 +593,7 @@ def loadSpreadsheetFunc(settings, databook_path):
     mig_type = None
     for row_id in xrange(ws_transmat.nrows):
 
-        if ws_transmat.cell_value(row_id, 0) == WB_COMMENT_TAG:
+        if ws_transmat.cell_value(row_id, 0).startswith(WB_COMMENT_TAG):
             continue
 
         zero_col = ws_transmat.cell_value(row_id, 0)
@@ -629,7 +629,7 @@ def loadSpreadsheetFunc(settings, databook_path):
     array_id = 0
     for row_id in xrange(ws_transval.nrows):
 
-        if ws_transval.cell_value(row_id, 0) == WB_COMMENT_TAG:
+        if ws_transval.cell_value(row_id, 0).startswith(WB_COMMENT_TAG):
             continue
 
         zero_col = ws_transval.cell_value(row_id, 0)
@@ -683,7 +683,7 @@ def loadSpreadsheetFunc(settings, databook_path):
     if ws_prog_exists:
         for row_id in xrange(1, ws_progmat.nrows):
 
-            if ws_progmat.cell_value(row_id, 0) == WB_COMMENT_TAG:
+            if ws_progmat.cell_value(row_id, 0).startswith(WB_COMMENT_TAG):
                 continue
 
             if ws_progmat.cell_value(row_id, 0) not in ['']:
@@ -711,7 +711,7 @@ def loadSpreadsheetFunc(settings, databook_path):
         temp = odict()
         for row_id in xrange(ws_progval.nrows):
 
-            if ws_progval.cell_value(row_id, 0) == WB_COMMENT_TAG:
+            if ws_progval.cell_value(row_id, 0).startswith(WB_COMMENT_TAG):
                 continue
 
             zero_col = ws_progval.cell_value(row_id, 0)
@@ -856,7 +856,7 @@ def loadSpreadsheetFunc(settings, databook_path):
         pop_id = 0
         for row_id in xrange(ws.nrows):
 
-            if ws.cell_value(row_id, 0) == WB_COMMENT_TAG:
+            if ws.cell_value(row_id, 0).startswith(WB_COMMENT_TAG):
                 continue
                 
             val = str(ws.cell_value(row_id, 0))
