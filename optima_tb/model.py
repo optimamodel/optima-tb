@@ -1,7 +1,6 @@
 # %% Imports
 
 from optima_tb.utils import flattenDict, odict, OptimaException
-from optima_tb.validation import checkTransitionFraction
 import optima_tb.settings as project_settings
 from optima_tb.results import ResultSet
 from optima_tb.parsing import FunctionParser
@@ -897,10 +896,19 @@ class Model(object):
                             continue
 
                         if link.parameter.units == 'fraction':
-                            # check if there are any violations, and if so, deal with them
+
+                            # Clamp value to 1.0 and warn if requested
                             if transition > 1.:
-                                transition = checkTransitionFraction(transition, settings.validation)
+                                validation_level = settings.validation['transition_fraction']
+                                if validation_level == project_settings.VALIDATION_ERROR:
+                                    raise OptimaException(warning)
+                                elif validation_level == project_settings.VALIDATION_WARN:
+                                    warning = "(t=%.2f) Link %s-%s has transition value = %.3f (>1)" % (self.t[ti],link.source.label, link.dest.label, transition)
+                                    logger.warn(warning)
+                                transition = 1.0
+
                             converted_frac = 1 - (1 - transition) ** dt  # A formula for converting from yearly fraction values to the dt equivalent.
+
                             if link.source.tag_birth:
                                 n_alive = 0
                                 for p in self.pops:
@@ -908,6 +916,7 @@ class Model(object):
                                 converted_amt = n_alive * converted_frac
                             else:
                                 converted_amt = comp_source.vals[ti] * converted_frac
+
                         elif link.parameter.units == 'number':
                             converted_amt = transition * dt
                             if link.is_transfer:
@@ -928,7 +937,7 @@ class Model(object):
                         if validation_level == project_settings.VALIDATION_AVERT or validation_level == project_settings.VALIDATION_WARN:
                             outflow = outflow / np.sum(outflow) * comp_source.vals[ti]
                         else:
-                            warning = "Negative value encountered for: (%s - %s) at ti=%g : popsize = %g, outflow = %g" % (pop.label,comp_source.label,ti,comp_source.vals[ti],sum(outflow))
+                            warning = "(t=%.2f) Negative value encountered for: (%s - %s) at ti=%g : popsize = %g, outflow = %g" % (self.t[ti],pop.label,comp_source.label,ti,comp_source.vals[ti],sum(outflow))
                             if validation_level == project_settings.VALIDATION_ERROR:
                                 raise OptimaException(warning)
                             elif validation_level == project_settings.VALIDATION_WARN:

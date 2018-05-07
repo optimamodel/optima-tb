@@ -129,6 +129,17 @@ def performAutofit(proj,parset,pars_to_adjust,output_quantities,max_time=60):
    
     """
 
+    # Expand out pop=None in pars_to_adjust
+    p2 = []
+    for par_tuple in pars_to_adjust:
+        if par_tuple[1] is None:  # If the pop name is None
+            par = parset.getPar(par_tuple[0])
+            for pop_label in par.pops:
+                p2.append((par_tuple[0], pop_label, par_tuple[2], par_tuple[3]))
+        else:
+            p2.append(par_tuple)
+    pars_to_adjust = p2
+
     args = {
         'project': proj,
         'parset': dcp(parset),
@@ -143,7 +154,10 @@ def performAutofit(proj,parset,pars_to_adjust,output_quantities,max_time=60):
         par_label, pop_label, scale_min, scale_max = x
         if par_label in parset.par_ids['cascade'] or par_label in parset.par_ids['characs']:
             par = parset.getPar(par_label)
-            x0.append(par.y_factor[pop_label])
+            if pop_label == 'all':
+                x0.append(np.mean([par.y_factor[p] for p in par.pops]))
+            else:
+                x0.append(par.y_factor[pop_label])
         else:
             tokens = par_label.split('_from_')
             par = parset.transfers[tokens[0]][tokens[1]]
@@ -177,7 +191,7 @@ def performAutofit(proj,parset,pars_to_adjust,output_quantities,max_time=60):
         if par_label in parset.par_ids['cascade'] or par_label in parset.par_ids['characs']:
             par = args['parset'].getPar(par_label)
 
-            if pop_label is None:
+            if pop_label is None or pop_label == 'all':
                 for pop in par.pops:
                     print '%s - %s, scale=%.2f' % (par_label, pop, par.y_factor[pop])
             else:
@@ -195,7 +209,7 @@ def performAutofit(proj,parset,pars_to_adjust,output_quantities,max_time=60):
         if par_label in parset.par_ids['cascade'] or par_label in parset.par_ids['characs']:
             par = args['parset'].getPar(par_label)
 
-            if pop_label is None:
+            if pop_label is None or pop_label == 'all':
                 for pop in par.pops:
                     # parset.getPar('b_rate').y_factor['0-2']=1.06
                     # parset.transfers['aging']['0-2'].y_factor['3-14'] = 1.01
@@ -218,24 +232,26 @@ def calibrate_demographics(project,parset,max_time=60):
     # Adjust birth rates
     birth_pars = []
     for pop in parset.getPar('b_rate').pops:
-        birth_pars.append(('b_rate',pop,0.5,1.9))
-    # birth_pars = [birth_pars[0]] # Don't touch migration actually
+        birth_pars.append(('b_rate',pop,0.5,4.0))
+    birth_pars = [birth_pars[0]] # Don't touch migration actually
 
     # Adjust all transfer parameters
     transfer_pars = []
     for x in parset.transfers.values(): # for transfer type
         for y in x.values(): # for from_pop
             for pop in y.pops:
-                transfer_pars.append((y.label,pop,0.1,1.9))
+                transfer_pars.append((y.label,pop,0.1,10.0))
 
     death_pars = []
     # for pop in parset.getPar('doth_rate').pops:
     #     birth_pars.append(('doth_rate',pop,0.6,1.4))
-    death_pars.append(('doth_rate','15-64 (HIV+)',0.5,3.0))
-    death_pars.append(('doth_rate','65+ (HIV+)',0.5,3.0))
+    death_pars.append(('doth_rate','15-64 (HIV+)',0.1,10.0))
+    death_pars.append(('doth_rate','65+ (HIV+)',0.1,10.0))
 
+    emi_pars = []
+    emi_pars.append(('emi_rate','all',0.1,2.0))
 
-    pars_to_adjust = birth_pars + transfer_pars + death_pars
+    pars_to_adjust = birth_pars + transfer_pars + death_pars + emi_pars
 
     # Collate the output demographic quantities (just alive for all pops)
     output_quantities = []
