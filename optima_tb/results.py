@@ -100,6 +100,9 @@ class ResultSet(object):
                 self.budgets = budget_options['init_alloc']
                 self.coverages = progset.getCoverages(self.budgets, model)
 
+        self.dw = dcp(parset.dw)
+        self.years_lost = dcp(parset.years_lost)
+
         # /work-in-progress
 
     def __repr__(self):
@@ -128,7 +131,7 @@ class ResultSet(object):
             label_names[label] = names[i]
         return label_names
 
-    def getValuesAt(self, label, year_init, year_end=None, pop_labels=None, integrated=False):
+    def getValuesAt(self, label, year_init, year_end=None, pop_labels=None, settings=None, integrated=False):
         """
         Derives transition flow rates, characteristic or compartment values for results, according to label provided.
        
@@ -136,7 +139,9 @@ class ResultSet(object):
         In the absence of a year_end, the value corresponding to only the year_init timepoint is returned.
         Values are summed across all population groups unless a subset is specified with pop_labels.
         Values can also be optionally integrated to return a scalar.
-        
+
+        settings is only required to determine DALYs and is ignored if label != 'dalys'
+
         Outputs values as array or integrated scalar, as well as the the corresponding timepoints.
         """
 
@@ -160,7 +165,7 @@ class ResultSet(object):
         #       Link tags are actually stored in link_labels, while link labels could be in char_labels if a transition is marked as a result output.
         if label in self.link_labels:
 
-            values, _, _ = self.getFlow(link_label=label, pop_labels=pop_labels)  # Does not return link values directly but calculates flows instead.
+            values = self.getFlow(link_label=label, pop_labels=pop_labels, annualize=False)  # Does not return link values directly but calculates flows instead.
             values = values[label]
 
             for pop in values.keys():
@@ -183,18 +188,21 @@ class ResultSet(object):
                 popvalues = values[pop]
                 output += values[pop][label].popsize[idx]
 
-        # check if label refers to a parameter. check is performed for the first population under the assumption that
-        # all populations have the same set of parameters
-        elif label in self.m_pops[0].dep_ids.keys():
-            for pop in pop_labels:
-                output += self.m_pops[self.pop_label_index[pop]].getDep(label).vals[idx]
-
+        elif label == 'daly':
+            if settings is not None:
+                dalys = self.getDALY(settings, year_init, year_end, pop_labels)
+                output[0] = np.sum(dalys.values())
+            else:
+                raise OptimaException('Cannot calculate DALYs without a Settings object. ' +
+                                      'Please provide Project.settings to ResultSet.getValuesAt()')
         else:
-            logger.warn('Unable to find values for label="%s", with no corresponding characteristic, transition or compartment found.' % label)
+            logger.warn('Unable to find values for label="%s", with no corresponding characteristic, '.format(label) +
+                        'transition or compartment found.')
 
         # Do a simple integration process if specified by user.
         if integrated:
-            output = output.sum() * dt
+            # enforced that return-type is always an iterable
+            output = np.array([output.sum() * dt])
 
         return output, tvals[idx]
 
@@ -309,13 +317,41 @@ class ResultSet(object):
         return datapoints, chars, pops
 
 
-    def getFlow(self, link_label, pop_labels=None):
-#                 (comp, inflows = True, outflows = True, invert = False, link_legend = None, exclude_transfers = False):
+    def getDALY(self, settings, year_start, year_end=None, pop_labels=None):
         """
-        TODO finish method (moved across from plotting.py)
-        
-        """
+        Determine disability-adjusted life years (DALY) over a given interval. It is computed by summing up YLL and YLD.
 
+        :param settings: Settings which contains compartment information
+        :param year_start: float which specifies the start of the interval in which DALY is determined
+        :param year_end: None or float. If float, it specifies the end of the interval in which YLL is determined; if
+            it is None, the end of simulation is chosen as the end of interval
+        :param pop_labels: None or list of str. If list of str, it contains the population labels for which the YLL is
+            determined; if None, the YLL of all populations is determined
+        :return: an odict of {pop_label: DALY}
+        """
+        yll = self.getYLL(settings, year_start, year_end, pop_labels)
+        yld = self.getYLD(settings, year_start, year_end, pop_labels)
+
+        daly = odict()
+        for pop in yll:
+            daly[pop] = yll[pop] + yld[pop]
+
+        return daly
+
+
+    def getFlow(self, link_label=None, pop_labels=None, annualize=True):
+        """
+        Returns the number of people (as absolute number) moved from one compartment to another during the simulation.
+
+        :param link_label: None or a list of str which represent from which links/transitions the number of moved people
+            are extracted. In case of None, all are considered.
+        :param pop_labels: None or a list of str which specify which populations to consider. In case of None, all are
+            considered.
+        :param annualize: Boolean which specifies if the number of moved people should be annualized or not. If True,
+            an annual average is computed; if False, the number of people per time step is computed
+        :return: dict of {link_label: {pop_label: value}}, where value is either a float (annualize==True)
+            or a np.array(annualize==False)
+        """
         if pop_labels is not None:
             if isinstance(pop_labels, list):
                 pops = pop_labels
@@ -325,60 +361,135 @@ class ResultSet(object):
             pops = self.pop_labels
 
         if link_label is not None:
-            if isinstance(link_label, list):
-                pass
-            else:
+            if not isinstance(link_label, list):
                 link_label = [link_label]
         else:
-            link_label = self.link_label
+            link_label = self.link_labels
 
         datapoints = odict()
 
         for link_lab in link_label:
-
             datapoints[link_lab] = odict()
+
             for pi in pops:
-
-                datapoints[link_lab] [pi] = odict()
-
+                datapoints[link_lab][pi] = odict()
                 p_index = self.pop_label_index[pi]
+                num_flow_list = np.zeros(len(self.t_step))
 
-                num_flow_list = []
                 for link_index in self.link_label_ids[link_lab]:
                     link = self.m_pops[p_index].links[link_index]
-                    num_flow = dcp(link.vals)
                     comp_source = self.m_pops[p_index].comps[link.index_from[1]]
-
-    #                if link.val_format == 'proportion':
-    #                    denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
-    #                    num_flow /= denom_val
-    #
-    #                    print num_flow
-    #
-    #                if link.val_format == 'fraction':
-    #
-    #                    num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
-    #                    num_flow *= comp_source.popsize
-    #                    num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
+                    # scaled annual flow rate
+                    num_flow = link.vals * link.scale_factor
 
                     was_proportion = False
                     if link.val_format == 'proportion':
-                        denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals for lid_tuple in comp_source.outlink_ids)
+                        denom_val = sum(self.m_pops[lid_tuple[0]].links[lid_tuple[-1]].vals
+                                        for lid_tuple in comp_source.outlink_ids)
                         num_flow /= denom_val
                         was_proportion = True
                     if link.val_format == 'fraction' or was_proportion is True:
                         if was_proportion is True:
                             num_flow *= comp_source.popsize_old
                         else:
+                            # remove TOLERANCE excess from flow values
                             num_flow[np.logical_and(num_flow > 1., num_flow < (1. + project_settings.TOLERANCE))] = 1.
-                            num_flow = 1 - (1 - num_flow) ** self.dt     # Fractions must be converted to effective timestep rates.
-                            num_flow *= comp_source.popsize
-                        num_flow /= self.dt      # All timestep-based effective fractional rates must be annualised.
-                    num_flow_list.append(num_flow)
-                num_flow = sum(num_flow_list)
-                datapoints[link_lab][pi] = num_flow
+                            num_flow[np.logical_and(num_flow < 0., num_flow > (0. - project_settings.TOLERANCE))] = 0.
 
-        return datapoints, link_label, pops
+                            # convert annual flow to flow per time step
+                            num_flow_list = (1. - (1. - num_flow) ** self.dt) * comp_source.popsize
+
+                if annualize:
+                    # All timestep-based effective fractional rates must be annualised.
+                    datapoints[link_lab][pi] = np.array([np.sum(num_flow_list / self.dt)])
+                else:
+                    datapoints[link_lab][pi] = num_flow_list
+
+        return datapoints
+
+    def getYLD(self, settings, year_start, year_end=None, pop_labels=None):
+        """
+        Determine years lost due to disability (YLD) over a given interval.
+
+        :param settings: Settings which contains compartment information
+        :param year_start: float which specifies the start of the interval in which YLL is determined
+        :param year_end: None or float. If float, it specifies the end of the interval in which YLD is determined; if
+            it is None, the end of simulation is chosen as the end of interval
+        :param pop_labels: None or list of str. If list of str, it contains the population labels for which the YLL is
+            determined; if None, the YLL of all populations is determined
+        :return: an odict of {pop_label: YLD}
+        """
+        if len(self.years_lost) == 0:
+            raise OptimaException('ERROR: Cannot compute YLD because no ' +
+                                  'disability weight is defined in the databook')
+
+        # fix pop_labels: either use all pops available or only the ones passed to the function
+        if pop_labels is None:
+            pop_labels = self.pop_labels
+        elif pop_labels is not None and isinstance(pop_labels, basestring):
+            pop_labels = [pop_labels]
+
+        # fix end point of evaluation
+        if year_end is None:
+            year_end = self.t_step[-1]
+
+        infected_comps = filter(lambda x: 'infected' in settings.node_specs[x] and settings.node_specs[x]['infected'],
+                                settings.node_specs)
+
+        yld = odict()
+        # for each population, compute how many people are infected in the specified interval
+        for pop in pop_labels:
+            yld[pop] = 0.
+            for comp in infected_comps:
+                infected, _ = self.getValuesAt(comp, year_start, year_end, pop, None, True)
+                yld[pop] += np.sum(infected)
+            yld[pop] *= self.dw[pop]
+
+        return yld
+
+    def getYLL(self, settings, year_start, year_end=None, pop_labels=None):
+        """
+        Determine years of life lost due to premature mortality (YLL) over a given interval.
+
+        :param settings: Settings which contains compartment information
+        :param year_start: float which specifies the start of the interval in which YLL is determined
+        :param year_end: None or float. If float, it specifies the end of the interval in which YLL is determined; if
+            it is None, the end of simulation is chosen as the end of interval
+        :param pop_labels: None or list of str. If list of str, it contains the population labels for which the YLL is
+            determined; if None, the YLL of all populations is determined
+        :return: an odict of {pop_label: YLL}
+        """
+        if len(self.years_lost) == 0:
+            raise OptimaException('ERROR: Cannot compute YLL because no ' +
+                                  'average life expectancy is defined in the databook')
+
+        # fix pop_labels: either use all pops available or only the ones passed to the function
+        if pop_labels is None:
+            pop_labels = self.pop_labels
+        elif pop_labels is not None and isinstance(pop_labels, basestring):
+            pop_labels = [pop_labels]
+
+        # fix end point of evaluation
+        if year_end is None:
+            year_end = self.t_step[-1]
+
+        # obtain relevant death compartments
+        # introduced a new tag 'death by disease' which indicates yll-relevant deaths
+        death_comps = filter(
+            lambda x: 'dbd' in settings.node_specs[x] and settings.node_specs[x]['dbd'], settings.node_specs)
+        # obtain transitions leading to the relevant death compartments
+        death_trans = filter(lambda x: any([item[1] in death_comps for item in settings.links[x]]), settings.links)
+
+        yll = odict()
+        # for each population, compute how many people have died in the specified interval
+        for pop in pop_labels:
+            yll[pop] = 0.
+            for trans in death_trans:
+                deaths, _ = self.getValuesAt(trans, year_start, year_end, pop, None, True)
+                yll[pop] += np.sum(deaths)
+            yll[pop] *= self.years_lost[pop]
+
+        return yll
 
 
     def export(self, filestem=None, sep=',', writetofile=True, use_alltimesteps=True):

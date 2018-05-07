@@ -261,6 +261,8 @@ def makeSpreadsheetFunc(settings, databook_path, num_pops=5, num_migrations=2, n
     ws_pops.write(0, 1, 'Abbreviation')
     ws_pops.write(0, age_min_col, 'Minimum Age')
     ws_pops.write(0, age_max_col, 'Maximum Age')
+    ws_pops.write(0, 4, 'Disability Weight')
+    ws_pops.write(0, 5, 'Average Life Expectancy')
 
     # While writing default population names and labels, they are stored for future reference as well.
     pop_names_default = []
@@ -539,6 +541,8 @@ def loadSpreadsheetFunc(settings, databook_path):
     data['pops']['name_labels'] = odict()
     data['pops']['label_names'] = odict()  # A reverse of the previous dictionary.
     data['pops']['ages'] = odict()
+    data['pops']['dw'] = odict()
+    data['pops']['life_exp'] = odict()
     for row_id in xrange(ws_pops.nrows):
         if row_id > 0:
             if ws_pops.cell_value(row_id, 0) not in ['']:
@@ -552,6 +556,12 @@ def loadSpreadsheetFunc(settings, databook_path):
                 age_max = ws_pops.cell_value(row_id, 3)
                 if isinstance(age_min, Number) and isinstance(age_max, Number):
                     data['pops']['ages'][pop_label] = {'min':float(age_min), 'max':float(age_max), 'range':1 + float(age_max) - float(age_min)}
+
+                if 5 < ws_pops.ncols:
+                    if ws_pops.cell_value(row_id, 4) != '':
+                        data['pops']['dw'][pop_label] = float(ws_pops.cell_value(row_id, 4))
+                    if ws_pops.cell_value(row_id, 5) != '':
+                        data['pops']['life_exp'][pop_label] = float(ws_pops.cell_value(row_id, 5))
 
     # %% Population contacts sheet.
     data['contacts'] = dict()
@@ -1033,7 +1043,8 @@ def databookValidation(data=None):
     label = 'y'
     for key in data:
         for attribute in data[key]:
-            if attribute == 'name_labels' or attribute == 'label_names': pass
+            if attribute in ['name_labels', 'label_names', 'life_exp']:
+                pass
             else:
                 for pop in data[key][attribute]:
                     if key == 'transfers':
@@ -1041,8 +1052,16 @@ def databookValidation(data=None):
                             for loop in range (len(data[key][attribute][pop][subpop][label])):
                                 validation = validateFormatType(data[key][attribute][pop][subpop], label, loop, key, attribute, pop, validation)
                     elif key == 'pops':
-                        if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0:
-                            logging.warning('Minimum and maximum age is defined incorrectly for Population: %s' % (pop))
+                        if attribute == 'ages':
+                            if data[key][attribute][pop]['max'] <= data[key][attribute][pop]['min'] or data[key][attribute][pop]['max'] <= 0 or data[key][attribute][pop]['min'] < 0:
+                                logging.warning('Minimum and maximum age is defined incorrectly for Population: %s' % (pop))
+                                validation = False
+                        elif attribute == 'dw':
+                            if not 0. <= data[key][attribute][pop] <= 1.:
+                                logging.warning('Disability weight for Population %s must be in [0,1]!' % (pop))
+                                validation = False
+                        else:
+                            logging.warning('Invalid attribute "%s" in population %s encountered' % (attribute, pop))
                             validation = False
                     elif key in ['meta', 'contacts', 'progs']:
                         # NOTE: Similar validation to be filled in for these keys at some point if required.
