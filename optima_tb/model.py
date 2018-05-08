@@ -832,14 +832,6 @@ class Model(object):
         else:
             self.programs_active = False
 
-        # Make sure initially-filled junctions are processed and initial dependencies are calculated.
-        self.updateValues(settings=settings, do_special=False)     # Done first just in case junctions are dependent on characteristics.
-                                                                                                # No special rules are applied at this stage, otherwise calculations would be iterated twice before the first step forward.
-                                                                                                # NOTE: If junction outflows were to be tagged by special rules, initial calculations may be off. Return to this later and consider logic rigorously.
-        self.processJunctions(settings=settings)
-        self.updateValues(settings=settings)
-
-
         # set up sim_settings for later use wrt population tags
         self.sim_settings['tag_birth'] = []
         self.sim_settings['tag_death'] = []
@@ -854,10 +846,19 @@ class Model(object):
         Run the full model.
         '''
 
+        assert self.t_index == 0  # Only makes sense to process a simulation once, starting at ti=0
+
+        self.update_pars(settings=settings, do_special=False)
+        self.update_junctions(settings=settings)
+        self.update_pars(settings=settings)
+        self.update_links(settings=settings)
+
         for t in self.t[1:]:
-            self.stepForward(settings=settings, dt=settings.tvec_dt)
-            self.processJunctions(settings=settings)
-            self.updateValues(settings=settings)
+            self.update_comps()
+            self.t_index += 1  # Step the simulation forward
+            self.update_junctions(settings=settings)
+            self.update_pars(settings=settings)
+            self.update_links(settings=settings)
 
         for pop in self.pops:
             [par.update() for par in pop.pars if not par.dependency] # Update any remaining parameters
@@ -873,7 +874,7 @@ class Model(object):
 
         return self.pops, self.sim_settings
 
-    def stepForward(self, settings, dt=1.0):
+    def update_links(self, settings):
         '''
         Evolve model characteristics by one timestep (defaulting as 1 year).
         Each application of this method writes calculated values to the next position in popsize arrays, regardless of dt.
@@ -881,10 +882,6 @@ class Model(object):
         '''
 
         ti = self.t_index
-
-        for pop in self.pops:
-            for comp in pop.comps:
-                comp.vals[ti+1] = comp.vals[ti]
 
         for pop in self.pops:
 
@@ -918,7 +915,7 @@ class Model(object):
                                     logger.warn(warning)
                                 transition = 1.0
 
-                            converted_frac = 1 - (1 - transition) ** dt  # A formula for converting from yearly fraction values to the dt equivalent.
+                            converted_frac = 1 - (1 - transition) ** self.dt  # A formula for converting from yearly fraction values to the dt equivalent.
 
                             if link.source.tag_birth:
                                 n_alive = 0
@@ -929,7 +926,7 @@ class Model(object):
                                 converted_amt = comp_source.vals[ti] * converted_frac
 
                         elif link.parameter.units == 'number':
-                            converted_amt = transition * dt
+                            converted_amt = transition * self.dt
                             if link.is_transfer:
                                 transfer_rescale = comp_source.vals[ti] / pop.popsize(ti)
                                 converted_amt *= transfer_rescale
@@ -954,23 +951,38 @@ class Model(object):
                             elif validation_level == project_settings.VALIDATION_WARN:
                                 logger.warn(warning)
 
-                    # Apply the flows to the compartments
+                    # Store the normalized outflows
                     for i, link in enumerate(outlinks):
-                        link.dest.vals[ti+1] += outflow[i]
                         link.vals[ti] = outflow[i]
 
-                    comp_source.vals[ti+1] -= np.sum(outflow)
+    def update_comps(self):
+        """
+        Set the compartment values at self.t_index+1 based on the current values at self.t_index
+        and the link values at self.t_index. Values are updated by iterating over all outgoing links
 
+        """
+
+        ti = self.t_index
+
+        # Pre-populate the current value - need to iterate over pops here because transfers
+        # will cross population boundaries
+        for pop in self.pops:
+            for comp in pop.comps:
+                comp.vals[ti + 1] = comp.vals[ti]
+
+        for pop in self.pops:
+            for comp in pop.comps:
+                for link in comp.outlinks:
+                    if link.vals[ti]:
+                        link.source.vals[ti + 1] -= link.vals[ti]
+                        link.dest.vals[ti + 1] += link.vals[ti]
 
         # Guard against populations becoming negative due to numerical artifacts
         for pop in self.pops:
             for comp in pop.comps:
-                comp.vals[ti+1] = max(0,comp.vals[ti+1])
+                comp.vals[ti + 1] = max(0, comp.vals[ti + 1])
 
-        # Update timestep index.
-        self.t_index += 1
-
-    def processJunctions(self, settings):
+    def update_junctions(self, settings):
         '''
         For every compartment considered a junction, propagate the contents onwards until all junctions are empty.
         '''
@@ -1014,7 +1026,7 @@ class Model(object):
                             if link.dest.is_junction:
                                 review_required = True # Need to review if a junction received an inflow at this step
 
-    def updateValues(self, settings, do_special=True):
+    def update_pars(self, settings, do_special=True):
         '''
         Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
         These dependencies must be calculated in the same order as defined in settings, characteristics before parameters, otherwise references may break.
