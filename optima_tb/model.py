@@ -187,6 +187,12 @@ class Characteristic(Variable):
     def set_dependent(self):
         self.dependency = True
 
+        for inc in self.includes:
+            inc.set_dependent()
+
+        if self.denominator is not None:
+            self.denominator.set_dependent()
+
     def unlink(self):
         self.includes = [x.uid for x in self.includes]
         self.denominator = self.denominator.uid if self.denominator is not None else None
@@ -200,12 +206,10 @@ class Characteristic(Variable):
     def add_include(self,x):
         assert isinstance(x,Compartment) or isinstance(x,Characteristic)
         self.includes.append(x)
-        x.set_dependent()
 
     def add_denom(self,x):
         assert isinstance(x,Compartment) or isinstance(x,Characteristic)
         self.denominator = x
-        x.set_dependent()
         self.units = ''
 
     def update(self,ti):
@@ -254,20 +258,25 @@ class Parameter(Variable):
     def set_dependent(self):
         self.dependency = True
         if self.deps is not None: # Make all dependencies dependent too, this will propagate through dependent parameters
-            for dep in self.deps:
-                if isinstance(dep,Link):
-                    raise OptimaException('A Parameter that depends on transition flow rates cannot be a dependency, it must be output only')
-                dep.set_dependent()
+            for deps in self.deps.values():
+                for dep in deps:
+                    if isinstance(dep,Link):
+                        raise OptimaException('A Parameter that depends on transition flow rates cannot be a dependency, it must be output only')
+                    dep.set_dependent()
 
     def unlink(self):
         self.links = [x.uid for x in self.links]
-        self.deps = [x.uid for x in self.deps] if self.deps is not None else None
+        if self.deps is not None:
+            for dep_name in self.deps:
+                self.deps[dep_name] = [x.uid for x in self.deps[dep_name]]
 
     def relink(self,objs):
         # Given a dictionary of objects, restore the internal references
         # based on the UUID
         self.links = [objs[x] for x in self.links]
-        self.deps = [objs[x] for x in self.deps] if self.deps is not None else None
+        if self.deps is not None:
+            for dep_name in self.deps:
+                self.deps[dep_name] = [objs[x] for x in self.deps[dep_name]]
 
     def constrain(self,ti):
         # NB. Must be an array, so ti must must not be supplied
@@ -288,11 +297,13 @@ class Parameter(Variable):
             return
 
         dep_vals = defaultdict(np.float64)
-        for dep in self.deps:
-            if isinstance(dep,Link):
-                dep_vals[dep.label] += dep.vals[[ti]]/dep.dt
-            else:
-                dep_vals[dep.label] += dep.vals[[ti]]
+        for dep_name,deps in self.deps.items():
+            for dep in deps:
+                if isinstance(dep, Link):
+                    dep_vals[dep_name] += dep.vals[[ti]] / dep.dt
+                else:
+                    dep_vals[dep_name] += dep.vals[[ti]]
+
         self.vals[ti] = parser.evaluateStack(stack=self.f_stack[0:], deps=dep_vals)   # self.f_stack[0:] makes a copy
         self.vals[ti] *= self.scale_factor
         
@@ -525,9 +536,9 @@ class ModelPopulation(object):
             if 'f_stack' in spec:
 
                 f_stack = dcp(spec['f_stack'])
-                deps = []
-                for dep_label in spec['deps']:
-                    deps += self.getVariable(dep_label)
+                deps = {}
+                for dep_name in spec["deps"]:
+                    deps[dep_name] = self.getVariable(dep_name)
                 par.set_f_stack(f_stack,deps)
 
     def preallocate(self, tvec, dt):
@@ -903,7 +914,7 @@ class Model(object):
                                 if validation_level == project_settings.VALIDATION_ERROR:
                                     raise OptimaException(warning)
                                 elif validation_level == project_settings.VALIDATION_WARN:
-                                    warning = "(t=%.2f) Link %s-%s has transition value = %.3f (>1)" % (self.t[ti],link.source.label, link.dest.label, transition)
+                                    warning = "(t=%.2f) Link %s-%s (%s) has transition value = %.3f (>1)" % (self.t[ti],link.source.label, link.dest.label, pop.label,transition)
                                     logger.warn(warning)
                                 transition = 1.0
 

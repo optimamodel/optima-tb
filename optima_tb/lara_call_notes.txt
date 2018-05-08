@@ -1,0 +1,35 @@
+- Infection vulnerability for PLHIV?
+- Reinfection rate depending on D1_gD2?
+
+
+What happened with development?
+Two main things
+1. What is the timestep?
+2. If it has been normalized? Full numbers?
+
+-> Have we ever checked the validity of the probabilistic rescaling?
+
+From a maths point of view, spd_infxness 
+susceptibles * infected * this number
+
+First parameter we start with is spd_infxness
+
+1. start with spd_infxness
+2. change probability of early-late vs early-active
+3. change reinfection rate
+
+Probability of activating is higher in PLHIV? 0.2 means that every 5 years, people stop being early?
+
+Countries keep coming back to the fact that incidence is decreasing? 
+
+Higher probability in the first year
+
+TODO-
+- Write up avg_contacts_in documentation
+- Do pop conversion for Gates
+DONE - add multi-pop SIR example
+DONE - test vars_by_pop and update calibration output None type
+- bring vars_by_pop, new scenarios, and new calibrations, back to TB
+	- Pending merge
+
+

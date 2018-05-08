@@ -241,12 +241,17 @@ def calibrate_demographics(project,parset,max_time=60):
         for y in x.values(): # for from_pop
             for pop in y.pops:
                 transfer_pars.append((y.label,pop,0.1,10.0))
+    transfer_pars = transfer_pars[:-2] # Don't calibrate HIV infection rates, as we are given these
 
     death_pars = []
-    # for pop in parset.getPar('doth_rate').pops:
-    #     birth_pars.append(('doth_rate',pop,0.6,1.4))
-    death_pars.append(('doth_rate','15-64 (HIV+)',0.1,10.0))
-    death_pars.append(('doth_rate','65+ (HIV+)',0.1,10.0))
+    for pop in parset.getPar('doth_rate').pops:
+        death_pars.append(('doth_rate',pop,0.5,10.0))
+    # death_pars.append(('doth_rate_off_art','15-64 (HIV+)',0.1,10.0))
+    # death_pars.append(('doth_rate_off_art','65+ (HIV+)',0.1,10.0))
+    # death_pars.append(('doth_rate_on_art','15-64 (HIV+)',0.1,10.0))
+    # death_pars.append(('doth_rate_on_art','65+ (HIV+)',0.1,10.0))
+    # death_pars.append(('doth_rate','15-64 (HIV+)',0.1,10.0))
+    # death_pars.append(('doth_rate','65+ (HIV+)',0.1,10.0))
 
     emi_pars = []
     emi_pars.append(('emi_rate','all',0.1,2.0))
