@@ -304,7 +304,7 @@ class Parameter(Variable):
                 else:
                     dep_vals[dep_name] += dep.vals[[ti]]
 
-        self.vals[ti] = parser.evaluateStack(stack=self.f_stack[0:], deps=dep_vals)   # self.f_stack[0:] makes a copy
+        self.vals[ti] = parser.evaluateStack(stack=self.f_stack, deps=dep_vals)   # self.f_stack[0:] makes a copy
         self.vals[ti] *= self.scale_factor
         
     def source_popsize(self,ti):

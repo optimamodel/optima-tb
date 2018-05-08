@@ -329,8 +329,8 @@ class Program:
             if 'f_stack' in self.target_pars[impact_label].keys():
                 if parser is None:
                     raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" without a parser, due to the existence of an impact function.' % (self.label, impact_label))
-                f_stack = dcp(self.target_pars[impact_label]['f_stack'])
-                attribs = dcp(self.target_pars[impact_label]['attribs'])
+                f_stack = self.target_pars[impact_label]['f_stack']
+                attribs = self.target_pars[impact_label]['attribs']
                 for attrib_label in attribs.keys():
                     if attrib_label in self.attributes.keys():
                         if years is None: years = [max(self.t)]
