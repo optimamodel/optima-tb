@@ -190,8 +190,7 @@ class ResultSet(object):
 
         elif label == 'daly':
             if settings is not None:
-                dalys = self.getDALY(settings, year_init, year_end, pop_labels)
-                output[0] = np.sum(dalys.values())
+                output = self.getDALY(settings, year_init, year_end, pop_labels, integrated)
             else:
                 raise OptimaException('Cannot calculate DALYs without a Settings object. ' +
                                       'Please provide Project.settings to ResultSet.getValuesAt()')
@@ -317,7 +316,7 @@ class ResultSet(object):
         return datapoints, chars, pops
 
 
-    def getDALY(self, settings, year_start, year_end=None, pop_labels=None):
+    def getDALY(self, settings, year_start, year_end=None, pop_labels=None, integrated=False):
         """
         Determine disability-adjusted life years (DALY) over a given interval. It is computed by summing up YLL and YLD.
 
@@ -327,10 +326,11 @@ class ResultSet(object):
             it is None, the end of simulation is chosen as the end of interval
         :param pop_labels: None or list of str. If list of str, it contains the population labels for which the YLL is
             determined; if None, the YLL of all populations is determined
+        :param integrated: if True, all values are summed up, otherwise values per time step are retained
         :return: an odict of {pop_label: DALY}
         """
-        yll = self.getYLL(settings, year_start, year_end, pop_labels)
-        yld = self.getYLD(settings, year_start, year_end, pop_labels)
+        yll = self.getYLL(settings, year_start, year_end, pop_labels, integrated)
+        yld = self.getYLD(settings, year_start, year_end, pop_labels, integrated)
 
         daly = odict()
         for pop in yll:
@@ -407,7 +407,7 @@ class ResultSet(object):
 
         return datapoints
 
-    def getYLD(self, settings, year_start, year_end=None, pop_labels=None):
+    def getYLD(self, settings, year_start, year_end=None, pop_labels=None, integrated=False):
         """
         Determine years lost due to disability (YLD) over a given interval.
 
@@ -417,6 +417,7 @@ class ResultSet(object):
             it is None, the end of simulation is chosen as the end of interval
         :param pop_labels: None or list of str. If list of str, it contains the population labels for which the YLL is
             determined; if None, the YLL of all populations is determined
+        :param integrated: if True, all values are summed up, otherwise values per time step are retained
         :return: an odict of {pop_label: YLD}
         """
         if len(self.years_lost) == 0:
@@ -439,15 +440,15 @@ class ResultSet(object):
         yld = odict()
         # for each population, compute how many people are infected in the specified interval
         for pop in pop_labels:
-            yld[pop] = 0.
+            yld[pop] = np.zeros(int(year_end - year_start))
             for comp in infected_comps:
-                infected, _ = self.getValuesAt(comp, year_start, year_end, pop, None, True)
-                yld[pop] += np.sum(infected)
+                infected, _ = self.getValuesAt(comp, year_start, year_end, pop, None, integrated)
+                yld[pop] += infected
             yld[pop] *= self.dw[pop]
 
         return yld
 
-    def getYLL(self, settings, year_start, year_end=None, pop_labels=None):
+    def getYLL(self, settings, year_start, year_end=None, pop_labels=None, integrated=False):
         """
         Determine years of life lost due to premature mortality (YLL) over a given interval.
 
@@ -457,6 +458,7 @@ class ResultSet(object):
             it is None, the end of simulation is chosen as the end of interval
         :param pop_labels: None or list of str. If list of str, it contains the population labels for which the YLL is
             determined; if None, the YLL of all populations is determined
+        :param integrated: if True, all values are summed up, otherwise values per time step are retained
         :return: an odict of {pop_label: YLL}
         """
         if len(self.years_lost) == 0:
@@ -483,10 +485,10 @@ class ResultSet(object):
         yll = odict()
         # for each population, compute how many people have died in the specified interval
         for pop in pop_labels:
-            yll[pop] = 0.
+            yll[pop] = np.zeros(int(year_end - year_start))
             for trans in death_trans:
-                deaths, _ = self.getValuesAt(trans, year_start, year_end, pop, None, True)
-                yll[pop] += np.sum(deaths)
+                deaths, _ = self.getValuesAt(trans, year_start, year_end, pop, None, integrated)
+                yll[pop] += deaths
             yll[pop] *= self.years_lost[pop]
 
         return yll
