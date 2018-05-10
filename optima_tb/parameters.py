@@ -94,8 +94,8 @@ class Parameter(object):
                 # Pad the input vectors for interpolation with minimum and maximum timepoint values, to avoid extrapolated values blowing up.
                 ind_min, t_min = min(enumerate(self.t[pop_label]), key = lambda p: p[1])
                 ind_max, t_max = max(enumerate(self.t[pop_label]), key = lambda p: p[1])
-                y_at_t_min = self.y[pop_label][ind_min]
-                y_at_t_max = self.y[pop_label][ind_max]
+                y_at_t_min = self.y[pop_label][ind_min]*np.abs(self.y_factor[pop_label])
+                y_at_t_max = self.y[pop_label][ind_max]*np.abs(self.y_factor[pop_label])
                 
                 # This padding effectively keeps edge values constant for desired time ranges larger than data-provided time ranges.
                 if tvec[0] < t_min:
