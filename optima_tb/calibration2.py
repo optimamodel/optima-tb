@@ -268,20 +268,36 @@ def calibrate_demographics(project,parset,max_time=60):
     return calibrated_parset
 
 
-def calibrate_foi(project,parset,max_time=60):
+def calibrate_epi(project, parset, max_time=60):
 
     # Adjust force of infection
     foi_pars = []
-    for pop in parset.getPar('spd_infxness').pops:
-        foi_pars.append(('spd_infxness',pop,0.01,100))
+    foi_pars.append(('spd_infxness', None, 0.01, 100))
+    # foi_pars.append(('p_act_early', 'all', 0.01, 100))
+    # foi_pars.append(('phi_early', 'all', 0.01, 100))
+    # foi_pars.append(('phi_late', 'all', 0.01, 100))
+    # foi_pars.append(('infa_rate', 'all', 0.01, 100))
+
+    # Adjust infection vulnerability for HIV+ populations
+    foi_pars.append(('xi', '15-64 (HIV+)', 1, 100))
+    foi_pars.append(('xi', '65+ (HIV+)', 1, 100))
+
+    # for pop in parset.getPar('spd_infxness').pops:
+    #     # foi_pars.append(('spd_infxness',pop,0.01,100))
+    #     foi_pars.append(('p_act_early_off_art',pop,0.01,100))
+    #     foi_pars.append(('p_act_early_on_art',pop,0.01,100))
+    #
+    #
+    #
 
     pars_to_adjust = foi_pars
 
-    # Collate the output demographic quantities (just alive for all pops)
+    # Calibrate initially to total number of infections
     output_quantities = []
     for pop in parset.pop_labels:
-        output_quantities.append((pop,'l_inf',1.0,"fractional"))
-        output_quantities.append((pop,'ac_inf',1.0,"fractional"))
+        output_quantities.append(('l_inf',pop,1.0,"fractional"))
+        output_quantities.append(('ac_inf',pop,1.0,"fractional"))
+
 
     calibrated_parset = performAutofit(project, parset, pars_to_adjust, output_quantities,max_time=max_time)
 

@@ -31,7 +31,7 @@ from matplotlib.collections import PatchCollection
 from matplotlib.legend import Legend
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
-
+from optima_tb.interpolation import interpolateFunc
 
 parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
@@ -271,13 +271,13 @@ class PlotData(object):
 
                     par = Parameter(output_label)
                     f_stack, dep_labels = parser.produceStack(f_stack_str)
-                    deps = []
+                    deps = {}
                     displayed_annualization_warning = False
                     for dep_label in dep_labels:
                         var = pop.getVariable(dep_label)
                         if t_bins is not None and (isinstance(var,Link) or isinstance(var,Parameter)) and time_aggregation == "sum" and not displayed_annualization_warning:
                             raise OptimaException('Function includes Parameter/Link so annualized rates are being used. Aggregation may need to use "average" rather than "sum"')
-                        deps += pop.getVariable(dep_label)
+                        deps[dep_label] = pop.getVariable(dep_label)
                     par.f_stack = f_stack
                     par.deps = deps
                     par.preallocate(tvecs[result_label], dt)
@@ -798,6 +798,8 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                     y = np.stack([plotdata[result,pop,output].vals for result in plotdata.results])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
                     ax.stackplot(plotdata[plotdata.results[0],pop,output].tvec,y,labels=[plotdata.result_names[x] for x in plotdata.results],colors=[plotdata[result,pop,output].color for result in plotdata.results])
+                    if plot_type == 'stacked' and data is not None:
+                        stack_data(ax, data, [plotdata[result, pop, output] for result in plotdata.results])
                 else:
                     for result in plotdata.results:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.result_names[result])
@@ -825,6 +827,8 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                     y = np.stack([plotdata[result,pop,output].vals for pop in plotdata.pops])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
                     ax.stackplot(plotdata[result,plotdata.pops[0],output].tvec,y,labels=[plotdata.pop_names[x] for x in plotdata.pops],colors=[plotdata[result,pop,output].color for pop in plotdata.pops])
+                    if plot_type == 'stacked' and data is not None:
+                        stack_data(ax, data, [plotdata[result, pop, output] for pop in plotdata.pops])
                 else:
                     for pop in plotdata.pops:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.pop_names[pop])
@@ -850,6 +854,8 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                     y = np.stack([plotdata[result,pop,output].vals for output in plotdata.outputs])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
                     ax.stackplot(plotdata[result,pop,plotdata.outputs[0]].tvec,y,labels=[plotdata.output_names[x] for x in plotdata.outputs],colors=[plotdata[result,pop,output].color for output in plotdata.outputs])
+                    if plot_type == 'stacked' and data is not None:
+                        stack_data(ax,data,[plotdata[result, pop, output] for output in plotdata.outputs])
                 else:
                     for output in plotdata.outputs:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.output_names[output])
@@ -864,7 +870,14 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
 
     return figs
 
-def render_data(ax,data,series):
+def stack_data(ax,data,series):
+    # Stack a list of series in order
+    baselines = np.cumsum(np.stack([s.vals for s in series]),axis=0)
+    baselines = np.vstack([np.zeros((1,baselines.shape[1])),baselines]) # Insert row of zeros for first data row
+    for i,s in enumerate(series):
+        render_data(ax,data,s,baselines[i,:],True)
+
+def render_data(ax,data,series,baseline=None,filled=False):
     # This function renders a scatter plot for a single variable (in a single population)
     # The scatter plot is drawn in the current axis
     # INPUTS
@@ -873,6 +886,7 @@ def render_data(ax,data,series):
     # output - name of an output (str)
     # name - The name-formatting function to retrieve full names (currently unused)
     # color - The color of the data points to use
+    # baseline - baseline values at the same times as the Series
 
     if series.data_label in data['characs']:
         d = data['characs'][series.data_label]
@@ -887,7 +901,14 @@ def render_data(ax,data,series):
     else:
         return
 
-    ax.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=series.color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
+    if baseline is not None:
+        y_data = interpolateFunc(series.tvec, baseline, t, method='pchip', extrapolate_nan=False)
+        y += y_data
+
+    if filled:
+        ax.scatter(t,y,marker='o', s=40, linewidths=1, facecolors=series.color,color='k')#label='Data %s %s' % (name(pop,proj),name(output,proj)))
+    else:
+        ax.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=series.color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
 
 def set_ytick_format(ax,formatter):
 
