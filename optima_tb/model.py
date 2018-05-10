@@ -985,10 +985,11 @@ class Model(object):
 
         for pop in self.pops:
             for comp in pop.comps:
-                for link in comp.outlinks:
-                    if link.vals[ti]:
-                        link.source.vals[ti + 1] -= link.vals[ti]
-                        link.dest.vals[ti + 1] += link.vals[ti]
+                if not comp.is_junction:
+                    for link in comp.outlinks:
+                        if link.vals[ti]:
+                            link.source.vals[ti + 1] -= link.vals[ti]
+                            link.dest.vals[ti + 1] += link.vals[ti]
 
         # Guard against populations becoming negative due to numerical artifacts
         for pop in self.pops:
@@ -999,10 +1000,14 @@ class Model(object):
         '''
         For every compartment considered a junction, propagate the contents onwards until all junctions are empty.
         '''
+        # This is run once per timestep...all compartments are resolved in update_comps() so for the links to behave
+        # consistently, we consider the junctions to be updated BEFORE stepping t_index forward
+        # At the very first timestep, the junctions MIGHT already have people in them
+        # In that case, those people should be flushed to
 
         ti = self.t_index
         ti_link = ti - 1
-        if ti_link < 0: 
+        if ti_link < 0:
             ti_link = ti    # For the case where junctions are processed immediately after model initialisation.
 
         review_required = True
@@ -1021,7 +1026,7 @@ class Model(object):
 
                     if review_count == 1:
                         for link in junc.outlinks:
-                            link.vals[ti] = 0
+                            link.vals[ti_link] = 0
 
                     # If the compartment is numerically empty, make it empty
                     if junc.vals[ti] <= project_settings.TOLERANCE:   # Includes negative values.
@@ -1035,7 +1040,7 @@ class Model(object):
                             flow = current_size * link.parameter.vals[ti_link] / denom_val
                             link.source.vals[ti] -= flow
                             link.dest.vals[ti]   += flow
-                            link.vals[ti] += flow
+                            link.vals[ti_link] += flow
                             if link.dest.is_junction:
                                 review_required = True # Need to review if a junction received an inflow at this step
 
