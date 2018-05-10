@@ -164,6 +164,15 @@ class Characteristic(Variable):
         self.dt = dt
         self.internal_vals = np.ones(tvec.shape) * np.nan
 
+    def get_included_comps(self):
+        includes = []
+        for inc in self.includes:
+            if isinstance(inc,Characteristic):
+                includes += inc.get_included_comps()
+            else:
+                includes.append(inc)
+        return includes
+
     @property
     def vals(self):
         if self.internal_vals is None:
@@ -447,6 +456,19 @@ class ModelPopulation(object):
             return [self.par_lookup[label]]
         elif label in self.link_lookup:
             return self.link_lookup[label]
+        elif ':' in label:
+            # Support looking up sets of links with syntax 'source_label:dest_label'
+            # ':dest' will return all links into the destination compartment
+            # while 'source:' will return all links out of the source compartment
+            src,dest = label.split(':')
+            if src and dest:
+                return [l for l in self.getComp(src).outlinks if l.dest.label == dest]
+            elif src:
+                return self.getComp(src).outlinks
+            elif dest:
+                return self.getComp(dest).inlinks
+            else:
+                raise AtomicaException('Badly formed link name')
         else:
             raise OptimaException('Object %s not found' % (label))
 
@@ -562,15 +584,6 @@ class ModelPopulation(object):
         b = np.zeros((len(characs),1))
         A = np.zeros((len(characs),len(comps)))
 
-        def extract_includes(charac):
-            includes = []
-            for inc in charac.includes:
-                if isinstance(inc,Characteristic):
-                    includes += extract_includes(inc)
-                else:
-                    includes.append(inc)
-            return includes
-
         # Construct the characteristic value vector (b) and the includes matrix (A)
         for i,c in enumerate(characs):
             # Look up the characteristic value
@@ -579,7 +592,7 @@ class ModelPopulation(object):
             if c.denominator is not None:
                 denom_par = parset.pars['characs'][parset.par_ids['characs'][c.denominator.label]]
                 b[i] *= denom_par.interpolate(tvec=np.array([t_init]), pop_label=self.label)[0]
-            for inc in extract_includes(c):
+            for inc in c.get_included_comps():
                 A[i,comp_indices[inc.label]] = 1.0
 
         # Solve the linear system - allowing negative popsizes to be computed

@@ -41,7 +41,7 @@ class FunctionParser(object):
         lpar  = Literal('(').suppress()
         rpar  = Literal(')').suppress()
         num = Word(nums + ".")
-        var = Word(alphanums + "_")
+        var = Word(alphanums + "_:")
         sep = Literal(",")
         func = Word(alphanums)
         
