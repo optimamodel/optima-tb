@@ -903,7 +903,7 @@ def render_data(ax,data,series,baseline=None,filled=False):
 
     if baseline is not None:
         y_data = interpolateFunc(series.tvec, baseline, t, method='pchip', extrapolate_nan=False)
-        y += y_data
+        y = y + y_data
 
     if filled:
         ax.scatter(t,y,marker='o', s=40, linewidths=1, facecolors=series.color,color='k')#label='Data %s %s' % (name(pop,proj),name(output,proj)))
