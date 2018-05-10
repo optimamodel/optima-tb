@@ -342,7 +342,7 @@ class Link(Variable):
     cascade compartments within a single population.
     '''
     # *** Link values are always dt-based ***
-    def __init__(self, parameter, object_from, object_to,tag,is_transfer=False):
+    def __init__(self, parameter, object_from, object_to,tag):
         # Note that the Link's label is the transition tag
         Variable.__init__(self, label=tag)
         self.vals = None
@@ -359,8 +359,6 @@ class Link(Variable):
         self.parameter.links.append(self)
         self.source.outlinks.append(self)
         self.dest.inlinks.append(self)
-
-        self.is_transfer = is_transfer # A transfer connections compartments across populations
 
     def unlink(self):
         self.parameter = self.parameter.uid
@@ -792,7 +790,7 @@ class Model(object):
                                 # Instantiate a link between corresponding compartments
                                 dest = target_pop_obj.getComp(source.label) # Get the corresponding compartment
                                 link_tag = par_label + '_' + source.label # e.g. 'aging_0-4_to_15-64_sus'
-                                link = Link(par, source, dest, link_tag, is_transfer=True)
+                                link = Link(par, source, dest, link_tag)
                                 link.preallocate(self.t,self.dt)
                                 pop.links.append(link)
                                 if link.label in pop.link_lookup:
@@ -940,9 +938,8 @@ class Model(object):
 
                         elif link.parameter.units == 'number':
                             converted_amt = transition * self.dt
-                            if link.is_transfer:
-                                transfer_rescale = comp_source.vals[ti] / pop.popsize(ti)
-                                converted_amt *= transfer_rescale
+                            if len(link.parameter.links)>1:
+                                converted_amt *= comp_source.vals[ti] / link.parameter.source_popsize(ti)
                         else:
                             raise OptimaException('Unknown parameter units! NB. "proportion" links can only appear in junctions')
 
