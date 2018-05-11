@@ -109,7 +109,7 @@ class Compartment(Variable):
             if link.parameter.units == 'fraction':
                 outflow_probability += 1 - (1 - link.parameter.vals[ti]) ** self.dt  # A formula for converting from yearly fraction values to the dt equivalent.
             elif link.parameter.units == 'number':
-                outflow_probability += link.parameter.vals[ti]*dt/self.vals[ti]
+                outflow_probability += link.parameter.vals[ti]*self.dt/self.vals[ti]
             else:
                 raise OptimaException('Unknown parameter units')
 
@@ -650,7 +650,7 @@ class ModelPopulation(object):
                 if x[i] < -project_settings.TOLERANCE:
                     logger.warn('Compartment %s %s - Calculated %f' % (self.label, comps[i].label, x[i]))
                     for charac in characs:
-                        if comps[i] in extract_includes(charac):
+                        if comps[i] in charac.get_included_comps():
                             report_characteristic(charac)
             raise OptimaException('Negative initial popsizes')
 
@@ -1051,7 +1051,7 @@ class Model(object):
                         current_size = junc.vals[ti]
                         denom_val = sum(link.parameter.vals[ti_link] for link in junc.outlinks) # This is the total fraction of people requested to leave, so outflows are scaled to the entire compartment size
                         if denom_val == 0:
-                            raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
+                            raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junc.label)
                         for link in junc.outlinks:
                             flow = current_size * link.parameter.vals[ti_link] / denom_val
                             link.source.vals[ti] -= flow
