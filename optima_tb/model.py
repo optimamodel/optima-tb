@@ -446,6 +446,7 @@ class ModelPopulation(object):
         # At the moment, labels are unique across object types and within object
         # types except for links, but if that logic changes, simple modifications can
         # be made here
+
         if label in self.comp_lookup:
             return [self.comp_lookup[label]]
         elif label in self.charac_lookup:
@@ -455,18 +456,36 @@ class ModelPopulation(object):
         elif label in self.link_lookup:
             return self.link_lookup[label]
         elif ':' in label:
-            # Support looking up sets of links with syntax 'source_label:dest_label'
-            # ':dest' will return all links into the destination compartment
-            # while 'source:' will return all links out of the source compartment
-            src,dest = label.split(':')
+            # Link labels in Atomica end in 'par_name:flow' so they are handled above
+            # This branch of the if statement is exclusively for compartment lookup
+            # Allowed syntax is
+            # 'source_label:' - All links going out from source
+            # ':dest_label' - All links going into destination
+            # 'source_label:dest_label' - All links from Source to Dest
+            # 'source_label:dest_label:par_label' - All links from Source to Dest belonging to a given Parameter
+            # ':dest:par_label'
+            # 'source::par_label' - As per above
+            # Note - because compartment labels are resolved within compartments, this function currently cannot
+            # be used to look up transfer links
+            label_tokens = label.split(':')
+            if len(label_tokens) == 2:
+                label_tokens.append('')
+            src,dest,par = label_tokens
+
             if src and dest:
-                return [l for l in self.getComp(src).outlinks if l.dest.label == dest]
+                links = [l for l in self.getComp(src).outlinks if l.dest.label == dest]
             elif src:
-                return self.getComp(src).outlinks
+                links = self.getComp(src).outlinks
             elif dest:
-                return self.getComp(dest).inlinks
+                links = self.getComp(dest).inlinks
             else:
-                raise AtomicaException('Badly formed link name')
+                links = self.links
+
+            if par:
+                links = [l for l in links if l.parameter.label == par]
+
+            return links
+
         else:
             raise OptimaException('Object %s not found' % (label))
 
