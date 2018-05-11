@@ -914,74 +914,61 @@ class Model(object):
 
         for pop in self.pops:
 
-            for comp_source in pop.comps:
+            # First, populate all of the link values without any outflow constraints
+            for par in pop.pars:
+                if par.links:
+                    transition = par.vals[ti]
 
-                if not comp_source.is_junction:  # Junctions collect inflows during this step. They do not process outflows here.
+                    if not transition:
+                        for link in par.links:
+                            link.vals[ti] = 0.0
+                        continue
+                    elif par.units == 'fraction':
+                        if transition > 1.0:
+                            validation_level = settings.validation['transition_fraction']
+                            if validation_level == project_settings.VALIDATION_ERROR:
+                                raise OptimaException(warning)
+                            elif validation_level == project_settings.VALIDATION_WARN:
+                                warning = "(t=%.2f) Link %s-%s (%s) has transition value = %.3f (>1)" % (self.t[ti], link.source.label, link.dest.label, pop.label, transition)
+                                logger.warn(warning)
+                            transition = 1.0
+                        converted_frac = 1 - (1 - transition) ** self.dt  # A formula for converting from yearly fraction values to the dt equivalent.
 
-                    outlinks = comp_source.outlinks  # List of outgoing links
-                    outflow = np.zeros(len(comp_source.outlinks))  # Outflow for each link # TODO - store in the link objects?
-
-                    for i, link in enumerate(outlinks):
-
-                        # Compute the number of people that are going out of each link
-                        transition = link.parameter.vals[ti]
-
-                        if transition == 0.0:
-                            # Note that commands below are all multiplicative and thus can't map an initial value of 0.0 to anything
-                            # other than a flow rate of 0, so we can abort early here
-                            outflow[i] = 0.0
-                            continue
-
-                        if link.parameter.units == 'fraction':
-
-                            # Clamp value to 1.0 and warn if requested
-                            if transition > 1.:
-                                validation_level = settings.validation['transition_fraction']
-                                if validation_level == project_settings.VALIDATION_ERROR:
-                                    raise OptimaException(warning)
-                                elif validation_level == project_settings.VALIDATION_WARN:
-                                    warning = "(t=%.2f) Link %s-%s (%s) has transition value = %.3f (>1)" % (self.t[ti],link.source.label, link.dest.label, pop.label,transition)
-                                    logger.warn(warning)
-                                transition = 1.0
-
-                            converted_frac = 1 - (1 - transition) ** self.dt  # A formula for converting from yearly fraction values to the dt equivalent.
-
+                        for link in par.links:
                             if link.source.tag_birth:
                                 n_alive = 0
                                 for p in self.pops:
                                     n_alive += p.popsize(ti)
-                                converted_amt = n_alive * converted_frac
+                                link.vals[ti] = n_alive * converted_frac
                             else:
-                                converted_amt = comp_source.vals[ti] * converted_frac
-
-                        elif link.parameter.units == 'number':
-                            converted_amt = transition * self.dt
-                            if len(link.parameter.links)>1:
-                                converted_amt *= comp_source.vals[ti] / link.parameter.source_popsize(ti)
+                                link.vals[ti] = link.source.vals[ti] * converted_frac
+                    elif par.units == 'number':
+                        converted_amt = transition * self.dt
+                        if len(par.links) > 1:
+                            for link in par.links:
+                                link.vals[ti] = converted_amt * link.source.vals[ti] / par.source_popsize(ti)
                         else:
-                            raise OptimaException('Unknown parameter units! NB. "proportion" links can only appear in junctions')
+                            par.links[0].vals[ti] = converted_amt
 
-                        outflow[i] = converted_amt
+            # Then, adjust outflows to prevent negative popsizes
+            for comp_source in pop.comps:
+                if not (comp_source.is_junction or comp_source.tag_birth):
+                    outflow = 0.0
+                    for link in comp_source.outlinks:
+                        outflow += link.vals[ti]
 
-                    # Prevent negative population by proportionately downscaling the outflow
-                    # if there are insufficient people _currently_ in the compartment
-                    # Rescaling is performed if the validation setting is 'avert', otherwise
-                    # either a warning will be displayed or an error will be printed
-                    if not comp_source.tag_birth and np.sum(outflow) > comp_source.vals[ti]:
+                    if outflow > comp_source.vals[ti]:
                         validation_level = settings.validation['negative_population']
+                        warning = "(t=%.2f) Negative value encountered for: (%s - %s) at ti=%g : popsize = %g, outflow = %g" % (self.t[ti],pop.label,comp_source.label,ti,comp_source.vals[ti],outflow)
+                        if validation_level == project_settings.VALIDATION_ERROR:
+                            raise OptimaException(warning)
+                        elif validation_level == project_settings.VALIDATION_WARN:
+                            logger.warn(warning)
 
-                        if validation_level == project_settings.VALIDATION_AVERT or validation_level == project_settings.VALIDATION_WARN:
-                            outflow = outflow / np.sum(outflow) * comp_source.vals[ti]
-                        else:
-                            warning = "(t=%.2f) Negative value encountered for: (%s - %s) at ti=%g : popsize = %g, outflow = %g" % (self.t[ti],pop.label,comp_source.label,ti,comp_source.vals[ti],sum(outflow))
-                            if validation_level == project_settings.VALIDATION_ERROR:
-                                raise OptimaException(warning)
-                            elif validation_level == project_settings.VALIDATION_WARN:
-                                logger.warn(warning)
+                        rescale = comp_source.vals[ti]/outflow
+                        for link in comp_source.outlinks:
+                            link.vals[ti] *= rescale
 
-                    # Store the normalized outflows
-                    for i, link in enumerate(outlinks):
-                        link.vals[ti] = outflow[i]
 
     def update_comps(self):
         """
