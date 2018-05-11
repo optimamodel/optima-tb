@@ -350,7 +350,6 @@ class Link(Variable):
         self.units = 'people'
 
         self.parameter = parameter # Source parameter where the unscaled link value is drawn from (a single parameter may have multiple links)
-        self.parameter.dependency = True # A transition parameter must be updated during integration
 
         self.source = object_from # Compartment to remove people from
         self.dest = object_to # Compartment to add people to
