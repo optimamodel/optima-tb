@@ -297,15 +297,15 @@ class Parameter(Variable):
         # Update the value of this Parameter at time index ti
         # by evaluating its f_stack function using the 
         # current values of all dependent variables at time index ti
+        if self.f_stack is None:
+            return
+
         if ti is None:
             ti = np.arange(0,self.vals.size) # This corresponds to every time point
         else:
             ti = np.array(ti)
 
-        if self.f_stack is None:
-            return
-
-        dep_vals = defaultdict(np.float64)
+        dep_vals = dict.fromkeys(self.deps,0.0)
         for dep_name,deps in self.deps.items():
             for dep in deps:
                 if isinstance(dep, Link):
@@ -313,7 +313,7 @@ class Parameter(Variable):
                 else:
                     dep_vals[dep_name] += dep.vals[[ti]]
 
-        self.vals[ti] = parser.evaluateStack(stack=self.f_stack, deps=dep_vals)   # self.f_stack[0:] makes a copy
+        self.vals[ti] = parser.evaluateStack(stack=self.f_stack, deps=dep_vals)
         self.vals[ti] *= self.scale_factor
         
     def source_popsize(self,ti):
@@ -325,7 +325,7 @@ class Parameter(Variable):
         if ti == self.source_popsize_cache_time:
             return self.source_popsize_cache_val
         else:
-            n = 0
+            n = 0.0
             for link in self.links:
                 n += link.source.vals[ti]
             self.source_popsize_cache_time = ti
