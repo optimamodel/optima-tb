@@ -232,7 +232,7 @@ def calibrate_demographics(project,parset,max_time=60):
     # Adjust birth rates
     birth_pars = []
     for pop in parset.getPar('b_rate').pops:
-        birth_pars.append(('b_rate',pop,0.5,4.0))
+        birth_pars.append(('b_rate',pop,0.5,2.0))
     birth_pars = [birth_pars[0]] # Don't touch migration actually
 
     # Adjust all transfer parameters
@@ -240,12 +240,12 @@ def calibrate_demographics(project,parset,max_time=60):
     for x in parset.transfers.values(): # for transfer type
         for y in x.values(): # for from_pop
             for pop in y.pops:
-                transfer_pars.append((y.label,pop,0.1,10.0))
-    transfer_pars = transfer_pars[:-2] # Don't calibrate HIV infection rates, as we are given these
+                transfer_pars.append((y.label,pop,0.1,2.0))
+    # transfer_pars = transfer_pars[:-2] # Don't calibrate HIV infection rates, as we are given these
 
     death_pars = []
     for pop in parset.getPar('doth_rate').pops:
-        death_pars.append(('doth_rate',pop,0.5,10.0))
+        death_pars.append(('doth_rate',pop,0.5,2.0))
     # death_pars.append(('doth_rate_off_art','15-64 (HIV+)',0.1,10.0))
     # death_pars.append(('doth_rate_off_art','65+ (HIV+)',0.1,10.0))
     # death_pars.append(('doth_rate_on_art','15-64 (HIV+)',0.1,10.0))
@@ -254,7 +254,7 @@ def calibrate_demographics(project,parset,max_time=60):
     # death_pars.append(('doth_rate','65+ (HIV+)',0.1,10.0))
 
     emi_pars = []
-    emi_pars.append(('emi_rate','all',0.1,2.0))
+    emi_pars.append(('emi_rate','all',0.1,1.2))
 
     pars_to_adjust = birth_pars + transfer_pars + death_pars + emi_pars
 

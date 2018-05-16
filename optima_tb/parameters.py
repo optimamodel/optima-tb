@@ -40,6 +40,12 @@ class Parameter(object):
     def pops(self):
         return sorted(self.t.keys())
 
+    def clear(self):
+        ''' Remove all existing values '''
+        for pop in self.pops:
+            self.t[pop] = np.zeros((0,))
+            self.y[pop] = np.zeros((0,))
+
     def insertValuePair(self, t, y, pop_label):
         ''' Check if the inserted t value already exists for the population parameter. If not, append y value. If so, overwrite y value. '''
         # Make sure it stays sorted
