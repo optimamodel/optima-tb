@@ -15,7 +15,7 @@ from optima_tb.utils import odict, OptimaException, nestedLoop
 from optima_tb.results import ResultSet
 from optima_tb.plotting import gridColorMap
 from optima_tb.model import Compartment, Characteristic, Parameter, Link
-from optima_tb.parsing import FunctionParser
+from optima_tb.parsing import parse_function
 
 import matplotlib.cm as cmx
 import matplotlib.colors as matplotlib_colors
@@ -27,9 +27,6 @@ from matplotlib.legend import Legend
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 from optima_tb.interpolation import interpolateFunc
-
-parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
-
 
 settings = dict()
 settings['legend_mode'] = 'together' # Possible options are ['together','separate','none'] 
@@ -273,7 +270,7 @@ class PlotData(object):
                         continue
 
                     par = Parameter(output_label)
-                    f_stack, dep_labels = parser.produceStack(f_stack_str)
+                    fcn, dep_labels = parse_function(f_stack_str)
                     deps = {}
                     displayed_annualization_warning = False
                     for dep_label in dep_labels:
@@ -281,7 +278,7 @@ class PlotData(object):
                         if t_bins is not None and (isinstance(var,Link) or isinstance(var,Parameter)) and time_aggregation == "sum" and not displayed_annualization_warning:
                             raise OptimaException('Function includes Parameter/Link so annualized rates are being used. Aggregation may need to use "average" rather than "sum"')
                         deps[dep_label] = pop.getVariable(dep_label)
-                    par.f_stack = f_stack
+                    par._fcn = fcn
                     par.deps = deps
                     par.preallocate(tvecs[result_label], dt)
                     par.update()
