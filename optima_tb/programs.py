@@ -1,12 +1,13 @@
 from optima_tb.utils import OptimaException, odict
 from optima_tb.interpolation import interpolateFunc
-
+from optima_tb.parsing import parse_function
 import logging
 logger = logging.getLogger(__name__)
 
 from copy import deepcopy as dcp
 import numpy as np
 from uuid import uuid4 as uuid
+
 
 class ProgramSet:
 
@@ -307,7 +308,7 @@ class Program:
                 cov = budget / self.func_specs['pars']['unit_cost']
         return cov # NOTE - this value might be modified in-place later on, so ensure it is a standalone new object
 
-    def getImpact(self, budget, impact_label=None, parser=None, years=None, budget_is_coverage=False):
+    def getImpact(self, budget, impact_label=None, years=None, budget_is_coverage=False):
 
         if self.func_specs['type'] == 'cost_only':
             return 0.0
@@ -326,21 +327,20 @@ class Program:
 
         # If impact parameter has an impact function, this is what coverage is scaled by.
         if not impact_label is None:
-            if 'f_stack' in self.target_pars[impact_label].keys():
-                if parser is None:
-                    raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" without a parser, due to the existence of an impact function.' % (self.label, impact_label))
-                f_stack = self.target_pars[impact_label]['f_stack']
-                attribs = self.target_pars[impact_label]['attribs']
-                for attrib_label in attribs.keys():
+            if 'f_string' in self.target_pars[impact_label].keys():
+                fcn,_ = parse_function(self.target_pars[impact_label]['f_string'])
+                attribs = {}
+                for attrib_label in self.target_pars[impact_label]['attribs']:
                     if attrib_label in self.attributes.keys():
-                        if years is None: years = [max(self.t)]
+                        if years is None:
+                            years = [max(self.t)]
                         output = self.interpolate(tvec=years, attributes=[attrib_label])
                     else:
                         raise OptimaException('ERROR: Cannot calculate "%s" impact for "%s" due to a missing reference "%s".' % (self.label, impact_label, attrib_label))
                     attribs[attrib_label] = output[attrib_label]# [-1]
-#                    if len(output[attrib_label]) > 1:
-#                        print attribs
-                new_val = parser.evaluateStack(stack=f_stack, deps=attribs)
+
+
+                new_val = fcn(attribs)
                 imp *= new_val      # Scale coverage.
 
         return imp

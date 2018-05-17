@@ -2,7 +2,7 @@
 
 
 from optima_tb.utils import odict, OptimaException, flattenDict
-from optima_tb.parsing import FunctionParser
+from optima_tb.parsing import parse_function
 
 import logging
 logger = logging.getLogger(__name__)
@@ -28,8 +28,6 @@ def loadCascadeSettingsFunc(cascade_path, settings):
 
     from optima_tb.settings import DO_NOT_SCALE, DEFAULT_YFACTOR
     import os
-
-    parser = FunctionParser(settings.parser_debug) # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
     cascade_path = os.path.abspath(cascade_path)
 
@@ -457,12 +455,11 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     if 'default' in settings.linkpar_specs[label]:
                         raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Specifying a default is thus restricted, so as to avoid user confusion.' % label)
                     settings.par_funcs[label] = True
-                    expr_stack, var_dict = parser.produceStack(val)
-                    settings.linkpar_specs[label]['f_stack'] = expr_stack
-                    settings.linkpar_specs[label]['deps'] = var_dict
+                    _, deps = parse_function(val)
                     settings.linkpar_specs[label]['f_string'] = val
+                    settings.linkpar_specs[label]['deps'] = deps
 
-                    for var in var_dict.keys():
+                    for var in deps:
                         if not var in settings.charac_specs.keys():
                             if not var in settings.linkpar_specs.keys() and not var in defined_tags:
                                 raise OptimaException('ERROR: Dependency "%s" has not been defined by the time "%s" is loaded into settings.' % (var, label))
@@ -586,10 +583,10 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         #                            if 'default' in settings.linkpar_specs[label]:
         #                                raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Specifying a default is thus restricted, so as to avoid user confusion.' % label)
         #                            settings.par_funcs[label] = True
-                                    expr_stack, attrib_dict = parser.produceStack(val)
-                                    settings.progtype_specs[current_label]['impact_pars'][impact_par]['f_stack'] = expr_stack
-                                    settings.progtype_specs[current_label]['impact_pars'][impact_par]['attribs'] = attrib_dict
-                                    for attrib in attrib_dict.keys():
+                                    _, attrib_list = parse_function(val)
+                                    settings.progtype_specs[current_label]['impact_pars'][impact_par]['f_string'] = val
+                                    settings.progtype_specs[current_label]['impact_pars'][impact_par]['attribs'] = attrib_list
+                                    for attrib in attrib_list:
                                         if not attrib in settings.progtype_specs[current_label]['attribute_label_names'].keys():
                                             raise OptimaException('ERROR: Attribute "%s" has not been defined for program type "%s" by the time it is loaded into settings.' % (attrib, current_label))
 

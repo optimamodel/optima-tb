@@ -4,10 +4,9 @@ import optima_tb.settings as project_settings
 from optima_tb.utils import OptimaException
 import numpy as np
 import logging
-from optima_tb.parsing import FunctionParser
+from optima_tb.parsing import parse_function
 
 logger = logging.getLogger(__name__)
-parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
 class ModelProgramSet(object):
     # Contains some programs
@@ -149,7 +148,7 @@ class ModelProgramSet(object):
                 prog.is_active = True
                 prog_vals[prog.label] = {'cost':alloc[prog.label], 'cov':prog.getCoverage(budget=alloc[prog.label]), 'impact':{}}
                 for par_label in prog.target_pars:
-                    prog_vals[prog.label]['impact'][par_label] = prog.getImpact(prog_vals[prog.label]['cov'], impact_label=par_label, parser=parser, years=tvals, budget_is_coverage=True)
+                    prog_vals[prog.label]['impact'][par_label] = prog.getImpact(prog_vals[prog.label]['cov'], impact_label=par_label, years=tvals, budget_is_coverage=True)
             else:
                 prog.is_active = False
            

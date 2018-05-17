@@ -3,14 +3,12 @@
 from optima_tb.utils import flattenDict, odict, OptimaException
 import optima_tb.settings as project_settings
 from optima_tb.results import ResultSet
-from optima_tb.parsing import FunctionParser
+from optima_tb.parsing import parse_function
 from optima_tb.ModelPrograms import ModelProgramSet, ModelProgram
 from collections import defaultdict
 import cPickle as pickle
 import logging
-import ast
 logger = logging.getLogger(__name__)
-parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
 import numpy as np
 import scipy.optimize
@@ -19,18 +17,7 @@ import uuid
 
 import matplotlib.pyplot as plt
 
-def genfcn(f_string):
-    # Returns (fcn,dep_list)
-    # Where dep_list corresponds to a list of keys for
-    # the dict that needs to be passed to fcn()
-    # supported_functions is a dict mapping ast names to functors imported in the namespace of this file
-    supported_functions = {'exp':np.exp}
-    a = ast.parse(f_string, mode='eval')
-    dep_list = sorted({node.id for node in ast.walk(a) if isinstance(node, ast.Name) and node.id not in supported_functions})
-    b = compile(a,filename="<ast>", mode="eval")
-    def fcn(deps):
-        return eval(b,supported_functions,deps)
-    return fcn,dep_list
+
 
 class Variable(object):
     '''
@@ -274,7 +261,7 @@ class Parameter(Variable):
 
     def set_fcn(self, f_string, pop):
         self.f_string = f_string
-        self._fcn, dep_list = genfcn(f_string)
+        self._fcn, dep_list = parse_function(f_string)
         deps = {}
         for dep_name in dep_list:
             deps[dep_name] = pop.getVariable(dep_name)
@@ -470,6 +457,8 @@ class ModelPopulation(object):
         # At the moment, labels are unique across object types and within object
         # types except for links, but if that logic changes, simple modifications can
         # be made here
+
+        label = label.replace('___',':')
 
         if label in self.comp_lookup:
             return [self.comp_lookup[label]]
@@ -775,7 +764,6 @@ class Model(object):
 
         self.sim_settings['impact_pars_not_func'] = []      # Program impact parameters that are not functions of other parameters and thus already marked for dynamic updating.
                                                             # This is only non-empty if a progset is being used in the model.
-        parser.debug = settings.parser_debug
 
         for k, pop_label in enumerate(parset.pop_labels):
             self.pops.append(ModelPopulation(settings=settings, label=pop_label))
