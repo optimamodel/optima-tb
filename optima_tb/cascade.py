@@ -460,6 +460,8 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                     expr_stack, var_dict = parser.produceStack(val)
                     settings.linkpar_specs[label]['f_stack'] = expr_stack
                     settings.linkpar_specs[label]['deps'] = var_dict
+                    settings.linkpar_specs[label]['f_string'] = val
+
                     for var in var_dict.keys():
                         if not var in settings.charac_specs.keys():
                             if not var in settings.linkpar_specs.keys() and not var in defined_tags:

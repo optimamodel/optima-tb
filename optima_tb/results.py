@@ -75,7 +75,7 @@ class ResultSet(object):
 
         # work-in-progress: in time, these sections should be removed and only the data
         # points we are interested should be listed
-        self.model = dcp(model)
+        self.model = model # Reference to original model - each model is only wrapped in one result, so no need to copy it
 
         self.pop_label_index = {}
         for i, pop in enumerate(self.model.pops):

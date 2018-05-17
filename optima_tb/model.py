@@ -8,6 +8,7 @@ from optima_tb.ModelPrograms import ModelProgramSet, ModelProgram
 from collections import defaultdict
 import cPickle as pickle
 import logging
+import ast
 logger = logging.getLogger(__name__)
 parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
@@ -17,6 +18,19 @@ from copy import deepcopy as dcp
 import uuid
 
 import matplotlib.pyplot as plt
+
+def genfcn(f_string):
+    # Returns (fcn,dep_list)
+    # Where dep_list corresponds to a list of keys for
+    # the dict that needs to be passed to fcn()
+    # supported_functions is a dict mapping ast names to functors imported in the namespace of this file
+    supported_functions = {'exp':np.exp}
+    a = ast.parse(f_string, mode='eval')
+    dep_list = sorted({node.id for node in ast.walk(a) if isinstance(node, ast.Name) and node.id not in supported_functions})
+    b = compile(a,filename="<ast>", mode="eval")
+    def fcn(deps):
+        return eval(b,supported_functions,deps)
+    return fcn,dep_list
 
 class Variable(object):
     '''
@@ -247,7 +261,9 @@ class Parameter(Variable):
         Variable.__init__(self, label=label)
         self.vals = None
         self.deps = None
-        self.f_stack = None
+        self.f_string = None
+        self._fcn = None
+
         self.limits = None # Can be a two element vector [min,max]
 
         self.dependency = False 
@@ -256,8 +272,12 @@ class Parameter(Variable):
         self.source_popsize_cache_time = None
         self.source_popsize_cache_val = None
 
-    def set_f_stack(self,f_stack,deps):
-        self.f_stack = f_stack
+    def set_fcn(self, f_string, pop):
+        self.f_string = f_string
+        self._fcn, dep_list = genfcn(f_string)
+        deps = {}
+        for dep_name in dep_list:
+            deps[dep_name] = pop.getVariable(dep_name)
         self.deps = deps
 
         # If this Parameter has links, it must be marked as dependent for evaluation during integration
@@ -278,14 +298,20 @@ class Parameter(Variable):
         if self.deps is not None:
             for dep_name in self.deps:
                 self.deps[dep_name] = [x.uid for x in self.deps[dep_name]]
+        if self._fcn is not None:
+            self._fcn = None
 
     def relink(self,objs):
         # Given a dictionary of objects, restore the internal references
         # based on the UUID
         self.links = [objs[x] for x in self.links]
+
         if self.deps is not None:
             for dep_name in self.deps:
                 self.deps[dep_name] = [objs[x] for x in self.deps[dep_name]]
+
+        # if self.f_string is not None:
+        #     self._fcn = genfcn(self.f_string)[0]
 
     def constrain(self,ti):
         # NB. Must be an array, so ti must must not be supplied
@@ -297,7 +323,7 @@ class Parameter(Variable):
         # Update the value of this Parameter at time index ti
         # by evaluating its f_stack function using the 
         # current values of all dependent variables at time index ti
-        if self.f_stack is None:
+        if self._fcn is None:
             return
 
         if ti is None:
@@ -313,9 +339,8 @@ class Parameter(Variable):
                 else:
                     dep_vals[dep_name] += dep.vals[[ti]]
 
-        self.vals[ti] = parser.evaluateStack(stack=self.f_stack, deps=dep_vals)
-        self.vals[ti] *= self.scale_factor
-        
+        self.vals[ti] = self.scale_factor*self._fcn(dep_vals)
+
     def source_popsize(self,ti):
         # Get the total number of people covered by this program
         # i.e. the sum of the source compartments of all links that
@@ -571,13 +596,8 @@ class ModelPopulation(object):
                 if 'max' in spec:
                     par.limits[1] = spec['max']
 
-            if 'f_stack' in spec:
-
-                f_stack = dcp(spec['f_stack'])
-                deps = {}
-                for dep_name in spec["deps"]:
-                    deps[dep_name] = self.getVariable(dep_name)
-                par.set_f_stack(f_stack,deps)
+            if 'f_string' in spec:
+                par.set_fcn(spec['f_string'],self)
 
     def preallocate(self, tvec, dt):
         '''
