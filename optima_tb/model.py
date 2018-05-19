@@ -895,9 +895,6 @@ class Model(object):
                             outflow[i] = 0.0
                             continue
 
-                        if link.parameter.scale_factor is not None and link.parameter.scale_factor != project_settings.DO_NOT_SCALE:  # scale factor should be available to be used
-                            transition *= link.parameter.scale_factor
-
                         if link.parameter.units == 'fraction':
                             # check if there are any violations, and if so, deal with them
                             if transition > 1.:
