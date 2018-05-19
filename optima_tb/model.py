@@ -557,6 +557,10 @@ class ModelPopulation(object):
             if 'denom' in spec:
                 charac.add_denom(self.getVariable(spec['denom'])[0])
 
+        # Finally, make sure the 'alive' characteristic is kept up to date
+        self.getCharac(settings.charac_pop_count).set_dependent()
+
+
         # Parameters first pass, create parameter objects and links
         for label,spec in settings.linkpar_specs.items():
             par = Parameter(label=label)
