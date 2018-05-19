@@ -164,7 +164,7 @@ class ResultSet(object):
         else:
             for pop in pop_labels:
                 var = self.model.getPop(pop).getVariable(label)[0]
-                output += var.vals
+                output += var.vals[idx]
 
         # Do a simple integration process if specified by user.
         if integrated:
