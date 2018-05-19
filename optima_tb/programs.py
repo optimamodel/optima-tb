@@ -340,7 +340,7 @@ class Program:
                     attribs[attrib_label] = output[attrib_label]# [-1]
 
 
-                new_val = fcn(attribs)
+                new_val = fcn(**attribs)
                 imp *= new_val      # Scale coverage.
 
         return imp
