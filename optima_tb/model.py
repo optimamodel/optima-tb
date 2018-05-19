@@ -326,7 +326,7 @@ class Parameter(Variable):
                 else:
                     dep_vals[dep_name] += dep.vals[[ti]]
 
-        self.vals[ti] = self.scale_factor*self._fcn(dep_vals)
+        self.vals[ti] = self.scale_factor*self._fcn(**dep_vals)
 
     def source_popsize(self,ti):
         # Get the total number of people covered by this program
@@ -500,7 +500,7 @@ class ModelPopulation(object):
             return links
 
         else:
-            raise OptimaException('Object %s not found' % (label))
+            raise OptimaException('Object not found: (%s)' % (label))
 
     def getComp(self, comp_label):
         ''' Allow compartments to be retrieved by label rather than index. Returns a Compartment. '''
@@ -898,9 +898,12 @@ class Model(object):
             self.update_links(settings=settings)
 
         for pop in self.pops:
-            [par.update() for par in pop.pars if not par.dependency] # Update any remaining parameters
+
+            # First, clear characteristic internal vals so non-dependent characteristics correctly appear in the parameter update
             for charac in pop.characs:
                 charac.internal_vals = None # Wipe out characteristic vals to save space
+
+            [par.update() for par in pop.pars if not par.dependency] # Update any remaining parameters
 
             if not full_output:
                 for par in pop.pars:
@@ -1121,7 +1124,7 @@ class Model(object):
                                 for k,from_pop in enumerate(from_list):
                                     # All transition links with the same par_label are identically valued. For calculations, only one is needed for reference.
                                     par = self.getPop(from_pop).getPar(par_label)
-                                    weight = self.contacts['into'][pop.label][from_pop]*self.getPop(from_pop).popsize(ti)
+                                    weight = self.contacts['into'][pop.label][from_pop]*self.getPop(from_pop).getCharac(settings.charac_pop_count).internal_vals[ti]
                                     val_sum += old_vals[par.uid]*weight
                                     weights += weight
 
@@ -1136,31 +1139,6 @@ class Model(object):
             # Restrict the parameter's value if a limiting range was defined
             for par in pars:
                 par.constrain(ti)
-
-    def calculateOutputs(self):
-        '''
-        Calculate outputs (called cascade characteristics in settings).
-        These outputs must be calculated in the same order as defined in settings, otherwise references may break.
-        Include any parameters marked as an output in the cascade sheet.
-        Return a dictionary with all of the outputs
-
-        As outputs are all Variables or Characteristics they use the vals property for their value
-        '''
-
-        outputs = odict()
-
-        for pop in self.pops:
-            for output in pop.pars + pop.characs:
-                if output.label not in outputs:
-                    outputs[output.label] = odict()
-                if pop.label in outputs[output.label]:
-                    assert isinstance(output,Link), 'There is a duplicate output label that is NOT a link - this is not supposed to happen'
-                    outputs[output.label][pop.label] += output.vals
-                else:
-                    outputs[output.label][pop.label] = output.vals
-        return outputs
-
-
 
 def runModel(settings, parset, progset=None, options=None,full_output=True,name=None):
     '''
