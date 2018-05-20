@@ -882,6 +882,23 @@ class Model(object):
                 if tag in settings.node_specs[node_label]:
                     self.sim_settings[tag] = node_label
 
+        comps = []
+        for pop in self.pops:
+            comps += pop.comps
+        comp_idx = {comp.uid:i for i,comp in enumerate(comps)}
+
+        self.comp_vals = np.zeros((len(comps),len(self.t)))
+        self.link_vals = np.zeros((len(comps),len(comps),len(self.t)))
+
+        for i,comp in enumerate(comps):
+            comp.vals = self.comp_vals[i,:]
+
+        links = []
+        for pop in self.pops:
+            links += pop.links
+        for link in links:
+            link.vals = self.link_vals[comp_idx[link.source.uid],comp_idx[link.dest.uid],:]
+
     def process(self, settings, progset,full_output):
         ''' 
         Run the full model.
@@ -993,25 +1010,27 @@ class Model(object):
         """
 
         ti = self.t_index
+        self.comp_vals[:,ti+1] = self.comp_vals[:,ti] + np.matmul(self.link_vals[:, :, ti]-self.link_vals[:,:,ti].T,np.ones((self.link_vals.shape[0],1))).flat
+        self.comp_vals[:,ti + 1] = np.maximum(0, self.comp_vals[:,ti + 1])
 
-        # Pre-populate the current value - need to iterate over pops here because transfers
-        # will cross population boundaries
-        for pop in self.pops:
-            for comp in pop.comps:
-                comp.vals[ti + 1] = comp.vals[ti]
-
-        for pop in self.pops:
-            for comp in pop.comps:
-                if not comp.is_junction:
-                    for link in comp.outlinks:
-                        if link.vals[ti]:
-                            link.source.vals[ti + 1] -= link.vals[ti]
-                            link.dest.vals[ti + 1] += link.vals[ti]
-
-        # Guard against populations becoming negative due to numerical artifacts
-        for pop in self.pops:
-            for comp in pop.comps:
-                comp.vals[ti + 1] = max(0, comp.vals[ti + 1])
+        # # Pre-populate the current value - need to iterate over pops here because transfers
+        # # will cross population boundaries
+        # for pop in self.pops:
+        #     for comp in pop.comps:
+        #         comp.vals[ti + 1] = comp.vals[ti]
+        #
+        # for pop in self.pops:
+        #     for comp in pop.comps:
+        #         if not comp.is_junction:
+        #             for link in comp.outlinks:
+        #                 if link.vals[ti]:
+        #                     link.source.vals[ti + 1] -= link.vals[ti]
+        #                     link.dest.vals[ti + 1] += link.vals[ti]
+        #
+        # # Guard against populations becoming negative due to numerical artifacts
+        # for pop in self.pops:
+        #     for comp in pop.comps:
+        #         comp.vals[ti + 1] = max(0, comp.vals[ti + 1])
 
     def update_junctions(self, settings):
         '''
@@ -1115,7 +1134,7 @@ class Model(object):
                 for pop in self.pops:
                     if rule == 'avg_contacts_in':
 
-                        
+
                         # par_vals = [par.vals[ti] for par in self.pars_by_pop[par_label]]
                         # contacts = np.eye(6) * 9 + np.ones((6, 6))
                         # popsizes = [pop.getCharac(settings.charac_pop_count).internal_vals[ti] for pop in self.pops]
