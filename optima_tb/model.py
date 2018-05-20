@@ -1114,6 +1114,21 @@ class Model(object):
                 rule = settings.linkpar_specs[par_label]['rules']
                 for pop in self.pops:
                     if rule == 'avg_contacts_in':
+
+                        
+                        # par_vals = [par.vals[ti] for par in self.pars_by_pop[par_label]]
+                        # contacts = np.eye(6) * 9 + np.ones((6, 6))
+                        # popsizes = [pop.getCharac(settings.charac_pop_count).internal_vals[ti] for pop in self.pops]
+                        # par_vals = np.array(par_vals).reshape(6, 1)
+                        # popsizes = np.array(popsizes).reshape(6, 1)
+                        # weights = contacts * popsizes
+                        # weights = weights / np.sum(weights, axis=0)
+                        # par_vals = np.matmul(weights.T, par_vals)
+                        # for par, val in zip(self.pars_by_pop[par_label], par_vals):
+                        #     par.vals[ti] = val
+
+
+
                         from_list = self.contacts['into'][pop.label].keys()
 
                         # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
