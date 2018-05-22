@@ -80,7 +80,11 @@ class Parameter(object):
         for tval in original_t:
             if tval > t_remove[0] and tval < t_remove[1]:
                 self.removeValueAt(tval,pop_label)
-        
+
+    def getValueAt(self,t,pop_label):
+        # Return parameter value without any scaling
+        return self.interpolate(np.array([t]),pop_label)/np.abs(self.y_factor[pop_label])
+
     def interpolate(self, tvec = None, pop_label = None, extrapolate_nan = False):
         ''' Take parameter values and construct an interpolated array corresponding to the input time vector. '''
         
