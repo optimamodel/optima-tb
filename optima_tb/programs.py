@@ -327,8 +327,8 @@ class Program:
 
         # If impact parameter has an impact function, this is what coverage is scaled by.
         if not impact_label is None:
-            if 'f_string' in self.target_pars[impact_label].keys():
-                fcn,_ = parse_function(self.target_pars[impact_label]['f_string'])
+            if 'fcn_str' in self.target_pars[impact_label].keys():
+                fcn,_ = parse_function(self.target_pars[impact_label]['fcn_str'])
                 attribs = {}
                 for attrib_label in self.target_pars[impact_label]['attribs']:
                     if attrib_label in self.attributes.keys():

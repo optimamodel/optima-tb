@@ -248,7 +248,7 @@ class Parameter(Variable):
         Variable.__init__(self, label=label)
         self.vals = None
         self.deps = None
-        self.f_string = None
+        self.fcn_str = None
         self._fcn = None
 
         self.limits = None # Can be a two element vector [min,max]
@@ -259,9 +259,9 @@ class Parameter(Variable):
         self.source_popsize_cache_time = None
         self.source_popsize_cache_val = None
 
-    def set_fcn(self, f_string, pop):
-        self.f_string = f_string
-        self._fcn, dep_list = parse_function(f_string)
+    def set_fcn(self, fcn_str, pop):
+        self.fcn_str = fcn_str
+        self._fcn, dep_list = parse_function(fcn_str)
         deps = {}
         for dep_name in dep_list:
             deps[dep_name] = pop.getVariable(dep_name)
@@ -293,12 +293,19 @@ class Parameter(Variable):
         # based on the UUID
         self.links = [objs[x] for x in self.links]
 
+        # if isinstance(self.deps,list):
+        #     d_obj = [objs[x] for x in self.deps] if self.deps is not None else None
+        #     self.deps = {}
+        #     for obj in d_obj:
+        #         self.deps[obj.label] = [obj.uid]
+
         if self.deps is not None:
             for dep_name in self.deps:
                 self.deps[dep_name] = [objs[x] for x in self.deps[dep_name]]
 
-        # if self.f_string is not None:
-        #     self._fcn = genfcn(self.f_string)[0]
+        if self.fcn_str:
+            self._fcn, dep_list = parse_function(self.fcn_str)
+
 
     def constrain(self,ti):
         # NB. Must be an array, so ti must must not be supplied
@@ -310,7 +317,7 @@ class Parameter(Variable):
         # Update the value of this Parameter at time index ti
         # by evaluating its f_stack function using the 
         # current values of all dependent variables at time index ti
-        if self._fcn is None:
+        if not self._fcn:
             return
 
         if ti is None:
@@ -589,8 +596,8 @@ class ModelPopulation(object):
                 if 'max' in spec:
                     par.limits[1] = spec['max']
 
-            if 'f_string' in spec:
-                par.set_fcn(spec['f_string'],self)
+            if 'fcn_str' in spec:
+                par.set_fcn(spec['fcn_str'],self)
 
     def preallocate(self, tvec, dt):
         '''

@@ -456,7 +456,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                         raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Specifying a default is thus restricted, so as to avoid user confusion.' % label)
                     settings.par_funcs[label] = True
                     _, deps = parse_function(val)
-                    settings.linkpar_specs[label]['f_string'] = val
+                    settings.linkpar_specs[label]['fcn_str'] = val
                     settings.linkpar_specs[label]['deps'] = deps
 
                     for var in deps:
@@ -584,7 +584,7 @@ def loadCascadeSettingsFunc(cascade_path, settings):
         #                                raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Specifying a default is thus restricted, so as to avoid user confusion.' % label)
         #                            settings.par_funcs[label] = True
                                     _, attrib_list = parse_function(val)
-                                    settings.progtype_specs[current_label]['impact_pars'][impact_par]['f_string'] = val
+                                    settings.progtype_specs[current_label]['impact_pars'][impact_par]['fcn_str'] = val
                                     settings.progtype_specs[current_label]['impact_pars'][impact_par]['attribs'] = attrib_list
                                     for attrib in attrib_list:
                                         if not attrib in settings.progtype_specs[current_label]['attribute_label_names'].keys():
