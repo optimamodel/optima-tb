@@ -45,10 +45,12 @@ class ResultSet(object):
     def __init__(self, model, parset, settings, progset=None, budget_options=None, name=None):
 
         self.uuid = uuid()
+
         if name is None:
-            self.name = parset.name
+            self.name = parset.name + ('-%s' % (progset.name) if progset is not None else '')
         else:
             self.name = name
+
         self.parset_name = parset.name
         self.parset_id = parset.uid
 

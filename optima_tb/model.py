@@ -696,10 +696,6 @@ class Model(object):
         self.t = None
         self.dt = None
         self.uid = uuid.uuid4()
-        if name is None:
-            self.name = parset.name + ('-%s' % (progset.name) if progset is not None else '')
-        else:
-            self.name = name
 
         self.build(settings, parset, progset, options)
 
@@ -1168,9 +1164,9 @@ def runModel(settings, parset, progset=None, options=None,full_output=True,name=
     - If full_output = False, non-output Parameters (and corresponding links) will be set to None
     '''
 
-    m = Model(settings, parset, progset, options,name)
+    m = Model(settings, parset, progset, options)
     m.process(settings, progset,full_output)
 
-    results = ResultSet(m, parset, settings, progset, options)    # NOTE: Progset may need to be passed to results. Depends on what results object stores.
+    results = ResultSet(m, parset, settings, progset, options, name)
 
     return results

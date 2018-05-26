@@ -68,20 +68,23 @@ class Project(object):
     def runSim(self, parset=None, parset_name='default', progset=None, progset_name=None, options=None, plot=False, full_output=True, store_results=True, result_type=None, result_name=None):
         ''' Run model using a selected parset and store/return results. '''
 
-        if parset is None:
-            if len(self.parsets) < 1:
-                raise OptimaException('ERROR: Project "%s" appears to have no parameter sets. Cannot run model.' % self.name)
-            else:
-                try: parset = self.parsets[parset_name]
-                except: raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
+        assert parset or parset_name, 'runSim() requires either a parset or a parset name'
 
-        if progset is None:
-            try: progset = self.progsets[progset_name]
-            except: logger.info('Initiating a standard run of project "%s" (i.e. without the influence of programs).' % self.name)
-        if progset is not None:
-            if options is None:
-                logger.info('Program set "%s" will be ignored while running project "%s" due to no options specified.' % (progset.name, self.name))
-                progset = None
+        if not parset:
+            if parset_name in self.parsets:
+                parset = self.parsets[parset_name]
+            else:
+                raise OptimaException('ERROR: Project "%s" is lacking a parset named "%s". Cannot run model.' % (self.name, parset_name))
+
+        if progset_name:
+            if progset_name in self.progsets:
+                progset = self.progsets[progset_name]
+            else:
+                raise OptimaException('ERROR: Project "%s" is lacking a progset named "%s". Cannot run model.' % (self.name, progset_name))
+
+        if progset and not options:
+            logger.info('Program set "%s" will be ignored while running project "%s" due to no options specified.' % (progset.name, self.name))
+            progset = None
 
         if result_name is None:
             base_name = "parset_" + parset.name
@@ -97,9 +100,7 @@ class Project(object):
                 k += 1
 
         tm = tic()
-
-        results = runModel(settings=self.settings, parset=parset, progset=progset, options=options,full_output=full_output)
-        results.name = result_name
+        results = runModel(settings=self.settings, parset=parset, progset=progset, options=options,full_output=full_output, name=result_name)
         toc(tm, label='running %s model' % self.name)
 
         if plot:

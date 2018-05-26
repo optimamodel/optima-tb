@@ -1918,3 +1918,6 @@ def runGUI():
     gui = GUI()
     sys.exit(app.exec_())
     return gui # Not super needed, but avoids pylint warning
+
+if __name__ == '__main__':
+    runGUI()
