@@ -798,9 +798,9 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                     if plot_type == 'stacked' and data is not None:
                         stack_data(ax, data, [plotdata[result, pop, output] for result in plotdata.results])
                 else:
-                    for result in plotdata.results:
+                    for i,result in enumerate(plotdata.results):
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.result_names[result])
-                        if data is not None:
+                        if data is not None and i == 0:
                             render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
                 if settings['legend_mode'] == 'together':
