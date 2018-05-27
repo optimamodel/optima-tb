@@ -298,6 +298,8 @@ class Parameter(Variable):
         #     self.deps = {}
         #     for obj in d_obj:
         #         self.deps[obj.label] = [obj.uid]
+        # self.fcn_str = None
+        # self._fcn = None
 
         if self.deps is not None:
             for dep_name in self.deps:
