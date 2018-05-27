@@ -293,14 +293,6 @@ class Parameter(Variable):
         # based on the UUID
         self.links = [objs[x] for x in self.links]
 
-        # if isinstance(self.deps,list):
-        #     d_obj = [objs[x] for x in self.deps] if self.deps is not None else None
-        #     self.deps = {}
-        #     for obj in d_obj:
-        #         self.deps[obj.label] = [obj.uid]
-        # self.fcn_str = None
-        # self._fcn = None
-
         if self.deps is not None:
             for dep_name in self.deps:
                 self.deps[dep_name] = [objs[x] for x in self.deps[dep_name]]
