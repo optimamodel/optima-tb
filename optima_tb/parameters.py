@@ -40,6 +40,11 @@ class Parameter(object):
     def pops(self):
         return sorted(self.t.keys())
 
+    def has_values(self, pop_name):
+        # Returns True if this Parameter has values specified for the given population
+        # Essentially, if this function returns True, then the `interpolate()` method will return usable values
+        return np.any(np.isfinite(self.y[pop_name]))
+
     def clear(self):
         ''' Remove all existing values '''
         for pop in self.pops:

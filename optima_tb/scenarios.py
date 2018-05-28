@@ -5,10 +5,7 @@ logger = logging.getLogger(__name__)
 from uuid import uuid4 as uuid
 from copy import deepcopy as dcp
 
-from optima_tb.utils import odict
-from optima_tb.parameters import ParameterSet
-from optima_tb.databook import getEmptyData
-
+from optima_tb.utils import OptimaException
 
 class Scenario(object):
 
@@ -74,32 +71,58 @@ class ParameterScenario(Scenario):
         tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + self.settings.tvec_dt / 2, self.settings.tvec_dt)
 
         if self.overwrite:  # update values in parset with those in scenario_parset
+
             new_parset = dcp(parset)
 
             for par_label in self.scenario_values.keys():
-                par = new_parset.getPar(par_label) # This is the parameter we are updating
-                for pop_label,overwrite in self.scenario_values[par_label].items():
-                    start_year = min(overwrite['t'])
-                    stop_year = max(overwrite['t'])
+                par = new_parset.getPar(par_label)  # This is the parameter we are updating
+
+                for pop_label, overwrite in self.scenario_values[par_label].items():
+
+                    if not par.has_values(pop_label):
+                        raise OptimaException("You cannot specify overwrites for a parameter with a function, instead you should overwrite its dependencies")
+
+                    original_y_end = par.interpolate(np.array([max(overwrite['t']) + 1e-5]), pop_label)
+
+                    if len(par.t[pop_label]) == 1 and np.isnan(par.t[pop_label][0]):
+                        par.t[pop_label] = np.array([tvec[0], tvec[-1]])
+                        par.y[pop_label] = par.y[pop_label] * np.ones(par.t[pop_label].shape)
 
                     if 'smooth_onset' not in overwrite:
-                        onset = self.settings.tvec_dt
+                        overwrite['smooth_onset'] = 1e-5
+
+                    if np.isscalar(overwrite['smooth_onset']):
+                        onset = np.zeros((len(overwrite['y']),))
+                        onset[0] = overwrite['smooth_onset']
                     else:
+                        assert len(overwrite['smooth_onset']) == len(overwrite['y']), 'Smooth onset must be either a scalar or an array with length matching y-values'
                         onset = overwrite['smooth_onset']
 
-                    # First, remove values during the overwrite, and add back the onset value
-                    # The par values are interpolated first to ensure they exactly match
-                    par_dt_vals = par.interpolate(tvec,pop_label)
-                    par.t[pop_label] = tvec
-                    par.y[pop_label] = par_dt_vals/np.abs(par.y_factor[pop_label]) # Don't forget to divide by the y-factor because this value will get passed through interpolate() later
-                    par.removeBetween([start_year-onset, stop_year],pop_label)
-
                     # Now, insert all of the program overwrites
-                    for i in xrange(0,len(overwrite['t'])):
-                        par.insertValuePair(overwrite['t'][i], overwrite['y'][i]/par.y_factor[pop_label], pop_label)
+                    for i in range(0, len(overwrite['t'])):
 
-            return new_parset
+                        # Account for smooth onset
+                        if onset[i] > 0:
+                            t = overwrite['t'][i] - onset[i]
+                            if i == 0:
+                                y = par.interpolate(np.array([t]), pop_label) / par.y_factor[pop_label]
+                                par.removeBetween([t, overwrite['t'][i]], pop_label) # Remove values during onset period
+                                par.insertValuePair(t, y, pop_label)
+                            elif t > overwrite['t'][i - 1]:
+                                y = overwrite['y'][i - 1] / par.y_factor[pop_label]
+                                par.removeBetween([overwrite['t'][i-1], overwrite['t'][i]], pop_label)
+                                par.insertValuePair(t, y, pop_label)
+                            else:
+                                par.removeBetween([overwrite['t'][i-1], overwrite['t'][i]], pop_label) # Remove values between overwrites
 
+                        # Insert the overwrite value - assume scenario value is AFTER y-factor rescaling
+                        par.insertValuePair(overwrite['t'][i], overwrite['y'][i] / par.y_factor[pop_label], pop_label)
+
+                    # Add an extra point
+                    par.insertValuePair(max(overwrite['t']) + 1e-5, original_y_end, pop_label)
+
+                new_parset.name = self.name + '_' + parset.name
+                return new_parset
         else:  # add the two together
             # inflate both the two parameter sets first
             parset.inflate(tvec)
