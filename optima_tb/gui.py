@@ -44,7 +44,7 @@ def importPyQt():
 qtc, qtw, FigureCanvasQTAgg = importPyQt()
 
 # %% Sanitized path import
-def sanitizedFileDialog(instance=None, which=None, title=None):
+def sanitizedFileDialog(instance=None, which=None, title=None,filterstr=''):
     '''
     Get a sanitized path from a file dialog, either open or save. Examples:
     
@@ -52,11 +52,11 @@ def sanitizedFileDialog(instance=None, which=None, title=None):
     path = sanitizedFileDialog(self, 'save', 'Save file as')
     '''
     if which == 'open':
-        try:    path = str(qtw.QFileDialog.getOpenFileNameAndFilter(instance, title)[0])
-        except: path = str(qtw.QFileDialog.getOpenFileName(instance, title)[0])
+        try:    path = str(qtw.QFileDialog.getOpenFileNameAndFilter(instance, title,filter=filterstr)[0])
+        except: path = str(qtw.QFileDialog.getOpenFileName(instance, title,filter=filterstr)[0])
     elif which == 'save':
-        try:    path = str(qtw.QFileDialog.getSaveFileNameAndFilter(instance, title)[0])
-        except: path = str(qtw.QFileDialog.getSaveFileName(instance, title)[0])
+        try:    path = str(qtw.QFileDialog.getSaveFileNameAndFilter(instance, title,filter=filterstr)[0])
+        except: path = str(qtw.QFileDialog.getSaveFileName(instance, title,filter=filterstr)[0])
     else:
         raise Exception('The argument "which" must be either "open" or "save", not %s' % which)
     return path
@@ -518,9 +518,31 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             self.plot_window.setGeometry((screen.width() - self.plot_window.width()) / 2, (screen.height() - self.plot_window.height()) / 2,
                                          self.plot_window.width(), self.plot_window.height())
             self.plot_window.setCentralWidget(canvas)
+
+            qkey_imported = False
+            try:
+                from PyQt5.QtGui import QKeySequence
+                qkey_imported = True
+            except:
+                try:
+                    from PyQt4.QtGui import QKeySequence
+                except:
+                    pass
+
+            if qkey_imported:
+                action = qtw.QAction(self.plot_window)
+                action.setShortcut(QKeySequence('Ctrl+S'))
+                action.triggered.connect(lambda : save_png(self.plot_window,figure))
+                self.plot_window.addAction(action)
+            else:
+                print 'Could not add save figure feature!'
+
             self.plot_window.show()
 
-# %% GUI class for parameter calibration
+def save_png(window,figure):
+    filename = sanitizedFileDialog(window,'save','Save figure to png','*.png')
+    if filename:
+        figure.savefig(filename, dpi=150, transparent=False)
 
 class GUICalibration(GUIResultPlotterIntermediate):
 
