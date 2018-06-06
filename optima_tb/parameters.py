@@ -215,16 +215,15 @@ class ParameterSet(object):
     
     def inflate(self,tvec):
         """
-        Inflates cascade parameters only
+        Interpolate parset onto given tvec, including y-factors
         
         """
-        for (id,par) in enumerate(self.pars['cascade']):
-           
-            for j,pop_label in enumerate(self.pop_labels):        
-                self.pars['cascade'][id].y[j] = par.interpolate(tvec = tvec, pop_label = pop_label)
-                self.pars['cascade'][id].t[j] = tvec
-           
-    
+        for par in self.pars['cascade']:
+            for pop_label in self.pop_labels:
+                par.y[pop_label] = par.interpolate(tvec = tvec, pop_label = pop_label)
+                par.t[pop_label] = tvec
+                par.y_factor[pop_label] = 1.0
+
     def __getMinMax(self,y_format):
         if y_format.lower() == 'fraction':
             return (0.,1.)
@@ -476,7 +475,7 @@ class ParameterSet(object):
                     else:
                         c.pars['cascade'][c_index].y[pop] = np.append(c.pars['cascade'][c_index].y[pop],[b.pars['cascade'][b_index].y[pop][i]])
                         c.pars['cascade'][c_index].t[pop] = np.append(c.pars['cascade'][c_index].t[pop],[t_val])
-                
+                np.seterr(all='raise')
                 # correct for min/max, based on format type: as presumably 'a' was already correct, 
                 # we only need to check that the min max wasn't violated when we're adding values together, and therefore
                 # only have to check when we've added something from b. 

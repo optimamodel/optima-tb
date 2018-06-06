@@ -55,7 +55,7 @@ class ParameterScenario(Scenario):
         super(ParameterScenario, self).__init__(name, settings, run_scenario, overwrite)
         self.scenario_values = scenario_values
 
-    def getScenarioParset(self, parset):
+    def getScenarioParset(self, parset,overwrite=None):
         """
         Get the corresponding parameterSet for this scenario, given an input parameterSet for the default baseline 
         activity. 
@@ -70,7 +70,7 @@ class ParameterScenario(Scenario):
         import numpy as np
         tvec = np.arange(self.settings.tvec_start, self.settings.tvec_end + self.settings.tvec_dt / 2, self.settings.tvec_dt)
 
-        if self.overwrite:  # update values in parset with those in scenario_parset
+        if self.overwrite or overwrite:  # update values in parset with those in scenario_parset
 
             new_parset = dcp(parset)
 
@@ -125,16 +125,17 @@ class ParameterScenario(Scenario):
                 return new_parset
         else:  # add the two together
             # inflate both the two parameter sets first
-            parset.inflate(tvec)
-            self.scenario_parset.inflate(tvec)
-            return parset + self.scenario_parset
+            old_parset = dcp(parset)
+            new_parset = self.getScenarioParset(parset,overwrite=True)
+            old_parset.inflate(tvec)
+            new_parset.inflate(tvec)
+            return old_parset + new_parset
 
 class BudgetScenario(Scenario):
 
     def __init__(self, name, run_scenario=False, overwrite=True, scenario_values=None,**kwargs):
         super(BudgetScenario, self).__init__(name, run_scenario, overwrite)
-        self.makeScenarioProgset(budget_allocation=scenario_values)
-        self.budget_allocation = budget_allocation
+        self.budget_allocation = scenario_values
 
     def getScenarioProgset(self, progset, budget_options):
         """
