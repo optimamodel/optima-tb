@@ -456,12 +456,11 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
     def selectPopulation(self, pop_name):
         self.pop_plot_name = str(pop_name)
 
-    # When a calibration or scenario is run, results should be acknowledged.
-    # This means that result name references for the plotter should be linked to the first and last results in the project.
+    # When a calibration or scenario is run, results should be acknowledged
+    # This is achieved by the changing the second plot result to the new result
     def acknowledgeResults(self):
         if len(self.project.results) > 0:
-                self.result_1_plot_name = self.project.results.keys()[0]
-                self.result_2_plot_name = self.project.results.keys()[-1]
+            self.result_2_plot_name = self.project.results.keys()[-1]
 
     def showPlots(self):
         # Clear plots.
