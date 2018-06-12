@@ -109,7 +109,7 @@ class Compartment(Variable):
             if link.parameter.units == 'fraction':
                 outflow_probability += 1 - (1 - link.parameter.vals[ti]) ** self.dt  # A formula for converting from yearly fraction values to the dt equivalent.
             elif link.parameter.units == 'number':
-                outflow_probability += link.parameter.vals[ti]*dt/self.vals[ti]
+                outflow_probability += link.parameter.vals[ti]*self.dt/self.vals[ti]
             else:
                 raise OptimaException('Unknown parameter units')
 
@@ -187,6 +187,12 @@ class Characteristic(Variable):
     def set_dependent(self):
         self.dependency = True
 
+        for inc in self.includes:
+            inc.set_dependent()
+
+        if self.denominator is not None:
+            self.denominator.set_dependent()
+
     def unlink(self):
         self.includes = [x.uid for x in self.includes]
         self.denominator = self.denominator.uid if self.denominator is not None else None
@@ -200,12 +206,10 @@ class Characteristic(Variable):
     def add_include(self,x):
         assert isinstance(x,Compartment) or isinstance(x,Characteristic)
         self.includes.append(x)
-        x.set_dependent()
 
     def add_denom(self,x):
         assert isinstance(x,Compartment) or isinstance(x,Characteristic)
         self.denominator = x
-        x.set_dependent()
         self.units = ''
 
     def update(self,ti):
@@ -294,7 +298,7 @@ class Parameter(Variable):
                 dep_vals[dep.label] += dep.vals[[ti]]/dep.dt
             else:
                 dep_vals[dep.label] += dep.vals[[ti]]
-        self.vals[ti] = parser.evaluateStack(stack=self.f_stack[0:], deps=dep_vals)   # self.f_stack[0:] makes a copy
+        self.vals[ti] = self.scale_factor*parser.evaluateStack(stack=self.f_stack[0:], deps=dep_vals)   # self.f_stack[0:] makes a copy
 
     def source_popsize(self,ti):
         # Get the total number of people covered by this program
@@ -305,7 +309,7 @@ class Parameter(Variable):
         if ti == self.source_popsize_cache_time:
             return self.source_popsize_cache_val
         else:
-            n = 0
+            n = 0.0
             for link in self.links:
                 n += link.source.vals[ti]
             self.source_popsize_cache_time = ti
@@ -891,9 +895,6 @@ class Model(object):
                             outflow[i] = 0.0
                             continue
 
-                        if link.parameter.scale_factor is not None and link.parameter.scale_factor != project_settings.DO_NOT_SCALE:  # scale factor should be available to be used
-                            transition *= link.parameter.scale_factor
-
                         if link.parameter.units == 'fraction':
                             # check if there are any violations, and if so, deal with them
                             if transition > 1.:
@@ -974,7 +975,7 @@ class Model(object):
 
                     if review_count == 1:
                         for link in junc.outlinks:
-                            link.vals[ti] = 0
+                            link.vals[ti_link] = 0
 
                     # If the compartment is numerically empty, make it empty
                     if junc.vals[ti] <= project_settings.TOLERANCE:   # Includes negative values.
@@ -988,7 +989,7 @@ class Model(object):
                             flow = current_size * link.parameter.vals[ti_link] / denom_val
                             link.source.vals[ti] -= flow
                             link.dest.vals[ti]   += flow
-                            link.vals[ti] += flow
+                            link.vals[ti_link] += flow
                             if link.dest.is_junction:
                                 review_required = True # Need to review if a junction received an inflow at this step
 

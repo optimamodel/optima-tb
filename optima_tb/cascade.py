@@ -456,8 +456,6 @@ def loadCascadeSettingsFunc(cascade_path, settings):
                 if val not in ['']:
                     if 'default' in settings.linkpar_specs[label]:
                         raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Specifying a default is thus restricted, so as to avoid user confusion.' % label)
-                    if settings.linkpar_specs[label]['databook_order'] >= 0:
-                        raise OptimaException('ERROR: Parameter "%s" is a custom function of other parameters and characteristics. Tag "Databook Order" column with a negative number so that conflicts with user-provided values do not arise.' % label)
                     settings.par_funcs[label] = True
                     expr_stack, var_dict = parser.produceStack(val)
                     settings.linkpar_specs[label]['f_stack'] = expr_stack
