@@ -1,22 +1,23 @@
 # %% Imports
 
 from optima_tb.utils import flattenDict, odict, OptimaException
-from optima_tb.validation import checkTransitionFraction
 import optima_tb.settings as project_settings
 from optima_tb.results import ResultSet
-from optima_tb.parsing import FunctionParser
+from optima_tb.parsing import parse_function
 from optima_tb.ModelPrograms import ModelProgramSet, ModelProgram
 from collections import defaultdict
 import cPickle as pickle
 import logging
 logger = logging.getLogger(__name__)
-parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
 
 import numpy as np
+import scipy.optimize
 from copy import deepcopy as dcp
 import uuid
 
 import matplotlib.pyplot as plt
+
+
 
 class Variable(object):
     '''
@@ -164,6 +165,15 @@ class Characteristic(Variable):
         self.dt = dt
         self.internal_vals = np.ones(tvec.shape) * np.nan
 
+    def get_included_comps(self):
+        includes = []
+        for inc in self.includes:
+            if isinstance(inc,Characteristic):
+                includes += inc.get_included_comps()
+            else:
+                includes.append(inc)
+        return includes
+
     @property
     def vals(self):
         if self.internal_vals is None:
@@ -238,7 +248,9 @@ class Parameter(Variable):
         Variable.__init__(self, label=label)
         self.vals = None
         self.deps = None
-        self.f_stack = None
+        self.fcn_str = None
+        self._fcn = None
+
         self.limits = None # Can be a two element vector [min,max]
 
         self.dependency = False 
@@ -247,32 +259,47 @@ class Parameter(Variable):
         self.source_popsize_cache_time = None
         self.source_popsize_cache_val = None
 
-    def set_f_stack(self,f_stack,deps):
-        self.f_stack = f_stack
+    def set_fcn(self, fcn_str, pop):
+        self.fcn_str = fcn_str
+        self._fcn, dep_list = parse_function(fcn_str)
+        deps = {}
+        for dep_name in dep_list:
+            deps[dep_name] = pop.getVariable(dep_name)
         self.deps = deps
 
         # If this Parameter has links, it must be marked as dependent for evaluation during integration
         if self.links:
             self.set_dependent()
 
-
     def set_dependent(self):
         self.dependency = True
         if self.deps is not None: # Make all dependencies dependent too, this will propagate through dependent parameters
-            for dep in self.deps:
-                if isinstance(dep,Link):
-                    raise OptimaException('A Parameter that depends on transition flow rates cannot be a dependency, it must be output only')
-                dep.set_dependent()
+            for deps in self.deps.values():
+                for dep in deps:
+                    if isinstance(dep,Link):
+                        raise OptimaException('A Parameter that depends on transition flow rates cannot be a dependency, it must be output only')
+                    dep.set_dependent()
 
     def unlink(self):
         self.links = [x.uid for x in self.links]
-        self.deps = [x.uid for x in self.deps] if self.deps is not None else None
+        if self.deps is not None:
+            for dep_name in self.deps:
+                self.deps[dep_name] = [x.uid for x in self.deps[dep_name]]
+        if self._fcn is not None:
+            self._fcn = None
 
     def relink(self,objs):
         # Given a dictionary of objects, restore the internal references
         # based on the UUID
         self.links = [objs[x] for x in self.links]
-        self.deps = [objs[x] for x in self.deps] if self.deps is not None else None
+
+        if self.deps is not None:
+            for dep_name in self.deps:
+                self.deps[dep_name] = [objs[x] for x in self.deps[dep_name]]
+
+        if self.fcn_str:
+            self._fcn, dep_list = parse_function(self.fcn_str)
+
 
     def constrain(self,ti):
         # NB. Must be an array, so ti must must not be supplied
@@ -284,21 +311,23 @@ class Parameter(Variable):
         # Update the value of this Parameter at time index ti
         # by evaluating its f_stack function using the 
         # current values of all dependent variables at time index ti
+        if not self._fcn:
+            return
+
         if ti is None:
             ti = np.arange(0,self.vals.size) # This corresponds to every time point
         else:
             ti = np.array(ti)
 
-        if self.f_stack is None:
-            return
+        dep_vals = dict.fromkeys(self.deps,0.0)
+        for dep_name,deps in self.deps.items():
+            for dep in deps:
+                if isinstance(dep, Link):
+                    dep_vals[dep_name] += dep.vals[[ti]] / dep.dt
+                else:
+                    dep_vals[dep_name] += dep.vals[[ti]]
 
-        dep_vals = defaultdict(np.float64)
-        for dep in self.deps:
-            if isinstance(dep,Link):
-                dep_vals[dep.label] += dep.vals[[ti]]/dep.dt
-            else:
-                dep_vals[dep.label] += dep.vals[[ti]]
-        self.vals[ti] = self.scale_factor*parser.evaluateStack(stack=self.f_stack[0:], deps=dep_vals)   # self.f_stack[0:] makes a copy
+        self.vals[ti] = self.scale_factor*self._fcn(**dep_vals)
 
     def source_popsize(self,ti):
         # Get the total number of people covered by this program
@@ -326,7 +355,7 @@ class Link(Variable):
     cascade compartments within a single population.
     '''
     # *** Link values are always dt-based ***
-    def __init__(self, parameter, object_from, object_to,tag,is_transfer=False):
+    def __init__(self, parameter, object_from, object_to,tag):
         # Note that the Link's label is the transition tag
         Variable.__init__(self, label=tag)
         self.vals = None
@@ -334,7 +363,6 @@ class Link(Variable):
         self.units = 'people'
 
         self.parameter = parameter # Source parameter where the unscaled link value is drawn from (a single parameter may have multiple links)
-        self.parameter.dependency = True # A transition parameter must be updated during integration
 
         self.source = object_from # Compartment to remove people from
         self.dest = object_to # Compartment to add people to
@@ -343,8 +371,6 @@ class Link(Variable):
         self.parameter.links.append(self)
         self.source.outlinks.append(self)
         self.dest.inlinks.append(self)
-
-        self.is_transfer = is_transfer # A transfer connections compartments across populations
 
     def unlink(self):
         self.parameter = self.parameter.uid
@@ -432,6 +458,9 @@ class ModelPopulation(object):
         # At the moment, labels are unique across object types and within object
         # types except for links, but if that logic changes, simple modifications can
         # be made here
+
+        label = label.replace('___',':')
+
         if label in self.comp_lookup:
             return [self.comp_lookup[label]]
         elif label in self.charac_lookup:
@@ -440,8 +469,39 @@ class ModelPopulation(object):
             return [self.par_lookup[label]]
         elif label in self.link_lookup:
             return self.link_lookup[label]
+        elif ':' in label:
+            # Link labels in Atomica end in 'par_name:flow' so they are handled above
+            # This branch of the if statement is exclusively for compartment lookup
+            # Allowed syntax is
+            # 'source_label:' - All links going out from source
+            # ':dest_label' - All links going into destination
+            # 'source_label:dest_label' - All links from Source to Dest
+            # 'source_label:dest_label:par_label' - All links from Source to Dest belonging to a given Parameter
+            # ':dest:par_label'
+            # 'source::par_label' - As per above
+            # Note - because compartment labels are resolved within compartments, this function currently cannot
+            # be used to look up transfer links
+            label_tokens = label.split(':')
+            if len(label_tokens) == 2:
+                label_tokens.append('')
+            src,dest,par = label_tokens
+
+            if src and dest:
+                links = [l for l in self.getComp(src).outlinks if l.dest.label == dest]
+            elif src:
+                links = self.getComp(src).outlinks
+            elif dest:
+                links = self.getComp(dest).inlinks
+            else:
+                links = self.links
+
+            if par:
+                links = [l for l in links if l.parameter.label == par]
+
+            return links
+
         else:
-            raise OptimaException('Object %s not found' % (label))
+            raise OptimaException('Object not found: (%s)' % (label))
 
     def getComp(self, comp_label):
         ''' Allow compartments to be retrieved by label rather than index. Returns a Compartment. '''
@@ -498,6 +558,10 @@ class ModelPopulation(object):
             if 'denom' in spec:
                 charac.add_denom(self.getVariable(spec['denom'])[0])
 
+        # Finally, make sure the 'alive' characteristic is kept up to date
+        self.getCharac(settings.charac_pop_count).set_dependent()
+
+
         # Parameters first pass, create parameter objects and links
         for label,spec in settings.linkpar_specs.items():
             par = Parameter(label=label)
@@ -526,13 +590,8 @@ class ModelPopulation(object):
                 if 'max' in spec:
                     par.limits[1] = spec['max']
 
-            if 'f_stack' in spec:
-
-                f_stack = dcp(spec['f_stack'])
-                deps = []
-                for dep_label in spec['deps']:
-                    deps += self.getVariable(dep_label)
-                par.set_f_stack(f_stack,deps)
+            if 'fcn_str' in spec:
+                par.set_fcn(spec['fcn_str'],self)
 
     def preallocate(self, tvec, dt):
         '''
@@ -555,15 +614,6 @@ class ModelPopulation(object):
         b = np.zeros((len(characs),1))
         A = np.zeros((len(characs),len(comps)))
 
-        def extract_includes(charac):
-            includes = []
-            for inc in charac.includes:
-                if isinstance(inc,Characteristic):
-                    includes += extract_includes(inc)
-                else:
-                    includes.append(inc)
-            return includes
-
         # Construct the characteristic value vector (b) and the includes matrix (A)
         for i,c in enumerate(characs):
             # Look up the characteristic value
@@ -572,11 +622,15 @@ class ModelPopulation(object):
             if c.denominator is not None:
                 denom_par = parset.pars['characs'][parset.par_ids['characs'][c.denominator.label]]
                 b[i] *= denom_par.interpolate(tvec=np.array([t_init]), pop_label=self.label)[0]
-            for inc in extract_includes(c):
+            for inc in c.get_included_comps():
                 A[i,comp_indices[inc.label]] = 1.0
 
-        # Solve the linear system
+        # Solve the linear system - allowing negative popsizes to be computed
         x, residual, rank, _ = np.linalg.lstsq(A,b,rcond=-1)
+
+        # Solve the linear system - do not allow negative popsizes
+        # x, residual = scipy.optimize.nnls(A,b.ravel())
+        # rank = np.linalg.matrix_rank(A)
 
         # Halt if the solution is not unique (could relax this check later)
         if rank < A.shape[1]:
@@ -609,7 +663,7 @@ class ModelPopulation(object):
                 if x[i] < -project_settings.TOLERANCE:
                     logger.warn('Compartment %s %s - Calculated %f' % (self.label, comps[i].label, x[i]))
                     for charac in characs:
-                        if comps[i] in extract_includes(charac):
+                        if comps[i] in charac.get_included_comps():
                             report_characteristic(charac)
             raise OptimaException('Negative initial popsizes')
 
@@ -643,10 +697,6 @@ class Model(object):
         self.t = None
         self.dt = None
         self.uid = uuid.uuid4()
-        if name is None:
-            self.name = parset.name + ('-%s' % (progset.name) if progset is not None else '')
-        else:
-            self.name = name
 
         self.build(settings, parset, progset, options)
 
@@ -715,7 +765,6 @@ class Model(object):
 
         self.sim_settings['impact_pars_not_func'] = []      # Program impact parameters that are not functions of other parameters and thus already marked for dynamic updating.
                                                             # This is only non-empty if a progset is being used in the model.
-        parser.debug = settings.parser_debug
 
         for k, pop_label in enumerate(parset.pop_labels):
             self.pops.append(ModelPopulation(settings=settings, label=pop_label))
@@ -768,7 +817,7 @@ class Model(object):
                                 # Instantiate a link between corresponding compartments
                                 dest = target_pop_obj.getComp(source.label) # Get the corresponding compartment
                                 link_tag = par_label + '_' + source.label # e.g. 'aging_0-4_to_15-64_sus'
-                                link = Link(par, source, dest, link_tag, is_transfer=True)
+                                link = Link(par, source, dest, link_tag)
                                 link.preallocate(self.t,self.dt)
                                 pop.links.append(link)
                                 if link.label in pop.link_lookup:
@@ -821,14 +870,6 @@ class Model(object):
         else:
             self.programs_active = False
 
-        # Make sure initially-filled junctions are processed and initial dependencies are calculated.
-        self.updateValues(settings=settings, do_special=False)     # Done first just in case junctions are dependent on characteristics.
-                                                                                                # No special rules are applied at this stage, otherwise calculations would be iterated twice before the first step forward.
-                                                                                                # NOTE: If junction outflows were to be tagged by special rules, initial calculations may be off. Return to this later and consider logic rigorously.
-        self.processJunctions(settings=settings)
-        self.updateValues(settings=settings)
-
-
         # set up sim_settings for later use wrt population tags
         self.sim_settings['tag_birth'] = []
         self.sim_settings['tag_death'] = []
@@ -843,15 +884,27 @@ class Model(object):
         Run the full model.
         '''
 
+        assert self.t_index == 0  # Only makes sense to process a simulation once, starting at ti=0
+
+        self.update_pars(settings=settings, do_special=False)
+        self.update_junctions(settings=settings)
+        self.update_pars(settings=settings)
+        self.update_links(settings=settings)
+
         for t in self.t[1:]:
-            self.stepForward(settings=settings, dt=settings.tvec_dt)
-            self.processJunctions(settings=settings)
-            self.updateValues(settings=settings)
+            self.update_comps()
+            self.t_index += 1  # Step the simulation forward
+            self.update_junctions(settings=settings)
+            self.update_pars(settings=settings)
+            self.update_links(settings=settings)
 
         for pop in self.pops:
-            [par.update() for par in pop.pars if not par.dependency] # Update any remaining parameters
+
+            # First, clear characteristic internal vals so non-dependent characteristics correctly appear in the parameter update
             for charac in pop.characs:
                 charac.internal_vals = None # Wipe out characteristic vals to save space
+
+            [par.update() for par in pop.pars if not par.dependency] # Update any remaining parameters
 
             if not full_output:
                 for par in pop.pars:
@@ -862,7 +915,7 @@ class Model(object):
 
         return self.pops, self.sim_settings
 
-    def stepForward(self, settings, dt=1.0):
+    def update_links(self, settings):
         '''
         Evolve model characteristics by one timestep (defaulting as 1 year).
         Each application of this method writes calculated values to the next position in popsize arrays, regardless of dt.
@@ -872,91 +925,103 @@ class Model(object):
         ti = self.t_index
 
         for pop in self.pops:
-            for comp in pop.comps:
-                comp.vals[ti+1] = comp.vals[ti]
 
-        for pop in self.pops:
+            # First, populate all of the link values without any outflow constraints
+            for par in pop.pars:
+                if par.links:
+                    transition = par.vals[ti]
 
-            for comp_source in pop.comps:
+                    if not transition:
+                        for link in par.links:
+                            link.vals[ti] = 0.0
+                        continue
+                    elif par.units == 'fraction':
+                        if transition > 1.0:
+                            validation_level = settings.validation['transition_fraction']
+                            if validation_level == project_settings.VALIDATION_ERROR:
+                                raise OptimaException(warning)
+                            elif validation_level == project_settings.VALIDATION_WARN:
+                                warning = "(t=%.2f) Link %s-%s (%s) has transition value = %.3f (>1)" % (self.t[ti], link.source.label, link.dest.label, pop.label, transition)
+                                logger.warn(warning)
+                            transition = 1.0
+                        converted_frac = 1 - (1 - transition) ** self.dt  # A formula for converting from yearly fraction values to the dt equivalent.
 
-                if not comp_source.is_junction:  # Junctions collect inflows during this step. They do not process outflows here.
-
-                    outlinks = comp_source.outlinks  # List of outgoing links
-                    outflow = np.zeros(len(comp_source.outlinks))  # Outflow for each link # TODO - store in the link objects?
-
-                    for i, link in enumerate(outlinks):
-
-                        # Compute the number of people that are going out of each link
-                        transition = link.parameter.vals[ti]
-
-                        if transition == 0.0:
-                            # Note that commands below are all multiplicative and thus can't map an initial value of 0.0 to anything
-                            # other than a flow rate of 0, so we can abort early here
-                            outflow[i] = 0.0
-                            continue
-
-                        if link.parameter.units == 'fraction':
-                            # check if there are any violations, and if so, deal with them
-                            if transition > 1.:
-                                transition = checkTransitionFraction(transition, settings.validation)
-                            converted_frac = 1 - (1 - transition) ** dt  # A formula for converting from yearly fraction values to the dt equivalent.
+                        for link in par.links:
                             if link.source.tag_birth:
                                 n_alive = 0
                                 for p in self.pops:
                                     n_alive += p.popsize(ti)
-                                converted_amt = n_alive * converted_frac
+                                link.vals[ti] = n_alive * converted_frac
                             else:
-                                converted_amt = comp_source.vals[ti] * converted_frac
-                        elif link.parameter.units == 'number':
-                            converted_amt = transition * dt
-                            if link.is_transfer:
-                                transfer_rescale = comp_source.vals[ti] / pop.popsize(ti)
-                                converted_amt *= transfer_rescale
+                                link.vals[ti] = link.source.vals[ti] * converted_frac
+                    elif par.units == 'number':
+                        converted_amt = transition * self.dt
+                        if len(par.links) > 1:
+                            for link in par.links:
+                                link.vals[ti] = converted_amt * link.source.vals[ti] / par.source_popsize(ti)
                         else:
-                            raise OptimaException('Unknown parameter units! NB. "proportion" links can only appear in junctions')
+                            par.links[0].vals[ti] = converted_amt
 
-                        outflow[i] = converted_amt
+            # Then, adjust outflows to prevent negative popsizes
+            for comp_source in pop.comps:
+                if not (comp_source.is_junction or comp_source.tag_birth):
+                    outflow = 0.0
+                    for link in comp_source.outlinks:
+                        outflow += link.vals[ti]
 
-                    # Prevent negative population by proportionately downscaling the outflow
-                    # if there are insufficient people _currently_ in the compartment
-                    # Rescaling is performed if the validation setting is 'avert', otherwise
-                    # either a warning will be displayed or an error will be printed
-                    if not comp_source.tag_birth and np.sum(outflow) > comp_source.vals[ti]:
+                    if outflow > comp_source.vals[ti]:
                         validation_level = settings.validation['negative_population']
+                        warning = "(t=%.2f) Negative value encountered for: (%s - %s) at ti=%g : popsize = %g, outflow = %g" % (self.t[ti],pop.label,comp_source.label,ti,comp_source.vals[ti],outflow)
+                        if validation_level == project_settings.VALIDATION_ERROR:
+                            raise OptimaException(warning)
+                        elif validation_level == project_settings.VALIDATION_WARN:
+                            logger.warn(warning)
 
-                        if validation_level == project_settings.VALIDATION_AVERT or validation_level == project_settings.VALIDATION_WARN:
-                            outflow = outflow / np.sum(outflow) * comp_source.vals[ti]
-                        else:
-                            warning = "Negative value encountered for: (%s - %s) at ti=%g : popsize = %g, outflow = %g" % (pop.label,comp_source.label,ti,comp_source.vals[ti],sum(outflow))
-                            if validation_level == project_settings.VALIDATION_ERROR:
-                                raise OptimaException(warning)
-                            elif validation_level == project_settings.VALIDATION_WARN:
-                                logger.warn(warning)
+                        rescale = comp_source.vals[ti]/outflow
+                        for link in comp_source.outlinks:
+                            link.vals[ti] *= rescale
 
-                    # Apply the flows to the compartments
-                    for i, link in enumerate(outlinks):
-                        link.dest.vals[ti+1] += outflow[i]
-                        link.vals[ti] = outflow[i]
 
-                    comp_source.vals[ti+1] -= np.sum(outflow)
+    def update_comps(self):
+        """
+        Set the compartment values at self.t_index+1 based on the current values at self.t_index
+        and the link values at self.t_index. Values are updated by iterating over all outgoing links
 
+        """
+
+        ti = self.t_index
+
+        # Pre-populate the current value - need to iterate over pops here because transfers
+        # will cross population boundaries
+        for pop in self.pops:
+            for comp in pop.comps:
+                comp.vals[ti + 1] = comp.vals[ti]
+
+        for pop in self.pops:
+            for comp in pop.comps:
+                if not comp.is_junction:
+                    for link in comp.outlinks:
+                        if link.vals[ti]:
+                            link.source.vals[ti + 1] -= link.vals[ti]
+                            link.dest.vals[ti + 1] += link.vals[ti]
 
         # Guard against populations becoming negative due to numerical artifacts
         for pop in self.pops:
             for comp in pop.comps:
-                comp.vals[ti+1] = max(0,comp.vals[ti+1])
+                comp.vals[ti + 1] = max(0, comp.vals[ti + 1])
 
-        # Update timestep index.
-        self.t_index += 1
-
-    def processJunctions(self, settings):
+    def update_junctions(self, settings):
         '''
         For every compartment considered a junction, propagate the contents onwards until all junctions are empty.
         '''
+        # This is run once per timestep...all compartments are resolved in update_comps() so for the links to behave
+        # consistently, we consider the junctions to be updated BEFORE stepping t_index forward
+        # At the very first timestep, the junctions MIGHT already have people in them
+        # In that case, those people should be flushed to
 
         ti = self.t_index
         ti_link = ti - 1
-        if ti_link < 0: 
+        if ti_link < 0:
             ti_link = ti    # For the case where junctions are processed immediately after model initialisation.
 
         review_required = True
@@ -984,7 +1049,7 @@ class Model(object):
                         current_size = junc.vals[ti]
                         denom_val = sum(link.parameter.vals[ti_link] for link in junc.outlinks) # This is the total fraction of people requested to leave, so outflows are scaled to the entire compartment size
                         if denom_val == 0:
-                            raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junction_label)
+                            raise OptimaException('ERROR: Proportions for junction "%s" outflows sum to zero, resulting in a nonsensical ratio. There may even be (invalidly) no outgoing transitions for this junction.' % junc.label)
                         for link in junc.outlinks:
                             flow = current_size * link.parameter.vals[ti_link] / denom_val
                             link.source.vals[ti] -= flow
@@ -993,7 +1058,7 @@ class Model(object):
                             if link.dest.is_junction:
                                 review_required = True # Need to review if a junction received an inflow at this step
 
-    def updateValues(self, settings, do_special=True):
+    def update_pars(self, settings, do_special=True):
         '''
         Run through all parameters and characteristics flagged as dependencies for custom-function parameters and evaluate them for the current timestep.
         These dependencies must be calculated in the same order as defined in settings, characteristics before parameters, otherwise references may break.
@@ -1046,6 +1111,21 @@ class Model(object):
                 rule = settings.linkpar_specs[par_label]['rules']
                 for pop in self.pops:
                     if rule == 'avg_contacts_in':
+
+                        
+                        # par_vals = [par.vals[ti] for par in self.pars_by_pop[par_label]]
+                        # contacts = np.eye(6) * 9 + np.ones((6, 6))
+                        # popsizes = [pop.getCharac(settings.charac_pop_count).internal_vals[ti] for pop in self.pops]
+                        # par_vals = np.array(par_vals).reshape(6, 1)
+                        # popsizes = np.array(popsizes).reshape(6, 1)
+                        # weights = contacts * popsizes
+                        # weights = weights / np.sum(weights, axis=0)
+                        # par_vals = np.matmul(weights.T, par_vals)
+                        # for par, val in zip(self.pars_by_pop[par_label], par_vals):
+                        #     par.vals[ti] = val
+
+
+
                         from_list = self.contacts['into'][pop.label].keys()
 
                         # If interactions with a pop are initiated by the same pop, no need to proceed with special calculations. Else, carry on.
@@ -1060,7 +1140,7 @@ class Model(object):
                                 for k,from_pop in enumerate(from_list):
                                     # All transition links with the same par_label are identically valued. For calculations, only one is needed for reference.
                                     par = self.getPop(from_pop).getPar(par_label)
-                                    weight = self.contacts['into'][pop.label][from_pop]*self.getPop(from_pop).popsize(ti)
+                                    weight = self.contacts['into'][pop.label][from_pop]*self.getPop(from_pop).getCharac(settings.charac_pop_count).internal_vals[ti]
                                     val_sum += old_vals[par.uid]*weight
                                     weights += weight
 
@@ -1076,31 +1156,6 @@ class Model(object):
             for par in pars:
                 par.constrain(ti)
 
-    def calculateOutputs(self):
-        '''
-        Calculate outputs (called cascade characteristics in settings).
-        These outputs must be calculated in the same order as defined in settings, otherwise references may break.
-        Include any parameters marked as an output in the cascade sheet.
-        Return a dictionary with all of the outputs
-
-        As outputs are all Variables or Characteristics they use the vals property for their value
-        '''
-
-        outputs = odict()
-
-        for pop in self.pops:
-            for output in pop.pars + pop.characs:
-                if output.label not in outputs:
-                    outputs[output.label] = odict()
-                if pop.label in outputs[output.label]:
-                    assert isinstance(output,Link), 'There is a duplicate output label that is NOT a link - this is not supposed to happen'
-                    outputs[output.label][pop.label] += output.vals
-                else:
-                    outputs[output.label][pop.label] = output.vals
-        return outputs
-
-
-
 def runModel(settings, parset, progset=None, options=None,full_output=True,name=None):
     '''
     Processes the TB epidemiological model.
@@ -1110,9 +1165,9 @@ def runModel(settings, parset, progset=None, options=None,full_output=True,name=
     - If full_output = False, non-output Parameters (and corresponding links) will be set to None
     '''
 
-    m = Model(settings, parset, progset, options,name)
+    m = Model(settings, parset, progset, options)
     m.process(settings, progset,full_output)
 
-    results = ResultSet(m, parset, settings, progset, options)    # NOTE: Progset may need to be passed to results. Depends on what results object stores.
+    results = ResultSet(m, parset, settings, progset, options, name)
 
     return results

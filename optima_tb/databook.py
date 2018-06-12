@@ -929,7 +929,7 @@ def loadSpreadsheetFunc(settings, databook_path):
             def_val = np.nan
             if 'default' in settings.linkpar_specs[label]:
                 def_val = settings.linkpar_specs[label]['default']
-            if 'f_stack' in settings.linkpar_specs[label]:
+            if 'fcn_str' in settings.linkpar_specs[label]:
                 def_val = np.nan
             else:
                 print('WARNING: Project data sheet does not contain required cascade parameter "%s".\n         Using default format "%s" and default value %f.' % (label, def_format, def_val))

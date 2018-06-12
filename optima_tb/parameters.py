@@ -35,7 +35,22 @@ class Parameter(object):
         self.y_format = y_format                # Value format data (e.g. Probability, Fraction or Number).
         self.y_factor = y_factor                # Scaling factor of data. Corresponds to different transformations whether format is fraction or number.
         self.autocalibrate = autocalibrate      # A set of boolean flags corresponding to y_factor that denote whether this parameter can be autocalibrated.
-                                                                
+
+    @property
+    def pops(self):
+        return sorted(self.t.keys())
+
+    def has_values(self, pop_name):
+        # Returns True if this Parameter has values specified for the given population
+        # Essentially, if this function returns True, then the `interpolate()` method will return usable values
+        return np.any(np.isfinite(self.y[pop_name]))
+
+    def clear(self):
+        ''' Remove all existing values '''
+        for pop in self.pops:
+            self.t[pop] = np.zeros((0,))
+            self.y[pop] = np.zeros((0,))
+
     def insertValuePair(self, t, y, pop_label):
         ''' Check if the inserted t value already exists for the population parameter. If not, append y value. If so, overwrite y value. '''
         # Make sure it stays sorted
@@ -70,7 +85,11 @@ class Parameter(object):
         for tval in original_t:
             if tval > t_remove[0] and tval < t_remove[1]:
                 self.removeValueAt(tval,pop_label)
-        
+
+    def getValueAt(self,t,pop_label):
+        # Return parameter value without any scaling
+        return self.interpolate(np.array([t]),pop_label)/np.abs(self.y_factor[pop_label])
+
     def interpolate(self, tvec = None, pop_label = None, extrapolate_nan = False):
         ''' Take parameter values and construct an interpolated array corresponding to the input time vector. '''
         
@@ -196,16 +215,15 @@ class ParameterSet(object):
     
     def inflate(self,tvec):
         """
-        Inflates cascade parameters only
+        Interpolate parset onto given tvec, including y-factors
         
         """
-        for (id,par) in enumerate(self.pars['cascade']):
-           
-            for j,pop_label in enumerate(self.pop_labels):        
-                self.pars['cascade'][id].y[j] = par.interpolate(tvec = tvec, pop_label = pop_label)
-                self.pars['cascade'][id].t[j] = tvec
-           
-    
+        for par in self.pars['cascade']:
+            for pop_label in self.pop_labels:
+                par.y[pop_label] = par.interpolate(tvec = tvec, pop_label = pop_label)
+                par.t[pop_label] = tvec
+                par.y_factor[pop_label] = 1.0
+
     def __getMinMax(self,y_format):
         if y_format.lower() == 'fraction':
             return (0.,1.)
@@ -307,9 +325,12 @@ class ParameterSet(object):
         return init_compartments,charac_labels
          
     
-    def update(self, par_vec, par_pop_labels, isYFactor=False):
+    def update(self, values, par_pop_labels, isYFactor=False):
         """
         Update parameters from a list of values, given a corresponding list of parameter labels and population labels, arranged in pairs.
+
+        values - list of values to insert
+        par_pop_labels - list of corresponding tuples (par_label,pop_label)
 
         TODO: extend function so that can also add years or format values
         TODO: remove index ...?
@@ -330,12 +351,12 @@ class ParameterSet(object):
 #                    logger.info("ParameterSet %s has not modifed its y-factor value for parameter %s, population %s, due to y-factor constraints." % (self.name, par_label, pop_label))
 #                    continue
                 
-                if par.y_factor[pop_label] != par_vec[index]:
-                    logger.info("ParameterSet %s is updating its y-factor for parameter %s, population %s from %f to %f." % (self.name, par_label, pop_label, par.y_factor[pop_label], par_vec[index]))
+                if par.y_factor[pop_label] != values[index]:
+                    logger.info("ParameterSet %s is updating its y-factor for parameter %s, population %s from %f to %f." % (self.name, par_label, pop_label, par.y_factor[pop_label], values[index]))
                 
-                par.y_factor[pop_label] = par_vec[index]
+                par.y_factor[pop_label] = values[index]
             else:
-                par.y[pop_label] = par_vec[index]
+                par.y[pop_label] = values[index]
             index += 1
             
         
@@ -356,7 +377,7 @@ class ParameterSet(object):
 #                # finally, update index count
 #                index += 1
                 
-        logger.info('Updated ParameterSet "%s" with new values.' % self.name)
+        # logger.info('Updated ParameterSet "%s" with new values.' % self.name)
     
 #    def updateEntryPoints(self,proj_settings,compartment_t0,charac_labels):
 #        """
@@ -454,7 +475,7 @@ class ParameterSet(object):
                     else:
                         c.pars['cascade'][c_index].y[pop] = np.append(c.pars['cascade'][c_index].y[pop],[b.pars['cascade'][b_index].y[pop][i]])
                         c.pars['cascade'][c_index].t[pop] = np.append(c.pars['cascade'][c_index].t[pop],[t_val])
-                
+                np.seterr(all='raise')
                 # correct for min/max, based on format type: as presumably 'a' was already correct, 
                 # we only need to check that the min max wasn't violated when we're adding values together, and therefore
                 # only have to check when we've added something from b. 

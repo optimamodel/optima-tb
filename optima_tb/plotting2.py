@@ -3,9 +3,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 import numpy as np
-import pylab as pl
-from random import shuffle
-import numbers
 import os
 import itertools
 import textwrap
@@ -18,10 +15,8 @@ from optima_tb.utils import odict, OptimaException, nestedLoop
 from optima_tb.results import ResultSet
 from optima_tb.plotting import gridColorMap
 from optima_tb.model import Compartment, Characteristic, Parameter, Link
-from optima_tb.parsing import FunctionParser
+from optima_tb.parsing import parse_function
 
-import matplotlib
-from matplotlib.pyplot import plot
 import matplotlib.cm as cmx
 import matplotlib.colors as matplotlib_colors
 import matplotlib.pyplot as plt
@@ -31,44 +26,49 @@ from matplotlib.collections import PatchCollection
 from matplotlib.legend import Legend
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
-
-
-parser = FunctionParser(debug=False)  # Decomposes and evaluates functions written as strings, in accordance with a grammar defined within the parser object.
-
+from optima_tb.interpolation import interpolateFunc
 
 settings = dict()
 settings['legend_mode'] = 'together' # Possible options are ['together','separate','none'] 
 settings['bar_width'] = 1.0 # Width of bars in plotBars()
 
 def save_figs(figs,path = '.',prefix = '',fnames=None):
-    #
+    # Take in array of figures, and save them to disk
+    # Path and prefix are appended to the start
+    # fnames - Optionally an array of file names. By default, each figure is named
+    # using its 'label' property. If a figure has an empty 'label' string it is assumed to be
+    # a legend and will be named based on the name of the figure immediately before it.
+    # If you provide an empty string in the `fnames` argument this same operation will be carried
+    # out. If the last figure name is omitted, an empty string will automatically be added. This allows
+    # the separate-legend option to be turned on or off without changing the filename inputs to this function
+    # (because the last legend figure may or may not be present depending on the legend mode)
+
     try:
         os.makedirs(path)
     except OSError as err:
         if err.errno!=os.errno.EEXIST:
             raise
 
+    # Sanitize fig array input
     if not isinstance(figs,list):
         figs = [figs]
 
-    if fnames is not None:
-        if not isinstance(fnames,list):
-            fnames = [fnames]
-        if len(fnames) == len(figs)-1 and not figs[-1].get_label():
-            fnames.append('')
-        else:
-            assert len(fnames) == len(figs), 'Number of figures must match number of specified filenames, or the last figure must be a legend with no label'
+    # Sanitize and populate default fnames values
+    if fnames is None:
+        fnames = [fig.get_label() for fig in figs]
+    elif not isinstance(fnames,list):
+        fnames = [fnames]
+
+    # Add legend figure to the end
+    if len(fnames) < len(figs):
+        fnames.append('')
+    assert len(fnames) == len(figs), 'Number of figures must match number of specified filenames, or the last figure must be a legend with no label'
+    assert fnames[0], 'The first figure name cannot be empty'
 
     for i,fig in enumerate(figs):
-        if fnames is not None and fnames[i]: # Use the specified filename
-            fname = prefix+fnames[i] + '.png'
-        else:
-            if not fig.get_label() and i == len(figs)-1: # If the figure has no label (e.g. it is a legend)
-                fname = fname[0:-4] + '_legend.png'
-            elif not fig.get_label():
-                raise OptimaException('Only the last figure passed to save_figs is allowed to have an empty label if the filenames are not explicitly specified')
-            else:
-                fname = prefix+fig.get_label() + '.png'
+        if not fnames[i]: # assert above means that i>0
+            fnames[i] = fnames[i-1] + '_legend'
+        fname = prefix + fnames[i] + '.png'
         fig.savefig(os.path.join(path,fname),bbox_inches='tight')
         logger.info('Saved figure "%s"' % fname)
 
@@ -231,9 +231,9 @@ class PlotData(object):
 
                         if t_bins is None: # Annualize if not time aggregating
                             data_dict[output_label] /= dt
-                            output_units[output_label] = link.units + '/year'
+                            output_units[output_label] = vars[0].units + '/year'
                         else:    
-                            output_units[output_label] = link.units # If we sum links in a bin, we get a number of people
+                            output_units[output_label] = vars[0].units # If we sum links in a bin, we get a number of people
                         data_label[output_label] = vars[0].parameter.label
 
                     elif isinstance(vars[0],Parameter):
@@ -270,15 +270,15 @@ class PlotData(object):
                         continue
 
                     par = Parameter(output_label)
-                    f_stack, dep_labels = parser.produceStack(f_stack_str)
-                    deps = []
+                    fcn, dep_labels = parse_function(f_stack_str)
+                    deps = {}
                     displayed_annualization_warning = False
                     for dep_label in dep_labels:
                         var = pop.getVariable(dep_label)
                         if t_bins is not None and (isinstance(var,Link) or isinstance(var,Parameter)) and time_aggregation == "sum" and not displayed_annualization_warning:
                             raise OptimaException('Function includes Parameter/Link so annualized rates are being used. Aggregation may need to use "average" rather than "sum"')
-                        deps += pop.getVariable(dep_label)
-                    par.f_stack = f_stack
+                        deps[dep_label] = pop.getVariable(dep_label)
+                    par._fcn = fcn
                     par.deps = deps
                     par.preallocate(tvecs[result_label], dt)
                     par.update()
@@ -330,7 +330,7 @@ class PlotData(object):
                             vals = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
                         elif pop_aggregation == 'average': 
                             vals = sum(aggregated_outputs[x][output_name] for x in pop_labels) # Add together all the outputs
-                            vals /= len(labels)
+                            vals /= len(pop_labels)
                         elif pop_aggregation == 'weighted':
                             vals = sum(aggregated_outputs[x][output_name]*popsize[x] for x in pop_labels) # Add together all the outputs
                             vals /= sum([popsize[x] for x in pop_labels])
@@ -369,6 +369,8 @@ class PlotData(object):
                     t_out = upper
                 elif time_aggregation == 'average':
                     t_out = (lower+upper)/2.0
+                else:
+                    raise OptimaException('Unknown time aggregation')
 
             for s in self.series:
                 tvec = []
@@ -380,6 +382,8 @@ class PlotData(object):
                     else:
                         flt = (s.tvec >= low) & (s.tvec < high)
                         if time_aggregation == 'sum':
+                            if s.units in ['','fraction','proportion']:
+                                logger.warning('Warning - %s is not in number units, so time aggregation probably should not be "sum"' % (s))
                             vals.append(np.sum(s.vals[flt]))
                         elif time_aggregation == 'average':
                             vals.append(np.average(s.vals[flt]))
@@ -416,7 +420,7 @@ class PlotData(object):
                 return s
         raise OptimaException('Series %s-%s-%s not found' % (key[0],key[1],key[2]))
 
-    def set_colors(self,colors=None,results=['all'],pops=['all'],outputs=['all'],overwrite=False):
+    def set_colors(self,colors=None,results='all',pops='all',outputs='all',overwrite=False):
         # What are the different ways we might want to set colours?
         # - Assign a set of colours to results/pops/outputs to distinguish on a line plot
         # - Assign a colour scheme to a bunch of outputs
@@ -600,6 +604,8 @@ def plotBars(plotdata,stack_pops=None,stack_outputs=None,outer='times'):
         result_offset = len(tvals)*(block_width+gaps[1])+gaps[2]
         tval_offset = block_width+gaps[1]
         iterator = nestedLoop([range(len(plotdata.results)),range(len(tvals))],[1,0])
+    else:
+        raise OptimaException('Unknown outer type')
 
     figs = []
     fig,ax = plt.subplots()
@@ -769,16 +775,9 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
 
     plotdata = dcp(plotdata)
 
-    # Update colours with defaults, if they were not set
-
     if axis == 'results':
         plotdata.set_colors(results=plotdata.results)
-    elif axis == 'pops':
-        plotdata.set_colors(pops=plotdata.pops)
-    elif axis == 'outputs':
-        plotdata.set_colors(outputs=plotdata.outputs)
 
-    if axis == 'results':
         for pop in plotdata.pops:
             for output in plotdata.outputs:
                 fig,ax = plt.subplots()
@@ -796,19 +795,20 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                     y = np.stack([plotdata[result,pop,output].vals for result in plotdata.results])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
                     ax.stackplot(plotdata[plotdata.results[0],pop,output].tvec,y,labels=[plotdata.result_names[x] for x in plotdata.results],colors=[plotdata[result,pop,output].color for result in plotdata.results])
+                    if plot_type == 'stacked' and data is not None:
+                        stack_data(ax, data, [plotdata[result, pop, output] for result in plotdata.results])
                 else:
-                    for result in plotdata.results:
+                    for i,result in enumerate(plotdata.results):
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.result_names[result])
-
-                if data is not None:
-                    for result in plotdata.results:
-                        render_data(ax,data,plotdata[result,pop,output],plot_type)
-
+                        if data is not None and i == 0:
+                            render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
                 if settings['legend_mode'] == 'together':
                     render_legend(ax,plot_type)
 
     elif axis == 'pops':
+        plotdata.set_colors(pops=plotdata.pops)
+
         for result in plotdata.results:
             for output in plotdata.outputs:
                 fig,ax = plt.subplots()
@@ -826,19 +826,20 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                     y = np.stack([plotdata[result,pop,output].vals for pop in plotdata.pops])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
                     ax.stackplot(plotdata[result,plotdata.pops[0],output].tvec,y,labels=[plotdata.pop_names[x] for x in plotdata.pops],colors=[plotdata[result,pop,output].color for pop in plotdata.pops])
+                    if plot_type == 'stacked' and data is not None:
+                        stack_data(ax, data, [plotdata[result, pop, output] for pop in plotdata.pops])
                 else:
                     for pop in plotdata.pops:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.pop_names[pop])
-
-                if data is not None:
-                    for pop in plotdata.pops:
-                        render_data(ax,data,plotdata[result,pop,output],plot_type)
-
+                        if data is not None:
+                            render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
                 if settings['legend_mode'] == 'together':
                     render_legend(ax,plot_type)
 
     elif axis == 'outputs':
+        plotdata.set_colors(outputs=plotdata.outputs)
+
         for result in plotdata.results:
             for pop in plotdata.pops:
                 fig,ax = plt.subplots()
@@ -854,24 +855,32 @@ def plotSeries(plotdata,plot_type='line',axis='outputs',data=None):
                     y = np.stack([plotdata[result,pop,output].vals for output in plotdata.outputs])
                     y = y/np.sum(y,axis=0) if plot_type == 'proportion' else y
                     ax.stackplot(plotdata[result,pop,plotdata.outputs[0]].tvec,y,labels=[plotdata.output_names[x] for x in plotdata.outputs],colors=[plotdata[result,pop,output].color for output in plotdata.outputs])
+                    if plot_type == 'stacked' and data is not None:
+                        stack_data(ax,data,[plotdata[result, pop, output] for output in plotdata.outputs])
                 else:
                     for output in plotdata.outputs:
                         ax.plot(plotdata[result,pop,output].tvec,plotdata[result,pop,output].vals,color=plotdata[result,pop,output].color,label=plotdata.output_names[output])
-
-                if data is not None:
-                    for output in plotdata.outputs:
-                        render_data(ax,data,plotdata[result,pop,output],plot_type)
-
+                        if data is not None:
+                            render_data(ax,data,plotdata[result,pop,output])
                 apply_series_formatting(ax,plot_type)
                 if settings['legend_mode'] == 'together':
                     render_legend(ax,plot_type)
+    else:
+        raise OptimaException('Unknown axis type')
 
     if settings['legend_mode'] == 'separate':
         figs.append(render_separate_legend(ax,plot_type))
 
     return figs
 
-def render_data(ax,data,series,plot_type):
+def stack_data(ax,data,series):
+    # Stack a list of series in order
+    baselines = np.cumsum(np.stack([s.vals for s in series]),axis=0)
+    baselines = np.vstack([np.zeros((1,baselines.shape[1])),baselines]) # Insert row of zeros for first data row
+    for i,s in enumerate(series):
+        render_data(ax,data,s,baselines[i,:],True)
+
+def render_data(ax,data,series,baseline=None,filled=False):
     # This function renders a scatter plot for a single variable (in a single population)
     # The scatter plot is drawn in the current axis
     # INPUTS
@@ -880,6 +889,7 @@ def render_data(ax,data,series,plot_type):
     # output - name of an output (str)
     # name - The name-formatting function to retrieve full names (currently unused)
     # color - The color of the data points to use
+    # baseline - baseline values at the same times as the Series
 
     if series.data_label in data['characs']:
         d = data['characs'][series.data_label]
@@ -894,10 +904,12 @@ def render_data(ax,data,series,plot_type):
     else:
         return
 
-    if plot_type == 'stacked':
-        # For stacked plots, need a black border
-        ax.plot(t, y, marker='o', linestyle='none', markersize=10, markeredgewidth=1, markerfacecolor=series.color,
-                markeredgecolor='k')  # label='Data %s %s' % (name(pop,proj),name(output,proj)))
+    if baseline is not None:
+        y_data = interpolateFunc(series.tvec, baseline, t, method='pchip', extrapolate_nan=False)
+        y = y + y_data
+
+    if filled:
+        ax.scatter(t,y,marker='o', s=40, linewidths=1, facecolors=series.color,color='k')#label='Data %s %s' % (name(pop,proj),name(output,proj)))
     else:
         ax.scatter(t,y,marker='o', s=40, linewidths=3, facecolors='none',color=series.color)#label='Data %s %s' % (name(pop,proj),name(output,proj)))
 
@@ -1040,6 +1052,7 @@ def reorder_legend(figs,order=None):
         else:
             for fig in figs: # Apply order operation to all figures passed in
                 reorder_legend(fig,order=order)
+            return
     else:
         fig = figs
 
@@ -1067,6 +1080,7 @@ def relabel_legend(figs,labels):
         else:
             for fig in figs: # Apply order operation to all figures passed in
                 relabel_legend(fig,labels=labels)
+            return
     else:
         fig = figs
 
@@ -1092,6 +1106,26 @@ def getFullName(output_id, proj):
     """
     For a given output_id, returns the user-friendly version of the name. 
     """
+
+    if ':' in output_id: # In Optima TB, only flow compartment syntax contains a ':'
+        output_tokens = output_id.split(':')
+        if len(output_tokens) == 2:
+            output_tokens.append('')
+        src, dest, par = output_tokens
+
+        src = getFullName(src,proj)
+        dest = getFullName(dest,proj)
+        par = getFullName(par,proj)
+
+        full = 'Flow'
+        if src:
+            full += ' from {}'.format(src)
+        if dest:
+            full += ' to {}'.format(dest)
+        if par:
+            full += ' ({})'.format(par)
+        return full
+
     if output_id in proj.settings.charac_specs: # characteristic
         output_id = proj.settings.charac_specs[output_id]['name']
     elif output_id in proj.settings.linkpar_specs: # parameter

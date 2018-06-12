@@ -7,11 +7,12 @@ import itertools as it
 pp.ioff()   # Turn off interactive mode.
 
 from optima_tb.project import Project
-from optima_tb.plotting import plotCompareResults # _plotLine
+from optima_tb.plotting2 import PlotData, plotSeries
 from optima_tb.dataio import saveObject, loadObject
 from optima_tb.defaults import defaultOptimOptions
 from optima_tb.utils import odict
 from optima_tb.settings import PlottingSettings, DO_NOT_SCALE, DEFAULT_YFACTOR
+from optima_tb.model import Compartment, Characteristic, Parameter, Link
 
 import logging
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ def importPyQt():
 qtc, qtw, FigureCanvasQTAgg = importPyQt()
 
 # %% Sanitized path import
-def sanitizedFileDialog(instance=None, which=None, title=None):
+def sanitizedFileDialog(instance=None, which=None, title=None,filterstr=''):
     '''
     Get a sanitized path from a file dialog, either open or save. Examples:
     
@@ -51,11 +52,11 @@ def sanitizedFileDialog(instance=None, which=None, title=None):
     path = sanitizedFileDialog(self, 'save', 'Save file as')
     '''
     if which == 'open':
-        try:    path = str(qtw.QFileDialog.getOpenFileNameAndFilter(instance, title)[0])
-        except: path = str(qtw.QFileDialog.getOpenFileName(instance, title)[0])
+        try:    path = str(qtw.QFileDialog.getOpenFileNameAndFilter(instance, title,filter=filterstr)[0])
+        except: path = str(qtw.QFileDialog.getOpenFileName(instance, title,filter=filterstr)[0])
     elif which == 'save':
-        try:    path = str(qtw.QFileDialog.getSaveFileNameAndFilter(instance, title)[0])
-        except: path = str(qtw.QFileDialog.getSaveFileName(instance, title)[0])
+        try:    path = str(qtw.QFileDialog.getSaveFileNameAndFilter(instance, title,filter=filterstr)[0])
+        except: path = str(qtw.QFileDialog.getSaveFileName(instance, title,filter=filterstr)[0])
     else:
         raise Exception('The argument "which" must be either "open" or "save", not %s' % which)
     return path
@@ -288,6 +289,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.combo_plotter_result_2.setVisible(does_project_have_results)
         self.label_plotter_charac.setVisible(does_project_have_results)
         self.combo_plotter_charac.setVisible(does_project_have_results)
+        self.flowrate_plotter.setVisible(does_project_have_results)
         self.label_plotter_pop.setVisible(does_project_have_results)
         self.combo_plotter_pop.setVisible(does_project_have_results)
         self.button_plotter.setVisible(does_project_have_results)
@@ -326,6 +328,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         self.combo_plotter_result_2.activated[str].connect(self.selectResultTwo)
         self.label_plotter_charac = qtw.QLabel('Select characteristic: ')
         self.combo_plotter_charac = qtw.QComboBox(self)
+        self.flowrate_plotter = qtw.QCheckBox('Display actual flow rates')
         self.combo_plotter_charac.activated[str].connect(self.selectCharacteristic)
         self.label_plotter_pop = qtw.QLabel('Select population: ')
         self.combo_plotter_pop = qtw.QComboBox(self)
@@ -343,6 +346,7 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         grid_lower.addWidget(self.combo_plotter_result_2, 1, 1)
         grid_lower.addWidget(self.label_plotter_charac, 2, 0)
         grid_lower.addWidget(self.combo_plotter_charac, 2, 1)
+        grid_lower.addWidget(self.flowrate_plotter, 2, 2)
         grid_lower.addWidget(self.label_plotter_pop, 3, 0)
         grid_lower.addWidget(self.combo_plotter_pop, 3, 1)
         grid_lower.addWidget(self.button_plotter, 3, 2)
@@ -464,24 +468,22 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
         for i in reversed(range(self.plotter_layout.count())):
             self.plotter_layout.itemAt(i).widget().setParent(None)
 
-        print "------"
-        print self.result_1_plot_name
-        print self.result_2_plot_name
-        print "------"
-
         if self.charac_plot_name is not None and self.pop_plot_name is not None:
 
             try:
                 pop_plot_label = [self.project.data['pops']['name_labels'][self.pop_plot_name]]
-                plot_observed = True
             except:
-                logger.info("Could not identify a population. Setting to total populations")
-                pop_plot_label = None
-                plot_observed = False
+                pop_plot_label = 'all'
 
-            result_set = odict()
-            result_set['%s' % self.result_1_plot_name] = self.project.results[self.result_1_plot_name]
-            result_set['%s' % self.result_2_plot_name] = self.project.results[self.result_2_plot_name]
+            if self.result_1_plot_name == self.result_2_plot_name:
+                results = [self.project.results[self.result_1_plot_name]]
+            else:
+                results = [self.project.results[self.result_1_plot_name], self.project.results[self.result_2_plot_name]]
+
+                if results[1].name == results[0].name:
+                    # This shouldn't happen, but just in case the user loads a manually created project
+                    results[1] = dcp(results[1])
+                    results[1].name = results[0].name + ' (2)'
 
             if self.charac_plot_name in self.project.settings.charac_name_labels: # If a characteristic was selected
                 plot_label = self.project.settings.charac_name_labels[self.charac_plot_name]
@@ -496,14 +498,16 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
                 self.status = ('Status: Unable to plot "%s" as label was not found' % self.charac_plot_name)
                 return
 
-            figure = plotCompareResults(self.project,
-                                       result_set,
-                                       output_labels=[plot_label],
-                                       pop_labels=pop_plot_label,
-                                       plot_observed_data=plot_observed,
-                                       plot_total=True,
-                                       colors=colors,
-                                       save_fig=False)[-1]
+            # Handle the flow rates and transition tags
+            pop_aggregation = 'sum'
+            vars = results[0].model.pops[0].getVariable(plot_label)
+            if isinstance(vars[0],Parameter) and vars[0].links and self.flowrate_plotter.isChecked():
+                plot_label = vars[0].links[0].label
+            elif isinstance(vars[0],Parameter) and pop_plot_label == 'all' and vars[0].units in ['fraction', 'proportion']:
+                pop_aggregation = 'weighted'
+
+            d = PlotData(results,outputs=plot_label,pops=pop_plot_label,project=self.project,pop_aggregation=pop_aggregation)
+            figure = plotSeries(d,axis='results',data=self.project.data)[0]
 
             canvas = FigureCanvasQTAgg(figure)
 
@@ -516,9 +520,31 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             self.plot_window.setGeometry((screen.width() - self.plot_window.width()) / 2, (screen.height() - self.plot_window.height()) / 2,
                                          self.plot_window.width(), self.plot_window.height())
             self.plot_window.setCentralWidget(canvas)
+
+            qkey_imported = False
+            try:
+                from PyQt5.QtGui import QKeySequence
+                qkey_imported = True
+            except:
+                try:
+                    from PyQt4.QtGui import QKeySequence
+                except:
+                    pass
+
+            if qkey_imported:
+                action = qtw.QAction(self.plot_window)
+                action.setShortcut(QKeySequence('Ctrl+S'))
+                action.triggered.connect(lambda : save_png(self.plot_window,figure))
+                self.plot_window.addAction(action)
+            else:
+                print 'Could not add save figure feature!'
+
             self.plot_window.show()
 
-# %% GUI class for parameter calibration
+def save_png(window,figure):
+    filename = sanitizedFileDialog(window,'save','Save figure to png','*.png')
+    if filename:
+        figure.savefig(filename, dpi=150, transparent=False)
 
 class GUICalibration(GUIResultPlotterIntermediate):
 
@@ -1910,6 +1936,17 @@ class GUIBudgetScenario(GUIResultPlotterIntermediate):
 
 
 # %% This is the thing that's actually called
+sys._excepthook = sys.excepthook
+def exception_hook(exctype, value, traceback):
+    dlg = qtw.QMessageBox()
+    dlg.setWindowModality(qtc.Qt.WindowModal)
+    dlg.setText(str(value))
+    dlg.setWindowTitle("UNRECOVERABLE ERROR")
+    dlg.exec_()
+    sys._excepthook(exctype, value, traceback)
+    sys.exit(1)
+sys.excepthook = exception_hook
+
 
 def runGUI():
     ''' Function that launches all available back-end GUIs as they are developed. '''
@@ -1918,3 +1955,6 @@ def runGUI():
     gui = GUI()
     sys.exit(app.exec_())
     return gui # Not super needed, but avoids pylint warning
+
+if __name__ == '__main__':
+    runGUI()

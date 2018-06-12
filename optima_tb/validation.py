@@ -36,25 +36,6 @@ def isDPopValid(model,msettings,dpopsizes,ti,validationSetting):
     # for all other settings, we'll either ignore, warn or throw an error, so we don't need to check
     return True
 
-def checkTransitionFraction(transition,validationSettings):
-    """
-    
-    Params:
-        transition            float
-        validationSetting     optima_tb.settings.ValidationSettings object
-    
-    """
-    validation_level = validationSettings['transition_fraction']
-    if transition > 1.: 
-        warning = "Transition value observed larger than 1.: %g"%transition
-        if validation_level == settings.VALIDATION_ERROR:
-            raise OptimaException(warning)
-        elif validation_level == settings.VALIDATION_WARN:
-            logger.warn(warning)
-        transition = 1.
-    return transition
-
-
 def checkSummedOutflowRate():
     """
     This validation check should be performed after building the model, rather than during the simulation.

@@ -3,7 +3,6 @@ import optima_tb.settings as settings
 from copy import deepcopy as dcp
 from optima_tb.asd import asd
 import numpy as np
-from optima_tb.parsing import FunctionParser
 import optima_tb.settings as project_settings
 from optima_tb.defaults import defaultOptimOptions
 

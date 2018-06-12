@@ -28,7 +28,6 @@ class ResultSet(object):
                                popdata_sim        simulated compartment data points (format: ?)
             t_step             t_steps in real time 
             dt                 dt used to create this resultset
-            outputs            simulated characteristic data points (format: ?)
             model              simulated model object
             
         Optional: ------------------------------------------------------
@@ -43,15 +42,15 @@ class ResultSet(object):
                 t_observed_data       = [2000.,2001.,2002., ...]
     """
 
-    # TODO - remove self.outputs() because everything should be accessible via the model directly?
-
     def __init__(self, model, parset, settings, progset=None, budget_options=None, name=None):
 
         self.uuid = uuid()
+
         if name is None:
-            self.name = parset.name
+            self.name = parset.name + ('-%s' % (progset.name) if progset is not None else '')
         else:
             self.name = name
+
         self.parset_name = parset.name
         self.parset_id = parset.uid
 
@@ -59,8 +58,6 @@ class ResultSet(object):
         self.t_step = model.t
         self.indices_observed_data = np.where(self.t_step % 1.0 == 0)
         self.t_observed_data = self.t_step[self.indices_observed_data]
-
-        self.outputs = model.calculateOutputs()
 
         # Set up for future use
         self.calibration_fit = None
@@ -75,7 +72,7 @@ class ResultSet(object):
 
         # work-in-progress: in time, these sections should be removed and only the data
         # points we are interested should be listed
-        self.model = dcp(model)
+        self.model = model # Reference to original model - each model is only wrapped in one result, so no need to copy it
 
         self.pop_label_index = {}
         for i, pop in enumerate(self.model.pops):
@@ -86,7 +83,7 @@ class ResultSet(object):
         self.comp_labels = settings.node_names
         self.comp_specs = settings.node_specs
         self.comp_label_names = self.__generateLabelNames(self.comp_specs.keys(), self.comp_labels)
-        self.char_labels = self.outputs.keys() # definitely need a better way of determining these
+        self.char_labels = [c.label for c in self.model.pops[0].characs] # Double check if output parameters are included here too?
         self.link_labels = []
         for pop in model.pops:
             for link in pop.links:
@@ -161,34 +158,15 @@ class ResultSet(object):
         units = ""
 
         # Find values in results and add them to the output array per relevant population group.
-        # TODO: Semantics need to be cleaned during design review phase.
-        from optima_tb.model import Parameter, Link
-        vars = self.model.pops[0].getVariable(label)[0]
-        if isinstance(vars,Link) or isinstance(vars,Parameter) and vars.links: # TODO - Replace other calls with isinstance checks? Or deprecate entirely?
-
+        if label in self.model.pops[0].link_lookup:
             values = self.getFlow(label, pop_labels=pop_labels)[0]
-
             for pop in values.keys():
                 popvalues = values[pop]
                 output += popvalues[idx]
-
-        elif label in self.char_labels:
-
-            values = self.getCharacteristicDatapoints(char_label=label, pop_label=pop_labels, use_observed_times=False)[0]
-            values = values[label]
-
-            for pop in values.keys():
-                popvalues = values[pop]
-                output += popvalues[idx]
-
-        elif label in self.comp_label_names.keys():
-
-            values, _, _, units = self.getCompartmentSizes(comp_label=label, pop_labels=pop_labels, use_observed_times=False)
-            for pop in values.keys():
-                output += values[pop][label].vals[idx]
-
         else:
-            logger.warn('Unable to find values for label="%s", with no corresponding characteristic, transition or compartment found.' % label)
+            for pop in pop_labels:
+                var = self.model.getPop(pop).getVariable(label)[0]
+                output += var.vals[idx]
 
         # Do a simple integration process if specified by user.
         if integrated:
@@ -296,9 +274,9 @@ class ResultSet(object):
         for pop_label in pop_labels:
             for char_label in char_labels:
                 if use_observed_times:
-                    datapoints[char_label][pop_label] = self.outputs[char_label][pop_label][self.indices_observed_data]
+                    datapoints[char_label][pop_label] = self.model.getPop(pop_label).getVariable(char_label)[0].vals[self.indices_observed_data]
                 else:
-                    datapoints[char_label][pop_label] = self.outputs[char_label][pop_label]
+                    datapoints[char_label][pop_label] = self.model.getPop(pop_label).getVariable(char_label)[0].vals
 
         units = ''
 
@@ -386,9 +364,8 @@ class ResultSet(object):
         filestem = os.path.abspath(filestem)
         filename = filestem + '.csv'
 
-
-        keys = self.char_labels
-
+        # All dumpable items
+        keys = [c.label for c in self.model.pops[0].characs] + [p.label for p in self.model.pops[0].pars]
 
         if use_alltimesteps:
             output = sep.join(['Indicator', 'Population'] + ['%g' % t for t in self.t_step]) # Create header and years
@@ -396,24 +373,31 @@ class ResultSet(object):
         else:
             output = sep.join(['Indicator', 'Population'] + ['%g' % t for t in self.t_observed_data]) # Create header and years
             npts = len(self.t_observed_data)
+
         for key in keys:
             output += '\n' # Add a line break between different indicators
-            popkeys = self.pop_labels
-            for pk, popkey in enumerate(popkeys):
-                if popkey in self.outputs[key]:
-                    output += '\n'
-                    if use_alltimesteps:
-                        data = self.outputs[key][popkey]
+            for pop in self.pop_labels:
+                output += '\n'
+                try:
+                    var = self.model.getPop(pop).getVariable(key)[0]
+                except OptimaException as e:
+                    if str(e).startswith("Object not found"):
+                        continue
                     else:
-                        data = self.outputs[key][popkey][self.indices_observed_data]
+                        raise
 
-                    output += key + sep + popkey + sep
+                if use_alltimesteps:
+                    data = var.vals
+                else:
+                    data = var.vals[self.indices_observed_data]
 
-                    if data is None: # If full_output=False then some fields will be skipped
-                        output += 'Not stored - set full_output to True to retain'
-                    else:
-                        for t in range(npts):
-                            output += ('%g' + sep) % data[t]
+                output += key + sep + pop + sep
+
+                if data is None: # If full_output=False then some fields will be skipped
+                    output += 'Not stored - set full_output to True to retain'
+                else:
+                    for t in range(npts):
+                        output += ('%g' + sep) % data[t]
 
         if writetofile:
             with open(filename, 'w') as f: f.write(output)

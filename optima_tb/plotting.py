@@ -958,7 +958,7 @@ def innerPlotTrend(proj, resultset, output_labels, pop_labels=None,
         elif compare_type == COMPARETYPE_POP:
             result = resultset[0]
             for pop in pop_labels:
-                y, t, unit = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=pop, integrated=False)
+                y, t, unit = result.getValuesAt(value_label, year_init=plot_over[0], year_end=plot_over[1], pop_labels=[pop], integrated=False)
                 y, unit_tag = _convertPercentage(y, value_label, charac_specs)
                 units.append('%' if unit_tag else unit)
                 if plot_total:
