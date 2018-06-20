@@ -26,51 +26,19 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 @date    : 13jan2017
 """
 
-
-optimalicense = '''
-Optima TB: a TB optimization and analysis tool
-Copyright (C) 2017 by the Optima Consortium
-'''
-print(optimalicense)
-
-
-from ._version import __version__
-
-
-## General modules
-from uuid import uuid4 as uuid
-from datetime import datetime; today = datetime.today
-from copy import deepcopy as dcp
-
-#from .tb import *
-
-# NOTE - To configure logging in individual scripts, use the commands below to reset the
-# logger settings
-import logging.config
-logging_conf = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'standard': {
-            'format': '%(asctime)-20s %(levelname)-8s %(message)s',
-            'datefmt': '%d-%m-%y %H:%M:%S'
-        },
-    },
-    'handlers': {
-        'default': {
-            'level': 'DEBUG',
-            'formatter': 'standard',
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'loggers': {
-        '': {
-            'handlers': ['default'],
-            'level': 'DEBUG',
-        },
-    }
-}
-logging.config.dictConfig(logging_conf)
+# Configure the logging system
 import logging
-logger = logging.getLogger()
+logger = logging.getLogger() # Get the root logger, keep its level
 logger.setLevel('INFO')
+h = logging.StreamHandler()
+h.setFormatter(logging.Formatter(fmt='%(asctime)-20s %(levelname)-8s %(message)s',datefmt='%d-%m-%y %H:%M:%S'))
+logger.addHandler(h)
+del h
+logger.critical('Optima TB: a TB optimization and analysis tool\nCopyright (C) 2018 by the Optima Consortium')
+
+# Set Numpy to throw errors for numerical warnings (these generally indicate something has gone wrong)
+import numpy as np
+np.seterr(all='raise')
+
+
+

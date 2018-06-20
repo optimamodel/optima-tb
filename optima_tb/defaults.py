@@ -33,8 +33,7 @@ def defaultOptimOptions(settings, progset = None, progs_start = None):
                 options['constraints']['max_yearly_change'][prog.label] = {'val':np.inf, 'rel':True}
         for impact in progset.impacts.keys():
             options['constraints']['impacts'][impact] = {'vals':[0.0,np.inf]}
-    options['orig_alloc'] = dcp(options['init_alloc'])
-    
+
     options['constraints']['total'] = sum(options['init_alloc'].values())
     options['objectives'] = {settings.charac_pop_count : {'weight':-1,'year':2030.0}}
     options['saturate_with_default_budgets'] = True     # Set True so that optimization redistributes funds across entire progset.

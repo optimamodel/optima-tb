@@ -475,8 +475,7 @@ class ParameterSet(object):
                     else:
                         c.pars['cascade'][c_index].y[pop] = np.append(c.pars['cascade'][c_index].y[pop],[b.pars['cascade'][b_index].y[pop][i]])
                         c.pars['cascade'][c_index].t[pop] = np.append(c.pars['cascade'][c_index].t[pop],[t_val])
-                np.seterr(all='raise')
-                # correct for min/max, based on format type: as presumably 'a' was already correct, 
+                # correct for min/max, based on format type: as presumably 'a' was already correct,
                 # we only need to check that the min max wasn't violated when we're adding values together, and therefore
                 # only have to check when we've added something from b. 
                 minmax = c.__getMinMax(a.pars['cascade'][c_index].y_format[pop])

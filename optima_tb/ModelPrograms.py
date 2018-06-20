@@ -104,20 +104,26 @@ class ModelProgramSet(object):
                     else:
                         default = prog.getDefaultBudget(year=start_year)
                     default = prog.getDefaultBudget(year=start_year)
+
                     if np.abs(spending - default) > project_settings.TOLERANCE:
                         spending_def = t * 0.0 + default
                         spending_new = t * 0.0 + spending
-                        try: eps = sim_settings['constraints']['max_yearly_change'][prog.label]['val']
-                        except: raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog.label)
+                        try:
+                            eps = sim_settings['constraints']['max_yearly_change'][prog.label]['val']
+                        except:
+                            raise OptimaException('ERROR: A maximum yearly change constraint was passed to the model for "%s" but had no value associated with it.' % prog.label)
                         if 'rel' in sim_settings['constraints']['max_yearly_change'][prog.label] and sim_settings['constraints']['max_yearly_change'][prog.label]['rel'] is True:
                             eps *= default
-                        if np.isnan(eps): eps = np.inf  # Eps likely becomes a nan if it was infinity multiplied by zero.
+                        if np.isnan(eps):
+                            eps = np.inf  # Eps likely becomes a nan if it was infinity multiplied by zero.
                         if np.abs(eps * dt) < np.abs(spending - default):
                             if np.abs(eps) < project_settings.TOLERANCE:
                                 raise OptimaException('ERROR: The change in budget for ramp-constrained "%s" is effectively zero. Model will not continue running; change in program funding would be negligible.' % prog.label)
                             spending_ramp = default + (t - start_year) * eps * np.sign(spending - default)
-                            if spending >= default: spending_ramp = np.minimum(spending_ramp, spending_new)
-                            else: spending_ramp = np.maximum(spending_ramp, spending_new)
+                            if spending >= default:
+                                spending_ramp = np.minimum(spending_ramp, spending_new)
+                            else:
+                                spending_ramp = np.maximum(spending_ramp, spending_new)
                             spending = spending_def * (t < start_year) + spending_ramp * (t >= start_year)
 
                 # Todo - alloc_is_coverage is mentioned above? Does this statement execute correctly, or should it be an elif?
@@ -212,7 +218,6 @@ class ModelProgramSet(object):
 
             if par.links:
                 impact = np.sum(impact) # Note - sum the rates before doing the conversion
-
                 if par.units == 'fraction':
                     impact = 1.0 - (1.0 - impact) ** (1.0 / self.dt)
                 elif par.units == 'number':

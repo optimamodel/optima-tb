@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     pinitial=None, sinitial=None, absinitial=None, xmin=None, xmax=None,
     maxiters=None, maxtime=None, abstol=None, reltol=1e-3, stalliters=None,
-    stoppingfunc=None, randseed=None, label=None, fulloutput=True, verbose=2, **kwargs):
+    stoppingfunc=None, randseed=None, label=None, fulloutput=True, verbose=None, **kwargs):
     """
     Optimization using adaptive stochastic descent (ASD).
     
@@ -59,7 +59,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     from time import time
     if randseed is not None:
         seed(int(randseed)) # Don't reset it if not supplied
-        if verbose >= 3: print('Launching ASD with random seed is %i; sample: %f' % (randseed, random()))
+        logger.debug('Launching ASD with random seed is %i; sample: %f' % (randseed, random()))
 
     def consistentshape(userinput, origshape=False):
         """
@@ -123,7 +123,6 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     exitreason = 'Unknown exit reason' # Catch everything else
     while True:
         count += 1 # Increment the count
-        if verbose == 1: print(offset + label + 'Iteration %i; elapsed %0.1f s; objective: %0.3e' % (count, time() - start, fval)) # For more verbose, use other print statement below
 
         # Calculate next parameters
         probabilities = probabilities / sum(probabilities) # Normalize probabilities
@@ -141,7 +140,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
                 stepsizes[choice] = stepsizes[choice] / sdec # Decrease size of step for next time
 
         if not inrange:
-            if verbose >= 2: print('======== Can\'t find parameters within range after %i tries, terminating ========' % maxrangeiters)
+            logger.warning('======== Can\'t find parameters within range after %i tries, terminating ========' % maxrangeiters)
             break
 
         # Calculate the new value
@@ -150,7 +149,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
         fvalnew = function(xnew, **args) # Calculate the objective function for the new parameter set
         abserrorhistory[mod(count, stalliters)] = max(0, fval - fvalnew) # Keep track of improvements in the error
         relerrorhistory[mod(count, stalliters)] = max(0, fval / float(fvalnew) - 1.0) # Keep track of improvements in the error
-        if verbose >= 3: print(offset + 'step=%i choice=%s, par=%s, pm=%s, origval=%s, newval=%s, inrange=%s' % (count, choice, par, pm, x[par], xnew[par], inrange))
+        logger.debug(offset + 'step=%i choice=%s, par=%s, pm=%s, origval=%s, newval=%s, inrange=%s' % (count, choice, par, pm, x[par], xnew[par], inrange))
 
         # Check if this step was an improvement
         fvalold = fval # Store old fval
@@ -167,7 +166,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
         else:
             exitreason = 'Objective function returned NaN'
             break
-        if verbose >= 2: print(offset + label + ' step %i (%0.1f s) %s (orig: %s | best:%s | new:%s | diff:%s)' % ((count, time() - start, flag) + multisigfig([fvalorig, fvalold, fvalnew, fvalnew - fvalold])))
+        logger.info(offset + label + ' step %i (%0.1f s) %s (orig: %s | best:%s | new:%s | diff:%s)' % ((count, time() - start, flag) + multisigfig([fvalorig, fvalold, fvalnew, fvalnew - fvalold])))
 
         # Store output information
         fvals[count] = fval # Store objective function evaluations
@@ -193,7 +192,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     # Return
     x = reshape(x, origshape) # Parameters
     fvals = fvals[:count + 1] # Function evaluations
-    if verbose >= 2: print('=== %s %s (%i steps, orig: %s | best: %s | ratio: %s) ===' % ((label, exitreason, count) + multisigfig([fvals[0], fvals[-1], fvals[-1] / fvals[0]])))
+    logger.info('=== %s %s (%i steps, orig: %s | best: %s | ratio: %s) ===' % ((label, exitreason, count) + multisigfig([fvals[0], fvals[-1], fvals[-1] / fvals[0]])))
     if fulloutput:
         details = dict()
         details['exitreason'] = exitreason
