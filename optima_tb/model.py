@@ -931,7 +931,7 @@ class Model(object):
                 if par.links:
                     transition = par.vals[ti]
 
-                    if not transition:
+                    if np.isnan(transition) or not transition:
                         for link in par.links:
                             link.vals[ti] = 0.0
                         continue
