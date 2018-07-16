@@ -477,6 +477,12 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             if self.result_1_plot_name == self.result_2_plot_name:
                 results = [self.project.results[self.result_1_plot_name]]
             else:
+                #emergency hotfix to make it not crash as these are set to None sometimes and doesn't seem like they should be (?)
+                if self.result_1_plot_name is None:
+                    self.result_1_plot_name = self.project.results.keys()[0]
+                if self.result_2_plot_name is None:
+                    self.result_2_plot_name = self.project.results.keys()[-1]
+                    
                 results = [self.project.results[self.result_1_plot_name], self.project.results[self.result_2_plot_name]]
 
                 if results[1].name == results[0].name:
