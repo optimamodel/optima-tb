@@ -593,6 +593,9 @@ class ModelPopulation(object):
             if 'fcn_str' in spec:
                 par.set_fcn(spec['fcn_str'],self)
 
+            if 'f_stack' in spec:
+                raise OptimaException('This project is missing the new-format parameter functions - the project needs to be recreated from the Excel files')
+
     def preallocate(self, tvec, dt):
         '''
         Pre-allocate variable arrays in compartments, links and dependent variables for faster processing.
@@ -931,7 +934,7 @@ class Model(object):
                 if par.links:
                     transition = par.vals[ti]
 
-                    if np.isnan(transition) or not transition:
+                    if not transition:
                         for link in par.links:
                             link.vals[ti] = 0.0
                         continue
