@@ -506,13 +506,28 @@ class GUIResultPlotterIntermediate(GUIProjectManagerBase):
             # Handle the flow rates and transition tags
             pop_aggregation = 'sum'
             vars = results[0].model.pops[0].getVariable(plot_label)
+
+            # If plotting the links associated with a Parameter, label the plot using the Link name
             if isinstance(vars[0],Parameter) and vars[0].links and self.flowrate_plotter.isChecked():
                 plot_label = vars[0].links[0].label
-            elif isinstance(vars[0],Parameter) and pop_plot_label == 'all' and vars[0].units in ['fraction', 'proportion']:
-                pop_aggregation = 'weighted'
+
+            # Select weighted averaging for:
+            # - Characteristics that are dimensionless
+            # - Parameters that are in fraction/proportion units
+            if pop_plot_label == 'all':
+                if isinstance(vars[0],Characteristic) and not vars[0].units:
+                    pop_aggregation = 'weighted'
+                elif isinstance(vars[0],Parameter) and pop_plot_label == 'all' and vars[0].units in ['fraction', 'proportion']:
+                    pop_aggregation = 'weighted'
 
             d = PlotData(results,outputs=plot_label,pops=pop_plot_label,project=self.project,pop_aggregation=pop_aggregation)
             figure = plotSeries(d,axis='results',data=self.project.data)[0]
+            if pop_plot_label == 'all':
+                ax = figure.axes[0]
+                if pop_aggregation == 'sum':
+                    ax.set_title('Sum across populations')
+                elif pop_aggregation == 'weighted':
+                    ax.set_title('Weighted average across populations')
 
             canvas = FigureCanvasQTAgg(figure)
 
