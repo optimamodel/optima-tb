@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     pinitial=None, sinitial=None, absinitial=None, xmin=None, xmax=None,
     maxiters=None, maxtime=None, abstol=None, reltol=1e-3, stalliters=None,
-    stoppingfunc=None, randseed=None, label=None, fulloutput=True, verbose=None, **kwargs):
+    stoppingfunc=None, randseed=None, label=None, fulloutput=True, minstep = 1e-6,verbose=None, **kwargs):
     """
     Optimization using adaptive stochastic descent (ASD).
     
@@ -41,6 +41,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
       stoppingfunc   None    External method that can be used to stop the calculation from the outside.
       randseed       None    The random seed to use
       fulloutput     True    Whether or not to return the full output
+      minstep        1e-6    Stop adjusting a parameter once the step size drops below this value
       verbose        2       How much information to print during the run
       label          None    A label to use to annotate the output
   
@@ -125,6 +126,10 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
         count += 1 # Increment the count
 
         # Calculate next parameters
+        if sum(probabilities) == 0:
+            exitreason = 'Ran out of parameters to select'
+            break
+
         probabilities = probabilities / sum(probabilities) # Normalize probabilities
         cumprobs = cumsum(probabilities) # Calculate the cumulative distribution
         inrange = False
@@ -137,7 +142,10 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
                 inrange = True
                 break
             else:
-                stepsizes[choice] = stepsizes[choice] / sdec # Decrease size of step for next time
+                if stepsizes[choice] < minstep:
+                    probabilities[choice] = 0.0 # We have decreased the stepsize too far for this parameter to matter, stop changing it
+                else:
+                    stepsizes[choice] = stepsizes[choice] / sdec # Decrease size of step for next time
 
         if not inrange:
             logger.warning('======== Can\'t find parameters within range after %i tries, terminating ========' % maxrangeiters)
