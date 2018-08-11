@@ -1,4 +1,4 @@
-from optima_tb.asd import asd
+from optima_tb.double_asd import asd
 from optima_tb.model import runModel
 from optima_tb.utils import odict, OptimaException, tic, toc
 from optima_tb.defaults import defaultOptimOptions
@@ -103,7 +103,7 @@ def _calculateObjective(alloc, settings, parset, progset, options, previous_resu
     options_iter = dcp(options)
     for prog_key,val in zip(options_iter['init_alloc'].keys(),alloc):
         options_iter['init_alloc'][prog_key] = val
-        logger.debug('%s - $%f' % (prog_key,val))
+        logger.info('%s - $%f' % (prog_key,val))
 
     results = runModel(settings=settings, parset=parset, progset=progset, options=options_iter)
 

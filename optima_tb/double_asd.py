@@ -5,7 +5,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     pinitial=None, sinitial=None, absinitial=None, xmin=None, xmax=None,
     maxiters=None, maxtime=None, abstol=None, reltol=1e-3, stalliters=None,
     stoppingfunc=None, randseed=None, label=None, fulloutput=True, verbose=None, 
-    minimprove=0., **kwargs):
+    minimprove=0., numparmod = 2, **kwargs):
     """
     Optimization using adaptive stochastic descent (ASD).
     
@@ -33,6 +33,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
       pinitial       None    Set initial parameter selection probabilities
       sinitial       None    Set initial step sizes; if empty, calculated from stepsize instead
       minimprove     0       Any improvement in the objective function less than this will be treated as no improvement
+      numparmod      1       Number of parameters to modify each step (recommended not high!)
       xmin           None    Min value allowed for each parameter  
       xmax           None    Max value allowed for each parameter 
       maxiters       1000    Maximum number of iterations (1 iteration = 1 function evaluation)
@@ -77,6 +78,8 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     maxrangeiters = 1000 # Number of times to try generating a new parameter
     x, origshape = consistentshape(x, origshape=True) # Turn it into a vector but keep the original shape (not necessarily class, though)
     nparams = len(x) # Number of parameters
+
+    nps = range(numparmod)  #The number of things parameters that may need to be changed each time step.
 
     # Set initial parameter selection probabilities -- uniform by default
     if pinitial is None: probabilities = ones(2 * nparams)
@@ -131,15 +134,16 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
         cumprobs = cumsum(probabilities) # Calculate the cumulative distribution
         inrange = False
         for r in range(maxrangeiters): # Try to find parameters within range
-            choice = flatnonzero(cumprobs > random())[0] # Choose a parameter and upper/lower at random
-            par = mod(choice, nparams) # Which parameter was chosen
-            pm = floor((choice) / nparams) # Plus or minus
-            newval = x[par] + ((-1) ** pm) * stepsizes[choice] # Calculate the new vector
-            if newval >= xmin[par] and newval <= xmax[par]: # Make sure it's in range
+            choices = [flatnonzero(cumprobs > random())[0] for _ in nps] # Choose a parameter and upper/lower at random
+            pars = mod(choices, nparams) # Which parameter was chosen
+            pms = list(floor(array((choices)) / nparams)) # Plus or minus
+            newvals = [x[pars[n]] + ((-1) ** pms[n]) * stepsizes[choices[n]] for n in nps] # Calculate the new vector
+            if array([newvals[n] >= xmin[pars[n]] and newvals[n] <= xmax[pars[n]] for n in nps]).all(): # Make sure it's in range
                 inrange = True
                 break
             else:
-                stepsizes[choice] = stepsizes[choice] / sdec # Decrease size of step for next time
+                for n in nps:
+                    stepsizes[choices[n]] = stepsizes[choices[n]] / sdec # Decrease size of step for next time
 
         if not inrange:
             logger.warning('======== Can\'t find parameters within range after %i tries, terminating ========' % maxrangeiters)
@@ -147,23 +151,26 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
 
         # Calculate the new value
         xnew = deepcopy(x) # Initialize the new parameter set
-        xnew[par] = newval # Update the new parameter set
+        for n in nps:
+            xnew[pars[n]] = newvals[n] # Update the new parameter set
         fvalnew = function(xnew, **args) # Calculate the objective function for the new parameter set
         abserrorhistory[mod(count, stalliters)] = max(0, fval - fvalnew) # Keep track of improvements in the error
         relerrorhistory[mod(count, stalliters)] = max(0, fval / float(fvalnew) - 1.0) # Keep track of improvements in the error
-        logger.info(offset + 'step=%i choice=%s, par=%s, pm=%s, origval=%s, newval=%s, inrange=%s' % (count, choice, par, pm, x[par], xnew[par], inrange))
+        logger.info(offset + 'step=%i choices=%s, pars=%s, pms=%s, origval=%s, newval=%s, inrange=%s' % (count, choices, pars, pms, [x[par] for par in pars], [xnew[par] for par in pars], inrange))
 
         # Check if this step was an improvement
         fvalold = fval # Store old fval
         if fvalnew < fvalold - minimprove: # New parameter set is better than previous one
-            probabilities[choice] = probabilities[choice] * pinc # Increase probability of picking this parameter again
-            stepsizes[choice] = stepsizes[choice] * sinc # Increase size of step for next time
+            for n in nps:  #assign the desire to do more to all parameters changed
+                probabilities[choices[n]] = probabilities[choices[n]] * pinc # Increase probability of picking this parameter again
+                stepsizes[choices[n]] = stepsizes[choices[n]] * sinc # Increase size of step for next time
             x = xnew # Reset current parameters
             fval = fvalnew # Reset current error
             flag = '++' # Marks an improvement
         elif fvalnew >= fvalold - minimprove: # New parameter set is the same or worse than the previous one
-            probabilities[choice] = probabilities[choice] / pdec # Decrease probability of picking this parameter again
-            stepsizes[choice] = stepsizes[choice] / sdec # Decrease size of step for next time
+            for n in nps:            #assign the desire to do less to all parameters changed    
+                probabilities[choices[n]] = probabilities[choices[n]] / pdec # Decrease probability of picking this parameter again
+                stepsizes[choices[n]] = stepsizes[choices[n]] / sdec # Decrease size of step for next time
             flag = '--' # Marks no change
         else:
             exitreason = 'Objective function returned NaN'

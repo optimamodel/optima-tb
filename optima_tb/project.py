@@ -144,7 +144,8 @@ class Project(object):
 
 
     def parallelOptimize(self, parset=None, parset_name='default', progset=None, progset_name='default', options=None,
-                         num_threads=4, block_iter=10, max_blocks=10, max_iter=None, doplot=False, fullfval=False, randseed=None, max_time=None):
+                         num_threads=4, block_iter=10, max_blocks=10, max_iter=None, doplot=False, fullfval=False, randseed=None, max_time=None,
+                         sinc = None, sdec = None, minimprove = None):
         ''' Like optimize, but parallel '''
         parallel_optimization_params = dcp(self.settings.parallel_optimization_params)
 
@@ -160,6 +161,12 @@ class Project(object):
             parallel_optimization_params['max_blocks'] = max_blocks
         if fullfval is not None:
             parallel_optimization_params['fullfval'] = fullfval
+        if sinc is not None:
+            parallel_optimization_params['sinc'] = sinc
+        if sdec is not None:
+            parallel_optimization_params['sdec'] = sdec
+        if minimprove is not None:
+            parallel_optimization_params['minimprove'] = minimprove
 
         if parallel_optimization_params['num_threads'] > 1:
             logging.warning("WARNING: Setting reltol to None during parallel optimization")
