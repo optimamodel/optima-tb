@@ -5,7 +5,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
     pinitial=None, sinitial=None, absinitial=None, xmin=None, xmax=None,
     maxiters=None, maxtime=None, abstol=None, reltol=1e-3, stalliters=None,
     stoppingfunc=None, randseed=None, label=None, fulloutput=True, verbose=None, 
-    minimprove=0., **kwargs):
+    minimprove=0., minstep=1e-6, **kwargs):
     """
     Optimization using adaptive stochastic descent (ASD).
     
@@ -33,6 +33,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
       pinitial       None    Set initial parameter selection probabilities
       sinitial       None    Set initial step sizes; if empty, calculated from stepsize instead
       minimprove     0       Any improvement in the objective function less than this will be treated as no improvement
+      minstep        1e-6    Stop adjusting a parameter once the step size drops below this value
       xmin           None    Min value allowed for each parameter  
       xmax           None    Max value allowed for each parameter 
       maxiters       1000    Maximum number of iterations (1 iteration = 1 function evaluation)
@@ -127,6 +128,10 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
         count += 1 # Increment the count
 
         # Calculate next parameters
+        if sum(probabilities) == 0:
+            exitreason = 'Ran out of parameters to select'
+            break
+        
         probabilities = probabilities / sum(probabilities) # Normalize probabilities
         cumprobs = cumsum(probabilities) # Calculate the cumulative distribution
         inrange = False
@@ -139,7 +144,11 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
                 inrange = True
                 break
             else:
-                stepsizes[choice] = stepsizes[choice] / sdec # Decrease size of step for next time
+                if stepsizes[choice] < minstep:
+                    probabilities[choice] = 0.0 # We have decreased the stepsize too far for this parameter to matter, stop changing it
+                else:
+                    stepsizes[choice] = stepsizes[choice] / sdec # Decrease size of step for next time
+
 
         if not inrange:
             logger.warning('======== Can\'t find parameters within range after %i tries, terminating ========' % maxrangeiters)
