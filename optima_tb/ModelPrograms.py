@@ -104,8 +104,13 @@ class ModelProgramSet(object):
                     else:
                         default = prog.getDefaultBudget(year=start_year)
                     default = prog.getDefaultBudget(year=start_year)
+                    
+                    
 
                     if np.abs(spending - default) > project_settings.TOLERANCE:
+                        if default == 0.0:
+                            default = project_settings.TOLERANCE
+                        
                         spending_def = t * 0.0 + default
                         spending_new = t * 0.0 + spending
                         try:

@@ -73,6 +73,18 @@ class ProgramSet:
             return self.progs[self.prog_ids[label]]
         raise OptimaException('ERROR: Label "%s" cannot be found in program set "%s".' % (label, self.name))
 
+    def rmProg(self, label):
+        if label in self.prog_ids.keys():
+            label_id = self.progs[self.prog_ids[label]]
+            self.progs=[prog for prog in self.progs if prog.label!=label]
+            
+            for impkey in self.impacts.keys():
+                self.impacts[impkey] = [pl for pl in self.impacts[impkey] if pl!=label]
+            
+            self.prog_ids = dict([(pl, pl_id + (0 if pl_id<label_id else -1)) for pl, pl_id in self.prog_ids.items() if label_id!=pl_id])
+        else:    
+            raise OptimaException('ERROR: Label "%s" cannot be found in program set "%s".' % (label, self.name))    
+
     def getBudgets(self, coverages):
         """
         Returns the budgets for each of the programs in this program set

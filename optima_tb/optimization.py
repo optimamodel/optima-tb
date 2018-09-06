@@ -103,7 +103,7 @@ def _calculateObjective(alloc, settings, parset, progset, options, previous_resu
     options_iter = dcp(options)
     for prog_key,val in zip(options_iter['init_alloc'].keys(),alloc):
         options_iter['init_alloc'][prog_key] = val
-        logger.info('%s - $%f' % (prog_key,val))
+#        logger.info('%s - $%f' % (prog_key,val))
 
     results = runModel(settings=settings, parset=parset, progset=progset, options=options_iter)
 

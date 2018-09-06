@@ -34,7 +34,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
       sinitial       None    Set initial step sizes; if empty, calculated from stepsize instead
       minimprove     0       Any improvement in the objective function less than this will be treated as no improvement
       minstep        1e-6    Stop adjusting a parameter once the step size drops below this value
-      numparmod      1       Number of parameters to modify each step (recommended not high!)
+      numparmod      2       Number of parameters to modify each step (recommended not high!)
       xmin           None    Min value allowed for each parameter  
       xmax           None    Max value allowed for each parameter 
       maxiters       1000    Maximum number of iterations (1 iteration = 1 function evaluation)
