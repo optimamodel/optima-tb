@@ -154,8 +154,8 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
                     try:
                         stepsizes[choices[n]] = stepsizes[choices[n]] / sdec # Decrease size of step for next time
                     except:
+                        probabilities[choices[n]] = 0.0 #give up on this.
                         logger.warning('======== About to underflow after %i tries, terminating ========' % maxrangeiters)
-                        break
 
 
         if not inrange:
@@ -169,7 +169,7 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
         fvalnew = function(xnew, **args) # Calculate the objective function for the new parameter set
         abserrorhistory[mod(count, stalliters)] = max(0, fval - fvalnew) # Keep track of improvements in the error
         relerrorhistory[mod(count, stalliters)] = max(0, fval / float(fvalnew) - 1.0) # Keep track of improvements in the error
-        logger.info(offset + 'step=%i choices=%s, pars=%s, pms=%s, origval=%s, newval=%s, inrange=%s' % (count, choices, pars, pms, [x[par] for par in pars], [xnew[par] for par in pars], inrange))
+#        logger.info(offset + 'step=%i choices=%s, pars=%s, pms=%s, origval=%s, newval=%s, inrange=%s' % (count, choices, pars, pms, [x[par] for par in pars], [xnew[par] for par in pars], inrange))
 
         # Check if this step was an improvement
         fvalold = fval # Store old fval
