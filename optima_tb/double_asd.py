@@ -151,7 +151,11 @@ def asd(function, x, args=None, stepsize=0.1, sinc=2, sdec=2, pinc=2, pdec=2,
                     if stepsizes[choices[n]] < minstep:
                         probabilities[choices[n]] = 0.0 # We have decreased the stepsize too far for this parameter to matter, stop changing it
                 else:
-                    stepsizes[choices[n]] = stepsizes[choices[n]] / sdec # Decrease size of step for next time
+                    try:
+                        stepsizes[choices[n]] = stepsizes[choices[n]] / sdec # Decrease size of step for next time
+                    except:
+                        logger.warning('======== About to underflow after %i tries, terminating ========' % maxrangeiters)
+                        break
 
 
         if not inrange:
